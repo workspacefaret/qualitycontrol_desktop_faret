@@ -1,0 +1,110 @@
+# =========================
+# 🔧 BUILD / COMPILACIÓN .NET
+# =========================
+bin/
+obj/
+publish/
+out/
+
+# Archivos generados
+*.exe
+*.dll
+*.pdb
+*.runtimeconfig.json
+*.deps.json
+
+# =========================
+# ⚙️ CONFIGURACIÓN SENSIBLE
+# =========================
+# Config real (NO subir)
+config.json
+.env
+
+# Config de ejemplo (SÍ subir)
+!config.example.json
+
+# =========================
+# 🧠 VS CODE / IDE
+# =========================
+.vscode/
+*.code-workspace
+
+# Rider / JetBrains
+.idea/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# =========================
+# 💻 SISTEMA OPERATIVO
+# =========================
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# =========================
+# 📦 LOGS / TEMPORALES
+# =========================
+logs/
+*.log
+*.tmp
+
+# =========================
+# 📊 EXPORTACIONES (EXCEL)
+# =========================
+*.xlsx
+*.xls
+
+# =========================
+# 📂 UPLOADS (DINÁMICOS)
+# =========================
+src/UI/www/uploads/*
+!src/UI/www/uploads/.gitkeep
+
+# =========================
+# 🧪 CACHE / OTROS
+# =========================
+*.cache
+*.bak
+*.swp
+
+# =========================
+# 🧾 PUBLICACIONES LOCALES
+# =========================
+*.zip
+*.rar
+*.7z
+
+# =========================
+# 🧩 ARCHIVOS DE DEBUG
+# =========================
+debug.log
+
+# =========================
+# 📦 PUBLICACIONES SELF-CONTAINED (.NET)
+# =========================
+*.app
+*.dmg
+
+# =========================
+# 🧾 BASES DE DATOS LOCALES (por si acaso)
+# =========================
+*.db
+*.sqlite
+# Sensitive config/services
+src/Backend/Services/DbService.cs
+
+# Updates folder
+LCC_Updates/
+update/
+updates/
+
+# Local config
+config.json
+*.env
+.env

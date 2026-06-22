@@ -1,0 +1,157 @@
+<div class="module laboratorio-module">
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">Laboratorio</div>
+            <div class="subtitle">
+                Control y seguimiento de ensayos registrados desde la app móvil
+            </div>
+        </div>
+
+        <div class="module-actions">
+            <button class="btn-secondary" id="btnExportarLaboratorio">
+                Exportar Excel
+            </button>
+
+            <button class="btn-primary" id="btnActualizarLaboratorio">
+                Actualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+
+    <div class="kpi-row">
+
+        <div class="kpi-card">
+            <div class="kpi-label">Ensayos hoy</div>
+            <div class="kpi-value" id="labEnsayosHoy">0</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Ensayos período</div>
+            <div class="kpi-value" id="labEnsayosPeriodo">0</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Tipos de ensayo</div>
+            <div class="kpi-value" id="labTiposEnsayo">0</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Materiales analizados</div>
+            <div class="kpi-value" id="labMaterialesAnalizados">0</div>
+        </div>
+
+    </div>
+
+    <!-- RESUMEN SUPERIOR -->
+
+    <div class="laboratorio-top-grid">
+
+        <div class="card laboratorio-resumen-card">
+
+            <div class="module-title">
+                Ensayos por tipo
+            </div>
+
+            <canvas id="chartLaboratorioEnsayosTipo"></canvas>
+
+        </div>
+
+        <div class="card laboratorio-resumen-card">
+
+            <div class="module-title">
+                Materiales analizados
+            </div>
+
+            <canvas id="chartLaboratorioMateriales"></canvas>
+
+        </div>
+
+    </div>
+
+    <!-- FILTROS -->
+
+    <div class="card">
+
+        <div class="laboratorio-filters">
+
+            <input type="text" id="laboratorioFechaDesde" placeholder="Fecha desde" />
+
+            <input type="text" id="laboratorioFechaHasta" placeholder="Fecha hasta" />
+
+            <select id="laboratorioEnsayo">
+                <option value="">Todos los ensayos</option>
+            </select>
+
+            <select id="laboratorioMaterial">
+                <option value="">Todos los materiales</option>
+            </select>
+
+            <div class="laboratorio-filter-actions">
+
+                <button class="btn-secondary" id="btnLimpiarLaboratorio">
+                    Limpiar
+                </button>
+
+                <button class="btn-primary" id="btnFiltrarLaboratorio">
+                    Buscar
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- TABLA PRINCIPAL -->
+
+    <div class="card laboratorio-table-card">
+
+        <div class="module-title">
+            Ensayos registrados
+        </div>
+
+        <div class="table-container">
+
+            <table class="table" id="tablaLaboratorio">
+
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Registro</th>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Ensayo</th>
+                        <th>Material</th>
+                        <th>Valor</th>
+                        <th>NP</th>
+                        <th>Turno</th>
+                        <th>Usuario</th>
+                        <th>Proceso</th>
+                        <th>Observación</th>
+                        <th>Imagen</th>
+                    </tr>
+                </thead>
+
+                <tbody id="tbodyLaboratorio">
+
+                    <tr>
+                        <td colspan="13">
+                            Cargando ensayos...
+                        </td>
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        <div class="pagination" id="paginacionLaboratorio">
+        </div>
+
+    </div>
+
+</div>
