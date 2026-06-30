@@ -19,6 +19,9 @@ out/
 # Config real (NO subir)
 config.json
 .env
+CLAUDE.md
+contex.md
+
 
 # Config de ejemplo (SÍ subir)
 !config.example.json

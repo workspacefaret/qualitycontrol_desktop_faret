@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Photino.NET;
 using QualityControlCenter.Backend.Services;
+using QualityControlCenter.Backend.Services.FaretApi;
 using QualityControlCenter.Config;
 using QualityControlCenter.Modules.Auth;
 using QualityControlCenter.Repositories.Auth;
@@ -39,9 +40,15 @@ namespace QualityControlCenter
                 var authHandler = new AuthHandler(authService);
 
                 // =========================
+                // 🌐 API FARET
+                // =========================
+                var faretApiSettings = FaretApiSettings.Load();
+                var faretApiClient = new FaretApiClient(faretApiSettings);
+
+                // =========================
                 // 🧠 ROUTER CENTRAL
                 // =========================
-                var router = new MessageRouter(db, authHandler, session);
+                var router = new MessageRouter(db, authHandler, session, faretApiClient);
 
                 // =========================
                 // 📂 RUTA INDEX.HTML

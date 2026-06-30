@@ -1,0 +1,80 @@
+<div class="module faret-module">
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">Panel Faret</div>
+            <div class="subtitle">Control de calidad Faret - vía API</div>
+        </div>
+    </div>
+
+    <!-- Tarjetas de estado -->
+    <div class="home-modules-grid" style="margin-bottom:1.5rem;">
+
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">🏢 EMPRESA</div>
+                <div class="home-module-card-value">FARET</div>
+                <div class="home-module-card-label">Panel independiente</div>
+            </div>
+        </div>
+
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">🌐 API</div>
+                <div class="home-module-card-value" style="color:#27ae60;">Conectado</div>
+                <div class="home-module-card-label">api.faret.cl</div>
+            </div>
+        </div>
+
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">👤 SESIÓN</div>
+                <div class="home-module-card-value" id="faret-sesion-usuario">-</div>
+                <div class="home-module-card-label" id="faret-sesion-rol">-</div>
+            </div>
+        </div>
+
+    </div>
+
+<!-- Panel de registros -->
+<div class="card faret-registros-card">
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">Registros de Control</div>
+            <div class="subtitle">Últimos registros enviados desde API Faret</div>
+        </div>
+
+        <button id="faret-refresh-btn" class="btn-secondary">↻ Actualizar</button>
+    </div>
+
+    <div id="faret-registros-loading" class="faret-loading" style="display:none;">
+        Cargando registros...
+    </div>
+
+    <div id="faret-registros-error" class="faret-error" style="display:none;"></div>
+
+    <div class="table-container">
+        <table class="table faret-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Fecha</th>
+                    <th>Área</th>
+                    <th>Máquina</th>
+                    <th>Inspector</th>
+                    <th>Estado</th>
+                    <th>Defectos</th>
+                </tr>
+            </thead>
+            <tbody id="faret-registros-tbody">
+                <tr>
+                    <td colspan="7" class="faret-empty">Cargando...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+</div>

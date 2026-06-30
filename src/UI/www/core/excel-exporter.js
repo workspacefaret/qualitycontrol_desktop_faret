@@ -119,13 +119,13 @@ window.ExcelExporter = {
         })
             .then((res) => {
                 if (res?.ok) {
-                    this.showToast("✅ Archivo exportado correctamente")
+                    this.showToast("âœ… Archivo exportado correctamente")
                 } else {
-                    this.showToast("❌ Error exportando archivo")
+                    this.showToast("âŒ Error exportando archivo")
                 }
             })
             .catch(() => {
-                this.showToast("❌ Error exportando archivo")
+                this.showToast("âŒ Error exportando archivo")
             })
     }
 

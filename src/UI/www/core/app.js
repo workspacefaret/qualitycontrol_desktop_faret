@@ -8,6 +8,7 @@ console.log("🔥 APP INICIO");
     function loadHtml(path) {
         const xhr = new XMLHttpRequest();
         xhr.open("GET", path, false);
+        xhr.overrideMimeType('text/plain; charset=utf-8');
         xhr.send(null);
 
         if (xhr.status === 200 || xhr.status === 0) {
@@ -52,7 +53,7 @@ console.log("🔥 APP INICIO");
                 const sidebar = document.getElementById("sidebar");
                 const mainLayout = document.getElementById("main-layout");
 
-                if (moduleName === "auth") {
+                if (moduleName === "auth" || moduleName === "empresa-selector" || moduleName === "faret-login") {
                     if (sidebar) sidebar.style.display = "none";
                     if (mainLayout) mainLayout.style.marginLeft = "0";
                 } else {
@@ -143,7 +144,7 @@ console.log("🔥 APP INICIO");
                         App.currentController = new window[controllerName]();
                         App.currentController.init();
 
-                        if (moduleName === "inicio" || moduleName === "auth") {
+                        if (moduleName === "inicio" || moduleName === "auth" || moduleName === "empresa-selector" || moduleName === "faret-login" || moduleName === "faret") {
                             setTimeout(() => hideSplash(), 300);
                         }
                     } else {
@@ -173,20 +174,36 @@ console.log("🔥 APP INICIO");
         const usuariosBtn = document.getElementById("btn-usuarios");
         const sidebarUsername = document.getElementById("sidebar-username");
 
+        const empresa = sessionStorage.getItem("empresa") || "INNPACK";
         const rolUsuario = sessionStorage.getItem("rolUsuario");
         const nombreUsuario = sessionStorage.getItem("nombreUsuario");
         const codigoUsuario = sessionStorage.getItem("codigoUsuario");
 
         if (sidebarUsername) {
-            sidebarUsername.innerText = nombreUsuario || codigoUsuario || "-";
+            if (empresa === "FARET") {
+                sidebarUsername.innerText = sessionStorage.getItem("faretNombreUsuario") || "-";
+            } else {
+                sidebarUsername.innerText = nombreUsuario || codigoUsuario || "-";
+            }
         }
 
+        // 🔹 visibilidad por empresa
+        const empresaButtons = document.querySelectorAll("[data-empresa]");
+        empresaButtons.forEach(btn => {
+            btn.style.display = btn.getAttribute("data-empresa") === empresa ? "" : "none";
+        });
+
+        // 🔹 gating por rol (solo aplica al botón de usuarios y dentro de su empresa)
         if (usuariosBtn) {
-            if (rolUsuario === "admin" || rolUsuario === "admin_ti") {
-                usuariosBtn.style.display = "block";
-            } else {
-                usuariosBtn.style.display = "none";
-            }
+            const esAdmin = rolUsuario === "admin" || rolUsuario === "admin_ti";
+            const empresaOk = usuariosBtn.getAttribute("data-empresa") === empresa;
+            usuariosBtn.style.display = empresaOk && esAdmin ? "" : "none";
+        }
+
+        // 🔹 título del header según empresa
+        const headerTitle = document.querySelector(".header .title");
+        if (headerTitle) {
+            headerTitle.innerText = empresa === "FARET" ? "Panel Faret" : "Panel de Calidad";
         }
     }
     function initSidebar() {
@@ -223,6 +240,8 @@ console.log("🔥 APP INICIO");
             logoutBtn.addEventListener("click", () => {
                 console.log("🔓 Cerrando sesión...");
 
+                const empresa = sessionStorage.getItem("empresa") || "INNPACK";
+
                 // 🔹 mensaje visual simple
                 const message = document.createElement("div");
                 message.innerText = "✔ Sesión cerrada correctamente";
@@ -236,26 +255,30 @@ console.log("🔥 APP INICIO");
                 message.style.fontSize = "14px";
                 message.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
                 message.style.zIndex = "9999";
-
                 document.body.appendChild(message);
 
-                // 🔹 limpiar sesión
-                sessionStorage.removeItem("isLoggedIn");
-                sessionStorage.removeItem("codigoUsuario");
-                sessionStorage.removeItem("nombreUsuario");
-                sessionStorage.removeItem("rolUsuario");
+                if (empresa === "FARET") {
+                    window.PhotinoBridge.send({ action: "faret.logout" }).catch(() => {});
+                    sessionStorage.removeItem("faretLoggedIn");
+                    sessionStorage.removeItem("faretNombreUsuario");
+                    sessionStorage.removeItem("faretRol");
+                } else {
+                    sessionStorage.removeItem("isLoggedIn");
+                    sessionStorage.removeItem("codigoUsuario");
+                    sessionStorage.removeItem("nombreUsuario");
+                    sessionStorage.removeItem("rolUsuario");
+                    localStorage.removeItem("lcc_remember_login");
+                    localStorage.removeItem("lcc_nombreUsuario");
+                    localStorage.removeItem("lcc_rolUsuario");
+                    localStorage.removeItem("lcc_usuarioActivo");
+                    // No borramos lcc_codigoUsuario para que el login quede autollenado
+                }
 
-                localStorage.removeItem("lcc_remember_login");
-                localStorage.removeItem("lcc_nombreUsuario");
-                localStorage.removeItem("lcc_rolUsuario");
-                localStorage.removeItem("lcc_usuarioActivo");
+                sessionStorage.removeItem("empresa");
 
-                // No borramos lcc_codigoUsuario para que el login quede autollenado
-
-                // 🔹 delay profesional
                 setTimeout(() => {
                     message.remove();
-                    App.loadModule("auth");
+                    App.loadModule("empresa-selector");
                 }, 700);
             });
         }
@@ -274,25 +297,10 @@ console.log("🔥 APP INICIO");
 
         initSidebar();
 
-        const isLoggedIn = localStorage.getItem("lcc_remember_login") === "true";
-        const codigoUsuario = localStorage.getItem("lcc_codigoUsuario");
-        const nombreUsuario = localStorage.getItem("lcc_nombreUsuario");
-        const rolUsuario = localStorage.getItem("lcc_rolUsuario");
-
-        if (isLoggedIn && codigoUsuario) {
-            console.log("✅ Sesión recordada encontrada");
-
-            sessionStorage.setItem("isLoggedIn", "true");
-            sessionStorage.setItem("codigoUsuario", codigoUsuario);
-            sessionStorage.setItem("nombreUsuario", nombreUsuario || codigoUsuario);
-            sessionStorage.setItem("rolUsuario", rolUsuario || "");
-
-            refreshSidebarState();
-            App.loadModule("inicio");
-            return;
-        }
-
-        App.loadModule("auth");
+        // Siempre inicia en empresa-selector.
+        // La lógica de sesión recordada (INNPACK remember-me) se maneja
+        // dentro de EmpresaSelectorController al elegir INNPACK.
+        App.loadModule("empresa-selector");
     }
 
     // ==============================

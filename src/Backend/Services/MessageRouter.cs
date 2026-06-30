@@ -4,8 +4,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
+using QualityControlCenter.Backend.Services.FaretApi;
 using QualityControlCenter.Modules.Auth;
 using QualityControlCenter.Modules.Dashboard;
+using QualityControlCenter.Modules.Faret;
 using QualityControlCenter.Modules.Home;
 using QualityControlCenter.Modules.Laboratorio;
 using QualityControlCenter.Modules.MaquinasSeguimiento;
@@ -20,6 +22,7 @@ namespace QualityControlCenter.Services
         private readonly DbService _db;
         private readonly AuthHandler _authHandler;
         private readonly CurrentUserSessionService _session;
+        private readonly FaretApiClient _faretClient;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
@@ -29,12 +32,14 @@ namespace QualityControlCenter.Services
         public MessageRouter(
             DbService db,
             AuthHandler authHandler,
-            CurrentUserSessionService session
+            CurrentUserSessionService session,
+            FaretApiClient faretClient
         )
         {
             _db = db;
             _authHandler = authHandler;
             _session = session;
+            _faretClient = faretClient;
         }
 
         public async Task<string> Handle(string payloadJson)
@@ -109,6 +114,11 @@ namespace QualityControlCenter.Services
                 else if (action.StartsWith("maquinasSeguimiento"))
                 {
                     var handler = new MaquinasSeguimientoHandler(_db);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("faret"))
+                {
+                    var handler = new FaretHandler(_faretClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else
