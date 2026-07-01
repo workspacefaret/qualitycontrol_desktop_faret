@@ -45,10 +45,19 @@ namespace QualityControlCenter
                 var faretApiSettings = FaretApiSettings.Load();
                 var faretApiClient = new FaretApiClient(faretApiSettings);
 
+                var faretMejoraContinuaSettings = FaretApiSettings.Load("MejoraContinuaFaretApi");
+                var faretMejoraContinuaClient = new FaretApiClient(faretMejoraContinuaSettings);
+
                 // =========================
                 // 🧠 ROUTER CENTRAL
                 // =========================
-                var router = new MessageRouter(db, authHandler, session, faretApiClient);
+                var router = new MessageRouter(
+                    db,
+                    authHandler,
+                    session,
+                    faretApiClient,
+                    faretMejoraContinuaClient
+                );
 
                 // =========================
                 // 📂 RUTA INDEX.HTML

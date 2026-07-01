@@ -1,0 +1,195 @@
+<div class="module faret-module faret-nc-module">
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">No Conformidades</div>
+            <div class="subtitle">Gestión y seguimiento de NC</div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button id="fnc-refresh-btn" class="btn-secondary">↻ Actualizar</button>
+            <button id="fnc-nuevo-btn" class="btn-primary">+ Nueva NC</button>
+        </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="home-modules-grid">
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">TOTAL NC</div>
+                <div class="home-module-card-value" id="fnc-total">0</div>
+            </div>
+        </div>
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">ABIERTAS</div>
+                <div class="home-module-card-value" id="fnc-abiertas">0</div>
+            </div>
+        </div>
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">CERRADAS</div>
+                <div class="home-module-card-value" id="fnc-cerradas">0</div>
+            </div>
+        </div>
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">CRÍTICAS</div>
+                <div class="home-module-card-value" id="fnc-criticas" style="color:#c0392b;">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario nueva / editar NC -->
+    <div id="fnc-form-card" class="card fnc-form-card" style="display:none;">
+        <div class="module-header">
+            <div>
+                <div class="module-title" id="fnc-form-titulo" style="font-size:1rem;">Nueva No Conformidad</div>
+                <div class="subtitle">Campos obligatorios: tipo, origen, título, descripción, severidad, proceso y fecha de detección</div>
+            </div>
+        </div>
+
+        <div class="fnc-form-row">
+            <div class="fnc-form-campo">
+                <label for="fnc-form-tipo">Tipo *</label>
+                <select id="fnc-form-tipo">
+                    <option value="INTERNA">INTERNA</option>
+                    <option value="EXTERNA">EXTERNA</option>
+                </select>
+            </div>
+            <div class="fnc-form-campo">
+                <label for="fnc-form-origen">Origen *</label>
+                <select id="fnc-form-origen">
+                    <option value="AUDITORIA_INTERNA">AUDITORIA_INTERNA</option>
+                    <option value="AUDITORIA_EXTERNA">AUDITORIA_EXTERNA</option>
+                </select>
+            </div>
+            <div class="fnc-form-campo" style="min-width:240px;">
+                <label for="fnc-form-titulo-input">Título *</label>
+                <input type="text" id="fnc-form-titulo-input" placeholder="Título breve">
+            </div>
+            <div class="fnc-form-campo">
+                <label for="fnc-form-severidad">Severidad *</label>
+                <select id="fnc-form-severidad">
+                    <option value="ALTA">ALTA</option>
+                    <option value="MEDIA">MEDIA</option>
+                    <option value="BAJA">BAJA</option>
+                </select>
+            </div>
+            <div class="fnc-form-campo">
+                <label for="fnc-form-proceso">Proceso / Área *</label>
+                <input type="text" id="fnc-form-proceso" placeholder="Ej: Producción">
+            </div>
+            <div class="fnc-form-campo">
+                <label for="fnc-form-norma">Norma</label>
+                <input type="text" id="fnc-form-norma" placeholder="Ej: ISO 9001">
+            </div>
+            <div class="fnc-form-campo">
+                <label for="fnc-form-fecha">Fecha detección *</label>
+                <input type="date" id="fnc-form-fecha">
+            </div>
+            <div class="fnc-form-campo">
+                <label for="fnc-form-reportado">Reportado por</label>
+                <input type="text" id="fnc-form-reportado" placeholder="Nombre">
+            </div>
+            <div class="fnc-form-campo">
+                <label for="fnc-form-responsable">Responsable</label>
+                <input type="text" id="fnc-form-responsable" placeholder="Nombre">
+            </div>
+            <div class="fnc-form-campo" id="fnc-form-estado-campo" style="display:none;">
+                <label>Estado</label>
+                <input type="text" id="fnc-form-estado" disabled>
+            </div>
+        </div>
+
+        <div class="fnc-form-campo fnc-form-campo-full">
+            <label for="fnc-form-descripcion">Descripción *</label>
+            <textarea id="fnc-form-descripcion" rows="3" placeholder="Descripción detallada"></textarea>
+        </div>
+
+        <div id="fnc-form-nota-estado" class="fnc-nota" style="display:none;">
+            El estado no se puede modificar desde este panel: la API de Mejora Continua todavía no lo permite en la actualización.
+        </div>
+
+        <div class="fnc-form-acciones">
+            <button id="fnc-guardar-btn" class="btn-primary">Guardar</button>
+            <button id="fnc-cancelar-btn" class="btn-secondary">Cancelar</button>
+        </div>
+
+        <div id="fnc-form-error" class="faret-error" style="display:none;"></div>
+    </div>
+
+    <div id="fnc-mensaje" class="fi-success" style="display:none;"></div>
+
+    <!-- Filtros -->
+    <div class="card fnc-filtros-card">
+        <div class="fnc-filtros-row">
+            <div class="fnc-filtro-campo">
+                <label for="fnc-filtro-estado">Estado</label>
+                <select id="fnc-filtro-estado">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div class="fnc-filtro-campo">
+                <label for="fnc-filtro-proceso">Proceso / Área</label>
+                <input type="text" id="fnc-filtro-proceso" placeholder="Ej: Producción">
+            </div>
+            <div class="fnc-filtro-campo">
+                <label for="fnc-filtro-responsable">Responsable</label>
+                <input type="text" id="fnc-filtro-responsable" placeholder="No disponible en esta API" disabled>
+            </div>
+            <div class="fnc-filtro-campo">
+                <label for="fnc-filtro-fecha-desde">Fecha desde</label>
+                <input type="date" id="fnc-filtro-fecha-desde">
+            </div>
+            <div class="fnc-filtro-campo">
+                <label for="fnc-filtro-fecha-hasta">Fecha hasta</label>
+                <input type="date" id="fnc-filtro-fecha-hasta">
+            </div>
+            <div class="fnc-filtro-acciones">
+                <button id="fnc-filtrar-btn" class="btn-primary">Filtrar</button>
+                <button id="fnc-limpiar-btn" class="btn-secondary">Limpiar</button>
+            </div>
+        </div>
+        <div class="fnc-nota">Los filtros se aplican sobre los datos ya cargados: la API no soporta filtros del lado del servidor todavía.</div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card faret-registros-card">
+        <div id="fnc-loading" class="faret-loading" style="display:none;">Cargando...</div>
+        <div id="fnc-error" class="faret-error" style="display:none;"></div>
+
+        <div class="table-container">
+            <table class="table faret-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Título</th>
+                        <th>Tipo</th>
+                        <th>Origen</th>
+                        <th>Severidad</th>
+                        <th>Proceso / Área</th>
+                        <th>Estado</th>
+                        <th>Norma</th>
+                        <th>Fecha creación</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="fnc-tbody">
+                    <tr><td colspan="10" class="faret-empty">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal detalle -->
+    <div id="fnc-detalle-modal" class="fnc-modal-overlay" style="display:none;">
+        <div class="fnc-modal card">
+            <div class="module-header">
+                <div class="module-title" style="font-size:1rem;">Detalle de No Conformidad</div>
+                <button id="fnc-detalle-cerrar-btn" class="btn-secondary">Cerrar</button>
+            </div>
+            <div id="fnc-detalle-body" class="fnc-detalle-body"></div>
+        </div>
+    </div>
+
+</div>

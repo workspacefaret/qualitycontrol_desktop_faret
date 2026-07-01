@@ -9,25 +9,29 @@ namespace QualityControlCenter.Modules.Faret
     public class FaretHandler
     {
         private readonly FaretApiClient _client;
+        private readonly FaretApiClient _mcClient;
         private readonly FaretAuthApiService _auth;
         private readonly FaretCatalogosApiService _catalogos;
         private readonly FaretRegistrosControlApiService _registros;
         private readonly FaretImportacionApiService _importacion;
         private readonly FaretUsuariosApiService _usuarios;
+        private readonly FaretNoConformidadesApiService _noConformidades;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        public FaretHandler(FaretApiClient client)
+        public FaretHandler(FaretApiClient client, FaretApiClient mcClient)
         {
             _client = client;
+            _mcClient = mcClient;
             _auth = new FaretAuthApiService(client);
             _catalogos = new FaretCatalogosApiService(client);
             _registros = new FaretRegistrosControlApiService(client);
             _importacion = new FaretImportacionApiService(client);
             _usuarios = new FaretUsuariosApiService(client);
+            _noConformidades = new FaretNoConformidadesApiService(mcClient);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -41,7 +45,9 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.logout" => HandleLogout(),
                 "faret.health" => await HandleHealth(),
                 "faret.catalogos.areas" => await HandleCatalogo(_catalogos.GetAreasAsync),
-                "faret.catalogos.inspectores" => await HandleCatalogo(_catalogos.GetInspectoresAsync),
+                "faret.catalogos.inspectores" => await HandleCatalogo(
+                    _catalogos.GetInspectoresAsync
+                ),
                 "faret.catalogos.operadores" => await HandleCatalogo(_catalogos.GetOperadoresAsync),
                 "faret.catalogos.maquinas" => await HandleCatalogo(_catalogos.GetMaquinasAsync),
                 "faret.catalogos.defectos" => await HandleCatalogo(_catalogos.GetDefectosAsync),
@@ -57,13 +63,20 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.usuarios.resetPassword" => await HandleUsuariosResetPassword(data),
                 "faret.usuarios.activar" => await HandleUsuariosActivar(data),
                 "faret.usuarios.desactivar" => await HandleUsuariosDesactivar(data),
+                "faret.nc.list" => await HandleNcList(),
+                "faret.nc.get" => await HandleNcGet(data),
+                "faret.nc.create" => await HandleNcCreate(data),
+                "faret.nc.update" => await HandleNcUpdate(data),
                 _ => Error($"Acción Faret no reconocida: {action}"),
             };
         }
 
         private async Task<string> HandleLogin(Dictionary<string, object> data)
         {
-            if (!TryGetString(data, "identificador", out var identificador) || string.IsNullOrEmpty(identificador))
+            if (
+                !TryGetString(data, "identificador", out var identificador)
+                || string.IsNullOrEmpty(identificador)
+            )
                 return Error("Falta identificador");
 
             if (!TryGetString(data, "password", out var password) || string.IsNullOrEmpty(password))
@@ -73,11 +86,7 @@ namespace QualityControlCenter.Modules.Faret
             if (!ok)
                 return Error(error ?? "Login fallido");
 
-            return Ok(new
-            {
-                username = loginData!.Username,
-                role = loginData.Role,
-            });
+            return Ok(new { username = loginData!.Username, role = loginData.Role });
         }
 
         private string HandleLogout()
@@ -281,7 +290,10 @@ namespace QualityControlCenter.Modules.Faret
             bool? soloActivos = null;
             if (data.TryGetValue("soloActivos", out var raw))
             {
-                if (raw is JsonElement el && el.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                if (
+                    raw is JsonElement el
+                    && el.ValueKind is JsonValueKind.True or JsonValueKind.False
+                )
                     soloActivos = el.GetBoolean();
                 else if (bool.TryParse(raw?.ToString(), out var parsed))
                     soloActivos = parsed;
@@ -302,7 +314,10 @@ namespace QualityControlCenter.Modules.Faret
             if (!TryGetString(data, "nombre", out var nombre) || string.IsNullOrWhiteSpace(nombre))
                 return Error("Falta el nombre");
 
-            if (!TryGetString(data, "username", out var username) || string.IsNullOrWhiteSpace(username))
+            if (
+                !TryGetString(data, "username", out var username)
+                || string.IsNullOrWhiteSpace(username)
+            )
                 return Error("Falta el RUT/usuario");
 
             if (!TryGetString(data, "rol", out var rol) || string.IsNullOrWhiteSpace(rol))
@@ -360,9 +375,183 @@ namespace QualityControlCenter.Modules.Faret
             return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
         }
 
+        private async Task<string> HandleNcList()
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            var (ok, body) = await _noConformidades.GetListAsync();
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcGet(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            var (ok, body) = await _noConformidades.GetByIdAsync(id);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcCreate(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryBuildNcRequest(data, out var request, out var validationError))
+                return Error(validationError);
+
+            var (ok, body) = await _noConformidades.CreateAsync(request);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcUpdate(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            if (!TryBuildNcRequest(data, out var request, out var validationError))
+                return Error(validationError);
+
+            var (ok, body) = await _noConformidades.UpdateAsync(id, request);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        // El request de creación/actualización de la API de Mejora Continua no incluye
+        // "estado": ese campo solo aparece en las respuestas, no se puede modificar hoy.
+        private static bool TryBuildNcRequest(
+            Dictionary<string, object> data,
+            out object request,
+            out string error
+        )
+        {
+            request = null!;
+            error = "";
+
+            if (!TryGetString(data, "tipo", out var tipo) || string.IsNullOrWhiteSpace(tipo))
+            {
+                error = "Falta el tipo";
+                return false;
+            }
+            if (!TryGetString(data, "origen", out var origen) || string.IsNullOrWhiteSpace(origen))
+            {
+                error = "Falta el origen";
+                return false;
+            }
+            // La API de Mejora Continua no valida "origen" y responde HTTP 500 (no 400) si no es
+            // uno de estos dos valores exactos; se valida acá antes de llamar a la API.
+            if (origen != "AUDITORIA_INTERNA" && origen != "AUDITORIA_EXTERNA")
+            {
+                error = "Origen inválido. Valores permitidos: AUDITORIA_INTERNA, AUDITORIA_EXTERNA";
+                return false;
+            }
+            if (!TryGetString(data, "titulo", out var titulo) || string.IsNullOrWhiteSpace(titulo))
+            {
+                error = "Falta el título";
+                return false;
+            }
+            if (
+                !TryGetString(data, "descripcion", out var descripcion)
+                || string.IsNullOrWhiteSpace(descripcion)
+            )
+            {
+                error = "Falta la descripción";
+                return false;
+            }
+            if (
+                !TryGetString(data, "severidad", out var severidad)
+                || string.IsNullOrWhiteSpace(severidad)
+            )
+            {
+                error = "Falta la severidad";
+                return false;
+            }
+            if (
+                !TryGetString(data, "proceso", out var proceso)
+                || string.IsNullOrWhiteSpace(proceso)
+            )
+            {
+                error = "Falta el proceso";
+                return false;
+            }
+            if (
+                !TryGetString(data, "fechaDeteccion", out var fechaDeteccion)
+                || string.IsNullOrWhiteSpace(fechaDeteccion)
+            )
+            {
+                error = "Falta la fecha de detección";
+                return false;
+            }
+
+            TryGetString(data, "norma", out var norma);
+            TryGetString(data, "reportadoPor", out var reportadoPor);
+            TryGetString(data, "responsable", out var responsable);
+
+            request = new
+            {
+                tipo,
+                origen,
+                titulo,
+                descripcion,
+                severidad,
+                proceso,
+                norma,
+                reportadoPor,
+                responsable,
+                fechaDeteccion,
+            };
+            return true;
+        }
+
+        // La API de Mejora Continua responde con JSON crudo en éxito y, en error, con
+        // ProblemDetails de ASP.NET { title, status, ... } o con { ok, error } cuando el
+        // error lo genera el cliente HTTP local (timeout/red/HTTP no-2xx en GET).
+        private static string ExtractMcErrorMessage(string body)
+        {
+            const string fallback = "Error al comunicarse con la API de Mejora Continua";
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String)
+                    return e.GetString() ?? fallback;
+
+                if (root.TryGetProperty("title", out var t) && t.ValueKind == JsonValueKind.String)
+                    return t.GetString() ?? fallback;
+
+                if (root.TryGetProperty("detail", out var d) && d.ValueKind == JsonValueKind.String)
+                    return d.GetString() ?? fallback;
+            }
+            catch { }
+            return fallback;
+        }
+
         // La API Faret responde con ApiResponse<T> { success, message, data, errors } o,
         // en errores generados por el cliente HTTP local (timeout/red), { ok, error }.
-        private static bool TryUnwrapApiResponse(string body, out JsonElement data, out string error)
+        private static bool TryUnwrapApiResponse(
+            string body,
+            out JsonElement data,
+            out string error
+        )
         {
             data = default;
             error = "Error al comunicarse con la API Faret";
@@ -375,7 +564,9 @@ namespace QualityControlCenter.Modules.Faret
                 {
                     if (!s.GetBoolean())
                     {
-                        error = root.TryGetProperty("message", out var m) ? (m.GetString() ?? error) : error;
+                        error = root.TryGetProperty("message", out var m)
+                            ? (m.GetString() ?? error)
+                            : error;
                         return false;
                     }
 
@@ -401,11 +592,20 @@ namespace QualityControlCenter.Modules.Faret
             }
         }
 
-        private static bool TryGetString(Dictionary<string, object> data, string key, out string? value)
+        private static bool TryGetString(
+            Dictionary<string, object> data,
+            string key,
+            out string? value
+        )
         {
             value = null;
-            if (!data.TryGetValue(key, out var raw)) return false;
-            if (raw is JsonElement el) { value = el.GetString(); return true; }
+            if (!data.TryGetValue(key, out var raw))
+                return false;
+            if (raw is JsonElement el)
+            {
+                value = el.GetString();
+                return true;
+            }
             value = raw?.ToString();
             return value != null;
         }
@@ -413,8 +613,10 @@ namespace QualityControlCenter.Modules.Faret
         private static bool TryGetInt(Dictionary<string, object> data, string key, out int value)
         {
             value = 0;
-            if (!data.TryGetValue(key, out var raw)) return false;
-            if (raw is JsonElement el && el.TryGetInt32(out value)) return true;
+            if (!data.TryGetValue(key, out var raw))
+                return false;
+            if (raw is JsonElement el && el.TryGetInt32(out value))
+                return true;
             return int.TryParse(raw?.ToString(), out value);
         }
 

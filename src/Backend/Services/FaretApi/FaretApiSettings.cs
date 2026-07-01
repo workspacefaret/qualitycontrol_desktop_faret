@@ -10,7 +10,7 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public bool UseApi { get; set; } = false;
         public string AppKey { get; set; } = "";
 
-        public static FaretApiSettings Load()
+        public static FaretApiSettings Load(string sectionName = "QualityControlFaretApi")
         {
             try
             {
@@ -21,12 +21,14 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 var json = File.ReadAllText(configPath);
                 using var doc = JsonDocument.Parse(json);
 
-                if (!doc.RootElement.TryGetProperty("QualityControlFaretApi", out var section))
+                if (!doc.RootElement.TryGetProperty(sectionName, out var section))
                     return new FaretApiSettings();
 
                 return new FaretApiSettings
                 {
-                    BaseUrl = section.TryGetProperty("BaseUrl", out var b) ? b.GetString() ?? "" : "",
+                    BaseUrl = section.TryGetProperty("BaseUrl", out var b)
+                        ? b.GetString() ?? ""
+                        : "",
                     UseApi = section.TryGetProperty("UseApi", out var u) && u.GetBoolean(),
                     AppKey = section.TryGetProperty("AppKey", out var k) ? k.GetString() ?? "" : "",
                 };

@@ -1,0 +1,143 @@
+.fnc-form-card {
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.fnc-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 14px;
+    margin-top: 10px;
+}
+
+.fnc-form-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 160px;
+}
+
+.fnc-form-campo-full {
+    min-width: 100%;
+    margin-top: 14px;
+}
+
+.fnc-form-campo label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+}
+
+.fnc-form-campo input,
+.fnc-form-campo select,
+.fnc-form-campo textarea {
+    border: 1px solid #CBD5E1;
+    border-radius: 10px;
+    padding: 0 10px;
+    font-size: 13px;
+    color: #0F172A;
+    font-family: inherit;
+}
+
+.fnc-form-campo input,
+.fnc-form-campo select {
+    height: 38px;
+}
+
+.fnc-form-campo textarea {
+    padding: 10px;
+    resize: vertical;
+}
+
+.fnc-form-acciones {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.fnc-nota {
+    font-size: 12px;
+    color: #64748B;
+    margin-top: 10px;
+}
+
+.fnc-filtros-card {
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.fnc-filtros-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 14px;
+}
+
+.fnc-filtro-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 160px;
+}
+
+.fnc-filtro-campo label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+}
+
+.fnc-filtro-campo input,
+.fnc-filtro-campo select {
+    height: 38px;
+    border: 1px solid #CBD5E1;
+    border-radius: 10px;
+    padding: 0 10px;
+    font-size: 13px;
+    color: #0F172A;
+}
+
+.fnc-filtro-acciones {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.faret-nc-module .fnc-ver-btn,
+.faret-nc-module .fnc-editar-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+    margin-right: 6px;
+}
+
+.fnc-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.fnc-modal {
+    width: 100%;
+    max-width: 640px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.fnc-detalle-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    font-size: 13px;
+    margin-bottom: 14px;
+}
+
+.fnc-detalle-titulo,
+.fnc-detalle-descripcion {
+    font-size: 13px;
+    margin-top: 10px;
+}
