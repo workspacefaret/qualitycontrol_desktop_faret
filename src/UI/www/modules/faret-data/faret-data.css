@@ -1,0 +1,50 @@
+.fd-filtros-card {
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.fd-filtros-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 14px;
+}
+
+.fd-filtro-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 160px;
+}
+
+.fd-filtro-campo label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+}
+
+.fd-filtro-campo input,
+.fd-filtro-campo select {
+    height: 38px;
+    border: 1px solid #CBD5E1;
+    border-radius: 10px;
+    padding: 0 10px;
+    font-size: 13px;
+    color: #0F172A;
+}
+
+.fd-filtro-acciones {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.fd-paginacion {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: #475569;
+}

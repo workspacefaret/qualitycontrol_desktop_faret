@@ -1,0 +1,113 @@
+<div class="module faret-module faret-data-module">
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">Data</div>
+            <div class="subtitle">Registros históricos PNC importados</div>
+        </div>
+        <button id="fd-refresh-btn" class="btn-secondary">↻ Actualizar</button>
+    </div>
+
+    <!-- Resumen -->
+    <div class="home-modules-grid">
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">TOTAL REGISTROS</div>
+                <div class="home-module-card-value" id="fd-total-registros">0</div>
+            </div>
+        </div>
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">CLIENTES ÚNICOS</div>
+                <div class="home-module-card-value" id="fd-clientes-unicos">0</div>
+            </div>
+        </div>
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">REGISTROS CRÍTICOS</div>
+                <div class="home-module-card-value" id="fd-registros-criticos" style="color:#c0392b;">0</div>
+            </div>
+        </div>
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">ÚLTIMA IMPORTACIÓN</div>
+                <div class="home-module-card-value" id="fd-ultima-importacion" style="font-size:16px;">-</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card fd-filtros-card">
+        <div class="fd-filtros-row">
+            <div class="fd-filtro-campo">
+                <label for="fd-filtro-cliente">Cliente</label>
+                <input type="text" id="fd-filtro-cliente" placeholder="Nombre del cliente">
+            </div>
+            <div class="fd-filtro-campo">
+                <label for="fd-filtro-tipo-pnc">Tipo PNC</label>
+                <input type="text" id="fd-filtro-tipo-pnc" placeholder="Tipo PNC">
+            </div>
+            <div class="fd-filtro-campo">
+                <label for="fd-filtro-nivel">Nivel</label>
+                <select id="fd-filtro-nivel">
+                    <option value="">Todos</option>
+                    <option value="Crítico">Crítico</option>
+                    <option value="Mayor">Mayor</option>
+                    <option value="Menor">Menor</option>
+                </select>
+            </div>
+            <div class="fd-filtro-campo">
+                <label for="fd-filtro-fecha-desde">Fecha desde</label>
+                <input type="date" id="fd-filtro-fecha-desde">
+            </div>
+            <div class="fd-filtro-campo">
+                <label for="fd-filtro-fecha-hasta">Fecha hasta</label>
+                <input type="date" id="fd-filtro-fecha-hasta">
+            </div>
+            <div class="fd-filtro-acciones">
+                <button id="fd-filtrar-btn" class="btn-primary">Filtrar</button>
+                <button id="fd-limpiar-btn" class="btn-secondary">Limpiar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card faret-registros-card">
+        <div id="fd-loading" class="faret-loading" style="display:none;">Cargando...</div>
+        <div id="fd-error" class="faret-error" style="display:none;"></div>
+
+        <div class="table-container">
+            <table class="table faret-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Fecha ingreso</th>
+                        <th>NP/NV</th>
+                        <th>Cliente</th>
+                        <th>Código</th>
+                        <th>Producto</th>
+                        <th>Tipo PNC</th>
+                        <th>Categoría defecto</th>
+                        <th>Nivel</th>
+                        <th>Tipo falla</th>
+                        <th>Cant. requerida</th>
+                        <th>Cant. rechazada</th>
+                        <th>Cant. recuperada</th>
+                        <th>% recuperación</th>
+                        <th>Observación</th>
+                    </tr>
+                </thead>
+                <tbody id="fd-tbody">
+                    <tr><td colspan="15" class="faret-empty">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="fd-paginacion">
+            <button id="fd-anterior-btn" class="btn-secondary" disabled>‹ Anterior</button>
+            <span id="fd-pagina-info">Página 1</span>
+            <button id="fd-siguiente-btn" class="btn-secondary" disabled>Siguiente ›</button>
+        </div>
+    </div>
+
+</div>

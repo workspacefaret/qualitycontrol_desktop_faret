@@ -19,6 +19,13 @@
     <ApplicationIcon>logo2.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <!-- EXCLUIR PROYECTOS INDEPENDIENTES (ej: tools/) DEL BUILD PRINCIPAL -->
+  <ItemGroup>
+    <Compile Remove="tools/**" />
+    <None Remove="tools/**" />
+    <EmbeddedResource Remove="tools/**" />
+  </ItemGroup>
+
   <!-- DEPENDENCIAS -->
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />

@@ -12,6 +12,7 @@ namespace QualityControlCenter.Modules.Faret
         private readonly FaretAuthApiService _auth;
         private readonly FaretCatalogosApiService _catalogos;
         private readonly FaretRegistrosControlApiService _registros;
+        private readonly FaretImportacionApiService _importacion;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
@@ -24,6 +25,7 @@ namespace QualityControlCenter.Modules.Faret
             _auth = new FaretAuthApiService(client);
             _catalogos = new FaretCatalogosApiService(client);
             _registros = new FaretRegistrosControlApiService(client);
+            _importacion = new FaretImportacionApiService(client);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -43,6 +45,11 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.catalogos.defectos" => await HandleCatalogo(_catalogos.GetDefectosAsync),
                 "faret.registros.list" => await HandleRegistrosList(),
                 "faret.registros.get" => await HandleRegistrosGet(data),
+                "faret.importacion.validar" => await HandleImportacionValidar(data),
+                "faret.importacion.confirmar" => await HandleImportacionConfirmar(data),
+                "faret.importacion.list" => await HandleImportacionList(),
+                "faret.data.list" => await HandleDataList(data),
+                "faret.data.resumen" => await HandleDataResumen(data),
                 _ => Error($"Acción Faret no reconocida: {action}"),
             };
         }
@@ -151,6 +158,153 @@ namespace QualityControlCenter.Modules.Faret
 
             var parsed = JsonSerializer.Deserialize<object>(body);
             return Ok(parsed);
+        }
+
+        private async Task<string> HandleImportacionValidar(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetString(data, "fileName", out var fileName) || string.IsNullOrEmpty(fileName))
+                return Error("Falta fileName");
+
+            if (!TryGetString(data, "base64", out var base64) || string.IsNullOrEmpty(base64))
+                return Error("Falta el contenido del archivo (base64)");
+
+            byte[] bytes;
+            try
+            {
+                bytes = Convert.FromBase64String(base64);
+            }
+            catch (FormatException)
+            {
+                return Error("Archivo inválido (base64 corrupto)");
+            }
+
+            var (ok, body) = await _importacion.ValidarAsync(fileName, bytes);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleImportacionConfirmar(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetString(data, "loteId", out var loteId) || string.IsNullOrEmpty(loteId))
+                return Error("Falta loteId");
+
+            var (ok, body) = await _importacion.ConfirmarAsync(loteId);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleImportacionList()
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            var (ok, body) = await _importacion.GetListAsync();
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleDataList(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            var filtros = BuildDataFiltros(data);
+            if (TryGetInt(data, "page", out var page) && page > 0)
+                filtros["page"] = page.ToString();
+            if (TryGetInt(data, "pageSize", out var pageSize) && pageSize > 0)
+                filtros["pageSize"] = pageSize.ToString();
+
+            var (ok, body) = await _importacion.GetPncListAsync(filtros);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleDataResumen(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            var filtros = BuildDataFiltros(data);
+
+            var (ok, body) = await _importacion.GetPncResumenAsync(filtros);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private static Dictionary<string, string?> BuildDataFiltros(Dictionary<string, object> data)
+        {
+            var filtros = new Dictionary<string, string?>();
+
+            TryGetString(data, "cliente", out var cliente);
+            TryGetString(data, "tipoPnc", out var tipoPnc);
+            TryGetString(data, "nivel", out var nivel);
+            TryGetString(data, "fechaDesde", out var fechaDesde);
+            TryGetString(data, "fechaHasta", out var fechaHasta);
+
+            filtros["cliente"] = cliente;
+            filtros["tipoPnc"] = tipoPnc;
+            filtros["nivel"] = nivel;
+            filtros["fechaDesde"] = fechaDesde;
+            filtros["fechaHasta"] = fechaHasta;
+
+            return filtros;
+        }
+
+        // La API Faret responde con ApiResponse<T> { success, message, data, errors } o,
+        // en errores generados por el cliente HTTP local (timeout/red), { ok, error }.
+        private static bool TryUnwrapApiResponse(string body, out JsonElement data, out string error)
+        {
+            data = default;
+            error = "Error al comunicarse con la API Faret";
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("success", out var s))
+                {
+                    if (!s.GetBoolean())
+                    {
+                        error = root.TryGetProperty("message", out var m) ? (m.GetString() ?? error) : error;
+                        return false;
+                    }
+
+                    if (root.TryGetProperty("data", out var d))
+                    {
+                        data = d.Clone();
+                        return true;
+                    }
+                    return false;
+                }
+
+                if (root.TryGetProperty("error", out var e))
+                {
+                    error = e.GetString() ?? error;
+                    return false;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static bool TryGetString(Dictionary<string, object> data, string key, out string? value)
