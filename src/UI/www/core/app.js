@@ -200,6 +200,14 @@ console.log("🔥 APP INICIO");
             usuariosBtn.style.display = empresaOk && esAdmin ? "" : "none";
         }
 
+        // 🔹 gating por rol (Gestión de Usuarios de FARET, solo ADMIN)
+        const faretUsuariosBtn = document.getElementById("btn-faret-usuarios");
+        if (faretUsuariosBtn) {
+            const faretRol = (sessionStorage.getItem("faretRol") || "").toUpperCase();
+            const empresaOk = faretUsuariosBtn.getAttribute("data-empresa") === empresa;
+            faretUsuariosBtn.style.display = empresaOk && faretRol === "ADMIN" ? "" : "none";
+        }
+
         // 🔹 título del header según empresa
         const headerTitle = document.querySelector(".header .title");
         if (headerTitle) {
@@ -262,6 +270,10 @@ console.log("🔥 APP INICIO");
                     sessionStorage.removeItem("faretLoggedIn");
                     sessionStorage.removeItem("faretNombreUsuario");
                     sessionStorage.removeItem("faretRol");
+                    localStorage.removeItem("lcc_faret_remember_login");
+                    localStorage.removeItem("lcc_faret_nombreUsuario");
+                    localStorage.removeItem("lcc_faret_rol");
+                    // No borramos lcc_faret_identificador ni lcc_faret_password para que el login quede autollenado
                 } else {
                     sessionStorage.removeItem("isLoggedIn");
                     sessionStorage.removeItem("codigoUsuario");

@@ -2,6 +2,26 @@ window.FaretLoginController = class FaretLoginController {
 
     init() {
         console.log("FaretLoginController iniciado");
+
+        const savedIdentificador = localStorage.getItem("lcc_faret_identificador");
+        const identificadorInput = document.getElementById("faret-identificador");
+
+        if (savedIdentificador && identificadorInput) {
+            identificadorInput.value = savedIdentificador;
+        }
+
+        const savedPassword = localStorage.getItem("lcc_faret_password");
+        const passwordInput = document.getElementById("faret-password");
+        const rememberInput = document.getElementById("faret-recordar-checkbox");
+
+        if (savedPassword && passwordInput) {
+            passwordInput.value = savedPassword;
+        }
+
+        if (savedIdentificador && savedPassword && rememberInput) {
+            rememberInput.checked = true;
+        }
+
         this._bindEvents();
     }
 
@@ -20,6 +40,7 @@ window.FaretLoginController = class FaretLoginController {
     async _login() {
         const identificador = document.getElementById("faret-identificador")?.value?.trim();
         const password = document.getElementById("faret-password")?.value;
+        const rememberMe = document.getElementById("faret-recordar-checkbox")?.checked === true;
         const btn = document.getElementById("faret-login-btn");
 
         if (!identificador || !password) {
@@ -43,6 +64,20 @@ window.FaretLoginController = class FaretLoginController {
                 sessionStorage.setItem("faretLoggedIn", "true");
                 sessionStorage.setItem("faretNombreUsuario", res.data?.username || identificador);
                 sessionStorage.setItem("faretRol", res.data?.role || "");
+
+                if (rememberMe) {
+                    localStorage.setItem("lcc_faret_remember_login", "true");
+                    localStorage.setItem("lcc_faret_identificador", identificador);
+                    localStorage.setItem("lcc_faret_nombreUsuario", res.data?.username || identificador);
+                    localStorage.setItem("lcc_faret_rol", res.data?.role || "");
+                    localStorage.setItem("lcc_faret_password", password);
+                } else {
+                    localStorage.removeItem("lcc_faret_remember_login");
+                    localStorage.removeItem("lcc_faret_identificador");
+                    localStorage.removeItem("lcc_faret_nombreUsuario");
+                    localStorage.removeItem("lcc_faret_rol");
+                    localStorage.removeItem("lcc_faret_password");
+                }
 
                 this._showMsg("Ingreso correcto", true);
                 setTimeout(() => window.App.loadModule("faret"), 400);

@@ -13,6 +13,7 @@ namespace QualityControlCenter.Modules.Faret
         private readonly FaretCatalogosApiService _catalogos;
         private readonly FaretRegistrosControlApiService _registros;
         private readonly FaretImportacionApiService _importacion;
+        private readonly FaretUsuariosApiService _usuarios;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
@@ -26,6 +27,7 @@ namespace QualityControlCenter.Modules.Faret
             _catalogos = new FaretCatalogosApiService(client);
             _registros = new FaretRegistrosControlApiService(client);
             _importacion = new FaretImportacionApiService(client);
+            _usuarios = new FaretUsuariosApiService(client);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -50,6 +52,11 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.importacion.list" => await HandleImportacionList(),
                 "faret.data.list" => await HandleDataList(data),
                 "faret.data.resumen" => await HandleDataResumen(data),
+                "faret.usuarios.list" => await HandleUsuariosList(data),
+                "faret.usuarios.create" => await HandleUsuariosCreate(data),
+                "faret.usuarios.resetPassword" => await HandleUsuariosResetPassword(data),
+                "faret.usuarios.activar" => await HandleUsuariosActivar(data),
+                "faret.usuarios.desactivar" => await HandleUsuariosDesactivar(data),
                 _ => Error($"Acción Faret no reconocida: {action}"),
             };
         }
@@ -264,6 +271,93 @@ namespace QualityControlCenter.Modules.Faret
             filtros["fechaHasta"] = fechaHasta;
 
             return filtros;
+        }
+
+        private async Task<string> HandleUsuariosList(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            bool? soloActivos = null;
+            if (data.TryGetValue("soloActivos", out var raw))
+            {
+                if (raw is JsonElement el && el.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                    soloActivos = el.GetBoolean();
+                else if (bool.TryParse(raw?.ToString(), out var parsed))
+                    soloActivos = parsed;
+            }
+
+            var (ok, body) = await _usuarios.GetListAsync(soloActivos);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleUsuariosCreate(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetString(data, "nombre", out var nombre) || string.IsNullOrWhiteSpace(nombre))
+                return Error("Falta el nombre");
+
+            if (!TryGetString(data, "username", out var username) || string.IsNullOrWhiteSpace(username))
+                return Error("Falta el RUT/usuario");
+
+            if (!TryGetString(data, "rol", out var rol) || string.IsNullOrWhiteSpace(rol))
+                return Error("Falta el rol");
+
+            var (ok, body) = await _usuarios.CreateAsync(nombre!, username!, rol!);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleUsuariosResetPassword(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id del usuario");
+
+            var (ok, body) = await _usuarios.ResetPasswordAsync(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleUsuariosActivar(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id del usuario");
+
+            var (ok, body) = await _usuarios.ActivarAsync(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleUsuariosDesactivar(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id del usuario");
+
+            var (ok, body) = await _usuarios.DesactivarAsync(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
         }
 
         // La API Faret responde con ApiResponse<T> { success, message, data, errors } o,

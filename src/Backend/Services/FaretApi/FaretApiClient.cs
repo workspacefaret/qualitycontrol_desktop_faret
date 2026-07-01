@@ -190,6 +190,97 @@ namespace QualityControlCenter.Backend.Services.FaretApi
             }
         }
 
+        public async Task<(bool ok, string body)> PutJsonAsync(string path, object payload)
+        {
+            var url = BuildUrl(path);
+            Console.WriteLine($"[FaretApi] PUT  {url}");
+            try
+            {
+                var json = JsonSerializer.Serialize(payload, _jsonOpts);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _http.PutAsync(url, content);
+                var body = await response.Content.ReadAsStringAsync();
+                var status = (int)response.StatusCode;
+
+                Console.WriteLine($"[FaretApi] PUT  {url} → {status}");
+
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    ClearToken();
+                    Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
+                    return (false, string.IsNullOrWhiteSpace(body) ? Err("No autorizado") : body);
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
+                    return (false, string.IsNullOrWhiteSpace(body) ? Err($"HTTP {status}: {response.ReasonPhrase}") : body);
+                }
+
+                return (true, body);
+            }
+            catch (TaskCanceledException)
+            {
+                Console.WriteLine($"[FaretApi] PUT  {url} → TIMEOUT");
+                return (false, Err("Timeout al conectar con la API Faret"));
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"[FaretApi] PUT  {url} → RED: {ex.Message}");
+                return (false, Err($"Error de red: {ex.Message}"));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[FaretApi] PUT  {url} → ERROR: {ex.Message}");
+                return (false, Err($"Error inesperado: {ex.Message}"));
+            }
+        }
+
+        public async Task<(bool ok, string body)> DeleteAsync(string path)
+        {
+            var url = BuildUrl(path);
+            Console.WriteLine($"[FaretApi] DELETE {url}");
+            try
+            {
+                var response = await _http.DeleteAsync(url);
+                var body = await response.Content.ReadAsStringAsync();
+                var status = (int)response.StatusCode;
+
+                Console.WriteLine($"[FaretApi] DELETE {url} → {status}");
+
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    ClearToken();
+                    Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
+                    return (false, string.IsNullOrWhiteSpace(body) ? Err("No autorizado") : body);
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
+                    return (false, string.IsNullOrWhiteSpace(body) ? Err($"HTTP {status}: {response.ReasonPhrase}") : body);
+                }
+
+                return (true, body);
+            }
+            catch (TaskCanceledException)
+            {
+                Console.WriteLine($"[FaretApi] DELETE {url} → TIMEOUT");
+                return (false, Err("Timeout al conectar con la API Faret"));
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"[FaretApi] DELETE {url} → RED: {ex.Message}");
+                return (false, Err($"Error de red: {ex.Message}"));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[FaretApi] DELETE {url} → ERROR: {ex.Message}");
+                return (false, Err($"Error inesperado: {ex.Message}"));
+            }
+        }
+
         private string BuildUrl(string path)
         {
             var base_ = _settings.BaseUrl.TrimEnd('/');

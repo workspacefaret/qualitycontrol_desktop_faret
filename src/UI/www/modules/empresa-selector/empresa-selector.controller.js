@@ -19,12 +19,40 @@ window.EmpresaSelectorController = class EmpresaSelectorController {
                 sessionStorage.setItem("empresa", empresa);
 
                 if (empresa === "FARET") {
-                    window.App.loadModule("faret-login");
+                    this._entrarFaret();
                 } else {
                     this._entrarInnpack();
                 }
             });
         });
+    }
+
+    async _entrarFaret() {
+        const isRemembered = localStorage.getItem("lcc_faret_remember_login") === "true";
+        const identificador = localStorage.getItem("lcc_faret_identificador");
+        const password = localStorage.getItem("lcc_faret_password");
+
+        if (isRemembered && identificador && password) {
+            try {
+                const res = await window.PhotinoBridge.send({
+                    action: "faret.login",
+                    identificador,
+                    password,
+                });
+
+                if (res.ok) {
+                    sessionStorage.setItem("faretLoggedIn", "true");
+                    sessionStorage.setItem("faretNombreUsuario", res.data?.username || identificador);
+                    sessionStorage.setItem("faretRol", res.data?.role || "");
+                    window.App.loadModule("faret");
+                    return;
+                }
+            } catch {
+                // sin conexión o credencial inválida: se cae al login manual
+            }
+        }
+
+        window.App.loadModule("faret-login");
     }
 
     _entrarInnpack() {
