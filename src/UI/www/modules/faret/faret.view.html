@@ -1,80 +1,146 @@
-<div class="module faret-module">
+<div class="module faret-module fdash-module">
 
     <div class="module-header">
         <div>
-            <div class="module-title">Panel Faret</div>
-            <div class="subtitle">Control de calidad Faret - vía API</div>
+            <div class="module-title">Dashboard Ejecutivo de Calidad</div>
+            <div class="subtitle">Mejora Continua — No Conformidades y Acciones Correctivas</div>
         </div>
+        <button id="fdash-refresh-btn" class="btn-secondary">↻ Actualizar</button>
     </div>
 
-    <!-- Tarjetas de estado -->
-    <div class="home-modules-grid" style="margin-bottom:1.5rem;">
+    <div id="fdash-error" class="faret-error" style="display:none;"></div>
 
-        <div class="home-module-card">
-            <div>
-                <div class="home-module-card-title">🏢 EMPRESA</div>
-                <div class="home-module-card-value">FARET</div>
-                <div class="home-module-card-label">Panel independiente</div>
+    <!-- Fila 1: KPIs -->
+    <div class="fdash-kpis-grid">
+
+        <div class="card fdash-kpi-card fdash-kpi-blue">
+            <div class="fdash-kpi-icon">🗓️</div>
+            <div class="fdash-kpi-body">
+                <div class="fdash-kpi-value" id="fdash-kpi-nc-hoy"><span class="fdash-skeleton fdash-skeleton-value"></span></div>
+                <div class="fdash-kpi-label">NC registradas hoy</div>
             </div>
         </div>
 
-        <div class="home-module-card">
-            <div>
-                <div class="home-module-card-title">🌐 API</div>
-                <div class="home-module-card-value" style="color:#27ae60;">Conectado</div>
-                <div class="home-module-card-label">api.faret.cl</div>
+        <div class="card fdash-kpi-card fdash-kpi-red">
+            <div class="fdash-kpi-icon">⚠️</div>
+            <div class="fdash-kpi-body">
+                <div class="fdash-kpi-value" id="fdash-kpi-nc-abiertas"><span class="fdash-skeleton fdash-skeleton-value"></span></div>
+                <div class="fdash-kpi-label">No Conformidades abiertas</div>
             </div>
         </div>
 
-        <div class="home-module-card">
-            <div>
-                <div class="home-module-card-title">👤 SESIÓN</div>
-                <div class="home-module-card-value" id="faret-sesion-usuario">-</div>
-                <div class="home-module-card-label" id="faret-sesion-rol">-</div>
+        <div class="card fdash-kpi-card fdash-kpi-orange">
+            <div class="fdash-kpi-icon">🛠️</div>
+            <div class="fdash-kpi-body">
+                <div class="fdash-kpi-value" id="fdash-kpi-acciones-pendientes"><span class="fdash-skeleton fdash-skeleton-value"></span></div>
+                <div class="fdash-kpi-label">Acciones correctivas pendientes</div>
+            </div>
+        </div>
+
+        <div class="card fdash-kpi-card fdash-kpi-green">
+            <div class="fdash-kpi-icon">✅</div>
+            <div class="fdash-kpi-body">
+                <div class="fdash-kpi-value" id="fdash-kpi-pct-completadas"><span class="fdash-skeleton fdash-skeleton-value"></span></div>
+                <div class="fdash-kpi-label">% Acciones completadas</div>
+            </div>
+        </div>
+
+        <div class="card fdash-kpi-card fdash-kpi-purple">
+            <div class="fdash-kpi-icon">⏰</div>
+            <div class="fdash-kpi-body">
+                <div class="fdash-kpi-value" id="fdash-kpi-acciones-vencidas"><span class="fdash-skeleton fdash-skeleton-value"></span></div>
+                <div class="fdash-kpi-label">Acciones vencidas</div>
             </div>
         </div>
 
     </div>
 
-<!-- Panel de registros -->
-<div class="card faret-registros-card">
+    <!-- Fila 2 -->
+    <div class="fdash-row-2col">
 
-    <div class="module-header">
-        <div>
-            <div class="module-title">Registros de Control</div>
-            <div class="subtitle">Últimos registros enviados desde API Faret</div>
+        <div class="card fdash-chart-card">
+            <div class="module-title fdash-chart-title">Acciones correctivas por proceso</div>
+            <div class="fdash-chart-wrap">
+                <div class="fdash-skeleton fdash-skeleton-chart" id="fdash-skeleton-acciones-proceso"></div>
+                <canvas id="fdash-chart-acciones-proceso" style="display:none;"></canvas>
+                <div class="fdash-chart-error" id="fdash-error-acciones-proceso" style="display:none;">No fue posible cargar esta información.</div>
+            </div>
         </div>
 
-        <button id="faret-refresh-btn" class="btn-secondary">↻ Actualizar</button>
+        <div class="card fdash-chart-card">
+            <div class="module-title fdash-chart-title">No Conformidades por proceso</div>
+            <div class="fdash-chart-wrap">
+                <div class="fdash-skeleton fdash-skeleton-chart" id="fdash-skeleton-nc-proceso"></div>
+                <canvas id="fdash-chart-nc-proceso" style="display:none;"></canvas>
+                <div class="fdash-chart-error" id="fdash-error-nc-proceso" style="display:none;">No fue posible cargar esta información.</div>
+            </div>
+        </div>
+
     </div>
 
-    <div id="faret-registros-loading" class="faret-loading" style="display:none;">
-        Cargando registros...
+    <!-- Fila 3 -->
+    <div class="fdash-row-2col">
+
+        <div class="card fdash-chart-card">
+            <div class="module-title fdash-chart-title">Tendencia de NC — últimos 30 días</div>
+            <div class="fdash-chart-wrap">
+                <div class="fdash-skeleton fdash-skeleton-chart" id="fdash-skeleton-tendencia"></div>
+                <canvas id="fdash-chart-tendencia" style="display:none;"></canvas>
+                <div class="fdash-chart-error" id="fdash-error-tendencia" style="display:none;">No fue posible cargar esta información.</div>
+            </div>
+        </div>
+
+        <div class="card fdash-chart-card">
+            <div class="module-title fdash-chart-title">No Conformidades por severidad</div>
+            <div class="fdash-chart-wrap">
+                <div class="fdash-skeleton fdash-skeleton-chart" id="fdash-skeleton-nc-severidad"></div>
+                <canvas id="fdash-chart-nc-severidad" style="display:none;"></canvas>
+                <div class="fdash-chart-error" id="fdash-error-nc-severidad" style="display:none;">No fue posible cargar esta información.</div>
+            </div>
+        </div>
+
     </div>
 
-    <div id="faret-registros-error" class="faret-error" style="display:none;"></div>
+    <!-- Fila 4 -->
+    <div class="fdash-row-2col">
 
-    <div class="table-container">
-        <table class="table faret-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Fecha</th>
-                    <th>Área</th>
-                    <th>Máquina</th>
-                    <th>Inspector</th>
-                    <th>Estado</th>
-                    <th>Defectos</th>
-                </tr>
-            </thead>
-            <tbody id="faret-registros-tbody">
-                <tr>
-                    <td colspan="7" class="faret-empty">Cargando...</td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="card fdash-chart-card">
+            <div class="module-title fdash-chart-title">Estado de Acciones Correctivas</div>
+            <div class="fdash-chart-wrap">
+                <div class="fdash-skeleton fdash-skeleton-chart" id="fdash-skeleton-estado-acciones"></div>
+                <canvas id="fdash-chart-estado-acciones" style="display:none;"></canvas>
+                <div class="fdash-chart-error" id="fdash-error-estado-acciones" style="display:none;">No fue posible cargar esta información.</div>
+            </div>
+        </div>
+
+        <div class="card fdash-chart-card">
+            <div class="module-title fdash-chart-title">Últimas No Conformidades</div>
+            <div class="fdash-skeleton fdash-skeleton-table" id="fdash-skeleton-ultimas-nc"></div>
+            <div class="table-container" id="fdash-ultimas-nc-wrap" style="display:none;">
+                <table class="table faret-table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Título</th>
+                            <th>Proceso</th>
+                            <th>Severidad</th>
+                            <th>Estado</th>
+                            <th>Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fdash-ultimas-nc-tbody"></tbody>
+                </table>
+            </div>
+            <div class="fdash-chart-error" id="fdash-error-ultimas-nc" style="display:none;">No fue posible cargar esta información.</div>
+        </div>
+
     </div>
 
-</div>
+    <!-- Fila 5 -->
+    <div class="card fdash-alertas-card">
+        <div class="module-title fdash-chart-title">Alertas del sistema</div>
+        <div class="fdash-skeleton fdash-skeleton-alertas" id="fdash-skeleton-alertas"></div>
+        <div id="fdash-alertas-box" class="fdash-alertas-box" style="display:none;"></div>
+    </div>
 
 </div>

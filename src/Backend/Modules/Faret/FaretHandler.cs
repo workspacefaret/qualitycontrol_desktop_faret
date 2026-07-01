@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using QualityControlCenter.Backend.Services.FaretApi;
@@ -16,6 +17,7 @@ namespace QualityControlCenter.Modules.Faret
         private readonly FaretImportacionApiService _importacion;
         private readonly FaretUsuariosApiService _usuarios;
         private readonly FaretNoConformidadesApiService _noConformidades;
+        private readonly FaretDashboardService _dashboard;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
@@ -32,6 +34,7 @@ namespace QualityControlCenter.Modules.Faret
             _importacion = new FaretImportacionApiService(client);
             _usuarios = new FaretUsuariosApiService(client);
             _noConformidades = new FaretNoConformidadesApiService(mcClient);
+            _dashboard = new FaretDashboardService(_noConformidades);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -67,6 +70,12 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.nc.get" => await HandleNcGet(data),
                 "faret.nc.create" => await HandleNcCreate(data),
                 "faret.nc.update" => await HandleNcUpdate(data),
+                "faret.nc.analisis.get" => await HandleNcAnalisisGet(data),
+                "faret.nc.analisis.guardar" => await HandleNcAnalisisGuardar(data),
+                "faret.nc.acciones.list" => await HandleNcAccionesList(data),
+                "faret.nc.acciones.crear" => await HandleNcAccionesCrear(data),
+                "faret.nc.acciones.actualizar" => await HandleNcAccionesActualizar(data),
+                "faret.dashboard.resumen" => await HandleDashboardResumen(),
                 _ => Error($"Acción Faret no reconocida: {action}"),
             };
         }
@@ -435,6 +444,286 @@ namespace QualityControlCenter.Modules.Faret
             return Ok(JsonSerializer.Deserialize<object>(body));
         }
 
+        private async Task<string> HandleDashboardResumen()
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            var (ok, dashboardData, error) = await _dashboard.ObtenerResumenAsync();
+            if (!ok)
+                return Error(error);
+
+            return Ok(dashboardData);
+        }
+
+        private async Task<string> HandleNcAnalisisGet(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            var (ok, body) = await _noConformidades.GetAnalisisAsync(id);
+            if (!ok)
+            {
+                var msg = ExtractMcErrorMessage(body);
+                // "Sin análisis todavía" no es un error: es el estado inicial normal de una NC.
+                if (msg.Contains("aún no tiene un análisis", StringComparison.OrdinalIgnoreCase))
+                    return Ok(null);
+                return Error(msg);
+            }
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        // Una sola acción de "guardar" crea o actualiza el análisis según lo que ya sabe el
+        // frontend (que hizo el GET previo): existeAnalisis=true → PUT, false/ausente → POST.
+        private async Task<string> HandleNcAnalisisGuardar(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            if (!TryBuildAnalisisRequest(data, out var request, out var validationError))
+                return Error(validationError);
+
+            var existeAnalisis = TryGetBool(data, "existeAnalisis", out var existe) && existe;
+
+            var (ok, body) = existeAnalisis
+                ? await _noConformidades.ActualizarAnalisisAsync(id, request)
+                : await _noConformidades.CrearAnalisisAsync(id, request);
+
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcAccionesList(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            var (ok, body) = await _noConformidades.GetAccionesAsync(id);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcAccionesCrear(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            if (!TryBuildAccionCrearRequest(data, out var request, out var validationError))
+                return Error(validationError);
+
+            var (ok, body) = await _noConformidades.CrearAccionAsync(id, request);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcAccionesActualizar(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "accionId", out var accionId))
+                return Error("Falta el id de la acción correctiva");
+
+            if (!TryBuildAccionActualizarRequest(data, out var request, out var validationError))
+                return Error(validationError);
+
+            var (ok, body) = await _noConformidades.ActualizarAccionAsync(accionId, request);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private static readonly string[] MetodologiasValidas = { "CINCO_PORQUES", "ISHIKAWA", "MIXTA" };
+        private static readonly string[] EstadosAccionValidos = { "PENDIENTE", "EN_PROCESO", "COMPLETADA", "CANCELADA" };
+
+        private static bool TryBuildAnalisisRequest(
+            Dictionary<string, object> data,
+            out object request,
+            out string error
+        )
+        {
+            request = null!;
+            error = "";
+
+            if (
+                !TryGetString(data, "metodologia", out var metodologia)
+                || string.IsNullOrWhiteSpace(metodologia)
+            )
+            {
+                error = "Falta la metodología";
+                return false;
+            }
+            if (!MetodologiasValidas.Contains(metodologia))
+            {
+                error = $"Metodología inválida. Valores permitidos: {string.Join(", ", MetodologiasValidas)}";
+                return false;
+            }
+            if (
+                !TryGetString(data, "problemaDetectado", out var problemaDetectado)
+                || string.IsNullOrWhiteSpace(problemaDetectado)
+            )
+            {
+                error = "Falta el problema detectado";
+                return false;
+            }
+
+            TryGetString(data, "porque1", out var porque1);
+            TryGetString(data, "porque2", out var porque2);
+            TryGetString(data, "porque3", out var porque3);
+            TryGetString(data, "porque4", out var porque4);
+            TryGetString(data, "porque5", out var porque5);
+            TryGetString(data, "causaRaiz", out var causaRaiz);
+            TryGetString(data, "conclusion", out var conclusion);
+            TryGetString(data, "creadoPor", out var creadoPor);
+            TryGetString(data, "actualizadoPor", out var actualizadoPor);
+
+            request = new
+            {
+                metodologia,
+                problemaDetectado,
+                porque1,
+                porque2,
+                porque3,
+                porque4,
+                porque5,
+                causaRaiz,
+                conclusion,
+                creadoPor,
+                actualizadoPor,
+            };
+            return true;
+        }
+
+        private static bool TryBuildAccionCrearRequest(
+            Dictionary<string, object> data,
+            out object request,
+            out string error
+        )
+        {
+            request = null!;
+            error = "";
+
+            if (
+                !TryGetString(data, "descripcion", out var descripcion)
+                || string.IsNullOrWhiteSpace(descripcion)
+            )
+            {
+                error = "Falta la descripción de la acción";
+                return false;
+            }
+            if (
+                !TryGetString(data, "responsable", out var responsable)
+                || string.IsNullOrWhiteSpace(responsable)
+            )
+            {
+                error = "Falta el responsable";
+                return false;
+            }
+            if (
+                !TryGetString(data, "fechaLimite", out var fechaLimite)
+                || string.IsNullOrWhiteSpace(fechaLimite)
+            )
+            {
+                error = "Falta la fecha límite";
+                return false;
+            }
+
+            TryGetString(data, "prioridad", out var prioridad);
+            TryGetString(data, "creadoPor", out var creadoPor);
+
+            int? analisisId = TryGetInt(data, "analisisId", out var aid) ? aid : null;
+
+            request = new
+            {
+                analisisId,
+                descripcion,
+                responsable,
+                fechaLimite,
+                prioridad,
+                creadoPor,
+            };
+            return true;
+        }
+
+        private static bool TryBuildAccionActualizarRequest(
+            Dictionary<string, object> data,
+            out object request,
+            out string error
+        )
+        {
+            request = null!;
+            error = "";
+
+            if (
+                !TryGetString(data, "descripcion", out var descripcion)
+                || string.IsNullOrWhiteSpace(descripcion)
+            )
+            {
+                error = "Falta la descripción de la acción";
+                return false;
+            }
+            if (
+                !TryGetString(data, "responsable", out var responsable)
+                || string.IsNullOrWhiteSpace(responsable)
+            )
+            {
+                error = "Falta el responsable";
+                return false;
+            }
+            if (
+                !TryGetString(data, "fechaLimite", out var fechaLimite)
+                || string.IsNullOrWhiteSpace(fechaLimite)
+            )
+            {
+                error = "Falta la fecha límite";
+                return false;
+            }
+            if (!TryGetString(data, "estado", out var estado) || string.IsNullOrWhiteSpace(estado))
+            {
+                error = "Falta el estado";
+                return false;
+            }
+            if (!EstadosAccionValidos.Contains(estado))
+            {
+                error = $"Estado inválido. Valores permitidos: {string.Join(", ", EstadosAccionValidos)}";
+                return false;
+            }
+
+            TryGetString(data, "prioridad", out var prioridad);
+            TryGetString(data, "actualizadoPor", out var actualizadoPor);
+
+            request = new
+            {
+                descripcion,
+                responsable,
+                fechaLimite,
+                prioridad,
+                estado,
+                actualizadoPor,
+            };
+            return true;
+        }
+
         // El request de creación/actualización de la API de Mejora Continua no incluye
         // "estado": ese campo solo aparece en las respuestas, no se puede modificar hoy.
         private static bool TryBuildNcRequest(
@@ -522,8 +811,9 @@ namespace QualityControlCenter.Modules.Faret
         }
 
         // La API de Mejora Continua responde con JSON crudo en éxito y, en error, con
-        // ProblemDetails de ASP.NET { title, status, ... } o con { ok, error } cuando el
-        // error lo genera el cliente HTTP local (timeout/red/HTTP no-2xx en GET).
+        // ProblemDetails de ASP.NET { title, status, ... }, con { mensaje } (controllers de
+        // análisis/acciones) o con { ok, error } cuando el error lo genera el cliente HTTP
+        // local (timeout/red/HTTP no-2xx en GET).
         private static string ExtractMcErrorMessage(string body)
         {
             const string fallback = "Error al comunicarse con la API de Mejora Continua";
@@ -531,6 +821,9 @@ namespace QualityControlCenter.Modules.Faret
             {
                 using var doc = JsonDocument.Parse(body);
                 var root = doc.RootElement;
+
+                if (root.TryGetProperty("mensaje", out var msg) && msg.ValueKind == JsonValueKind.String)
+                    return msg.GetString() ?? fallback;
 
                 if (root.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String)
                     return e.GetString() ?? fallback;
@@ -618,6 +911,19 @@ namespace QualityControlCenter.Modules.Faret
             if (raw is JsonElement el && el.TryGetInt32(out value))
                 return true;
             return int.TryParse(raw?.ToString(), out value);
+        }
+
+        private static bool TryGetBool(Dictionary<string, object> data, string key, out bool value)
+        {
+            value = false;
+            if (!data.TryGetValue(key, out var raw))
+                return false;
+            if (raw is JsonElement el && el.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                value = el.GetBoolean();
+                return true;
+            }
+            return bool.TryParse(raw?.ToString(), out value);
         }
 
         private string Ok(object? data) =>

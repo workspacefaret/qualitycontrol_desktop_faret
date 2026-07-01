@@ -62,7 +62,7 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
-                    return (false, Err($"HTTP {status}: {response.ReasonPhrase}"));
+                    return (false, string.IsNullOrWhiteSpace(body) ? Err($"HTTP {status}: {response.ReasonPhrase}") : body);
                 }
 
                 return (true, body);

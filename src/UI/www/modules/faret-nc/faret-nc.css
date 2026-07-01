@@ -1,14 +1,165 @@
-.fnc-form-card {
+/* =====================================================
+   NO CONFORMIDADES — Dashboard visual (Fluent / Power BI inspired)
+   Todas las reglas están scoped a .faret-nc-module para
+   no afectar ningún otro módulo del sistema.
+===================================================== */
+
+.faret-nc-module .module-header {
+    margin-bottom: 4px;
+}
+
+/* ---------- KPI cards ---------- */
+
+.faret-nc-module .home-modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin: 18px 0 24px;
+}
+
+.faret-nc-module .home-module-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: white;
+    border: 1px solid #E5E9F0;
+    border-radius: 16px;
     padding: 20px;
-    margin-bottom: 20px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(15, 23, 42, 0.05);
+    border-top: 3px solid transparent;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.faret-nc-module .home-module-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(15, 23, 42, 0.05), 0 16px 32px rgba(15, 23, 42, 0.09);
+}
+
+.faret-nc-module .home-module-card-icon {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.faret-nc-module .home-module-card-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.faret-nc-module .home-module-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.faret-nc-module .home-module-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748B;
+    letter-spacing: 0.02em;
+}
+
+.faret-nc-module .home-module-card-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: #0F172A;
+    line-height: 1.15;
+}
+
+.faret-nc-module .fnc-kpi-blue { border-top-color: #3B82F6; }
+.faret-nc-module .fnc-kpi-blue .home-module-card-icon { background: rgba(59, 130, 246, 0.12); color: #2563EB; }
+
+.faret-nc-module .fnc-kpi-amber { border-top-color: #F59E0B; }
+.faret-nc-module .fnc-kpi-amber .home-module-card-icon { background: rgba(245, 158, 11, 0.12); color: #D97706; }
+
+.faret-nc-module .fnc-kpi-green { border-top-color: #22C55E; }
+.faret-nc-module .fnc-kpi-green .home-module-card-icon { background: rgba(34, 197, 94, 0.12); color: #16A34A; }
+
+.faret-nc-module .fnc-kpi-red { border-top-color: #EF4444; }
+.faret-nc-module .fnc-kpi-red .home-module-card-icon { background: rgba(239, 68, 68, 0.12); color: #DC2626; }
+.faret-nc-module .fnc-kpi-red .home-module-card-value { color: #B91C1C; }
+
+/* ---------- Botones (scoped) ---------- */
+
+.faret-nc-module .btn-primary,
+.faret-nc-module .btn-secondary,
+.faret-nc-module .btn-ghost,
+.faret-nc-module .btn-danger {
+    border-radius: 10px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+
+.faret-nc-module .btn-primary {
+    background: #2563EB;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+}
+
+.faret-nc-module .btn-primary:hover {
+    background: #1D4ED8;
+    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.3);
+}
+
+.faret-nc-module .btn-secondary {
+    background: #F1F5F9;
+    color: #334155;
+}
+
+.faret-nc-module .btn-secondary:hover {
+    background: #E2E8F0;
+}
+
+.faret-nc-module .btn-ghost {
+    background: transparent;
+    color: #475569;
+    border: 1px solid #D8DEE9;
+}
+
+.faret-nc-module .btn-ghost:hover {
+    background: #F8FAFC;
+    border-color: #CBD5E1;
+}
+
+.faret-nc-module .btn-danger {
+    background: #FEF2F2;
+    color: #B91C1C;
+    border: 1px solid #FECACA;
+}
+
+.faret-nc-module .btn-danger:hover {
+    background: #FEE2E2;
+    border-color: #FCA5A5;
+}
+
+.faret-nc-module .fnc-ver-btn,
+.faret-nc-module .fnc-editar-btn,
+.faret-nc-module .fnc-analizar-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+    margin-right: 6px;
+}
+
+/* ---------- Formulario nueva / editar NC ---------- */
+
+.faret-nc-module .fnc-form-card {
+    padding: 22px;
+    margin-bottom: 24px;
+    border: 1px solid #E5E9F0;
 }
 
 .fnc-form-row {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 14px;
-    margin-top: 10px;
+    gap: 16px;
+    margin-top: 12px;
 }
 
 .fnc-form-campo {
@@ -25,19 +176,41 @@
 
 .fnc-form-campo label {
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
     color: #475569;
 }
 
 .fnc-form-campo input,
 .fnc-form-campo select,
 .fnc-form-campo textarea {
-    border: 1px solid #CBD5E1;
+    border: 1px solid #D8DEE9;
     border-radius: 10px;
-    padding: 0 10px;
+    padding: 0 12px;
     font-size: 13px;
     color: #0F172A;
     font-family: inherit;
+    background: white;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fnc-form-campo input::placeholder,
+.fnc-form-campo textarea::placeholder {
+    color: #94A3B8;
+}
+
+.fnc-form-campo input:focus,
+.fnc-form-campo select:focus,
+.fnc-form-campo textarea:focus {
+    outline: none;
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.fnc-form-campo input:disabled,
+.fnc-form-campo select:disabled {
+    background: #F1F5F9;
+    color: #94A3B8;
+    cursor: not-allowed;
 }
 
 .fnc-form-campo input,
@@ -46,14 +219,14 @@
 }
 
 .fnc-form-campo textarea {
-    padding: 10px;
+    padding: 10px 12px;
     resize: vertical;
 }
 
 .fnc-form-acciones {
     display: flex;
     gap: 10px;
-    margin-top: 16px;
+    margin-top: 18px;
 }
 
 .fnc-nota {
@@ -62,16 +235,37 @@
     margin-top: 10px;
 }
 
-.fnc-filtros-card {
-    padding: 16px 20px;
-    margin-bottom: 20px;
+/* ---------- Toolbar de filtros ---------- */
+
+.faret-nc-module .fnc-filtros-card {
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    border: 1px solid #E5E9F0;
+}
+
+.faret-nc-module .fnc-toolbar-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 14px;
+}
+
+.faret-nc-module .fnc-toolbar-header svg {
+    width: 16px;
+    height: 16px;
+    color: #94A3B8;
 }
 
 .fnc-filtros-row {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 14px;
+    gap: 16px;
 }
 
 .fnc-filtro-campo {
@@ -83,18 +277,39 @@
 
 .fnc-filtro-campo label {
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
     color: #475569;
 }
 
 .fnc-filtro-campo input,
 .fnc-filtro-campo select {
     height: 38px;
-    border: 1px solid #CBD5E1;
+    border: 1px solid #D8DEE9;
     border-radius: 10px;
-    padding: 0 10px;
+    padding: 0 12px;
     font-size: 13px;
     color: #0F172A;
+    background: white;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fnc-filtro-campo input:focus,
+.fnc-filtro-campo select:focus {
+    outline: none;
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.fnc-filtro-campo input:disabled {
+    background: #F1F5F9;
+    color: #94A3B8;
+}
+
+.faret-nc-module .fnc-filtro-divisor {
+    width: 1px;
+    align-self: stretch;
+    background: #E5E9F0;
+    margin: 0 2px;
 }
 
 .fnc-filtro-acciones {
@@ -103,17 +318,65 @@
     margin-left: auto;
 }
 
-.faret-nc-module .fnc-ver-btn,
-.faret-nc-module .fnc-editar-btn {
-    font-size: 12px;
-    padding: 6px 10px;
-    margin-right: 6px;
+/* ---------- Badges (severidad / estado) ---------- */
+
+.fnc-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
+
+/* ---------- Tabla ---------- */
+
+.faret-nc-module .faret-registros-card {
+    padding: 22px;
+}
+
+.faret-nc-module .table-container {
+    background: white;
+    border: 1px solid #E5E9F0;
+    border-radius: 12px;
+}
+
+.faret-nc-module .table thead {
+    background: #F8FAFC;
+    color: #475569;
+}
+
+.faret-nc-module .table thead th {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 12px 14px;
+    border-bottom: 1px solid #E5E9F0;
+}
+
+.faret-nc-module .table td {
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #1E293B;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+.faret-nc-module .table tbody tr:nth-child(even) {
+    background: #FAFBFC;
+}
+
+.faret-nc-module .table tbody tr:hover {
+    background: #EFF6FF;
+}
+
+/* ---------- Modales ---------- */
 
 .fnc-modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.45);
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -123,15 +386,17 @@
 .fnc-modal {
     width: 100%;
     max-width: 640px;
-    max-height: 80vh;
+    max-height: 85vh;
     overflow-y: auto;
-    padding: 20px;
+    padding: 24px;
+    border-radius: 18px;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
 }
 
 .fnc-detalle-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 12px;
     font-size: 13px;
     margin-bottom: 14px;
 }
@@ -140,4 +405,80 @@
 .fnc-detalle-descripcion {
     font-size: 13px;
     margin-top: 10px;
+}
+
+/* ---------- Modal Analizar NC (secciones tipo card) ---------- */
+
+.fnc-analisis-modal {
+    max-width: 940px;
+}
+
+.fnc-analisis-seccion {
+    background: #F8FAFC;
+    border: 1px solid #E5E9F0;
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-top: 16px;
+}
+
+.fnc-analisis-seccion:first-of-type {
+    margin-top: 14px;
+}
+
+.fnc-analisis-seccion-titulo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1E293B;
+    margin-bottom: 14px;
+}
+
+.fnc-seccion-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    border-radius: 999px;
+    background: #2563EB;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.fnc-accion-estado-select {
+    height: 34px;
+    border: 1px solid #D8DEE9;
+    border-radius: 8px;
+    font-size: 12px;
+    padding: 0 8px;
+    background: white;
+}
+
+.fnc-accion-estado-select:focus {
+    outline: none;
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+@media (max-width: 1100px) {
+    .faret-nc-module .home-modules-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .faret-nc-module .fnc-filtro-divisor {
+        display: none;
+    }
+
+    .fnc-filtro-acciones {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .fnc-detalle-grid {
+        grid-template-columns: 1fr;
+    }
 }

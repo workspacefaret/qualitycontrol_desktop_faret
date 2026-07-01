@@ -27,6 +27,19 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-detalle-cerrar-btn")
             ?.addEventListener("click", () => this._cerrarDetalle());
 
+        document.getElementById("fnc-analisis-cerrar-btn")
+            ?.addEventListener("click", () => this._cerrarAnalisis());
+
+        document.getElementById("fnc-analisis-guardar-btn")
+            ?.addEventListener("click", () => this._guardarAnalisis());
+
+        document.getElementById("fnc-accion-agregar-btn")
+            ?.addEventListener("click", () => this._agregarAccion());
+
+        this._ncAnalisisId = null;
+        this._analisisActual = null;
+        this._acciones = [];
+
         this._loadLista();
     }
 
@@ -126,14 +139,15 @@ window.FaretNcController = class FaretNcController {
                 <td>${i.titulo ?? "-"}</td>
                 <td>${i.tipo ?? "-"}</td>
                 <td>${i.origen ?? "-"}</td>
-                <td>${i.severidad ?? "-"}</td>
+                <td>${this._badge(i.severidad, this._colorSeveridad(i.severidad))}</td>
                 <td>${i.proceso ?? "-"}</td>
-                <td>${i.estado ?? "-"}</td>
+                <td>${this._badge(i.estado, this._colorEstado(i.estado))}</td>
                 <td>${i.norma ?? "-"}</td>
                 <td>${i.fechaCreacion ? new Date(i.fechaCreacion).toLocaleDateString("es-CL") : "-"}</td>
                 <td>
-                    <button class="btn-secondary fnc-ver-btn" data-id="${i.id}">Ver</button>
+                    <button class="btn-ghost fnc-ver-btn" data-id="${i.id}">Ver</button>
                     <button class="btn-secondary fnc-editar-btn" data-id="${i.id}">Editar</button>
+                    <button class="btn-primary fnc-analizar-btn" data-id="${i.id}">Analizar</button>
                 </td>
             </tr>
         `).join("");
@@ -143,6 +157,9 @@ window.FaretNcController = class FaretNcController {
 
         tbody.querySelectorAll(".fnc-editar-btn").forEach(btn =>
             btn.addEventListener("click", () => this._abrirFormEditar(btn.dataset.id)));
+
+        tbody.querySelectorAll(".fnc-analizar-btn").forEach(btn =>
+            btn.addEventListener("click", () => this._abrirAnalisis(btn.dataset.id)));
     }
 
     _renderResumen(items) {
@@ -299,5 +316,308 @@ window.FaretNcController = class FaretNcController {
         } finally {
             guardarBtn.disabled = false;
         }
+    }
+
+    _usuarioActual() {
+        return sessionStorage.getItem("faretNombreUsuario") || "";
+    }
+
+    async _abrirAnalisis(id) {
+        const item = this._items.find(i => String(i.id) === String(id));
+        if (!item) return;
+
+        this._ncAnalisisId = item.id;
+        this._analisisActual = null;
+        this._acciones = [];
+
+        document.getElementById("fnc-analisis-titulo").textContent =
+            `Análisis y Plan de Acción — ${item.codigo ?? ""}`;
+        document.getElementById("fnc-analisis-nc-datos").innerHTML = `
+            <div><strong>Código:</strong> ${item.codigo ?? "-"}</div>
+            <div><strong>Estado:</strong> ${item.estado ?? "-"}</div>
+            <div><strong>Título:</strong> ${item.titulo ?? "-"}</div>
+            <div><strong>Severidad:</strong> ${item.severidad ?? "-"}</div>
+            <div><strong>Proceso / Área:</strong> ${item.proceso ?? "-"}</div>
+            <div><strong>Tipo / Origen:</strong> ${item.tipo ?? "-"} / ${item.origen ?? "-"}</div>
+        `;
+
+        document.getElementById("fnc-analisis-error").style.display = "none";
+        document.getElementById("fnc-analisis-mensaje").style.display = "none";
+        document.getElementById("fnc-analisis-contenido").style.display = "none";
+        document.getElementById("fnc-analisis-loading").style.display = "block";
+        document.getElementById("fnc-analisis-modal").style.display = "flex";
+
+        await this._cargarAnalisis();
+        await this._cargarAcciones();
+
+        document.getElementById("fnc-analisis-loading").style.display = "none";
+        document.getElementById("fnc-analisis-contenido").style.display = "block";
+    }
+
+    _cerrarAnalisis() {
+        document.getElementById("fnc-analisis-modal").style.display = "none";
+        this._ncAnalisisId = null;
+        this._analisisActual = null;
+        this._acciones = [];
+    }
+
+    async _cargarAnalisis() {
+        const errorEl = document.getElementById("fnc-analisis-error");
+        errorEl.style.display = "none";
+
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.analisis.get",
+                id: Number(this._ncAnalisisId),
+            });
+
+            if (!res.ok) {
+                errorEl.textContent = res.error || "Error al cargar el análisis";
+                errorEl.style.display = "block";
+                this._analisisActual = null;
+            } else {
+                // res.data === null → la NC aún no tiene análisis (caso normal, no es error)
+                this._analisisActual = res.data || null;
+            }
+        } catch {
+            errorEl.textContent = "Error de comunicación con el backend";
+            errorEl.style.display = "block";
+            this._analisisActual = null;
+        }
+
+        this._renderAnalisisForm();
+    }
+
+    _renderAnalisisForm() {
+        const a = this._analisisActual;
+
+        document.getElementById("fnc-analisis-metodologia").value = a?.metodologia || "CINCO_PORQUES";
+        document.getElementById("fnc-analisis-problema").value = a?.problemaDetectado || "";
+        document.getElementById("fnc-analisis-porque1").value = a?.porque1 || "";
+        document.getElementById("fnc-analisis-porque2").value = a?.porque2 || "";
+        document.getElementById("fnc-analisis-porque3").value = a?.porque3 || "";
+        document.getElementById("fnc-analisis-porque4").value = a?.porque4 || "";
+        document.getElementById("fnc-analisis-porque5").value = a?.porque5 || "";
+        document.getElementById("fnc-analisis-causa-raiz").value = a?.causaRaiz || "";
+        document.getElementById("fnc-analisis-conclusion").value = a?.conclusion || "";
+    }
+
+    async _guardarAnalisis() {
+        const errorEl = document.getElementById("fnc-analisis-error");
+        const guardarBtn = document.getElementById("fnc-analisis-guardar-btn");
+        errorEl.style.display = "none";
+
+        const payload = {
+            metodologia: document.getElementById("fnc-analisis-metodologia").value,
+            problemaDetectado: document.getElementById("fnc-analisis-problema").value.trim(),
+            porque1: document.getElementById("fnc-analisis-porque1").value.trim(),
+            porque2: document.getElementById("fnc-analisis-porque2").value.trim(),
+            porque3: document.getElementById("fnc-analisis-porque3").value.trim(),
+            porque4: document.getElementById("fnc-analisis-porque4").value.trim(),
+            porque5: document.getElementById("fnc-analisis-porque5").value.trim(),
+            causaRaiz: document.getElementById("fnc-analisis-causa-raiz").value.trim(),
+            conclusion: document.getElementById("fnc-analisis-conclusion").value.trim(),
+        };
+
+        if (!payload.problemaDetectado) {
+            errorEl.textContent = "El problema detectado es obligatorio";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        if (!confirm("¿Guardar el análisis de causa raíz de esta no conformidad?")) return;
+
+        const existeAnalisis = !!this._analisisActual;
+        const usuario = this._usuarioActual();
+
+        guardarBtn.disabled = true;
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.analisis.guardar",
+                id: Number(this._ncAnalisisId),
+                existeAnalisis,
+                ...(existeAnalisis ? { actualizadoPor: usuario } : { creadoPor: usuario }),
+                ...payload,
+            });
+
+            if (!res.ok) {
+                errorEl.textContent = res.error || "Error al guardar el análisis";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            await this._cargarAnalisis();
+            this._showAnalisisMensaje("Análisis guardado correctamente", true);
+        } catch {
+            errorEl.textContent = "Error de comunicación con el backend";
+            errorEl.style.display = "block";
+        } finally {
+            guardarBtn.disabled = false;
+        }
+    }
+
+    async _cargarAcciones() {
+        const loadingEl = document.getElementById("fnc-acciones-loading");
+        loadingEl.style.display = "block";
+
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.acciones.list",
+                id: Number(this._ncAnalisisId),
+            });
+
+            this._acciones = res.ok && Array.isArray(res.data) ? res.data : [];
+        } catch {
+            this._acciones = [];
+        } finally {
+            loadingEl.style.display = "none";
+        }
+
+        this._renderAcciones();
+    }
+
+    _renderAcciones() {
+        const tbody = document.getElementById("fnc-acciones-tbody");
+
+        if (!this._acciones.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="faret-empty">Sin acciones correctivas</td></tr>`;
+            return;
+        }
+
+        const estados = ["PENDIENTE", "EN_PROCESO", "COMPLETADA", "CANCELADA"];
+
+        tbody.innerHTML = this._acciones.map(a => `
+            <tr>
+                <td>${a.descripcion ?? "-"}</td>
+                <td>${a.responsable ?? "-"}</td>
+                <td>${a.fechaLimite ? a.fechaLimite.substring(0, 10) : "-"}</td>
+                <td>${a.prioridad ?? "-"}</td>
+                <td>
+                    <select class="fnc-accion-estado-select" data-id="${a.id}">
+                        ${estados.map(e => `<option value="${e}" ${e === a.estado ? "selected" : ""}>${e}</option>`).join("")}
+                    </select>
+                </td>
+                <td>${a.integracionTareasEstado ?? "-"}</td>
+                <td>
+                    <button class="btn-secondary fnc-accion-guardar-estado-btn" data-id="${a.id}">Guardar</button>
+                </td>
+            </tr>
+        `).join("");
+
+        tbody.querySelectorAll(".fnc-accion-guardar-estado-btn").forEach(btn =>
+            btn.addEventListener("click", () => this._actualizarEstadoAccion(btn.dataset.id)));
+    }
+
+    async _agregarAccion() {
+        const errorEl = document.getElementById("fnc-accion-form-error");
+        const agregarBtn = document.getElementById("fnc-accion-agregar-btn");
+        errorEl.style.display = "none";
+
+        const payload = {
+            descripcion: document.getElementById("fnc-accion-descripcion").value.trim(),
+            responsable: document.getElementById("fnc-accion-responsable").value.trim(),
+            fechaLimite: document.getElementById("fnc-accion-fecha-limite").value,
+            prioridad: document.getElementById("fnc-accion-prioridad").value || null,
+        };
+
+        if (!payload.descripcion || !payload.responsable || !payload.fechaLimite) {
+            errorEl.textContent = "Descripción, responsable y fecha límite son obligatorios";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        if (!confirm("¿Agregar esta acción correctiva a la no conformidad?")) return;
+
+        agregarBtn.disabled = true;
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.acciones.crear",
+                id: Number(this._ncAnalisisId),
+                analisisId: this._analisisActual?.id ?? null,
+                creadoPor: this._usuarioActual(),
+                ...payload,
+            });
+
+            if (!res.ok) {
+                errorEl.textContent = res.error || "Error al agregar la acción";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            document.getElementById("fnc-accion-descripcion").value = "";
+            document.getElementById("fnc-accion-responsable").value = "";
+            document.getElementById("fnc-accion-fecha-limite").value = "";
+            document.getElementById("fnc-accion-prioridad").value = "";
+
+            await this._cargarAcciones();
+            this._showAnalisisMensaje("Acción correctiva agregada", true);
+        } catch {
+            errorEl.textContent = "Error de comunicación con el backend";
+            errorEl.style.display = "block";
+        } finally {
+            agregarBtn.disabled = false;
+        }
+    }
+
+    async _actualizarEstadoAccion(accionId) {
+        const accion = this._acciones.find(a => String(a.id) === String(accionId));
+        if (!accion) return;
+
+        const select = document.querySelector(`.fnc-accion-estado-select[data-id="${accionId}"]`);
+        const nuevoEstado = select ? select.value : accion.estado;
+
+        if (!confirm(`¿Cambiar el estado de la acción a "${nuevoEstado}"?`)) return;
+
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.acciones.actualizar",
+                accionId: Number(accionId),
+                descripcion: accion.descripcion,
+                responsable: accion.responsable,
+                fechaLimite: accion.fechaLimite ? accion.fechaLimite.substring(0, 10) : "",
+                prioridad: accion.prioridad || null,
+                estado: nuevoEstado,
+                actualizadoPor: this._usuarioActual(),
+            });
+
+            if (!res.ok) {
+                this._showAnalisisMensaje(res.error || "Error al actualizar la acción", false);
+                return;
+            }
+
+            await this._cargarAcciones();
+            this._showAnalisisMensaje("Acción correctiva actualizada", true);
+        } catch {
+            this._showAnalisisMensaje("Error de comunicación con el backend", false);
+        }
+    }
+
+    _showAnalisisMensaje(texto, ok) {
+        const el = document.getElementById("fnc-analisis-mensaje");
+        el.textContent = texto;
+        el.style.display = "block";
+        el.style.background = ok ? "#ECFDF5" : "#FEF2F2";
+        el.style.color = ok ? "#065F46" : "#991B1B";
+        el.style.borderLeftColor = ok ? "#10B981" : "#EF4444";
+        setTimeout(() => { el.style.display = "none"; }, 4000);
+    }
+
+    // Solo presentación: no cambia el valor real de severidad/estado, únicamente
+    // cómo se muestra en la tabla.
+    _badge(texto, color) {
+        const valor = texto ?? "-";
+        return `<span class="fnc-badge" style="background:${color}1F;color:${color};">${valor}</span>`;
+    }
+
+    _colorSeveridad(severidad) {
+        const s = (severidad || "").toUpperCase();
+        if (s === "ALTA") return "#DC2626";
+        if (s === "MEDIA") return "#D97706";
+        if (s === "BAJA") return "#059669";
+        return "#64748B";
+    }
+
+    _colorEstado(estado) {
+        return (estado || "").toUpperCase().includes("CERR") ? "#059669" : "#2563EB";
     }
 };

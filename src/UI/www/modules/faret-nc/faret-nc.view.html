@@ -6,35 +6,46 @@
             <div class="subtitle">Gestión y seguimiento de NC</div>
         </div>
         <div style="display:flex; gap:10px;">
-            <button id="fnc-refresh-btn" class="btn-secondary">↻ Actualizar</button>
             <button id="fnc-nuevo-btn" class="btn-primary">+ Nueva NC</button>
         </div>
     </div>
 
     <!-- Resumen -->
     <div class="home-modules-grid">
-        <div class="home-module-card">
-            <div>
-                <div class="home-module-card-title">TOTAL NC</div>
+        <div class="home-module-card fnc-kpi-blue">
+            <div class="home-module-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6M9 9h2"/></svg>
+            </div>
+            <div class="home-module-card-body">
+                <div class="home-module-card-title">Total NC</div>
                 <div class="home-module-card-value" id="fnc-total">0</div>
             </div>
         </div>
-        <div class="home-module-card">
-            <div>
-                <div class="home-module-card-title">ABIERTAS</div>
+        <div class="home-module-card fnc-kpi-amber">
+            <div class="home-module-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+            </div>
+            <div class="home-module-card-body">
+                <div class="home-module-card-title">Abiertas</div>
                 <div class="home-module-card-value" id="fnc-abiertas">0</div>
             </div>
         </div>
-        <div class="home-module-card">
-            <div>
-                <div class="home-module-card-title">CERRADAS</div>
+        <div class="home-module-card fnc-kpi-green">
+            <div class="home-module-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.3 2.3L16 9.6"/></svg>
+            </div>
+            <div class="home-module-card-body">
+                <div class="home-module-card-title">Cerradas</div>
                 <div class="home-module-card-value" id="fnc-cerradas">0</div>
             </div>
         </div>
-        <div class="home-module-card">
-            <div>
-                <div class="home-module-card-title">CRÍTICAS</div>
-                <div class="home-module-card-value" id="fnc-criticas" style="color:#c0392b;">0</div>
+        <div class="home-module-card fnc-kpi-red">
+            <div class="home-module-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v5M12 17h.01"/></svg>
+            </div>
+            <div class="home-module-card-body">
+                <div class="home-module-card-title">Críticas</div>
+                <div class="home-module-card-value" id="fnc-criticas">0</div>
             </div>
         </div>
     </div>
@@ -122,6 +133,10 @@
 
     <!-- Filtros -->
     <div class="card fnc-filtros-card">
+        <div class="fnc-toolbar-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h18l-7 8v6l-4-2v-4L3 5Z"/></svg>
+            <span>Filtros</span>
+        </div>
         <div class="fnc-filtros-row">
             <div class="fnc-filtro-campo">
                 <label for="fnc-filtro-estado">Estado</label>
@@ -145,9 +160,11 @@
                 <label for="fnc-filtro-fecha-hasta">Fecha hasta</label>
                 <input type="date" id="fnc-filtro-fecha-hasta">
             </div>
+            <div class="fnc-filtro-divisor"></div>
             <div class="fnc-filtro-acciones">
                 <button id="fnc-filtrar-btn" class="btn-primary">Filtrar</button>
                 <button id="fnc-limpiar-btn" class="btn-secondary">Limpiar</button>
+                <button id="fnc-refresh-btn" class="btn-ghost" title="Actualizar">↻ Actualizar</button>
             </div>
         </div>
         <div class="fnc-nota">Los filtros se aplican sobre los datos ya cargados: la API no soporta filtros del lado del servidor todavía.</div>
@@ -189,6 +206,143 @@
                 <button id="fnc-detalle-cerrar-btn" class="btn-secondary">Cerrar</button>
             </div>
             <div id="fnc-detalle-body" class="fnc-detalle-body"></div>
+        </div>
+    </div>
+
+    <!-- Modal Análisis + Plan de Acción -->
+    <div id="fnc-analisis-modal" class="fnc-modal-overlay" style="display:none;">
+        <div class="fnc-modal fnc-analisis-modal card">
+            <div class="module-header">
+                <div>
+                    <div class="module-title" id="fnc-analisis-titulo" style="font-size:1rem;">Análisis y Plan de Acción</div>
+                    <div class="subtitle">Causa raíz, 5 Porqués / Ishikawa y acciones correctivas</div>
+                </div>
+                <button id="fnc-analisis-cerrar-btn" class="btn-secondary">← Volver al listado</button>
+            </div>
+
+            <div id="fnc-analisis-loading" class="faret-loading" style="display:none;">Cargando...</div>
+            <div id="fnc-analisis-error" class="faret-error" style="display:none;"></div>
+            <div id="fnc-analisis-mensaje" class="fi-success" style="display:none;"></div>
+
+            <div id="fnc-analisis-contenido" style="display:none;">
+
+                <!-- Sección 1: Datos de la NC -->
+                <div class="fnc-analisis-seccion">
+                    <div class="fnc-analisis-seccion-titulo"><span class="fnc-seccion-badge">1</span>Datos de la No Conformidad</div>
+                    <div id="fnc-analisis-nc-datos" class="fnc-detalle-grid"></div>
+                </div>
+
+                <!-- Sección 2: Análisis causa raíz -->
+                <div class="fnc-analisis-seccion">
+                    <div class="fnc-analisis-seccion-titulo"><span class="fnc-seccion-badge">2</span>Análisis de causa raíz</div>
+                    <div class="fnc-form-row">
+                        <div class="fnc-form-campo">
+                            <label for="fnc-analisis-metodologia">Metodología *</label>
+                            <select id="fnc-analisis-metodologia">
+                                <option value="CINCO_PORQUES">5 Porqués</option>
+                                <option value="ISHIKAWA">Ishikawa</option>
+                                <option value="MIXTA">Mixta</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="fnc-form-campo fnc-form-campo-full">
+                        <label for="fnc-analisis-problema">Problema detectado *</label>
+                        <textarea id="fnc-analisis-problema" rows="2" placeholder="Describa el problema a analizar"></textarea>
+                    </div>
+                </div>
+
+                <!-- Sección 3: 5 Porqués / Ishikawa -->
+                <div class="fnc-analisis-seccion">
+                    <div class="fnc-analisis-seccion-titulo"><span class="fnc-seccion-badge">3</span>5 Porqués / Ishikawa</div>
+                    <div class="fnc-nota">Use los 5 campos para encadenar los "¿por qué?" (5 Porqués) o para registrar las causas por categoría (Ishikawa simple).</div>
+                    <div class="fnc-form-campo fnc-form-campo-full">
+                        <label for="fnc-analisis-porque1">¿Por qué 1?</label>
+                        <input type="text" id="fnc-analisis-porque1">
+                    </div>
+                    <div class="fnc-form-campo fnc-form-campo-full">
+                        <label for="fnc-analisis-porque2">¿Por qué 2?</label>
+                        <input type="text" id="fnc-analisis-porque2">
+                    </div>
+                    <div class="fnc-form-campo fnc-form-campo-full">
+                        <label for="fnc-analisis-porque3">¿Por qué 3?</label>
+                        <input type="text" id="fnc-analisis-porque3">
+                    </div>
+                    <div class="fnc-form-campo fnc-form-campo-full">
+                        <label for="fnc-analisis-porque4">¿Por qué 4?</label>
+                        <input type="text" id="fnc-analisis-porque4">
+                    </div>
+                    <div class="fnc-form-campo fnc-form-campo-full">
+                        <label for="fnc-analisis-porque5">¿Por qué 5?</label>
+                        <input type="text" id="fnc-analisis-porque5">
+                    </div>
+                    <div class="fnc-form-campo fnc-form-campo-full">
+                        <label for="fnc-analisis-causa-raiz">Causa raíz</label>
+                        <textarea id="fnc-analisis-causa-raiz" rows="2" placeholder="Obligatoria para guardar el análisis como final"></textarea>
+                    </div>
+                    <div class="fnc-form-campo fnc-form-campo-full">
+                        <label for="fnc-analisis-conclusion">Conclusión</label>
+                        <textarea id="fnc-analisis-conclusion" rows="2"></textarea>
+                    </div>
+                    <div class="fnc-form-acciones">
+                        <button id="fnc-analisis-guardar-btn" class="btn-primary">Guardar análisis</button>
+                    </div>
+                </div>
+
+                <!-- Sección 4: Planes de acción -->
+                <div class="fnc-analisis-seccion">
+                    <div class="fnc-analisis-seccion-titulo"><span class="fnc-seccion-badge">4</span>Planes de acción</div>
+
+                    <div class="fnc-form-row">
+                        <div class="fnc-form-campo" style="min-width:220px;">
+                            <label for="fnc-accion-descripcion">Descripción *</label>
+                            <input type="text" id="fnc-accion-descripcion" placeholder="Acción correctiva">
+                        </div>
+                        <div class="fnc-form-campo">
+                            <label for="fnc-accion-responsable">Responsable *</label>
+                            <input type="text" id="fnc-accion-responsable" placeholder="Nombre">
+                        </div>
+                        <div class="fnc-form-campo">
+                            <label for="fnc-accion-fecha-limite">Fecha límite *</label>
+                            <input type="date" id="fnc-accion-fecha-limite">
+                        </div>
+                        <div class="fnc-form-campo">
+                            <label for="fnc-accion-prioridad">Prioridad</label>
+                            <select id="fnc-accion-prioridad">
+                                <option value="">-</option>
+                                <option value="ALTA">ALTA</option>
+                                <option value="MEDIA">MEDIA</option>
+                                <option value="BAJA">BAJA</option>
+                            </select>
+                        </div>
+                        <div class="fnc-form-campo">
+                            <label>&nbsp;</label>
+                            <button id="fnc-accion-agregar-btn" class="btn-primary">+ Agregar acción</button>
+                        </div>
+                    </div>
+                    <div id="fnc-accion-form-error" class="faret-error" style="display:none;"></div>
+
+                    <div id="fnc-acciones-loading" class="faret-loading" style="display:none;">Cargando...</div>
+                    <div class="table-container">
+                        <table class="table faret-table">
+                            <thead>
+                                <tr>
+                                    <th>Descripción</th>
+                                    <th>Responsable</th>
+                                    <th>Fecha límite</th>
+                                    <th>Prioridad</th>
+                                    <th>Estado</th>
+                                    <th>Integración tareas</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fnc-acciones-tbody">
+                                <tr><td colspan="7" class="faret-empty">Sin acciones correctivas</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
         </div>
     </div>
 
