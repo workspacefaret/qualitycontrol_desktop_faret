@@ -18,6 +18,7 @@ namespace QualityControlCenter.Modules.Faret
         private readonly FaretUsuariosApiService _usuarios;
         private readonly FaretNoConformidadesApiService _noConformidades;
         private readonly FaretDashboardService _dashboard;
+        private readonly FaretInspeccionesApiService _inspecciones;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
@@ -35,6 +36,7 @@ namespace QualityControlCenter.Modules.Faret
             _usuarios = new FaretUsuariosApiService(client);
             _noConformidades = new FaretNoConformidadesApiService(mcClient);
             _dashboard = new FaretDashboardService(_noConformidades);
+            _inspecciones = new FaretInspeccionesApiService(client);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -76,6 +78,8 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.nc.acciones.crear" => await HandleNcAccionesCrear(data),
                 "faret.nc.acciones.actualizar" => await HandleNcAccionesActualizar(data),
                 "faret.dashboard.resumen" => await HandleDashboardResumen(),
+                "faret.inspecciones.list" => await HandleInspeccionesList(data),
+                "faret.inspecciones.resumen" => await HandleInspeccionesResumen(data),
                 _ => Error($"Acción Faret no reconocida: {action}"),
             };
         }
@@ -287,6 +291,64 @@ namespace QualityControlCenter.Modules.Faret
             filtros["nivel"] = nivel;
             filtros["fechaDesde"] = fechaDesde;
             filtros["fechaHasta"] = fechaHasta;
+
+            return filtros;
+        }
+
+        // `api/inspecciones*` todavía no existe en la API Faret (a la espera de la app Flutter
+        // que enviará estos registros) — hasta entonces esto devuelve error, que el frontend
+        // trata como "sin datos" en vez de mostrarlo como una falla.
+        private async Task<string> HandleInspeccionesList(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            var filtros = BuildInspeccionesFiltros(data);
+            if (TryGetInt(data, "page", out var page) && page > 0)
+                filtros["page"] = page.ToString();
+            if (TryGetInt(data, "pageSize", out var pageSize) && pageSize > 0)
+                filtros["pageSize"] = pageSize.ToString();
+
+            var (ok, body) = await _inspecciones.GetListAsync(filtros);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleInspeccionesResumen(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            var filtros = BuildInspeccionesFiltros(data);
+
+            var (ok, body) = await _inspecciones.GetResumenAsync(filtros);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private static Dictionary<string, string?> BuildInspeccionesFiltros(
+            Dictionary<string, object> data
+        )
+        {
+            var filtros = new Dictionary<string, string?>();
+
+            TryGetString(data, "fechaDesde", out var fechaDesde);
+            TryGetString(data, "fechaHasta", out var fechaHasta);
+            TryGetString(data, "area", out var area);
+            TryGetString(data, "inspector", out var inspector);
+            TryGetString(data, "estado", out var estado);
+            TryGetString(data, "cliente", out var cliente);
+
+            filtros["fechaDesde"] = fechaDesde;
+            filtros["fechaHasta"] = fechaHasta;
+            filtros["area"] = area;
+            filtros["inspector"] = inspector;
+            filtros["estado"] = estado;
+            filtros["cliente"] = cliente;
 
             return filtros;
         }
