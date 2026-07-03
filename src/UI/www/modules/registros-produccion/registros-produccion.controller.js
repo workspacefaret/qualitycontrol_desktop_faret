@@ -226,10 +226,41 @@ if (!window.RegistrosProduccionController) {
         render() {
             if (!this.data) return
 
+            this.renderHistoricoBanner()
             this.renderKpis()
             this.renderCharts()
             this.renderDesempeno()
             this.renderUltimosRegistros()
+        }
+
+        renderHistoricoBanner() {
+            const banner = document.getElementById("produccionHistoricoBanner")
+            if (!banner) return
+
+            if (!this.data?.mostrandoHistorico) {
+                banner.style.display = "none"
+                banner.innerHTML = ""
+                return
+            }
+
+            const fecha = this.data?.fechaUltimoRegistro
+                ? ` (último registro: ${this.escape(this.data.fechaUltimoRegistro)})`
+                : ""
+
+            banner.style.display = "block"
+            banner.innerHTML = `
+          <div class="card" style="
+            border-left:4px solid #f59e0b;
+            background:#fffbeb;
+            margin-bottom:16px;
+            display:flex;
+            align-items:center;
+            gap:10px;
+          ">
+            <strong>Sin datos recientes.</strong>
+            <span>Mostrando resumen histórico completo${fecha}.</span>
+          </div>
+        `
         }
 
         renderKpis() {

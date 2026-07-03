@@ -27,6 +27,7 @@ namespace QualityControlCenter.Modules.MaquinasSeguimiento
                 if (action == "maquinasSeguimiento.obtenerResumen")
                 {
                     int? maquinaId = null;
+                    var sinLimite = false;
 
                     if (
                         data.TryGetValue("data", out var rawData) && rawData is JsonElement jsonData
@@ -48,9 +49,23 @@ namespace QualityControlCenter.Modules.MaquinasSeguimiento
                                 }
                             }
                         }
+
+                        if (jsonData.TryGetProperty("sinLimite", out var sinLimiteProp))
+                        {
+                            if (sinLimiteProp.ValueKind == JsonValueKind.True)
+                            {
+                                sinLimite = true;
+                            }
+                            else if (sinLimiteProp.ValueKind == JsonValueKind.String)
+                            {
+                                sinLimite =
+                                    bool.TryParse(sinLimiteProp.GetString(), out var parsedBool)
+                                    && parsedBool;
+                            }
+                        }
                     }
 
-                    var resumen = await _repository.ObtenerResumen(maquinaId);
+                    var resumen = await _repository.ObtenerResumen(maquinaId, sinLimite);
 
                     return JsonSerializer.Serialize(
                         new { ok = true, data = resumen },

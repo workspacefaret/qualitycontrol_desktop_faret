@@ -6,6 +6,7 @@
             <div class="subtitle">Gestión y seguimiento de NC</div>
         </div>
         <div style="display:flex; gap:10px;">
+            <button id="fnc-exportar-btn" class="btn-secondary">Exportar Excel</button>
             <button id="fnc-nuevo-btn" class="btn-primary">+ Nueva NC</button>
         </div>
     </div>
@@ -176,7 +177,7 @@
         <div id="fnc-error" class="faret-error" style="display:none;"></div>
 
         <div class="table-container">
-            <table class="table faret-table">
+            <table class="table faret-table" id="fnc-tabla">
                 <thead>
                     <tr>
                         <th>Código</th>

@@ -22,6 +22,9 @@ window.FaretImportacionController = class FaretImportacionController {
         document.getElementById("fi-historial-refresh-btn")
             ?.addEventListener("click", () => this._loadHistorial());
 
+        document.getElementById("fi-historial-exportar-btn")
+            ?.addEventListener("click", () => this._exportarHistorial());
+
         this._loadHistorial();
     }
 
@@ -230,5 +233,14 @@ window.FaretImportacionController = class FaretImportacionController {
                 <td>${i.fecha ? new Date(i.fecha).toLocaleString("es-CL") : "-"}</td>
             </tr>
         `).join("");
+    }
+
+    _exportarHistorial() {
+        window.ExcelExporter.exportTable({
+            tableSelector: "#fi-historial-tabla",
+            fileName: `faret_historial_importaciones_${Date.now()}.xlsx`,
+            sheetName: "Historial",
+            title: "QCC Faret - Historial de Importaciones"
+        });
     }
 };

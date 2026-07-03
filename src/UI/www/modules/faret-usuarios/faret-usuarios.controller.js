@@ -15,6 +15,9 @@ window.FaretUsuariosController = class FaretUsuariosController {
         document.getElementById("fu-crear-btn")
             ?.addEventListener("click", () => this._crear());
 
+        document.getElementById("fu-exportar-btn")
+            ?.addEventListener("click", () => this._exportar());
+
         this._loadLista();
     }
 
@@ -176,5 +179,14 @@ window.FaretUsuariosController = class FaretUsuariosController {
         } catch {
             this._showMensaje("Error de comunicación con el backend", false);
         }
+    }
+
+    _exportar() {
+        window.ExcelExporter.exportTable({
+            tableSelector: "#fu-tabla",
+            fileName: `faret_usuarios_${Date.now()}.xlsx`,
+            sheetName: "Usuarios",
+            title: "QCC Faret - Gestión de Usuarios"
+        });
     }
 };

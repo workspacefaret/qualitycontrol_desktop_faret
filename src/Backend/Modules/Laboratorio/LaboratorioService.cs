@@ -15,10 +15,17 @@ namespace QualityControlCenter.Modules.Laboratorio
             string fechaDesde,
             string fechaHasta,
             string ensayo,
-            string material
+            string material,
+            bool sinLimite = false
         )
         {
-            return await _repository.ObtenerResumen(fechaDesde, fechaHasta, ensayo, material);
+            return await _repository.ObtenerResumen(
+                fechaDesde,
+                fechaHasta,
+                ensayo,
+                material,
+                sinLimite
+            );
         }
     }
 }

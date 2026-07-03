@@ -5,6 +5,9 @@
             <div class="module-title">Inspecciones</div>
             <div class="subtitle">Inspecciones enviadas desde la aplicación móvil FARET</div>
         </div>
+        <div style="display:flex; gap:10px;">
+            <button id="fi-exportar-btn" class="btn-secondary">Exportar Excel</button>
+        </div>
     </div>
 
     <!-- KPIs -->
@@ -108,7 +111,7 @@
         <div id="fi-error" class="faret-error" style="display:none;"></div>
 
         <div class="table-container">
-            <table class="table faret-table">
+            <table class="table faret-table" id="fi-tabla">
                 <thead>
                     <tr>
                         <th class="fi-th-ordenable" data-campo="fecha">Fecha <span class="fi-sort-icon">↕</span></th>

@@ -9,6 +9,9 @@ namespace QualityControlCenter.Modules.Laboratorio
         public int TiposEnsayo { get; set; }
         public int MaterialesAnalizados { get; set; }
 
+        public bool MostrandoHistorico { get; set; }
+        public string FechaUltimoRegistro { get; set; } = "";
+
         public List<LaboratorioCatalogoDto> Ensayos { get; set; } = new();
         public List<LaboratorioCatalogoDto> Materiales { get; set; } = new();
         public List<LaboratorioRegistroDto> Registros { get; set; } = new();

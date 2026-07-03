@@ -27,6 +27,9 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
             using var conn = _db.GetCalidadConnection();
             await conn.OpenAsync();
 
+            var sinFechasExplicitas =
+                string.IsNullOrWhiteSpace(fechaDesde) && string.IsNullOrWhiteSpace(fechaHasta);
+
             var filtros = BuildFiltros(fechaDesde, fechaHasta, inspector, turno, proceso);
 
             result.ControlesHoy = await Count(
@@ -39,28 +42,10 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
                 "
             );
 
-            result.ControlesPeriodo = await Count(
+            result.ControlesPeriodo = await ContarControlesPeriodo(conn, filtros);
+            result.NoConformidadesDetectadas = await ContarNoConformidadesDetectadas(
                 conn,
-                $@"
-                SELECT COUNT(*)
-                FROM registros_control rc
-                WHERE 1 = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'PRODUCCION'
-                  {filtros};
-                "
-            );
-
-            result.NoConformidadesDetectadas = await Count(
-                conn,
-                $@"
-                SELECT COUNT(*)
-                FROM registro_fallas_visuales rfv
-                INNER JOIN registros_control rc
-                    ON rc.id = rfv.registro_id
-                WHERE 1 = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'PRODUCCION'
-                  {filtros};
-                "
+                filtros
             );
 
             result.MermaInsumosHoy = await DecimalValue(
@@ -107,7 +92,76 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
             await CargarDesempenoIndividual(conn, result, filtros);
             await CargarUltimosRegistros(conn, result, filtros);
 
+            if (sinFechasExplicitas && result.ControlesPeriodo == 0)
+            {
+                var filtrosHistoricos = BuildFiltros(
+                    fechaDesde,
+                    fechaHasta,
+                    inspector,
+                    turno,
+                    proceso,
+                    incluirVentanaPorDefecto: false
+                );
+
+                result.ControlesPeriodo = await ContarControlesPeriodo(conn, filtrosHistoricos);
+                result.NoConformidadesDetectadas = await ContarNoConformidadesDetectadas(
+                    conn,
+                    filtrosHistoricos
+                );
+
+                result.CumplimientoGeneral = CalcularPorcentaje(
+                    result.ControlesPeriodo - result.NoConformidadesDetectadas,
+                    result.ControlesPeriodo
+                );
+
+                await CargarCumplimientoPorInspector(conn, result, filtrosHistoricos);
+                await CargarNoConformidadesPorInspector(conn, result, filtrosHistoricos);
+                await CargarControlesPorProceso(conn, result, filtrosHistoricos);
+                await CargarTendenciaCumplimiento(conn, result, filtrosHistoricos);
+                await CargarDesempenoIndividual(conn, result, filtrosHistoricos);
+                await CargarUltimosRegistros(conn, result, filtrosHistoricos);
+
+                result.MostrandoHistorico = true;
+                result.FechaUltimoRegistro =
+                    result.UltimosRegistros.Count > 0
+                        ? result.UltimosRegistros[0].FechaRegistro
+                        : "";
+            }
+
             return result;
+        }
+
+        private async Task<int> ContarControlesPeriodo(MySqlConnection conn, string filtros)
+        {
+            return await Count(
+                conn,
+                $@"
+                SELECT COUNT(*)
+                FROM registros_control rc
+                WHERE 1 = 1
+                  AND UPPER(IFNULL(rc.area, '')) = 'PRODUCCION'
+                  {filtros};
+                "
+            );
+        }
+
+        private async Task<int> ContarNoConformidadesDetectadas(
+            MySqlConnection conn,
+            string filtros
+        )
+        {
+            return await Count(
+                conn,
+                $@"
+                SELECT COUNT(*)
+                FROM registro_fallas_visuales rfv
+                INNER JOIN registros_control rc
+                    ON rc.id = rfv.registro_id
+                WHERE 1 = 1
+                  AND UPPER(IFNULL(rc.area, '')) = 'PRODUCCION'
+                  {filtros};
+                "
+            );
         }
 
         private async Task CargarCumplimientoPorInspector(
@@ -397,7 +451,8 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
             string fechaHasta,
             string inspector,
             string turno,
-            string proceso
+            string proceso,
+            bool incluirVentanaPorDefecto = true
         )
         {
             var filtros = "";
@@ -408,7 +463,11 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
             if (!string.IsNullOrWhiteSpace(fechaHasta))
                 filtros += $" AND rc.fecha_registro <= '{fechaHasta}'";
 
-            if (string.IsNullOrWhiteSpace(fechaDesde) && string.IsNullOrWhiteSpace(fechaHasta))
+            if (
+                incluirVentanaPorDefecto
+                && string.IsNullOrWhiteSpace(fechaDesde)
+                && string.IsNullOrWhiteSpace(fechaHasta)
+            )
                 filtros += " AND rc.fecha_registro >= CURDATE() - INTERVAL 6 DAY";
 
             if (!string.IsNullOrWhiteSpace(inspector))

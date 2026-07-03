@@ -29,12 +29,14 @@ namespace QualityControlCenter.Modules.Laboratorio
                     var fechaHasta = GetString(data, "fechaHasta") ?? "";
                     var ensayo = GetString(data, "ensayo") ?? "";
                     var material = GetString(data, "material") ?? "";
+                    var sinLimite = GetBool(data, "sinLimite");
 
                     var result = await _service.ObtenerResumen(
                         fechaDesde,
                         fechaHasta,
                         ensayo,
-                        material
+                        material,
+                        sinLimite
                     );
 
                     return Ok(result);
@@ -68,6 +70,23 @@ namespace QualityControlCenter.Modules.Laboratorio
                 return null;
 
             return value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+        }
+
+        private static bool GetBool(JsonElement data, string prop)
+        {
+            if (data.ValueKind != JsonValueKind.Object)
+                return false;
+
+            if (!data.TryGetProperty(prop, out var value))
+                return false;
+
+            return value.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.String => bool.TryParse(value.GetString(), out var parsed) && parsed,
+                _ => false,
+            };
         }
 
         private static string Ok(object data)

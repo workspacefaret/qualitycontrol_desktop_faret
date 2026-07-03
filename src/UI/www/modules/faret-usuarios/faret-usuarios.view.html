@@ -6,6 +6,7 @@
             <div class="subtitle">Usuarios con acceso al panel Faret</div>
         </div>
         <div style="display:flex; gap:10px;">
+            <button id="fu-exportar-btn" class="btn-secondary">Exportar Excel</button>
             <button id="fu-refresh-btn" class="btn-secondary">↻ Actualizar</button>
             <button id="fu-nuevo-btn" class="btn-primary">+ Nuevo usuario</button>
         </div>
@@ -59,7 +60,7 @@
         <div id="fu-error" class="faret-error" style="display:none;"></div>
 
         <div class="table-container">
-            <table class="table faret-table">
+            <table class="table faret-table" id="fu-tabla">
                 <thead>
                     <tr>
                         <th>ID</th>

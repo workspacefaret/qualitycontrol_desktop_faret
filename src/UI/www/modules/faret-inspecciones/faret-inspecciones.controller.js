@@ -28,6 +28,9 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         document.querySelectorAll(".fi-th-ordenable").forEach(th =>
             th.addEventListener("click", () => this._ordenarPor(th.dataset.campo)));
 
+        document.getElementById("fi-exportar-btn")
+            ?.addEventListener("click", () => this._exportar());
+
         this._loadAll();
     }
 
@@ -201,5 +204,104 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         document.getElementById("fi-anterior-btn").disabled = this._page <= 1;
         document.getElementById("fi-siguiente-btn").disabled =
             this._page >= totalPaginas || this._totalCount === 0;
+    }
+
+    _hayFiltrosActivos() {
+        const f = this._getFiltros();
+        return Object.values(f).some(v => String(v || "").trim() !== "");
+    }
+
+    async _exportar() {
+        if (this._hayFiltrosActivos()) {
+            window.ExcelExporter.exportTable({
+                tableSelector: "#fi-tabla",
+                fileName: `faret_inspecciones_${Date.now()}.xlsx`,
+                sheetName: "Inspecciones",
+                title: "QCC Faret - Inspecciones"
+            });
+            return;
+        }
+
+        const items = await this._traerTodosLosRegistros();
+        this._exportarRegistrosDesdeDatos(items);
+    }
+
+    async _traerTodosLosRegistros() {
+        const pageSize = 500;
+        let page = 1;
+        let total = Infinity;
+        const items = [];
+
+        while (items.length < total && page <= 200) {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.inspecciones.list",
+                page,
+                pageSize,
+                ...this._getFiltros(),
+            });
+
+            if (!res.ok) break;
+
+            const lote = Array.isArray(res.data.items) ? res.data.items : [];
+            if (!lote.length) break;
+
+            items.push(...lote);
+            total = res.data.totalCount ?? items.length;
+            page++;
+        }
+
+        return items;
+    }
+
+    _exportarRegistrosDesdeDatos(items) {
+        const tabla = document.createElement("table");
+        tabla.id = "fi-tabla-export-temp";
+        tabla.style.position = "absolute";
+        tabla.style.left = "-99999px";
+        tabla.style.top = "0";
+
+        tabla.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Inspector</th>
+                    <th>Cliente</th>
+                    <th>NV</th>
+                    <th>Proceso</th>
+                    <th>Área</th>
+                    <th>Máquina</th>
+                    <th>Resultado</th>
+                    <th>Estado</th>
+                    <th>Cant. defectos</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${items.map(i => `
+                    <tr>
+                        <td>${i.fecha ? new Date(i.fecha).toLocaleDateString("es-CL") : "-"}</td>
+                        <td>${i.inspector ?? "-"}</td>
+                        <td>${i.cliente ?? "-"}</td>
+                        <td>${i.nv ?? "-"}</td>
+                        <td>${i.proceso ?? "-"}</td>
+                        <td>${i.area ?? "-"}</td>
+                        <td>${i.maquina ?? "-"}</td>
+                        <td>${i.resultado ?? "-"}</td>
+                        <td>${i.estado ?? "-"}</td>
+                        <td>${i.cantidadDefectos ?? "-"}</td>
+                    </tr>
+                `).join("")}
+            </tbody>
+        `;
+
+        document.body.appendChild(tabla);
+
+        window.ExcelExporter.exportTable({
+            tableSelector: "#fi-tabla-export-temp",
+            fileName: `faret_inspecciones_todos_${Date.now()}.xlsx`,
+            sheetName: "Inspecciones",
+            title: "QCC Faret - Inspecciones"
+        });
+
+        tabla.remove();
     }
 };

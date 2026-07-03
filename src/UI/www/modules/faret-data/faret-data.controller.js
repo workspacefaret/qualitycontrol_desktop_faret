@@ -22,6 +22,9 @@ window.FaretDataController = class FaretDataController {
         document.getElementById("fd-siguiente-btn")
             ?.addEventListener("click", () => this._irPagina(this._page + 1));
 
+        document.getElementById("fd-exportar-btn")
+            ?.addEventListener("click", () => this._exportar());
+
         this._loadAll();
     }
 
@@ -152,5 +155,114 @@ window.FaretDataController = class FaretDataController {
         document.getElementById("fd-pagina-info").textContent = `Página ${this._page} de ${totalPaginas}`;
         document.getElementById("fd-anterior-btn").disabled = this._page <= 1;
         document.getElementById("fd-siguiente-btn").disabled = this._page >= totalPaginas;
+    }
+
+    _hayFiltrosActivos() {
+        const f = this._getFiltros();
+        return Object.values(f).some(v => String(v || "").trim() !== "");
+    }
+
+    async _exportar() {
+        if (this._hayFiltrosActivos()) {
+            window.ExcelExporter.exportTable({
+                tableSelector: "#fd-tabla",
+                fileName: `faret_data_${Date.now()}.xlsx`,
+                sheetName: "Data",
+                title: "QCC Faret - Data"
+            });
+            return;
+        }
+
+        const items = await this._traerTodosLosRegistros();
+        this._exportarRegistrosDesdeDatos(items);
+    }
+
+    async _traerTodosLosRegistros() {
+        const pageSize = 500;
+        let page = 1;
+        let total = Infinity;
+        const items = [];
+
+        while (items.length < total && page <= 200) {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.data.list",
+                page,
+                pageSize,
+                ...this._getFiltros(),
+            });
+
+            if (!res.ok) break;
+
+            const lote = Array.isArray(res.data.items) ? res.data.items : [];
+            if (!lote.length) break;
+
+            items.push(...lote);
+            total = res.data.totalCount ?? items.length;
+            page++;
+        }
+
+        return items;
+    }
+
+    _exportarRegistrosDesdeDatos(items) {
+        const tabla = document.createElement("table");
+        tabla.id = "fd-tabla-export-temp";
+        tabla.style.position = "absolute";
+        tabla.style.left = "-99999px";
+        tabla.style.top = "0";
+
+        tabla.innerHTML = `
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Fecha ingreso</th>
+                    <th>NP/NV</th>
+                    <th>Cliente</th>
+                    <th>Código</th>
+                    <th>Producto</th>
+                    <th>Tipo PNC</th>
+                    <th>Categoría defecto</th>
+                    <th>Nivel</th>
+                    <th>Tipo falla</th>
+                    <th>Cant. requerida</th>
+                    <th>Cant. rechazada</th>
+                    <th>Cant. recuperada</th>
+                    <th>% recuperación</th>
+                    <th>Observación</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${items.map(r => `
+                    <tr>
+                        <td>${r.id ?? "-"}</td>
+                        <td>${r.fechaIngreso ? new Date(r.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
+                        <td>${r.npNv ?? "-"}</td>
+                        <td>${r.cliente ?? "-"}</td>
+                        <td>${r.codigo ?? "-"}</td>
+                        <td>${r.producto ?? "-"}</td>
+                        <td>${r.tipoPnc ?? "-"}</td>
+                        <td>${r.categoriaDefecto ?? "-"}</td>
+                        <td>${r.nivel ?? "-"}</td>
+                        <td>${r.tipoFalla ?? "-"}</td>
+                        <td>${r.cantRequerida ?? "-"}</td>
+                        <td>${r.cantRechazada ?? "-"}</td>
+                        <td>${r.cantRecuperada ?? "-"}</td>
+                        <td>${r.pctRecuperacion ?? "-"}</td>
+                        <td>${r.observacion ?? "-"}</td>
+                    </tr>
+                `).join("")}
+            </tbody>
+        `;
+
+        document.body.appendChild(tabla);
+
+        window.ExcelExporter.exportTable({
+            tableSelector: "#fd-tabla-export-temp",
+            fileName: `faret_data_todos_${Date.now()}.xlsx`,
+            sheetName: "Data",
+            title: "QCC Faret - Data"
+        });
+
+        tabla.remove();
     }
 };

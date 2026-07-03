@@ -14,6 +14,9 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
         public decimal MermaProcesoHoy { get; set; }
         public int RegistrosConObservacionHoy { get; set; }
 
+        public bool MostrandoHistorico { get; set; }
+        public string FechaUltimoRegistro { get; set; } = "";
+
         public List<RegistrosProduccionInspectorDto> CumplimientoPorInspector { get; set; } = new();
         public List<RegistrosProduccionInspectorDto> NoConformidadesPorInspector { get; set; } =
             new();

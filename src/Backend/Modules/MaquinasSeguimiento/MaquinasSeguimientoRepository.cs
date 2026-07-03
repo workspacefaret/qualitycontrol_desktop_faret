@@ -14,7 +14,10 @@ namespace QualityControlCenter.Modules.MaquinasSeguimiento
             _db = db;
         }
 
-        public async Task<MaquinasSeguimientoResumenDto> ObtenerResumen(int? maquinaId)
+        public async Task<MaquinasSeguimientoResumenDto> ObtenerResumen(
+            int? maquinaId,
+            bool sinLimite = false
+        )
         {
             var result = new MaquinasSeguimientoResumenDto();
 
@@ -121,9 +124,11 @@ namespace QualityControlCenter.Modules.MaquinasSeguimiento
                 );
             }
 
+            var limite = sinLimite ? "" : "LIMIT 100";
+
             using (
                 var cmd = new MySqlCommand(
-                    @"
+                    $@"
                 SELECT
                     rc.id,
                     DATE_FORMAT(rc.fecha_registro, '%d-%m-%Y') AS fecha,
@@ -150,7 +155,7 @@ namespace QualityControlCenter.Modules.MaquinasSeguimiento
 
                 WHERE rc.maquina_id = @maquinaId
                 ORDER BY rc.id DESC
-                LIMIT 100;
+                {limite};
             ",
                     conn
                 )

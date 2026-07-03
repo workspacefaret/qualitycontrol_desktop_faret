@@ -5,6 +5,9 @@
             <div class="module-title">Data</div>
             <div class="subtitle">Registros históricos PNC importados</div>
         </div>
+        <div style="display:flex; gap:10px;">
+            <button id="fd-exportar-btn" class="btn-secondary">Exportar Excel</button>
+        </div>
     </div>
 
     <!-- Resumen -->
@@ -94,7 +97,7 @@
         <div id="fd-error" class="faret-error" style="display:none;"></div>
 
         <div class="table-container">
-            <table class="table faret-table">
+            <table class="table faret-table" id="fd-tabla">
                 <thead>
                     <tr>
                         <th>ID</th>

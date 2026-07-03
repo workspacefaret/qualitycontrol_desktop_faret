@@ -18,13 +18,17 @@ namespace QualityControlCenter.Modules.Laboratorio
             string fechaDesde = "",
             string fechaHasta = "",
             string ensayo = "",
-            string material = ""
+            string material = "",
+            bool sinLimite = false
         )
         {
             var result = new LaboratorioResumenDto();
 
             using var conn = _db.GetCalidadConnection();
             await conn.OpenAsync();
+
+            var sinFechasExplicitas =
+                string.IsNullOrWhiteSpace(fechaDesde) && string.IsNullOrWhiteSpace(fechaHasta);
 
             var filtros = BuildFiltros(fechaDesde, fechaHasta, ensayo, material);
 
@@ -38,7 +42,44 @@ namespace QualityControlCenter.Modules.Laboratorio
                 "
             );
 
-            result.EnsayosPeriodo = await Count(
+            result.EnsayosPeriodo = await ContarEnsayosPeriodo(conn, filtros);
+            result.TiposEnsayo = await ContarTiposEnsayo(conn, filtros);
+            result.MaterialesAnalizados = await ContarMaterialesAnalizados(conn, filtros);
+
+            await CargarEnsayos(conn, result);
+            await CargarMateriales(conn, result);
+            await CargarRegistros(conn, result, filtros, !sinLimite);
+
+            if (sinFechasExplicitas && result.Registros.Count == 0)
+            {
+                var filtrosHistoricos = BuildFiltros(
+                    fechaDesde,
+                    fechaHasta,
+                    ensayo,
+                    material,
+                    incluirVentanaPorDefecto: false
+                );
+
+                result.EnsayosPeriodo = await ContarEnsayosPeriodo(conn, filtrosHistoricos);
+                result.TiposEnsayo = await ContarTiposEnsayo(conn, filtrosHistoricos);
+                result.MaterialesAnalizados = await ContarMaterialesAnalizados(
+                    conn,
+                    filtrosHistoricos
+                );
+
+                await CargarRegistros(conn, result, filtrosHistoricos, !sinLimite);
+
+                result.MostrandoHistorico = true;
+                result.FechaUltimoRegistro =
+                    result.Registros.Count > 0 ? result.Registros[0].FechaRegistro : "";
+            }
+
+            return result;
+        }
+
+        private async Task<int> ContarEnsayosPeriodo(MySqlConnection conn, string filtros)
+        {
+            return await Count(
                 conn,
                 $@"
                 SELECT COUNT(*)
@@ -48,8 +89,11 @@ namespace QualityControlCenter.Modules.Laboratorio
                 {filtros};
                 "
             );
+        }
 
-            result.TiposEnsayo = await Count(
+        private async Task<int> ContarTiposEnsayo(MySqlConnection conn, string filtros)
+        {
+            return await Count(
                 conn,
                 $@"
                 SELECT COUNT(DISTINCT re.ensayo_id)
@@ -59,8 +103,11 @@ namespace QualityControlCenter.Modules.Laboratorio
                 {filtros};
                 "
             );
+        }
 
-            result.MaterialesAnalizados = await Count(
+        private async Task<int> ContarMaterialesAnalizados(MySqlConnection conn, string filtros)
+        {
+            return await Count(
                 conn,
                 $@"
                 SELECT COUNT(DISTINCT re.material_id)
@@ -70,12 +117,6 @@ namespace QualityControlCenter.Modules.Laboratorio
                 {filtros};
                 "
             );
-
-            await CargarEnsayos(conn, result);
-            await CargarMateriales(conn, result);
-            await CargarRegistros(conn, result, filtros);
-
-            return result;
         }
 
         private async Task CargarEnsayos(MySqlConnection conn, LaboratorioResumenDto result)
@@ -133,9 +174,12 @@ namespace QualityControlCenter.Modules.Laboratorio
         private async Task CargarRegistros(
             MySqlConnection conn,
             LaboratorioResumenDto result,
-            string filtros
+            string filtros,
+            bool limitar = true
         )
         {
+            var limite = limitar ? "LIMIT 300" : "";
+
             using var cmd = new MySqlCommand(
                 $@"
                 SELECT
@@ -162,7 +206,7 @@ namespace QualityControlCenter.Modules.Laboratorio
                 WHERE 1 = 1
                 {filtros}
                 ORDER BY rc.fecha_registro DESC, rc.hora_registro DESC, re.id DESC
-                LIMIT 300;
+                {limite};
                 ",
                 conn
             );
@@ -196,7 +240,8 @@ namespace QualityControlCenter.Modules.Laboratorio
             string fechaDesde,
             string fechaHasta,
             string ensayo,
-            string material
+            string material,
+            bool incluirVentanaPorDefecto = true
         )
         {
             var filtros = "";
@@ -207,7 +252,11 @@ namespace QualityControlCenter.Modules.Laboratorio
             if (!string.IsNullOrWhiteSpace(fechaHasta))
                 filtros += $" AND rc.fecha_registro <= '{fechaHasta}'";
 
-            if (string.IsNullOrWhiteSpace(fechaDesde) && string.IsNullOrWhiteSpace(fechaHasta))
+            if (
+                incluirVentanaPorDefecto
+                && string.IsNullOrWhiteSpace(fechaDesde)
+                && string.IsNullOrWhiteSpace(fechaHasta)
+            )
                 filtros += " AND rc.fecha_registro >= CURDATE() - INTERVAL 30 DAY";
 
             if (!string.IsNullOrWhiteSpace(ensayo))

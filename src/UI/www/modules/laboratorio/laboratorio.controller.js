@@ -53,12 +53,7 @@ if (!window.LaboratorioController) {
                 }
 
                 if (e.target.id === "btnExportarLaboratorio") {
-                    window.ExcelExporter.exportTable({
-                        tableSelector: "#tablaLaboratorio",
-                        fileName: `qcc_laboratorio_${Date.now()}.xlsx`,
-                        sheetName: "Laboratorio",
-                        title: "QCC - Laboratorio"
-                    })
+                    this.exportarLaboratorio()
                     return
                 }
 
@@ -125,6 +120,7 @@ if (!window.LaboratorioController) {
 
                 this.data = res.data || {}
 
+                this.renderHistoricoBanner()
                 this.renderKpis()
                 this.renderFiltros()
                 this.renderCharts()
@@ -135,6 +131,36 @@ if (!window.LaboratorioController) {
             } finally {
                 this.loading = false
             }
+        }
+
+        renderHistoricoBanner() {
+            const banner = document.getElementById("laboratorioHistoricoBanner")
+            if (!banner) return
+
+            if (!this.data?.mostrandoHistorico) {
+                banner.style.display = "none"
+                banner.innerHTML = ""
+                return
+            }
+
+            const fecha = this.data?.fechaUltimoRegistro
+                ? ` (último registro: ${this.escape(this.data.fechaUltimoRegistro)})`
+                : ""
+
+            banner.style.display = "block"
+            banner.innerHTML = `
+          <div class="card" style="
+            border-left:4px solid #f59e0b;
+            background:#fffbeb;
+            margin-bottom:16px;
+            display:flex;
+            align-items:center;
+            gap:10px;
+          ">
+            <strong>Sin datos recientes.</strong>
+            <span>Mostrando resumen histórico completo${fecha}.</span>
+          </div>
+        `
         }
 
         renderKpis() {
@@ -343,6 +369,104 @@ if (!window.LaboratorioController) {
                 if (el) el.value = ""
                 if (el && el._flatpickr) el._flatpickr.clear()
             })
+        }
+
+        hayFiltrosActivos() {
+            return [
+                "laboratorioFechaDesde",
+                "laboratorioFechaHasta",
+                "laboratorioEnsayo",
+                "laboratorioMaterial"
+            ].some(id => this.getVal(id).trim() !== "")
+        }
+
+        async exportarLaboratorio() {
+            if (this.hayFiltrosActivos()) {
+                window.ExcelExporter.exportTable({
+                    tableSelector: "#tablaLaboratorio",
+                    fileName: `qcc_laboratorio_${Date.now()}.xlsx`,
+                    sheetName: "Laboratorio",
+                    title: "QCC - Laboratorio"
+                })
+                return
+            }
+
+            const res = await window.PhotinoBridge.send({
+                action: "laboratorio.obtenerResumen",
+                data: {
+                    fechaDesde: "",
+                    fechaHasta: "",
+                    ensayo: "",
+                    material: "",
+                    sinLimite: true
+                }
+            })
+
+            if (!res || res.ok === false) {
+                alert(res?.error || "Error exportando ensayos de laboratorio")
+                return
+            }
+
+            const registros = res.data?.registros || []
+            this.exportarRegistrosLaboratorioDesdeDatos(registros)
+        }
+
+        exportarRegistrosLaboratorioDesdeDatos(registros) {
+            const tabla = document.createElement("table")
+            tabla.id = "tablaLaboratorioExportTemp"
+            tabla.style.position = "absolute"
+            tabla.style.left = "-99999px"
+            tabla.style.top = "0"
+
+            tabla.innerHTML = `
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Registro</th>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>Ensayo</th>
+              <th>Material</th>
+              <th>Valor</th>
+              <th>NP</th>
+              <th>Turno</th>
+              <th>Usuario</th>
+              <th>Proceso</th>
+              <th>Observación</th>
+              <th>Imagen</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${registros.map(r => `
+              <tr>
+                <td>${this.numero(r.id)}</td>
+                <td>${this.numero(r.registroId)}</td>
+                <td>${this.escape(r.fechaRegistro)}</td>
+                <td>${this.escape(r.horaRegistro)}</td>
+                <td>${this.escape(r.ensayo || "-")}</td>
+                <td>${this.escape(r.material || "-")}</td>
+                <td>${this.escape(r.valor || "-")}</td>
+                <td>${this.escape(r.np || "-")}</td>
+                <td>${this.escape(r.turno || "-")}</td>
+                <td>${this.escape(r.usuario || "-")}</td>
+                <td>${this.escape(r.proceso || "-")}</td>
+                <td>${this.escape(r.observacion || "-")}</td>
+                <td>${this.escape(r.imagenUrl || "-")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        `
+
+            document.body.appendChild(tabla)
+
+            window.ExcelExporter.exportTable({
+                tableSelector: "#tablaLaboratorioExportTemp",
+                fileName: `qcc_laboratorio_todos_${Date.now()}.xlsx`,
+                sheetName: "Laboratorio",
+                title: "QCC - Laboratorio"
+            })
+
+            tabla.remove()
         }
 
         mostrarImagenLaboratorio(url) {

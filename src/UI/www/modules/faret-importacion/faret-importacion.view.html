@@ -88,14 +88,17 @@
                 <div class="module-title">Historial de importaciones</div>
                 <div class="subtitle">Últimas cargas masivas confirmadas</div>
             </div>
-            <button id="fi-historial-refresh-btn" class="btn-secondary">↻ Actualizar</button>
+            <div style="display:flex; gap:10px;">
+                <button id="fi-historial-exportar-btn" class="btn-secondary">Exportar Excel</button>
+                <button id="fi-historial-refresh-btn" class="btn-secondary">↻ Actualizar</button>
+            </div>
         </div>
 
         <div id="fi-historial-loading" class="faret-loading" style="display:none;">Cargando...</div>
         <div id="fi-historial-error" class="faret-error" style="display:none;"></div>
 
         <div class="table-container">
-            <table class="table faret-table">
+            <table class="table faret-table" id="fi-historial-tabla">
                 <thead>
                     <tr>
                         <th>ID</th>

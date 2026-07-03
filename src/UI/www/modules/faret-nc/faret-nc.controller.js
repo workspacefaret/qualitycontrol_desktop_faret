@@ -36,6 +36,9 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-accion-agregar-btn")
             ?.addEventListener("click", () => this._agregarAccion());
 
+        document.getElementById("fnc-exportar-btn")
+            ?.addEventListener("click", () => this._exportar());
+
         this._ncAnalisisId = null;
         this._analisisActual = null;
         this._acciones = [];
@@ -619,5 +622,14 @@ window.FaretNcController = class FaretNcController {
 
     _colorEstado(estado) {
         return (estado || "").toUpperCase().includes("CERR") ? "#059669" : "#2563EB";
+    }
+
+    _exportar() {
+        window.ExcelExporter.exportTable({
+            tableSelector: "#fnc-tabla",
+            fileName: `faret_no_conformidades_${Date.now()}.xlsx`,
+            sheetName: "No Conformidades",
+            title: "QCC Faret - No Conformidades"
+        });
     }
 };
