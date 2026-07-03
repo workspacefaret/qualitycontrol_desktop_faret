@@ -1,0 +1,177 @@
+<div class="module">
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">Mermas Innpack</div>
+            <div class="subtitle">Seguimiento de mermas registradas en control de calidad</div>
+        </div>
+
+        <div class="module-actions">
+            <button class="btn-secondary" id="btnExportarMermas">Exportar Excel</button>
+            <button class="btn-primary" id="btnActualizarMermas">Actualizar</button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+
+    <div class="kpi-row">
+
+        <div class="kpi-card">
+            <div class="kpi-label">Total kg de merma</div>
+            <div class="kpi-value" id="mermasTotalKg">0</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Total unidades de merma</div>
+            <div class="kpi-value" id="mermasTotalUnidades">0</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Registros con merma</div>
+            <div class="kpi-value" id="mermasCantidadRegistros">0</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">Material con mayor merma</div>
+            <div class="kpi-value" id="mermasMaterialMayor">-</div>
+        </div>
+
+    </div>
+
+    <!-- FILTROS -->
+
+    <div class="card">
+
+        <div class="laboratorio-filters">
+
+            <input type="text" id="mermasFechaDesde" placeholder="Fecha desde" />
+
+            <input type="text" id="mermasFechaHasta" placeholder="Fecha hasta" />
+
+            <select id="mermasMaterial">
+                <option value="">Todos los materiales</option>
+            </select>
+
+            <select id="mermasProceso">
+                <option value="">Todos los procesos</option>
+            </select>
+
+            <select id="mermasMaquina">
+                <option value="">Todas las máquinas</option>
+            </select>
+
+            <select id="mermasTurno">
+                <option value="">Todos los turnos</option>
+                <option value="Mañana">Mañana</option>
+                <option value="Tarde">Tarde</option>
+                <option value="Noche">Noche</option>
+            </select>
+
+            <input type="text" id="mermasBusqueda" placeholder="Buscar NP / producto / observación" />
+
+            <div class="laboratorio-filter-actions">
+                <button class="btn-secondary" id="btnLimpiarMermas">Limpiar</button>
+                <button class="btn-primary" id="btnFiltrarMermas">Buscar</button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- RESUMEN AGRUPADO -->
+
+    <div class="laboratorio-top-grid">
+
+        <div class="card">
+            <div class="module-title">Merma por material</div>
+            <div class="table-container">
+                <table class="table" id="tablaMermasPorMaterial">
+                    <thead>
+                        <tr>
+                            <th>Material</th>
+                            <th>Kg</th>
+                            <th>Unidades</th>
+                            <th>Registros</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyMermasPorMaterial">
+                        <tr><td colspan="4">Sin datos</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="module-title">Merma por proceso</div>
+            <div class="table-container">
+                <table class="table" id="tablaMermasPorProceso">
+                    <thead>
+                        <tr>
+                            <th>Proceso</th>
+                            <th>Kg</th>
+                            <th>Unidades</th>
+                            <th>Registros</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyMermasPorProceso">
+                        <tr><td colspan="4">Sin datos</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="module-title">Merma por máquina</div>
+            <div class="table-container">
+                <table class="table" id="tablaMermasPorMaquina">
+                    <thead>
+                        <tr>
+                            <th>Máquina</th>
+                            <th>Kg</th>
+                            <th>Unidades</th>
+                            <th>Registros</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyMermasPorMaquina">
+                        <tr><td colspan="4">Sin datos</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- TABLA PRINCIPAL -->
+
+    <div class="card">
+
+        <div class="module-title">Registros de merma</div>
+
+        <div class="table-container">
+            <table class="table" id="tablaMermas">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Área</th>
+                        <th>Proceso</th>
+                        <th>Máquina</th>
+                        <th>Usuario</th>
+                        <th>NP</th>
+                        <th>Código producto</th>
+                        <th>Descripción producto</th>
+                        <th>Material</th>
+                        <th>Cantidad</th>
+                        <th>Unidad</th>
+                        <th>Observación</th>
+                        <th>Estado validación</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyMermas">
+                    <tr><td colspan="13">Cargando mermas...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+</div>
