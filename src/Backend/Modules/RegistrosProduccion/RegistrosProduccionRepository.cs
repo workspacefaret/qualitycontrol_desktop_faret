@@ -51,7 +51,7 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
             result.MermaInsumosHoy = await DecimalValue(
                 conn,
                 @"
-                SELECT IFNULL(SUM(rc.merma_insumos_desponche_bobinas), 0)
+                SELECT IFNULL(SUM(CASE WHEN rc.tipo_merma = 'Insumos - Desponche de bobinas' THEN CAST(rc.cantidad_merma AS DECIMAL(10,2)) END), 0)
                 FROM registros_control rc
                 WHERE rc.fecha_registro = CURDATE()
                   AND UPPER(IFNULL(rc.area, '')) = 'PRODUCCION';
@@ -61,7 +61,7 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
             result.MermaProcesoHoy = await DecimalValue(
                 conn,
                 @"
-                SELECT IFNULL(SUM(rc.merma_proceso_monotapas), 0)
+                SELECT IFNULL(SUM(CASE WHEN rc.tipo_merma = 'Proceso - Merma por monotapa' THEN CAST(rc.cantidad_merma AS DECIMAL(10,2)) END), 0)
                 FROM registros_control rc
                 WHERE rc.fecha_registro = CURDATE()
                   AND UPPER(IFNULL(rc.area, '')) = 'PRODUCCION';
@@ -398,6 +398,8 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
                     IFNULL(rc.turno, '-') AS turno,
                     IFNULL(ec.nombre, '-') AS estado,
                     IFNULL(rc.observacion, '-') AS observacion,
+                    IFNULL(rc.tipo_merma, '-') AS tipo_merma,
+                    IFNULL(rc.cantidad_merma, '-') AS cantidad_merma,
                     IFNULL(rc.estado_validacion, 'PENDIENTE') AS estado_validacion,
                     IFNULL(DATE_FORMAT(rc.fecha_validacion, '%d-%m-%Y %H:%i'), '') AS fecha_validacion,
                     IFNULL(rc.usuario_validacion, '') AS usuario_validacion,
@@ -437,6 +439,8 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
                         Turno = Text(reader, "turno"),
                         Estado = Text(reader, "estado"),
                         Observacion = Text(reader, "observacion"),
+                        TipoMerma = Text(reader, "tipo_merma"),
+                        CantidadMerma = Text(reader, "cantidad_merma"),
                         EstadoValidacion = Text(reader, "estado_validacion"),
                         FechaValidacion = Text(reader, "fecha_validacion"),
                         UsuarioValidacion = Text(reader, "usuario_validacion"),

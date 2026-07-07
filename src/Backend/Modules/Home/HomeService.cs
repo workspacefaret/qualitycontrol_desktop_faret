@@ -65,11 +65,10 @@ namespace QualityControlCenter.Modules.Home
             decimal mermaHoy = await DecimalValue(
                 conn,
                 @"
-                SELECT IFNULL(SUM(rm.cantidad), 0)
-                FROM registro_mermas rm
-                INNER JOIN registros_control rc
-                    ON rc.id = rm.registro_id
-                WHERE rc.fecha_registro = CURDATE();
+                SELECT IFNULL(SUM(CAST(REPLACE(rc.cantidad_merma, ',', '.') AS DECIMAL(10,2))), 0)
+                FROM registros_control rc
+                WHERE rc.fecha_registro = CURDATE()
+                  AND rc.requiere_merma = 1;
                 "
             );
 
@@ -96,11 +95,10 @@ namespace QualityControlCenter.Modules.Home
             decimal mermaAyer = await DecimalValue(
                 conn,
                 @"
-                SELECT IFNULL(SUM(rm.cantidad), 0)
-                FROM registro_mermas rm
-                INNER JOIN registros_control rc
-                    ON rc.id = rm.registro_id
-                WHERE rc.fecha_registro = CURDATE() - INTERVAL 1 DAY;
+                SELECT IFNULL(SUM(CAST(REPLACE(rc.cantidad_merma, ',', '.') AS DECIMAL(10,2))), 0)
+                FROM registros_control rc
+                WHERE rc.fecha_registro = CURDATE() - INTERVAL 1 DAY
+                  AND rc.requiere_merma = 1;
                 "
             );
 
@@ -286,15 +284,14 @@ namespace QualityControlCenter.Modules.Home
                 @"
                 SELECT
                     p.nombre AS nombre,
-                    rm.unidad AS unidad,
-                    IFNULL(SUM(rm.cantidad), 0) AS total
-                FROM registro_mermas rm
-                INNER JOIN registros_control rc
-                    ON rc.id = rm.registro_id
+                    IFNULL(SUM(CAST(REPLACE(rc.cantidad_merma, ',', '.') AS DECIMAL(10,2))), 0) AS total
+                FROM registros_control rc
                 INNER JOIN procesos p
                     ON p.id = rc.proceso_id
                 WHERE rc.fecha_registro = CURDATE()
-                GROUP BY p.id, p.nombre, rm.unidad
+                  AND rc.requiere_merma = 1
+                GROUP BY p.id, p.nombre
+                HAVING total > 0
                 ORDER BY total DESC;
                 ",
                 conn
@@ -305,12 +302,7 @@ namespace QualityControlCenter.Modules.Home
             while (await reader.ReadAsync())
             {
                 lista.Add(
-                    new
-                    {
-                        nombre = Text(reader, "nombre"),
-                        unidad = Text(reader, "unidad"),
-                        total = Decimal(reader, "total"),
-                    }
+                    new { nombre = Text(reader, "nombre"), total = Decimal(reader, "total") }
                 );
             }
 

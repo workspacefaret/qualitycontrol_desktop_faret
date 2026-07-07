@@ -179,7 +179,7 @@ if (!window.RegistrosControlController) {
       if (!this.data.length) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="14">Sin registros para los filtros seleccionados</td>
+            <td colspan="16">Sin registros para los filtros seleccionados</td>
           </tr>
         `
         return
@@ -198,6 +198,8 @@ if (!window.RegistrosControlController) {
           <td>${this.escape(r.turno)}</td>
           <td>${this.renderEstado(r.estado)}</td>
           <td>${this.escape(r.observacion || "-")}</td>
+          <td>${this.escape(r.cantidadMerma || "-")}</td>
+          <td>${this.escape(r.tipoMerma || "-")}</td>
 
           <td>
             ${this.renderEstadoValidacion(r.estadoValidacion)}
@@ -262,7 +264,7 @@ if (!window.RegistrosControlController) {
 
       tbody.innerHTML = `
         <tr>
-          <td colspan="14">Cargando registros...</td>
+          <td colspan="16">Cargando registros...</td>
         </tr>
       `
     }
@@ -273,7 +275,7 @@ if (!window.RegistrosControlController) {
 
       tbody.innerHTML = `
         <tr>
-          <td colspan="14">Error: ${this.escape(message)}</td>
+          <td colspan="16">Error: ${this.escape(message)}</td>
         </tr>
       `
     }
@@ -495,6 +497,8 @@ if (!window.RegistrosControlController) {
             <th>Turno</th>
             <th>Estado</th>
             <th>Observación</th>
+            <th>Cantidad Merma</th>
+            <th>Detalle Merma</th>
             <th>Estado Validación</th>
             <th>Imagen</th>
           </tr>
@@ -513,6 +517,8 @@ if (!window.RegistrosControlController) {
               <td>${this.escape(r.turno || "-")}</td>
               <td>${this.escape(r.estado || "-")}</td>
               <td>${this.escape(r.observacion || "-")}</td>
+              <td>${this.escape(r.cantidadMerma || "-")}</td>
+              <td>${this.escape(r.tipoMerma || "-")}</td>
               <td>${this.escape(r.estadoValidacion || "PENDIENTE")}</td>
               <td>${this.escape(r.imagenUrl || "-")}</td>
             </tr>

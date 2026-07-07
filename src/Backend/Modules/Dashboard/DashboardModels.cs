@@ -72,6 +72,9 @@ namespace QualityControlCenter.Modules.Dashboard
         public string Estado { get; set; } = "";
         public string Observacion { get; set; } = "";
 
+        public string TipoMerma { get; set; } = "";
+        public string CantidadMerma { get; set; } = "";
+
         public string EstadoValidacion { get; set; } = "";
         public string FechaValidacion { get; set; } = "";
         public string UsuarioValidacion { get; set; } = "";

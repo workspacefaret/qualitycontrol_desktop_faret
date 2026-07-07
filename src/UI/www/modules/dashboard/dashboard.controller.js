@@ -308,7 +308,7 @@ if (!window.DashboardController) {
       if (!registros.length) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="15">Sin registros disponibles</td>
+            <td colspan="17">Sin registros disponibles</td>
           </tr>
         `
         return
@@ -328,6 +328,8 @@ if (!window.DashboardController) {
           <td>${this.escape(r.turno || "-")}</td>
           <td>${this.escape(r.estado || "-")}</td>
           <td>${this.escape(r.observacion || "-")}</td>
+          <td>${this.escape(r.cantidadMerma || "-")}</td>
+          <td>${this.escape(r.tipoMerma || "-")}</td>
 
           <td>
             ${this.renderEstadoValidacion(r.estadoValidacion)}
@@ -559,7 +561,7 @@ if (!window.DashboardController) {
       if (tbody2) {
         tbody2.innerHTML = `
                   <tr>
-                  <td colspan="15">Cargando registros...</td>
+                  <td colspan="17">Cargando registros...</td>
                   </tr>
               `
       }
@@ -580,7 +582,7 @@ if (!window.DashboardController) {
       if (tbody2) {
         tbody2.innerHTML = `
                   <tr>
-                  <td colspan="15">Error: ${this.escape(message)}</td>
+                  <td colspan="17">Error: ${this.escape(message)}</td>
                   </tr>
               `
       }
