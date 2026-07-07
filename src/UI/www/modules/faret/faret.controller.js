@@ -1,13 +1,11 @@
 window.FaretController = class FaretController {
 
     init() {
-        console.log("FaretController (Dashboard Ejecutivo) iniciado");
+        console.log("FaretController (Inicio) iniciado");
 
         this._charts = [];
 
-        document.getElementById("fdash-refresh-btn")
-            ?.addEventListener("click", () => this._loadDashboard());
-
+        this._bindModuleCards();
         this._loadDashboard();
     }
 
@@ -16,170 +14,182 @@ window.FaretController = class FaretController {
         this._destroyCharts();
     }
 
+    _bindModuleCards() {
+        document.querySelectorAll(".home-module-card").forEach(card => {
+            card.addEventListener("click", () => {
+                const target = card.dataset.moduleTarget;
+                if (target && window.app?.loadModule) window.app.loadModule(target);
+            });
+        });
+    }
+
     async _loadDashboard() {
-        const errorEl = document.getElementById("fdash-error");
-        errorEl.style.display = "none";
         this._destroyCharts();
 
+        const [dashboard, inspecciones, maquinas] = await Promise.all([
+            this._fetch("faret.dashboard.resumen"),
+            this._fetch("faret.inspecciones.resumen"),
+            this._fetch("faret.maquinas.resumen"),
+        ]);
+
+        this._renderKpis(dashboard?.kpis || {}, inspecciones || {}, maquinas || {});
+        this._renderCharts(dashboard || {}, inspecciones || {});
+        this._renderAlertas(dashboard?.alertas || []);
+        this._renderMaquinas(maquinas?.maquinas || []);
+        this._renderResumen(dashboard?.kpis || {}, inspecciones || {}, maquinas || {});
+    }
+
+    async _fetch(action) {
         try {
-            const res = await window.PhotinoBridge.send({ action: "faret.dashboard.resumen" });
-
-            if (!res.ok) {
-                errorEl.textContent = res.error || "No fue posible cargar el dashboard";
-                errorEl.style.display = "block";
-                this._marcarSeccionesSinDatos();
-                return;
-            }
-
-            const data = res.data || {};
-            this._renderKpis(data.kpis || {});
-            this._renderCharts(data);
-            this._renderUltimasNc(data.ultimasNc || []);
-            this._renderAlertas(data.alertas || []);
+            const res = await window.PhotinoBridge.send({ action });
+            return res.ok ? res.data : null;
         } catch {
-            errorEl.textContent = "Error de comunicación con el backend";
-            errorEl.style.display = "block";
-            this._marcarSeccionesSinDatos();
+            return null;
         }
     }
 
-    _renderKpis(kpis) {
-        try {
-            this._setKpi("fdash-kpi-nc-hoy", this._numero(kpis.ncRegistradasHoy));
-            this._setKpi("fdash-kpi-nc-abiertas", this._numero(kpis.ncAbiertas));
-            this._setKpi("fdash-kpi-acciones-pendientes", this._numero(kpis.accionesPendientes));
-            this._setKpi("fdash-kpi-pct-completadas", `${this._numero(kpis.porcentajeAccionesCompletadas)}%`);
-            this._setKpi("fdash-kpi-acciones-vencidas", this._numero(kpis.accionesVencidas));
-        } catch {
-            ["fdash-kpi-nc-hoy", "fdash-kpi-nc-abiertas", "fdash-kpi-acciones-pendientes", "fdash-kpi-pct-completadas", "fdash-kpi-acciones-vencidas"]
-                .forEach(id => this._setKpi(id, "-"));
+    _renderKpis(kpis, inspecciones, maquinas) {
+        this._setText("fh-kpi-inspecciones-hoy", this._numero(inspecciones.inspeccionesHoy));
+        this._setText("fh-kpi-inspecciones-defectos", this._numero(inspecciones.conDefectos));
+
+        this._setText("fh-kpi-nc-hoy", this._numero(kpis.ncRegistradasHoy));
+        this._setText("fh-kpi-nc-abiertas", this._numero(kpis.ncAbiertas));
+
+        this._setText("fh-kpi-acciones-vencidas", this._numero(kpis.accionesVencidas));
+        this._setText("fh-kpi-acciones-pct", `${this._numero(kpis.porcentajeAccionesCompletadas)}%`);
+
+        this._setText("fh-kpi-maquinas-total", this._numero(maquinas.totalMaquinas));
+
+        const top = (maquinas.maquinas || []).slice().sort((a, b) => b.totalRegistros - a.totalRegistros)[0];
+        this._setText("fh-kpi-maquinas-top", top ? `${top.maquina} (${top.totalRegistros})` : "-");
+    }
+
+    _renderCharts(dashboard, inspecciones) {
+        this._chartBarHorizontal("fh-chart-nc-proceso", dashboard.ncPorProceso || [], "categoria", "total", "NC");
+        this._chartBarHorizontal("fh-chart-nc-severidad", dashboard.ncPorSeveridad || [], "categoria", "total", "NC");
+        this._chartDoughnut("fh-chart-estado-acciones", dashboard.estadoAcciones || [], "categoria", "total");
+        this._chartBarHorizontal("fh-chart-acciones-proceso", dashboard.accionesPorProceso || [], "categoria", "total", "Acciones");
+
+        this._chartDoughnut("fh-chart-inspecciones-defectos", [
+            { nombre: "Con defectos", total: inspecciones.conDefectos || 0 },
+            { nombre: "Sin defectos", total: inspecciones.sinDefectos || 0 },
+        ], "nombre", "total");
+
+        this._chartLine("fh-chart-tendencia-nc", dashboard.tendenciaNc30Dias || [], "fecha", "total", "NC");
+    }
+
+    _renderAlertas(alertas) {
+        const container = document.getElementById("fh-alertas-activas");
+        if (!container) return;
+
+        if (!alertas.length) {
+            container.innerHTML = `<div class="alert-ok">✔ Sistema sin alertas activas</div>`;
+            return;
         }
+
+        container.innerHTML = alertas.map(a => `
+            <div class="alert-item">
+                <div>${a.tipo === "success" ? "✔" : "⚠"} ${this._escape(a.mensaje || "-")}</div>
+            </div>
+        `).join("");
     }
 
-    _setKpi(id, texto) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = texto;
-    }
+    _renderMaquinas(maquinas) {
+        const container = document.getElementById("fh-maquinas-list");
+        if (!container) return;
 
-    _marcarSeccionesSinDatos() {
-        // Si falló toda la carga, cada widget muestra su propio estado de error
-        // en vez de quedar cargando indefinidamente.
-        ["fdash-kpi-nc-hoy", "fdash-kpi-nc-abiertas", "fdash-kpi-acciones-pendientes", "fdash-kpi-pct-completadas", "fdash-kpi-acciones-vencidas"]
-            .forEach(id => this._setKpi(id, "-"));
+        const top5 = maquinas.slice().sort((a, b) => b.totalRegistros - a.totalRegistros).slice(0, 5);
 
-        ["acciones-proceso", "nc-proceso", "tendencia", "nc-severidad", "estado-acciones"]
-            .forEach(key => this._mostrarError(key));
-
-        this._mostrarErrorUltimasNc();
-
-        document.getElementById("fdash-skeleton-alertas").style.display = "none";
-        document.getElementById("fdash-alertas-box").style.display = "none";
-    }
-
-    _renderCharts(data) {
-        this._renderChartSeguro("acciones-proceso", () =>
-            this._chartBarras("fdash-chart-acciones-proceso", data.accionesPorProceso || [], "#3B82F6"));
-
-        this._renderChartSeguro("nc-proceso", () =>
-            this._chartBarras("fdash-chart-nc-proceso", data.ncPorProceso || [], "#EF4444"));
-
-        this._renderChartSeguro("tendencia", () =>
-            this._chartLinea("fdash-chart-tendencia", data.tendenciaNc30Dias || []));
-
-        this._renderChartSeguro("nc-severidad", () =>
-            this._chartBarras("fdash-chart-nc-severidad", data.ncPorSeveridad || [], "#F97316"));
-
-        this._renderChartSeguro("estado-acciones", () =>
-            this._chartDonutEstados("fdash-chart-estado-acciones", data.estadoAcciones || []));
-    }
-
-    _renderChartSeguro(key, render) {
-        try {
-            render();
-            this._mostrarCanvas(key);
-        } catch (err) {
-            console.error(`Error renderizando gráfico "${key}":`, err);
-            this._mostrarError(key);
+        if (!top5.length) {
+            container.innerHTML = `<div class="activity-item"><span>Sin registros</span><strong>0</strong></div>`;
+            return;
         }
+
+        container.innerHTML = top5.map((item, index) => `
+            <div class="activity-item">
+                <span>${index + 1}. ${this._escape(item.maquina || "-")} (${this._escape(item.areaControl || "-")})</span>
+                <strong>${this._numero(item.totalRegistros)}</strong>
+            </div>
+        `).join("");
     }
 
-    _mostrarCanvas(key) {
-        document.getElementById(`fdash-skeleton-${key}`)?.style.setProperty("display", "none");
-        document.getElementById(`fdash-error-${key}`)?.style.setProperty("display", "none");
-        const canvas = document.getElementById(`fdash-chart-${key}`);
-        if (canvas) canvas.style.display = "block";
+    _renderResumen(kpis, inspecciones, maquinas) {
+        this._setText("fh-resumen-nc-hoy", this._numero(kpis.ncRegistradasHoy));
+        this._setText("fh-resumen-nc-abiertas", this._numero(kpis.ncAbiertas));
+        this._setText("fh-resumen-acciones-pendientes", this._numero(kpis.accionesPendientes));
+        this._setText("fh-resumen-acciones-vencidas", this._numero(kpis.accionesVencidas));
+        this._setText("fh-resumen-acciones-pct", `${this._numero(kpis.porcentajeAccionesCompletadas)}%`);
+        this._setText("fh-resumen-inspecciones-hoy", this._numero(inspecciones.inspeccionesHoy));
+        this._setText("fh-resumen-maquinas", this._numero(maquinas.totalMaquinas));
     }
 
-    _mostrarError(key) {
-        document.getElementById(`fdash-skeleton-${key}`)?.style.setProperty("display", "none");
-        const canvas = document.getElementById(`fdash-chart-${key}`);
-        if (canvas) canvas.style.display = "none";
-        const errorEl = document.getElementById(`fdash-error-${key}`);
-        if (errorEl) errorEl.style.display = "flex";
-    }
-
-    _chartFontDefaults() {
-        return { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial", size: 12 };
-    }
-
-    _chartBarras(canvasId, rows, color) {
+    _chartBarHorizontal(canvasId, rows, labelKey, valueKey, label) {
         const ctx = document.getElementById(canvasId);
-        if (!ctx) throw new Error(`Canvas ${canvasId} no encontrado`);
-
-        const labels = rows.map(r => r.categoria || "-");
-        const values = rows.map(r => Number(r.total || 0));
+        if (!ctx) return;
 
         const chart = new Chart(ctx, {
             type: "bar",
             data: {
-                labels,
+                labels: rows.map(r => r[labelKey] || "-"),
                 datasets: [{
-                    data: values,
-                    backgroundColor: color,
+                    label,
+                    data: rows.map(r => Number(r[valueKey] || 0)),
+                    backgroundColor: ["#ef4444", "#f97316", "#eab308", "#22c55e", "#16a34a", "#3b82f6", "#6366f1"],
                     borderRadius: 8,
-                    maxBarThickness: 48,
                 }],
             },
             options: {
+                indexAxis: "y",
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { padding: 10, cornerRadius: 8 },
-                },
-                scales: {
-                    x: { ticks: { font: this._chartFontDefaults() }, grid: { display: false } },
-                    y: {
-                        beginAtZero: true,
-                        ticks: { precision: 0, font: this._chartFontDefaults() },
-                        grid: { color: "#F1F5F9" },
-                    },
-                },
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true }, y: { ticks: { font: { size: 11 } } } },
             },
         });
 
         this._charts.push(chart);
     }
 
-    _chartLinea(canvasId, rows) {
+    _chartDoughnut(canvasId, rows, labelKey, valueKey) {
         const ctx = document.getElementById(canvasId);
-        if (!ctx) throw new Error(`Canvas ${canvasId} no encontrado`);
+        if (!ctx) return;
 
-        const labels = rows.map(r => r.fecha || "-");
-        const values = rows.map(r => Number(r.total || 0));
+        const chart = new Chart(ctx, {
+            type: "doughnut",
+            data: {
+                labels: rows.map(r => r[labelKey] || "-"),
+                datasets: [{
+                    data: rows.map(r => Number(r[valueKey] || 0)),
+                    backgroundColor: ["#22c55e", "#3b82f6", "#60a5fa", "#84cc16", "#06b6d4", "#f97316"],
+                    borderWidth: 0,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: "right", labels: { font: { size: 11 } } } },
+                cutout: "62%",
+            },
+        });
+
+        this._charts.push(chart);
+    }
+
+    _chartLine(canvasId, rows, labelKey, valueKey, label) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
 
         const chart = new Chart(ctx, {
             type: "line",
             data: {
-                labels,
+                labels: rows.map(r => r[labelKey] || "-"),
                 datasets: [{
-                    data: values,
-                    borderColor: "#3B82F6",
-                    backgroundColor: "rgba(59, 130, 246, 0.12)",
-                    pointBackgroundColor: "#3B82F6",
+                    label,
+                    data: rows.map(r => Number(r[valueKey] || 0)),
+                    borderColor: "#65a30d",
+                    backgroundColor: "rgba(101, 163, 13, 0.12)",
+                    pointBackgroundColor: "#65a30d",
                     pointRadius: 2,
-                    pointHoverRadius: 5,
-                    borderWidth: 2,
                     tension: 0.35,
                     fill: true,
                 }],
@@ -187,139 +197,21 @@ window.FaretController = class FaretController {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { padding: 10, cornerRadius: 8 },
-                },
-                scales: {
-                    x: {
-                        ticks: { font: this._chartFontDefaults(), maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
-                        grid: { display: false },
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: { precision: 0, font: this._chartFontDefaults() },
-                        grid: { color: "#F1F5F9" },
-                    },
-                },
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true }, x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
             },
         });
 
         this._charts.push(chart);
     }
 
-    _chartDonutEstados(canvasId, rows) {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) throw new Error(`Canvas ${canvasId} no encontrado`);
-
-        const coloresPorEstado = {
-            PENDIENTE: "#F97316",
-            EN_PROCESO: "#3B82F6",
-            COMPLETADA: "#22C55E",
-            CANCELADA: "#94A3B8",
-        };
-
-        const labels = rows.map(r => r.categoria || "-");
-        const values = rows.map(r => Number(r.total || 0));
-        const colors = rows.map(r => coloresPorEstado[r.categoria] || "#CBD5E1");
-
-        const chart = new Chart(ctx, {
-            type: "doughnut",
-            data: {
-                labels,
-                datasets: [{
-                    data: values,
-                    backgroundColor: colors,
-                    borderWidth: 0,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: "65%",
-                plugins: {
-                    legend: {
-                        position: "right",
-                        labels: { font: this._chartFontDefaults(), boxWidth: 12, padding: 14 },
-                    },
-                    tooltip: { padding: 10, cornerRadius: 8 },
-                },
-            },
-        });
-
-        this._charts.push(chart);
+    _setText(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
     }
 
-    _renderUltimasNc(items) {
-        try {
-            const tbody = document.getElementById("fdash-ultimas-nc-tbody");
-            if (!tbody) throw new Error("tbody de últimas NC no encontrado");
-
-            tbody.innerHTML = items.length
-                ? items.map(nc => `
-                    <tr>
-                        <td>${this._escape(nc.codigo || "-")}</td>
-                        <td>${this._escape(nc.titulo || "-")}</td>
-                        <td>${this._escape(nc.proceso || "-")}</td>
-                        <td>${this._badge(nc.severidad, this._colorSeveridad(nc.severidad))}</td>
-                        <td>${this._badge(nc.estado, this._colorEstadoNc(nc.estado))}</td>
-                        <td>${this._escape(nc.fechaCreacion || "-")}</td>
-                    </tr>
-                `).join("")
-                : `<tr><td colspan="6" class="faret-empty">Sin no conformidades registradas</td></tr>`;
-
-            document.getElementById("fdash-skeleton-ultimas-nc").style.display = "none";
-            document.getElementById("fdash-error-ultimas-nc").style.display = "none";
-            document.getElementById("fdash-ultimas-nc-wrap").style.display = "block";
-        } catch (err) {
-            console.error("Error renderizando últimas NC:", err);
-            this._mostrarErrorUltimasNc();
-        }
-    }
-
-    _mostrarErrorUltimasNc() {
-        document.getElementById("fdash-skeleton-ultimas-nc").style.display = "none";
-        document.getElementById("fdash-ultimas-nc-wrap").style.display = "none";
-        document.getElementById("fdash-error-ultimas-nc").style.display = "flex";
-    }
-
-    _renderAlertas(alertas) {
-        const skeletonEl = document.getElementById("fdash-skeleton-alertas");
-        const boxEl = document.getElementById("fdash-alertas-box");
-
-        try {
-            boxEl.innerHTML = alertas.length
-                ? alertas.map(a => `
-                    <div class="fdash-alerta-item fdash-alerta-${a.tipo === "success" ? "success" : "warning"}">
-                        <span>${a.tipo === "success" ? "✔" : "⚠"}</span>
-                        <span>${this._escape(a.mensaje || "-")}</span>
-                    </div>
-                `).join("")
-                : `<div class="fdash-alertas-vacio">Sin alertas activas por el momento</div>`;
-
-            skeletonEl.style.display = "none";
-            boxEl.style.display = "flex";
-        } catch (err) {
-            console.error("Error renderizando alertas:", err);
-            skeletonEl.style.display = "none";
-            boxEl.style.display = "none";
-        }
-    }
-
-    _badge(texto, color) {
-        return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:${color}22;color:${color};">${this._escape(texto || "-")}</span>`;
-    }
-
-    _colorSeveridad(severidad) {
-        const s = (severidad || "").toUpperCase();
-        if (s === "ALTA") return "#EF4444";
-        if (s === "MEDIA") return "#F97316";
-        if (s === "BAJA") return "#22C55E";
-        return "#64748B";
-    }
-
-    _colorEstadoNc(estado) {
-        return (estado || "").toUpperCase() === "CERRADA" ? "#22C55E" : "#3B82F6";
+    _numero(value) {
+        return Number(value || 0).toLocaleString("es-CL");
     }
 
     _escape(value) {
@@ -336,9 +228,5 @@ window.FaretController = class FaretController {
             try { chart.destroy(); } catch { /* noop */ }
         });
         this._charts = [];
-    }
-
-    _numero(value) {
-        return Number(value || 0).toLocaleString("es-CL");
     }
 };

@@ -24,6 +24,7 @@ namespace QualityControlCenter.Services
         private readonly CurrentUserSessionService _session;
         private readonly FaretApiClient _faretClient;
         private readonly FaretApiClient _faretMejoraContinuaClient;
+        private readonly FaretApiClient _faretCalidadClient;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
@@ -35,7 +36,8 @@ namespace QualityControlCenter.Services
             AuthHandler authHandler,
             CurrentUserSessionService session,
             FaretApiClient faretClient,
-            FaretApiClient faretMejoraContinuaClient
+            FaretApiClient faretMejoraContinuaClient,
+            FaretApiClient faretCalidadClient
         )
         {
             _db = db;
@@ -43,6 +45,7 @@ namespace QualityControlCenter.Services
             _session = session;
             _faretClient = faretClient;
             _faretMejoraContinuaClient = faretMejoraContinuaClient;
+            _faretCalidadClient = faretCalidadClient;
         }
 
         public async Task<string> Handle(string payloadJson)
@@ -121,7 +124,11 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("faret"))
                 {
-                    var handler = new FaretHandler(_faretClient, _faretMejoraContinuaClient);
+                    var handler = new FaretHandler(
+                        _faretClient,
+                        _faretMejoraContinuaClient,
+                        _faretCalidadClient
+                    );
                     rawResult = await handler.Handle(action, data);
                 }
                 else

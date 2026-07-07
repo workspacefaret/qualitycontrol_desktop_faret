@@ -1,146 +1,155 @@
-<div class="module faret-module fdash-module">
+<div class="module home-module">
 
     <div class="module-header">
         <div>
-            <div class="module-title">Dashboard Ejecutivo de Calidad</div>
-            <div class="subtitle">Mejora Continua — No Conformidades y Acciones Correctivas</div>
+            <div class="module-title">Panel Faret</div>
+            <div class="subtitle">Resumen general del sistema</div>
         </div>
-        <button id="fdash-refresh-btn" class="btn-secondary">↻ Actualizar</button>
     </div>
 
-    <div id="fdash-error" class="faret-error" style="display:none;"></div>
+    <!-- KPIs SUPERIORES -->
+    <div class="home-modules-grid">
 
-    <!-- Fila 1: KPIs -->
-    <div class="fdash-kpis-grid">
-
-        <div class="card fdash-kpi-card fdash-kpi-blue">
-            <div class="fdash-kpi-icon">🗓️</div>
-            <div class="fdash-kpi-body">
-                <div class="fdash-kpi-value" id="fdash-kpi-nc-hoy"><span class="fdash-skeleton fdash-skeleton-value"></span></div>
-                <div class="fdash-kpi-label">NC registradas hoy</div>
+        <div class="home-module-card" data-module-target="faret-inspecciones">
+            <div>
+                <div class="home-module-card-title">📋 INSPECCIONES HOY</div>
+                <div class="home-module-card-value" id="fh-kpi-inspecciones-hoy">0</div>
+                <div class="home-module-card-label">
+                    <span id="fh-kpi-inspecciones-defectos">0</span> con defectos
+                </div>
             </div>
         </div>
 
-        <div class="card fdash-kpi-card fdash-kpi-red">
-            <div class="fdash-kpi-icon">⚠️</div>
-            <div class="fdash-kpi-body">
-                <div class="fdash-kpi-value" id="fdash-kpi-nc-abiertas"><span class="fdash-skeleton fdash-skeleton-value"></span></div>
-                <div class="fdash-kpi-label">No Conformidades abiertas</div>
+        <div class="home-module-card" data-module-target="faret-nc">
+            <div>
+                <div class="home-module-card-title">🛡️ NC REGISTRADAS (HOY)</div>
+                <div class="home-module-card-value" id="fh-kpi-nc-hoy">0</div>
+                <div class="home-module-card-label">
+                    <span id="fh-kpi-nc-abiertas">0</span> abiertas
+                </div>
             </div>
         </div>
 
-        <div class="card fdash-kpi-card fdash-kpi-orange">
-            <div class="fdash-kpi-icon">🛠️</div>
-            <div class="fdash-kpi-body">
-                <div class="fdash-kpi-value" id="fdash-kpi-acciones-pendientes"><span class="fdash-skeleton fdash-skeleton-value"></span></div>
-                <div class="fdash-kpi-label">Acciones correctivas pendientes</div>
+        <div class="home-module-card" data-module-target="faret-nc">
+            <div>
+                <div class="home-module-card-title">⚠️ ACCIONES VENCIDAS</div>
+                <div class="home-module-card-value" id="fh-kpi-acciones-vencidas">0</div>
+                <div class="home-module-card-label">
+                    <span id="fh-kpi-acciones-pct">0%</span> completadas
+                </div>
             </div>
         </div>
 
-        <div class="card fdash-kpi-card fdash-kpi-green">
-            <div class="fdash-kpi-icon">✅</div>
-            <div class="fdash-kpi-body">
-                <div class="fdash-kpi-value" id="fdash-kpi-pct-completadas"><span class="fdash-skeleton fdash-skeleton-value"></span></div>
-                <div class="fdash-kpi-label">% Acciones completadas</div>
-            </div>
-        </div>
-
-        <div class="card fdash-kpi-card fdash-kpi-purple">
-            <div class="fdash-kpi-icon">⏰</div>
-            <div class="fdash-kpi-body">
-                <div class="fdash-kpi-value" id="fdash-kpi-acciones-vencidas"><span class="fdash-skeleton fdash-skeleton-value"></span></div>
-                <div class="fdash-kpi-label">Acciones vencidas</div>
+        <div class="home-module-card" data-module-target="faret-maquinas">
+            <div>
+                <div class="home-module-card-title">🏭 MÁQUINAS CON REGISTROS</div>
+                <div class="home-module-card-value" id="fh-kpi-maquinas-total">0</div>
+                <div class="home-module-card-label">
+                    <span id="fh-kpi-maquinas-top">-</span>
+                </div>
             </div>
         </div>
 
     </div>
 
-    <!-- Fila 2 -->
-    <div class="fdash-row-2col">
+    <!-- FILA PRINCIPAL -->
+    <div class="home-middle">
 
-        <div class="card fdash-chart-card">
-            <div class="module-title fdash-chart-title">Acciones correctivas por proceso</div>
-            <div class="fdash-chart-wrap">
-                <div class="fdash-skeleton fdash-skeleton-chart" id="fdash-skeleton-acciones-proceso"></div>
-                <canvas id="fdash-chart-acciones-proceso" style="display:none;"></canvas>
-                <div class="fdash-chart-error" id="fdash-error-acciones-proceso" style="display:none;">No fue posible cargar esta información.</div>
-            </div>
+        <div class="card">
+            <div class="module-title">No conformidades por proceso</div>
+            <canvas id="fh-chart-nc-proceso"></canvas>
         </div>
 
-        <div class="card fdash-chart-card">
-            <div class="module-title fdash-chart-title">No Conformidades por proceso</div>
-            <div class="fdash-chart-wrap">
-                <div class="fdash-skeleton fdash-skeleton-chart" id="fdash-skeleton-nc-proceso"></div>
-                <canvas id="fdash-chart-nc-proceso" style="display:none;"></canvas>
-                <div class="fdash-chart-error" id="fdash-error-nc-proceso" style="display:none;">No fue posible cargar esta información.</div>
-            </div>
+        <div class="card">
+            <div class="module-title">No conformidades por severidad</div>
+            <canvas id="fh-chart-nc-severidad"></canvas>
         </div>
 
     </div>
 
-    <!-- Fila 3 -->
-    <div class="fdash-row-2col">
+    <!-- ALERTAS -->
+    <div class="card">
+        <div class="module-title">Alertas activas</div>
+        <div id="fh-alertas-activas" class="alert-box"></div>
+    </div>
 
-        <div class="card fdash-chart-card">
-            <div class="module-title fdash-chart-title">Tendencia de NC — últimos 30 días</div>
-            <div class="fdash-chart-wrap">
-                <div class="fdash-skeleton fdash-skeleton-chart" id="fdash-skeleton-tendencia"></div>
-                <canvas id="fdash-chart-tendencia" style="display:none;"></canvas>
-                <div class="fdash-chart-error" id="fdash-error-tendencia" style="display:none;">No fue posible cargar esta información.</div>
-            </div>
+    <!-- FILA MEDIA -->
+    <div class="home-middle">
+
+        <div class="card">
+            <div class="module-title">Estado de acciones correctivas</div>
+            <canvas id="fh-chart-estado-acciones"></canvas>
         </div>
 
-        <div class="card fdash-chart-card">
-            <div class="module-title fdash-chart-title">No Conformidades por severidad</div>
-            <div class="fdash-chart-wrap">
-                <div class="fdash-skeleton fdash-skeleton-chart" id="fdash-skeleton-nc-severidad"></div>
-                <canvas id="fdash-chart-nc-severidad" style="display:none;"></canvas>
-                <div class="fdash-chart-error" id="fdash-error-nc-severidad" style="display:none;">No fue posible cargar esta información.</div>
-            </div>
+        <div class="card">
+            <div class="module-title">Máquinas con más registros</div>
+            <div id="fh-maquinas-list"></div>
         </div>
 
     </div>
 
-    <!-- Fila 4 -->
-    <div class="fdash-row-2col">
+    <!-- FILA MEDIA 2 -->
+    <div class="home-middle">
 
-        <div class="card fdash-chart-card">
-            <div class="module-title fdash-chart-title">Estado de Acciones Correctivas</div>
-            <div class="fdash-chart-wrap">
-                <div class="fdash-skeleton fdash-skeleton-chart" id="fdash-skeleton-estado-acciones"></div>
-                <canvas id="fdash-chart-estado-acciones" style="display:none;"></canvas>
-                <div class="fdash-chart-error" id="fdash-error-estado-acciones" style="display:none;">No fue posible cargar esta información.</div>
-            </div>
+        <div class="card">
+            <div class="module-title">Acciones correctivas por proceso</div>
+            <canvas id="fh-chart-acciones-proceso"></canvas>
         </div>
 
-        <div class="card fdash-chart-card">
-            <div class="module-title fdash-chart-title">Últimas No Conformidades</div>
-            <div class="fdash-skeleton fdash-skeleton-table" id="fdash-skeleton-ultimas-nc"></div>
-            <div class="table-container" id="fdash-ultimas-nc-wrap" style="display:none;">
-                <table class="table faret-table">
-                    <thead>
-                        <tr>
-                            <th>Código</th>
-                            <th>Título</th>
-                            <th>Proceso</th>
-                            <th>Severidad</th>
-                            <th>Estado</th>
-                            <th>Fecha</th>
-                        </tr>
-                    </thead>
-                    <tbody id="fdash-ultimas-nc-tbody"></tbody>
-                </table>
-            </div>
-            <div class="fdash-chart-error" id="fdash-error-ultimas-nc" style="display:none;">No fue posible cargar esta información.</div>
+        <div class="card">
+            <div class="module-title">Inspecciones: con y sin defectos</div>
+            <canvas id="fh-chart-inspecciones-defectos"></canvas>
         </div>
 
     </div>
 
-    <!-- Fila 5 -->
-    <div class="card fdash-alertas-card">
-        <div class="module-title fdash-chart-title">Alertas del sistema</div>
-        <div class="fdash-skeleton fdash-skeleton-alertas" id="fdash-skeleton-alertas"></div>
-        <div id="fdash-alertas-box" class="fdash-alertas-box" style="display:none;"></div>
+    <!-- FILA FINAL -->
+    <div class="home-bottom">
+
+        <div class="card">
+            <div class="module-title">Tendencia de no conformidades (últimos 30 días)</div>
+            <canvas id="fh-chart-tendencia-nc"></canvas>
+        </div>
+
+        <div class="card">
+            <div class="module-title">Resumen general (hoy)</div>
+
+            <div class="activity-item">
+                <span>NC registradas hoy</span>
+                <strong id="fh-resumen-nc-hoy">0</strong>
+            </div>
+
+            <div class="activity-item">
+                <span>NC abiertas</span>
+                <strong id="fh-resumen-nc-abiertas">0</strong>
+            </div>
+
+            <div class="activity-item">
+                <span>Acciones pendientes</span>
+                <strong id="fh-resumen-acciones-pendientes">0</strong>
+            </div>
+
+            <div class="activity-item">
+                <span>Acciones vencidas</span>
+                <strong id="fh-resumen-acciones-vencidas">0</strong>
+            </div>
+
+            <div class="activity-item">
+                <span>% Acciones completadas</span>
+                <strong id="fh-resumen-acciones-pct">0%</strong>
+            </div>
+
+            <div class="activity-item">
+                <span>Inspecciones hoy</span>
+                <strong id="fh-resumen-inspecciones-hoy">0</strong>
+            </div>
+
+            <div class="activity-item">
+                <span>Máquinas con registros</span>
+                <strong id="fh-resumen-maquinas">0</strong>
+            </div>
+        </div>
+
     </div>
 
 </div>

@@ -63,22 +63,13 @@ namespace QualityControlCenter.Modules.Dashboard
                 "
             );
 
-            result.MermaInsumosHoy = await DecimalValue(
+            result.MermaHoy = await DecimalValue(
                 conn,
                 $@"
-                SELECT IFNULL(SUM(CASE WHEN rc.tipo_merma = 'Insumos - Desponche de bobinas' THEN CAST(rc.cantidad_merma AS DECIMAL(10,2)) END), 0)
+                SELECT IFNULL(SUM(rc.cantidad_merma), 0)
                 FROM registros_control rc
                 WHERE rc.fecha_registro = CURDATE()
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD';
-                "
-            );
-
-            result.MermaProcesoHoy = await DecimalValue(
-                conn,
-                $@"
-                SELECT IFNULL(SUM(CASE WHEN rc.tipo_merma = 'Proceso - Merma por monotapa' THEN CAST(rc.cantidad_merma AS DECIMAL(10,2)) END), 0)
-                FROM registros_control rc
-                WHERE rc.fecha_registro = CURDATE()
+                  AND rc.requiere_merma = 1
                   AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD';
                 "
             );

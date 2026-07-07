@@ -42,10 +42,10 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         return {
             fechaDesde: document.getElementById("fi-filtro-fecha-desde")?.value || "",
             fechaHasta: document.getElementById("fi-filtro-fecha-hasta")?.value || "",
-            area: document.getElementById("fi-filtro-area")?.value.trim() || "",
-            inspector: document.getElementById("fi-filtro-inspector")?.value.trim() || "",
-            estado: document.getElementById("fi-filtro-estado")?.value || "",
-            cliente: document.getElementById("fi-filtro-cliente")?.value.trim() || "",
+            areaControl: document.getElementById("fi-filtro-area")?.value || "",
+            operador: document.getElementById("fi-filtro-operador")?.value.trim() || "",
+            maquina: document.getElementById("fi-filtro-maquina")?.value.trim() || "",
+            presentaDefectos: document.getElementById("fi-filtro-defectos")?.value || "",
         };
     }
 
@@ -53,9 +53,9 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         document.getElementById("fi-filtro-fecha-desde").value = "";
         document.getElementById("fi-filtro-fecha-hasta").value = "";
         document.getElementById("fi-filtro-area").value = "";
-        document.getElementById("fi-filtro-inspector").value = "";
-        document.getElementById("fi-filtro-estado").value = "";
-        document.getElementById("fi-filtro-cliente").value = "";
+        document.getElementById("fi-filtro-operador").value = "";
+        document.getElementById("fi-filtro-maquina").value = "";
+        document.getElementById("fi-filtro-defectos").value = "";
         this._page = 1;
         this._loadAll();
     }
@@ -70,9 +70,6 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         await Promise.all([this._loadResumen(), this._loadLista()]);
     }
 
-    // La API de Inspecciones todavía no existe (la app Flutter FARET que enviará estos
-    // registros está en desarrollo): cualquier error se trata como "sin datos todavía",
-    // nunca como una falla visible ni con datos inventados.
     async _loadResumen() {
         try {
             const res = await window.PhotinoBridge.send({
@@ -88,8 +85,7 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
 
     _renderResumen(data) {
         document.getElementById("fi-kpi-hoy").textContent = data?.inspeccionesHoy ?? 0;
-        document.getElementById("fi-kpi-semana").textContent = data?.inspeccionesSemana ?? 0;
-        document.getElementById("fi-kpi-pendientes").textContent = data?.pendientesRevision ?? 0;
+        document.getElementById("fi-kpi-periodo").textContent = data?.inspeccionesPeriodo ?? 0;
         document.getElementById("fi-kpi-con-defectos").textContent = data?.conDefectos ?? 0;
         document.getElementById("fi-kpi-sin-defectos").textContent = data?.sinDefectos ?? 0;
     }
@@ -161,27 +157,36 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         });
     }
 
+    _formatoFecha(fecha) {
+        return fecha ? new Date(fecha).toLocaleDateString("es-CL") : "-";
+    }
+
+    _defectosBadge(presentaDefectos) {
+        return presentaDefectos
+            ? `<span style="color:#B91C1C;font-weight:600;">Sí</span>`
+            : `<span style="color:#059669;font-weight:600;">No</span>`;
+    }
+
     _renderTabla(items) {
         const tbody = document.getElementById("fi-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="11">${this._emptyStateHtml()}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10">${this._emptyStateHtml()}</td></tr>`;
             return;
         }
 
         tbody.innerHTML = items.map(i => `
             <tr>
-                <td>${i.fecha ? new Date(i.fecha).toLocaleDateString("es-CL") : "-"}</td>
-                <td>${i.inspector ?? "-"}</td>
-                <td>${i.cliente ?? "-"}</td>
-                <td>${i.nv ?? "-"}</td>
-                <td>${i.proceso ?? "-"}</td>
-                <td>${i.area ?? "-"}</td>
+                <td>${this._formatoFecha(i.fechaRegistro)}</td>
+                <td>${i.horaRegistro ?? "-"}</td>
+                <td>${i.nvFaret ?? "-"}</td>
+                <td>${i.areaControl ?? "-"}</td>
+                <td>${i.operador === "Otros" ? (i.operadorOtro || "Otros") : (i.operador ?? "-")}</td>
                 <td>${i.maquina ?? "-"}</td>
-                <td>${i.resultado ?? "-"}</td>
-                <td>${i.estado ?? "-"}</td>
-                <td>${i.cantidadDefectos ?? "-"}</td>
-                <td><button class="btn-ghost" disabled title="Próximamente">Ver</button></td>
+                <td>${this._defectosBadge(i.presentaDefectos)}</td>
+                <td>${i.defectos ?? "-"}</td>
+                <td>${i.accionCorrectiva ?? "-"}</td>
+                <td>${i.cantidadAdjuntos ?? 0}</td>
             </tr>
         `).join("");
     }
@@ -192,8 +197,8 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
                 <div class="fi-empty-state-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M8 15h3M8 18h5"/></svg>
                 </div>
-                <div class="fi-empty-state-title">No existen inspecciones disponibles</div>
-                <div class="fi-empty-state-subtitle">Las inspecciones enviadas desde la aplicación móvil FARET aparecerán aquí.</div>
+                <div class="fi-empty-state-title">No hay inspecciones para los filtros aplicados</div>
+                <div class="fi-empty-state-subtitle">Las inspecciones enviadas desde la aplicación móvil FARET (formulario Calidad/Producción) aparecerán aquí.</div>
             </div>
         `;
     }
@@ -264,30 +269,30 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
             <thead>
                 <tr>
                     <th>Fecha</th>
-                    <th>Inspector</th>
-                    <th>Cliente</th>
-                    <th>NV</th>
-                    <th>Proceso</th>
-                    <th>Área</th>
+                    <th>Hora</th>
+                    <th>NV Faret</th>
+                    <th>Área de control</th>
+                    <th>Operador</th>
                     <th>Máquina</th>
-                    <th>Resultado</th>
-                    <th>Estado</th>
-                    <th>Cant. defectos</th>
+                    <th>¿Defectos?</th>
+                    <th>Defectos</th>
+                    <th>Acción correctiva</th>
+                    <th>Adjuntos</th>
                 </tr>
             </thead>
             <tbody>
                 ${items.map(i => `
                     <tr>
-                        <td>${i.fecha ? new Date(i.fecha).toLocaleDateString("es-CL") : "-"}</td>
-                        <td>${i.inspector ?? "-"}</td>
-                        <td>${i.cliente ?? "-"}</td>
-                        <td>${i.nv ?? "-"}</td>
-                        <td>${i.proceso ?? "-"}</td>
-                        <td>${i.area ?? "-"}</td>
+                        <td>${this._formatoFecha(i.fechaRegistro)}</td>
+                        <td>${i.horaRegistro ?? "-"}</td>
+                        <td>${i.nvFaret ?? "-"}</td>
+                        <td>${i.areaControl ?? "-"}</td>
+                        <td>${i.operador === "Otros" ? (i.operadorOtro || "Otros") : (i.operador ?? "-")}</td>
                         <td>${i.maquina ?? "-"}</td>
-                        <td>${i.resultado ?? "-"}</td>
-                        <td>${i.estado ?? "-"}</td>
-                        <td>${i.cantidadDefectos ?? "-"}</td>
+                        <td>${i.presentaDefectos ? "Sí" : "No"}</td>
+                        <td>${i.defectos ?? "-"}</td>
+                        <td>${i.accionCorrectiva ?? "-"}</td>
+                        <td>${i.cantidadAdjuntos ?? 0}</td>
                     </tr>
                 `).join("")}
             </tbody>

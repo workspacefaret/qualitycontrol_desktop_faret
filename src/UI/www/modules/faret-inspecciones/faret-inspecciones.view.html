@@ -3,7 +3,7 @@
     <div class="module-header">
         <div>
             <div class="module-title">Inspecciones</div>
-            <div class="subtitle">Inspecciones enviadas desde la aplicación móvil FARET</div>
+            <div class="subtitle">Formulario Calidad/Producción enviado desde la aplicación móvil FARET</div>
         </div>
         <div style="display:flex; gap:10px;">
             <button id="fi-exportar-btn" class="btn-secondary">Exportar Excel</button>
@@ -26,17 +26,8 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
             </div>
             <div class="home-module-card-body">
-                <div class="home-module-card-title">Inspecciones semana</div>
-                <div class="home-module-card-value" id="fi-kpi-semana">0</div>
-            </div>
-        </div>
-        <div class="home-module-card fi-kpi-amber">
-            <div class="home-module-card-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-            </div>
-            <div class="home-module-card-body">
-                <div class="home-module-card-title">Pendientes de revisión</div>
-                <div class="home-module-card-value" id="fi-kpi-pendientes">0</div>
+                <div class="home-module-card-title">Inspecciones período</div>
+                <div class="home-module-card-value" id="fi-kpi-periodo">0</div>
             </div>
         </div>
         <div class="home-module-card fi-kpi-red">
@@ -75,26 +66,33 @@
                 <input type="date" id="fi-filtro-fecha-hasta">
             </div>
             <div class="fi-filtro-campo">
-                <label for="fi-filtro-area">Área</label>
-                <input type="text" id="fi-filtro-area" placeholder="Área">
-            </div>
-            <div class="fi-filtro-campo">
-                <label for="fi-filtro-inspector">Inspector</label>
-                <input type="text" id="fi-filtro-inspector" placeholder="Inspector">
-            </div>
-            <div class="fi-filtro-campo">
-                <label for="fi-filtro-estado">Estado</label>
-                <select id="fi-filtro-estado">
-                    <option value="">Todos</option>
-                    <option value="Pendiente">Pendiente</option>
-                    <option value="Revisada">Revisada</option>
-                    <option value="Aprobada">Aprobada</option>
-                    <option value="Rechazada">Rechazada</option>
+                <label for="fi-filtro-area">Área de control</label>
+                <select id="fi-filtro-area">
+                    <option value="">Todas</option>
+                    <option value="02-LAMINADO">02-LAMINADO</option>
+                    <option value="03-OFFSET">03-OFFSET</option>
+                    <option value="04-SERIGRAFÍA">04-SERIGRAFÍA</option>
+                    <option value="05-FOLIA">05-FOLIA</option>
+                    <option value="07-TROQUELADO">07-TROQUELADO</option>
+                    <option value="10-PEGADO">10-PEGADO</option>
+                    <option value="12-FOLLETOS">12-FOLLETOS</option>
                 </select>
             </div>
             <div class="fi-filtro-campo">
-                <label for="fi-filtro-cliente">Cliente</label>
-                <input type="text" id="fi-filtro-cliente" placeholder="Nombre del cliente">
+                <label for="fi-filtro-operador">Operador</label>
+                <input type="text" id="fi-filtro-operador" placeholder="Nombre del operador">
+            </div>
+            <div class="fi-filtro-campo">
+                <label for="fi-filtro-maquina">Máquina</label>
+                <input type="text" id="fi-filtro-maquina" placeholder="Máquina">
+            </div>
+            <div class="fi-filtro-campo">
+                <label for="fi-filtro-defectos">¿Presenta defectos?</label>
+                <select id="fi-filtro-defectos">
+                    <option value="">Todos</option>
+                    <option value="true">Sí</option>
+                    <option value="false">No</option>
+                </select>
             </div>
             <div class="fi-filtro-divisor"></div>
             <div class="fi-filtro-acciones">
@@ -114,21 +112,20 @@
             <table class="table faret-table" id="fi-tabla">
                 <thead>
                     <tr>
-                        <th class="fi-th-ordenable" data-campo="fecha">Fecha <span class="fi-sort-icon">↕</span></th>
-                        <th class="fi-th-ordenable" data-campo="inspector">Inspector <span class="fi-sort-icon">↕</span></th>
-                        <th class="fi-th-ordenable" data-campo="cliente">Cliente <span class="fi-sort-icon">↕</span></th>
-                        <th class="fi-th-ordenable" data-campo="nv">NV <span class="fi-sort-icon">↕</span></th>
-                        <th class="fi-th-ordenable" data-campo="proceso">Proceso <span class="fi-sort-icon">↕</span></th>
-                        <th class="fi-th-ordenable" data-campo="area">Área <span class="fi-sort-icon">↕</span></th>
+                        <th class="fi-th-ordenable" data-campo="fechaRegistro">Fecha <span class="fi-sort-icon">↕</span></th>
+                        <th>Hora</th>
+                        <th class="fi-th-ordenable" data-campo="nvFaret">NV Faret <span class="fi-sort-icon">↕</span></th>
+                        <th class="fi-th-ordenable" data-campo="areaControl">Área de control <span class="fi-sort-icon">↕</span></th>
+                        <th class="fi-th-ordenable" data-campo="operador">Operador <span class="fi-sort-icon">↕</span></th>
                         <th class="fi-th-ordenable" data-campo="maquina">Máquina <span class="fi-sort-icon">↕</span></th>
-                        <th class="fi-th-ordenable" data-campo="resultado">Resultado <span class="fi-sort-icon">↕</span></th>
-                        <th class="fi-th-ordenable" data-campo="estado">Estado <span class="fi-sort-icon">↕</span></th>
-                        <th class="fi-th-ordenable" data-campo="cantidadDefectos">Cant. defectos <span class="fi-sort-icon">↕</span></th>
-                        <th>Acciones</th>
+                        <th>¿Defectos?</th>
+                        <th>Defectos</th>
+                        <th>Acción correctiva</th>
+                        <th>Adjuntos</th>
                     </tr>
                 </thead>
                 <tbody id="fi-tbody">
-                    <tr><td colspan="11" class="faret-empty">Cargando...</td></tr>
+                    <tr><td colspan="10" class="faret-empty">Cargando...</td></tr>
                 </tbody>
             </table>
         </div>

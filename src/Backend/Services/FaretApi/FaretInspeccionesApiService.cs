@@ -5,10 +5,8 @@ using System.Threading.Tasks;
 
 namespace QualityControlCenter.Backend.Services.FaretApi
 {
-    // Endpoints todavía no implementados en la API (`api/inspecciones*`) — la app Flutter FARET
-    // que enviará estos registros está en desarrollo. Este servicio deja la llamada lista para
-    // cuando el servidor los exponga; hasta entonces devuelve error (404), tratado como "sin
-    // datos" por el frontend.
+    // Registros del formulario "CALIDAD/PRODUCCION FARET" de la app móvil Flutter, vía la API
+    // `calidad` (backend Node.js separado, sin autenticación).
     public class FaretInspeccionesApiService
     {
         private readonly FaretApiClient _client;
@@ -19,17 +17,19 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         }
 
         public Task<(bool ok, string body)> GetListAsync(Dictionary<string, string?> filtros) =>
-            _client.GetAsync($"api/inspecciones?{BuildQueryString(filtros)}");
+            _client.GetAsync($"calidad-faret/registros?{BuildQueryString(filtros)}");
 
         public Task<(bool ok, string body)> GetResumenAsync(Dictionary<string, string?> filtros) =>
-            _client.GetAsync($"api/inspecciones/resumen?{BuildQueryString(filtros)}");
+            _client.GetAsync($"calidad-faret/resumen?{BuildQueryString(filtros)}");
 
         private static string BuildQueryString(Dictionary<string, string?> filtros) =>
             string.Join(
                 "&",
                 filtros
                     .Where(kv => !string.IsNullOrEmpty(kv.Value))
-                    .Select(kv => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value!)}")
+                    .Select(kv =>
+                        $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value!)}"
+                    )
             );
     }
 }

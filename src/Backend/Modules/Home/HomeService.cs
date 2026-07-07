@@ -65,7 +65,7 @@ namespace QualityControlCenter.Modules.Home
             decimal mermaHoy = await DecimalValue(
                 conn,
                 @"
-                SELECT IFNULL(SUM(CAST(REPLACE(rc.cantidad_merma, ',', '.') AS DECIMAL(10,2))), 0)
+                SELECT IFNULL(SUM(rc.cantidad_merma), 0)
                 FROM registros_control rc
                 WHERE rc.fecha_registro = CURDATE()
                   AND rc.requiere_merma = 1;
@@ -95,7 +95,7 @@ namespace QualityControlCenter.Modules.Home
             decimal mermaAyer = await DecimalValue(
                 conn,
                 @"
-                SELECT IFNULL(SUM(CAST(REPLACE(rc.cantidad_merma, ',', '.') AS DECIMAL(10,2))), 0)
+                SELECT IFNULL(SUM(rc.cantidad_merma), 0)
                 FROM registros_control rc
                 WHERE rc.fecha_registro = CURDATE() - INTERVAL 1 DAY
                   AND rc.requiere_merma = 1;
@@ -284,7 +284,7 @@ namespace QualityControlCenter.Modules.Home
                 @"
                 SELECT
                     p.nombre AS nombre,
-                    IFNULL(SUM(CAST(REPLACE(rc.cantidad_merma, ',', '.') AS DECIMAL(10,2))), 0) AS total
+                    IFNULL(SUM(rc.cantidad_merma), 0) AS total
                 FROM registros_control rc
                 INNER JOIN procesos p
                     ON p.id = rc.proceso_id

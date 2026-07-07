@@ -10,8 +10,7 @@ namespace QualityControlCenter.Modules.Dashboard
         public decimal CumplimientoGeneral { get; set; }
         public int NoConformidadesDetectadas { get; set; }
 
-        public decimal MermaInsumosHoy { get; set; }
-        public decimal MermaProcesoHoy { get; set; }
+        public decimal MermaHoy { get; set; }
         public int RegistrosConObservacionHoy { get; set; }
 
         public List<DashboardInspectorDto> CumplimientoPorInspector { get; set; } = new();

@@ -11,6 +11,7 @@ namespace QualityControlCenter.Modules.Faret
     {
         private readonly FaretApiClient _client;
         private readonly FaretApiClient _mcClient;
+        private readonly FaretApiClient _calidadClient;
         private readonly FaretAuthApiService _auth;
         private readonly FaretCatalogosApiService _catalogos;
         private readonly FaretRegistrosControlApiService _registros;
@@ -19,16 +20,22 @@ namespace QualityControlCenter.Modules.Faret
         private readonly FaretNoConformidadesApiService _noConformidades;
         private readonly FaretDashboardService _dashboard;
         private readonly FaretInspeccionesApiService _inspecciones;
+        private readonly FaretMaquinasApiService _maquinas;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        public FaretHandler(FaretApiClient client, FaretApiClient mcClient)
+        public FaretHandler(
+            FaretApiClient client,
+            FaretApiClient mcClient,
+            FaretApiClient calidadClient
+        )
         {
             _client = client;
             _mcClient = mcClient;
+            _calidadClient = calidadClient;
             _auth = new FaretAuthApiService(client);
             _catalogos = new FaretCatalogosApiService(client);
             _registros = new FaretRegistrosControlApiService(client);
@@ -36,7 +43,8 @@ namespace QualityControlCenter.Modules.Faret
             _usuarios = new FaretUsuariosApiService(client);
             _noConformidades = new FaretNoConformidadesApiService(mcClient);
             _dashboard = new FaretDashboardService(_noConformidades);
-            _inspecciones = new FaretInspeccionesApiService(client);
+            _inspecciones = new FaretInspeccionesApiService(calidadClient);
+            _maquinas = new FaretMaquinasApiService(calidadClient);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -80,6 +88,7 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.dashboard.resumen" => await HandleDashboardResumen(),
                 "faret.inspecciones.list" => await HandleInspeccionesList(data),
                 "faret.inspecciones.resumen" => await HandleInspeccionesResumen(data),
+                "faret.maquinas.resumen" => await HandleMaquinasResumen(data),
                 _ => Error($"Acción Faret no reconocida: {action}"),
             };
         }
@@ -295,14 +304,10 @@ namespace QualityControlCenter.Modules.Faret
             return filtros;
         }
 
-        // `api/inspecciones*` todavía no existe en la API Faret (a la espera de la app Flutter
-        // que enviará estos registros) — hasta entonces esto devuelve error, que el frontend
-        // trata como "sin datos" en vez de mostrarlo como una falla.
+        // API `calidad` (backend Node.js) sin autenticación — a diferencia de `qualitycontrol`,
+        // no depende de `HasToken`.
         private async Task<string> HandleInspeccionesList(Dictionary<string, object> data)
         {
-            if (!_client.HasToken)
-                return Error("No autenticado en API Faret");
-
             var filtros = BuildInspeccionesFiltros(data);
             if (TryGetInt(data, "page", out var page) && page > 0)
                 filtros["page"] = page.ToString();
@@ -318,12 +323,20 @@ namespace QualityControlCenter.Modules.Faret
 
         private async Task<string> HandleInspeccionesResumen(Dictionary<string, object> data)
         {
-            if (!_client.HasToken)
-                return Error("No autenticado en API Faret");
-
             var filtros = BuildInspeccionesFiltros(data);
 
             var (ok, body) = await _inspecciones.GetResumenAsync(filtros);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleMaquinasResumen(Dictionary<string, object> data)
+        {
+            TryGetString(data, "maquina", out var maquina);
+
+            var (ok, body) = await _maquinas.GetResumenAsync(maquina);
             if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
                 return Error(error);
 
@@ -338,17 +351,17 @@ namespace QualityControlCenter.Modules.Faret
 
             TryGetString(data, "fechaDesde", out var fechaDesde);
             TryGetString(data, "fechaHasta", out var fechaHasta);
-            TryGetString(data, "area", out var area);
-            TryGetString(data, "inspector", out var inspector);
-            TryGetString(data, "estado", out var estado);
-            TryGetString(data, "cliente", out var cliente);
+            TryGetString(data, "areaControl", out var areaControl);
+            TryGetString(data, "operador", out var operador);
+            TryGetString(data, "maquina", out var maquina);
+            TryGetString(data, "presentaDefectos", out var presentaDefectos);
 
             filtros["fechaDesde"] = fechaDesde;
             filtros["fechaHasta"] = fechaHasta;
-            filtros["area"] = area;
-            filtros["inspector"] = inspector;
-            filtros["estado"] = estado;
-            filtros["cliente"] = cliente;
+            filtros["areaControl"] = areaControl;
+            filtros["operador"] = operador;
+            filtros["maquina"] = maquina;
+            filtros["presentaDefectos"] = presentaDefectos;
 
             return filtros;
         }
@@ -615,8 +628,19 @@ namespace QualityControlCenter.Modules.Faret
             return Ok(JsonSerializer.Deserialize<object>(body));
         }
 
-        private static readonly string[] MetodologiasValidas = { "CINCO_PORQUES", "ISHIKAWA", "MIXTA" };
-        private static readonly string[] EstadosAccionValidos = { "PENDIENTE", "EN_PROCESO", "COMPLETADA", "CANCELADA" };
+        private static readonly string[] MetodologiasValidas =
+        {
+            "CINCO_PORQUES",
+            "ISHIKAWA",
+            "MIXTA",
+        };
+        private static readonly string[] EstadosAccionValidos =
+        {
+            "PENDIENTE",
+            "EN_PROCESO",
+            "COMPLETADA",
+            "CANCELADA",
+        };
 
         private static bool TryBuildAnalisisRequest(
             Dictionary<string, object> data,
@@ -637,7 +661,8 @@ namespace QualityControlCenter.Modules.Faret
             }
             if (!MetodologiasValidas.Contains(metodologia))
             {
-                error = $"Metodología inválida. Valores permitidos: {string.Join(", ", MetodologiasValidas)}";
+                error =
+                    $"Metodología inválida. Valores permitidos: {string.Join(", ", MetodologiasValidas)}";
                 return false;
             }
             if (
@@ -767,7 +792,8 @@ namespace QualityControlCenter.Modules.Faret
             }
             if (!EstadosAccionValidos.Contains(estado))
             {
-                error = $"Estado inválido. Valores permitidos: {string.Join(", ", EstadosAccionValidos)}";
+                error =
+                    $"Estado inválido. Valores permitidos: {string.Join(", ", EstadosAccionValidos)}";
                 return false;
             }
 
@@ -884,7 +910,10 @@ namespace QualityControlCenter.Modules.Faret
                 using var doc = JsonDocument.Parse(body);
                 var root = doc.RootElement;
 
-                if (root.TryGetProperty("mensaje", out var msg) && msg.ValueKind == JsonValueKind.String)
+                if (
+                    root.TryGetProperty("mensaje", out var msg)
+                    && msg.ValueKind == JsonValueKind.String
+                )
                     return msg.GetString() ?? fallback;
 
                 if (root.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String)
@@ -928,6 +957,24 @@ namespace QualityControlCenter.Modules.Faret
                     if (root.TryGetProperty("data", out var d))
                     {
                         data = d.Clone();
+                        return true;
+                    }
+                    return false;
+                }
+
+                if (root.TryGetProperty("ok", out var okProp))
+                {
+                    if (!okProp.GetBoolean())
+                    {
+                        error = root.TryGetProperty("message", out var m2)
+                            ? (m2.GetString() ?? error)
+                            : error;
+                        return false;
+                    }
+
+                    if (root.TryGetProperty("data", out var d2))
+                    {
+                        data = d2.Clone();
                         return true;
                     }
                     return false;
