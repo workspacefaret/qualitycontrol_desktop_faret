@@ -104,7 +104,7 @@ window.FaretDataController = class FaretDataController {
             if (!res.ok) {
                 errorEl.textContent = res.error || "Error al cargar los registros";
                 errorEl.style.display = "block";
-                tbody.innerHTML = `<tr><td colspan="15" class="faret-empty">Sin datos</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin datos</td></tr>`;
                 return;
             }
 
@@ -115,7 +115,7 @@ window.FaretDataController = class FaretDataController {
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
             errorEl.style.display = "block";
-            tbody.innerHTML = `<tr><td colspan="15" class="faret-empty">Sin datos</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin datos</td></tr>`;
         } finally {
             loadingEl.style.display = "none";
         }
@@ -125,7 +125,7 @@ window.FaretDataController = class FaretDataController {
         const tbody = document.getElementById("fd-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="15" class="faret-empty">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin registros</td></tr>`;
             return;
         }
 
@@ -133,6 +133,7 @@ window.FaretDataController = class FaretDataController {
             <tr>
                 <td>${r.id ?? "-"}</td>
                 <td>${r.fechaIngreso ? new Date(r.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
+                <td>${r.fechaSalida ? new Date(r.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
                 <td>${r.npNv ?? "-"}</td>
                 <td>${r.cliente ?? "-"}</td>
                 <td>${r.codigo ?? "-"}</td>
@@ -216,6 +217,7 @@ window.FaretDataController = class FaretDataController {
                 <tr>
                     <th>ID</th>
                     <th>Fecha ingreso</th>
+                    <th>Fecha salida</th>
                     <th>NP/NV</th>
                     <th>Cliente</th>
                     <th>Código</th>
@@ -236,6 +238,7 @@ window.FaretDataController = class FaretDataController {
                     <tr>
                         <td>${r.id ?? "-"}</td>
                         <td>${r.fechaIngreso ? new Date(r.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
+                        <td>${r.fechaSalida ? new Date(r.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
                         <td>${r.npNv ?? "-"}</td>
                         <td>${r.cliente ?? "-"}</td>
                         <td>${r.codigo ?? "-"}</td>

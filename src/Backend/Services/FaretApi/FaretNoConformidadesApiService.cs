@@ -35,10 +35,43 @@ namespace QualityControlCenter.Backend.Services.FaretApi
             return result;
         }
 
+        public async Task<(bool ok, string body)> ActualizarGestionAsync(int id, object request)
+        {
+            var path = $"api/no-conformidades/{id}/gestion";
+            LogPayload($"PATCH {path}", request);
+            var result = await _client.PatchJsonAsync(path, request);
+            LogResult($"PATCH {path}", result.ok, result.body);
+            return result;
+        }
+
+        public async Task<(bool ok, string body)> CerrarAsync(int id, object request)
+        {
+            var path = $"api/no-conformidades/{id}/cerrar";
+            LogPayload($"POST {path}", request);
+            var result = await _client.PostJsonAsync(path, request);
+            LogResult($"POST {path}", result.ok, result.body);
+            return result;
+        }
+
+        public Task<(bool ok, string body)> GetSeguimientoAsync(int id) =>
+            _client.GetAsync($"api/no-conformidades/{id}/seguimiento");
+
+        public async Task<(bool ok, string body)> CrearSeguimientoAsync(int id, object request)
+        {
+            var path = $"api/no-conformidades/{id}/seguimiento";
+            LogPayload($"POST {path}", request);
+            var result = await _client.PostJsonAsync(path, request);
+            LogResult($"POST {path}", result.ok, result.body);
+            return result;
+        }
+
         public Task<(bool ok, string body)> GetAnalisisAsync(int noConformidadId) =>
             _client.GetAsync($"api/no-conformidades/{noConformidadId}/analisis");
 
-        public async Task<(bool ok, string body)> CrearAnalisisAsync(int noConformidadId, object request)
+        public async Task<(bool ok, string body)> CrearAnalisisAsync(
+            int noConformidadId,
+            object request
+        )
         {
             var path = $"api/no-conformidades/{noConformidadId}/analisis";
             LogPayload($"POST {path}", request);
@@ -47,7 +80,10 @@ namespace QualityControlCenter.Backend.Services.FaretApi
             return result;
         }
 
-        public async Task<(bool ok, string body)> ActualizarAnalisisAsync(int noConformidadId, object request)
+        public async Task<(bool ok, string body)> ActualizarAnalisisAsync(
+            int noConformidadId,
+            object request
+        )
         {
             var path = $"api/no-conformidades/{noConformidadId}/analisis";
             LogPayload($"PUT {path}", request);
@@ -59,7 +95,10 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public Task<(bool ok, string body)> GetAccionesAsync(int noConformidadId) =>
             _client.GetAsync($"api/no-conformidades/{noConformidadId}/acciones");
 
-        public async Task<(bool ok, string body)> CrearAccionAsync(int noConformidadId, object request)
+        public async Task<(bool ok, string body)> CrearAccionAsync(
+            int noConformidadId,
+            object request
+        )
         {
             var path = $"api/no-conformidades/{noConformidadId}/acciones";
             LogPayload($"POST {path}", request);
@@ -68,7 +107,10 @@ namespace QualityControlCenter.Backend.Services.FaretApi
             return result;
         }
 
-        public async Task<(bool ok, string body)> ActualizarAccionAsync(int accionId, object request)
+        public async Task<(bool ok, string body)> ActualizarAccionAsync(
+            int accionId,
+            object request
+        )
         {
             var path = $"api/acciones-correctivas/{accionId}";
             LogPayload($"PUT {path}", request);
@@ -83,6 +125,8 @@ namespace QualityControlCenter.Backend.Services.FaretApi
             Console.WriteLine($"[FaretNC] {label} payload: {JsonSerializer.Serialize(request)}");
 
         private static void LogResult(string label, bool ok, string body) =>
-            Console.WriteLine($"[FaretNC] {label} → ok={ok} body={body[..Math.Min(300, body.Length)]}");
+            Console.WriteLine(
+                $"[FaretNC] {label} → ok={ok} body={body[..Math.Min(300, body.Length)]}"
+            );
     }
 }

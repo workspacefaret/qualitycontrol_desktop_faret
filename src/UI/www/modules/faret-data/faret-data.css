@@ -242,6 +242,7 @@
 }
 
 .faret-data-module .table thead th {
+    background: #F8FAFC;
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;

@@ -3,8 +3,15 @@ window.FaretNcController = class FaretNcController {
     init() {
         console.log("FaretNcController iniciado");
 
-        this._items = [];
+        this._dataItems = [];
+        this._ncItems = [];
+        this._items = []; // alias de _ncItems, usado por Ver/Editar/Analizar (búsqueda por id de NC)
+        this._combinados = [];
+        this._combinadosPorKey = new Map();
         this._editingId = null;
+        this._gestionContext = null;
+        this._page = 1;
+        this._pageSize = 50;
 
         document.getElementById("fnc-refresh-btn")
             ?.addEventListener("click", () => this._loadLista());
@@ -19,10 +26,16 @@ window.FaretNcController = class FaretNcController {
             ?.addEventListener("click", () => this._guardar());
 
         document.getElementById("fnc-filtrar-btn")
-            ?.addEventListener("click", () => this._renderTabla());
+            ?.addEventListener("click", () => { this._page = 1; this._renderTabla(); });
 
         document.getElementById("fnc-limpiar-btn")
             ?.addEventListener("click", () => this._limpiarFiltros());
+
+        document.getElementById("fnc-anterior-btn")
+            ?.addEventListener("click", () => this._irPagina(this._page - 1));
+
+        document.getElementById("fnc-siguiente-btn")
+            ?.addEventListener("click", () => this._irPagina(this._page + 1));
 
         document.getElementById("fnc-detalle-cerrar-btn")
             ?.addEventListener("click", () => this._cerrarDetalle());
@@ -39,6 +52,21 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-exportar-btn")
             ?.addEventListener("click", () => this._exportar());
 
+        document.getElementById("fnc-gestion-cerrar-btn")
+            ?.addEventListener("click", () => this._cerrarGestion());
+
+        document.getElementById("fnc-gcrear-confirmar-btn")
+            ?.addEventListener("click", () => this._confirmarCrearGestion());
+
+        document.getElementById("fnc-gestion-guardar-btn")
+            ?.addEventListener("click", () => this._guardarGestion());
+
+        document.getElementById("fnc-seguimiento-agregar-btn")
+            ?.addEventListener("click", () => this._agregarSeguimiento());
+
+        document.getElementById("fnc-cerrar-nc-btn")
+            ?.addEventListener("click", () => this._cerrarNc());
+
         this._ncAnalisisId = null;
         this._analisisActual = null;
         this._acciones = [];
@@ -50,22 +78,7 @@ window.FaretNcController = class FaretNcController {
         console.log("FaretNcController destruido");
     }
 
-    _getFiltros() {
-        return {
-            estado: document.getElementById("fnc-filtro-estado")?.value || "",
-            proceso: document.getElementById("fnc-filtro-proceso")?.value.trim().toLowerCase() || "",
-            fechaDesde: document.getElementById("fnc-filtro-fecha-desde")?.value || "",
-            fechaHasta: document.getElementById("fnc-filtro-fecha-hasta")?.value || "",
-        };
-    }
-
-    _limpiarFiltros() {
-        document.getElementById("fnc-filtro-estado").value = "";
-        document.getElementById("fnc-filtro-proceso").value = "";
-        document.getElementById("fnc-filtro-fecha-desde").value = "";
-        document.getElementById("fnc-filtro-fecha-hasta").value = "";
-        this._renderTabla();
-    }
+    // ---------- Carga y fusión Data + NC ----------
 
     async _loadLista() {
         const loadingEl = document.getElementById("fnc-loading");
@@ -76,47 +89,152 @@ window.FaretNcController = class FaretNcController {
         errorEl.style.display = "none";
 
         try {
-            const res = await window.PhotinoBridge.send({ action: "faret.nc.list" });
+            const [dataItems, ncRes] = await Promise.all([
+                this._cargarDataCompleta(),
+                window.PhotinoBridge.send({ action: "faret.nc.list" }),
+            ]);
 
-            if (!res.ok) {
-                errorEl.textContent = res.error || "Error al cargar las no conformidades";
+            if (!ncRes.ok) {
+                errorEl.textContent = ncRes.error || "Error al cargar las no conformidades";
                 errorEl.style.display = "block";
-                tbody.innerHTML = `<tr><td colspan="10" class="faret-empty">Sin datos</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="13" class="faret-empty">Sin datos</td></tr>`;
                 return;
             }
 
-            this._items = Array.isArray(res.data) ? res.data : [];
-            this._actualizarFiltroEstado();
+            this._dataItems = dataItems;
+            this._ncItems = Array.isArray(ncRes.data) ? ncRes.data : [];
+            this._items = this._ncItems;
+
+            this._combinar();
             this._renderTabla();
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
             errorEl.style.display = "block";
-            tbody.innerHTML = `<tr><td colspan="10" class="faret-empty">Sin datos</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="13" class="faret-empty">Sin datos</td></tr>`;
         } finally {
             loadingEl.style.display = "none";
         }
     }
 
-    _actualizarFiltroEstado() {
-        const select = document.getElementById("fnc-filtro-estado");
-        const actual = select.value;
-        const estados = [...new Set(this._items.map(i => i.estado).filter(Boolean))];
+    // Recorre todas las páginas de Data (tope real de 200 filas por página en la API).
+    async _cargarDataCompleta() {
+        const pageSize = 200;
+        let page = 1;
+        let total = Infinity;
+        const items = [];
 
-        select.innerHTML = `<option value="">Todos</option>` +
-            estados.map(e => `<option value="${e}">${e}</option>`).join("");
+        while (items.length < total && page <= 200) {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.data.list",
+                page,
+                pageSize,
+            });
 
-        if (estados.includes(actual)) select.value = actual;
+            if (!res.ok) break;
+
+            const lote = Array.isArray(res.data.items) ? res.data.items : [];
+            if (!lote.length) break;
+
+            items.push(...lote);
+            total = res.data.totalCount ?? items.length;
+            page++;
+        }
+
+        return items;
+    }
+
+    // Une Data (fuente base) con la gestión de NC vinculada por sistemaOrigen="DATA_FARET" +
+    // origenId=String(data.id). Las NC que no calzan con ninguna fila de Data (manuales, o con
+    // un origenId que ya no existe) se agregan igual al final para no perder información.
+    _combinar() {
+        const ncPorOrigenId = new Map();
+        this._ncItems.forEach(nc => {
+            if (nc.sistemaOrigen === "DATA_FARET" && nc.origenId) {
+                ncPorOrigenId.set(String(nc.origenId), nc);
+            }
+        });
+
+        const usados = new Set();
+        const filasData = this._dataItems.map(d => {
+            const nc = ncPorOrigenId.get(String(d.id)) || null;
+            if (nc) usados.add(nc.id);
+            return this._normalizarFila(d, nc);
+        });
+
+        const filasManuales = this._ncItems
+            .filter(nc => !usados.has(nc.id))
+            .map(nc => this._normalizarFila(null, nc));
+
+        this._combinados = [...filasData, ...filasManuales];
+        this._combinadosPorKey = new Map(this._combinados.map(f => [f.key, f]));
+    }
+
+    _normalizarFila(dataRow, ncRow) {
+        return {
+            key: dataRow ? `data-${dataRow.id}` : `nc-${ncRow.id}`,
+            dataId: dataRow ? dataRow.id : null,
+            data: dataRow,
+            nc: ncRow,
+            tieneNc: !!ncRow,
+            codigo: ncRow?.codigo || (dataRow ? `Data #${dataRow.id}` : "-"),
+            fechaIngreso: dataRow?.fechaIngreso || ncRow?.fechaCreacion || null,
+            fechaSalida: dataRow?.fechaSalida || null,
+            npNv: dataRow?.npNv || "-",
+            cliente: dataRow?.cliente || "-",
+            producto: dataRow?.producto || "-",
+            tipoPnc: dataRow?.tipoPnc || "-",
+            categoriaDefecto: dataRow?.categoriaDefecto || "-",
+            nivelSeveridad: dataRow?.nivel || ncRow?.severidad || "-",
+            estadoGestion: ncRow?.estadoGestion || "SIN_GESTION",
+            responsable: ncRow?.responsable || "-",
+            fechaCompromiso: ncRow?.fechaCompromiso || null,
+        };
+    }
+
+    // ---------- Filtros ----------
+
+    _getFiltros() {
+        return {
+            cliente: document.getElementById("fnc-filtro-cliente")?.value.trim().toLowerCase() || "",
+            tipoPnc: document.getElementById("fnc-filtro-tipo-pnc")?.value.trim().toLowerCase() || "",
+            nivel: document.getElementById("fnc-filtro-nivel")?.value || "",
+            estadoGestion: document.getElementById("fnc-filtro-estado-gestion")?.value || "",
+            responsable: document.getElementById("fnc-filtro-responsable")?.value.trim().toLowerCase() || "",
+            fechaDesde: document.getElementById("fnc-filtro-fecha-desde")?.value || "",
+            fechaHasta: document.getElementById("fnc-filtro-fecha-hasta")?.value || "",
+        };
+    }
+
+    _limpiarFiltros() {
+        document.getElementById("fnc-filtro-cliente").value = "";
+        document.getElementById("fnc-filtro-tipo-pnc").value = "";
+        document.getElementById("fnc-filtro-nivel").value = "";
+        document.getElementById("fnc-filtro-estado-gestion").value = "";
+        document.getElementById("fnc-filtro-responsable").value = "";
+        document.getElementById("fnc-filtro-fecha-desde").value = "";
+        document.getElementById("fnc-filtro-fecha-hasta").value = "";
+        this._page = 1;
+        this._renderTabla();
+    }
+
+    _irPagina(pagina) {
+        if (pagina < 1) return;
+        this._page = pagina;
+        this._renderTabla();
     }
 
     _filtrarItems() {
         const f = this._getFiltros();
 
-        return this._items.filter(i => {
-            if (f.estado && i.estado !== f.estado) return false;
-            if (f.proceso && !(i.proceso || "").toLowerCase().includes(f.proceso)) return false;
+        return this._combinados.filter(fila => {
+            if (f.cliente && !fila.cliente.toLowerCase().includes(f.cliente)) return false;
+            if (f.tipoPnc && !fila.tipoPnc.toLowerCase().includes(f.tipoPnc)) return false;
+            if (f.nivel && fila.nivelSeveridad !== f.nivel) return false;
+            if (f.estadoGestion && fila.estadoGestion !== f.estadoGestion) return false;
+            if (f.responsable && !fila.responsable.toLowerCase().includes(f.responsable)) return false;
 
-            if (i.fechaCreacion) {
-                const fecha = i.fechaCreacion.substring(0, 10);
+            if (fila.fechaIngreso) {
+                const fecha = String(fila.fechaIngreso).substring(0, 10);
                 if (f.fechaDesde && fecha < f.fechaDesde) return false;
                 if (f.fechaHasta && fecha > f.fechaHasta) return false;
             }
@@ -125,55 +243,106 @@ window.FaretNcController = class FaretNcController {
         });
     }
 
+    // ---------- Tabla ----------
+
     _renderTabla() {
-        const items = this._filtrarItems();
-        this._renderResumen(items);
+        const filtrados = this._filtrarItems();
+        this._renderResumen(filtrados);
+
+        const totalPaginas = Math.max(1, Math.ceil(filtrados.length / this._pageSize));
+        if (this._page > totalPaginas) this._page = totalPaginas;
+        if (this._page < 1) this._page = 1;
+
+        const inicio = (this._page - 1) * this._pageSize;
+        const items = filtrados.slice(inicio, inicio + this._pageSize);
 
         const tbody = document.getElementById("fnc-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="10" class="faret-empty">Sin no conformidades registradas</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="13" class="faret-empty">Sin registros</td></tr>`;
+            this._renderPaginacion(filtrados.length);
             return;
         }
 
-        tbody.innerHTML = items.map(i => `
+        tbody.innerHTML = items.map(fila => `
             <tr>
-                <td>${i.codigo ?? "-"}</td>
-                <td>${i.titulo ?? "-"}</td>
-                <td>${i.tipo ?? "-"}</td>
-                <td>${i.origen ?? "-"}</td>
-                <td>${this._badge(i.severidad, this._colorSeveridad(i.severidad))}</td>
-                <td>${i.proceso ?? "-"}</td>
-                <td>${this._badge(i.estado, this._colorEstado(i.estado))}</td>
-                <td>${i.norma ?? "-"}</td>
-                <td>${i.fechaCreacion ? new Date(i.fechaCreacion).toLocaleDateString("es-CL") : "-"}</td>
+                <td>${fila.codigo}</td>
+                <td>${fila.fechaIngreso ? new Date(fila.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
+                <td>${fila.fechaSalida ? new Date(fila.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
+                <td>${fila.npNv}</td>
+                <td>${fila.cliente}</td>
+                <td>${fila.producto}</td>
+                <td>${fila.tipoPnc}</td>
+                <td>${fila.categoriaDefecto}</td>
+                <td>${this._badge(fila.nivelSeveridad, this._colorSeveridad(fila.nivelSeveridad))}</td>
+                <td>${this._badge(this._labelEstadoGestion(fila.estadoGestion), this._colorEstadoGestion(fila.estadoGestion))}</td>
+                <td>${fila.responsable}</td>
+                <td>${fila.fechaCompromiso ? new Date(fila.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</td>
                 <td>
-                    <button class="btn-ghost fnc-ver-btn" data-id="${i.id}">Ver</button>
-                    <button class="btn-secondary fnc-editar-btn" data-id="${i.id}">Editar</button>
-                    <button class="btn-primary fnc-analizar-btn" data-id="${i.id}">Analizar</button>
+                    ${fila.tieneNc ? `
+                        <button class="btn-ghost fnc-ver-btn" data-key="${fila.key}">Ver</button>
+                        <button class="btn-secondary fnc-editar-btn" data-key="${fila.key}">Editar</button>
+                        <button class="btn-primary fnc-analizar-btn" data-key="${fila.key}">Analizar</button>
+                    ` : ""}
+                    <button class="btn-secondary fnc-gestionar-btn" data-key="${fila.key}">Gestionar</button>
                 </td>
             </tr>
         `).join("");
 
         tbody.querySelectorAll(".fnc-ver-btn").forEach(btn =>
-            btn.addEventListener("click", () => this._verDetalle(btn.dataset.id)));
+            btn.addEventListener("click", () => this._verDetallePorKey(btn.dataset.key)));
 
         tbody.querySelectorAll(".fnc-editar-btn").forEach(btn =>
-            btn.addEventListener("click", () => this._abrirFormEditar(btn.dataset.id)));
+            btn.addEventListener("click", () => this._abrirFormEditarPorKey(btn.dataset.key)));
 
         tbody.querySelectorAll(".fnc-analizar-btn").forEach(btn =>
-            btn.addEventListener("click", () => this._abrirAnalisis(btn.dataset.id)));
+            btn.addEventListener("click", () => this._abrirAnalisisPorKey(btn.dataset.key)));
+
+        tbody.querySelectorAll(".fnc-gestionar-btn").forEach(btn =>
+            btn.addEventListener("click", () => this._abrirGestion(btn.dataset.key)));
+
+        this._renderPaginacion(filtrados.length);
+    }
+
+    _renderPaginacion(totalFiltrado) {
+        const totalPaginas = Math.max(1, Math.ceil(totalFiltrado / this._pageSize));
+        document.getElementById("fnc-pagina-info").textContent = `Página ${this._page} de ${totalPaginas}`;
+        document.getElementById("fnc-anterior-btn").disabled = this._page <= 1;
+        document.getElementById("fnc-siguiente-btn").disabled = this._page >= totalPaginas;
+    }
+
+    _verDetallePorKey(key) {
+        const fila = this._combinadosPorKey.get(key);
+        if (fila?.nc) this._verDetalle(fila.nc.id);
+    }
+
+    _abrirFormEditarPorKey(key) {
+        const fila = this._combinadosPorKey.get(key);
+        if (fila?.nc) this._abrirFormEditar(fila.nc.id);
+    }
+
+    _abrirAnalisisPorKey(key) {
+        const fila = this._combinadosPorKey.get(key);
+        if (fila?.nc) this._abrirAnalisis(fila.nc.id);
     }
 
     _renderResumen(items) {
-        const esCerrada = estado => (estado || "").toUpperCase().includes("CERR");
-        const esCritica = severidad => ["ALTA", "CRITICA", "CRÍTICA"].includes((severidad || "").toUpperCase());
+        const esCerrada = estado => (estado || "").toUpperCase() === "CERRADA";
+        const esCritica = valor => {
+            const v = (valor || "").toUpperCase();
+            return v === "ALTA" || v.includes("CRIT");
+        };
 
-        document.getElementById("fnc-total").textContent = items.length;
-        document.getElementById("fnc-cerradas").textContent = items.filter(i => esCerrada(i.estado)).length;
-        document.getElementById("fnc-abiertas").textContent = items.filter(i => !esCerrada(i.estado)).length;
-        document.getElementById("fnc-criticas").textContent = items.filter(i => esCritica(i.severidad)).length;
+        const conNc = items.filter(i => i.tieneNc);
+
+        document.getElementById("fnc-total").textContent = conNc.length;
+        document.getElementById("fnc-cerradas").textContent = conNc.filter(i => esCerrada(i.estadoGestion)).length;
+        document.getElementById("fnc-abiertas").textContent = conNc.filter(i => !esCerrada(i.estadoGestion)).length;
+        document.getElementById("fnc-criticas").textContent = items.filter(i => esCritica(i.nivelSeveridad)).length;
+        document.getElementById("fnc-sin-gestion").textContent = items.filter(i => !i.tieneNc).length;
     }
+
+    // ---------- Detalle (Ver) ----------
 
     async _verDetalle(id) {
         const modal = document.getElementById("fnc-detalle-modal");
@@ -195,11 +364,15 @@ window.FaretNcController = class FaretNcController {
                 <div class="fnc-detalle-grid">
                     <div><strong>Código:</strong> ${nc.codigo ?? "-"}</div>
                     <div><strong>Estado:</strong> ${nc.estado ?? "-"}</div>
+                    <div><strong>Estado de gestión:</strong> ${this._labelEstadoGestion(nc.estadoGestion)}</div>
+                    <div><strong>Responsable:</strong> ${nc.responsable ?? "-"}</div>
                     <div><strong>Tipo:</strong> ${nc.tipo ?? "-"}</div>
                     <div><strong>Origen:</strong> ${nc.origen ?? "-"}</div>
                     <div><strong>Severidad:</strong> ${nc.severidad ?? "-"}</div>
                     <div><strong>Proceso / Área:</strong> ${nc.proceso ?? "-"}</div>
                     <div><strong>Norma:</strong> ${nc.norma ?? "-"}</div>
+                    <div><strong>Vínculo Data:</strong> ${nc.sistemaOrigen === "DATA_FARET" && nc.origenId ? `Data #${nc.origenId}` : "Manual"}</div>
+                    <div><strong>Fecha compromiso:</strong> ${nc.fechaCompromiso ? new Date(nc.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</div>
                     <div><strong>Fecha creación:</strong> ${nc.fechaCreacion ? new Date(nc.fechaCreacion).toLocaleString("es-CL") : "-"}</div>
                 </div>
                 <div class="fnc-detalle-titulo"><strong>Título:</strong> ${nc.titulo ?? "-"}</div>
@@ -213,6 +386,8 @@ window.FaretNcController = class FaretNcController {
     _cerrarDetalle() {
         document.getElementById("fnc-detalle-modal").style.display = "none";
     }
+
+    // ---------- Formulario Nueva / Editar NC (manual, sin vínculo a Data) ----------
 
     _abrirFormNuevo() {
         this._editingId = null;
@@ -324,6 +499,244 @@ window.FaretNcController = class FaretNcController {
     _usuarioActual() {
         return sessionStorage.getItem("faretNombreUsuario") || "";
     }
+
+    // ---------- Gestionar (crear vínculo Data→NC, o gestionar/cerrar/seguimiento de una NC existente) ----------
+
+    _mapNivelASeveridad(nivel) {
+        const n = (nivel || "").toUpperCase();
+        if (n.includes("CRIT")) return "ALTA";
+        if (n.includes("MAYOR")) return "MEDIA";
+        if (n.includes("MENOR")) return "BAJA";
+        return "MEDIA";
+    }
+
+    async _abrirGestion(key) {
+        const fila = this._combinadosPorKey.get(key);
+        if (!fila) return;
+
+        this._gestionContext = { fila };
+        document.getElementById("fnc-gestion-error").style.display = "none";
+        document.getElementById("fnc-gestion-mensaje").style.display = "none";
+
+        if (!fila.tieneNc) {
+            const d = fila.data;
+
+            document.getElementById("fnc-gestion-titulo").textContent = "Crear gestión de NC";
+            document.getElementById("fnc-gestion-subtitulo").textContent = `Vinculado a Data #${fila.dataId}`;
+            document.getElementById("fnc-gestion-crear").style.display = "block";
+            document.getElementById("fnc-gestion-existente").style.display = "none";
+
+            document.getElementById("fnc-gcrear-tipo").value = "INTERNA";
+            document.getElementById("fnc-gcrear-origen").value = "AUDITORIA_INTERNA";
+            document.getElementById("fnc-gcrear-severidad").value = this._mapNivelASeveridad(d.nivel);
+            document.getElementById("fnc-gcrear-fecha").value = d.fechaIngreso ? String(d.fechaIngreso).substring(0, 10) : "";
+            document.getElementById("fnc-gcrear-proceso").value = d.tipoPnc || "PNC Data";
+            document.getElementById("fnc-gcrear-titulo").value = `PNC Data #${d.id} - ${d.producto || d.cliente || ""}`.trim();
+            document.getElementById("fnc-gcrear-descripcion").value =
+                [d.categoriaDefecto, d.observacion].filter(Boolean).join(" - ")
+                || `Registro importado de Data (ID ${d.id}, cliente ${d.cliente || "-"})`;
+
+            document.getElementById("fnc-gestion-modal").style.display = "flex";
+            return;
+        }
+
+        document.getElementById("fnc-gestion-titulo").textContent = `Gestionar ${fila.nc.codigo || ""}`;
+        document.getElementById("fnc-gestion-subtitulo").textContent =
+            fila.dataId ? `Vinculado a Data #${fila.dataId}` : "No conformidad manual (sin vínculo a Data)";
+        document.getElementById("fnc-gestion-crear").style.display = "none";
+        document.getElementById("fnc-gestion-existente").style.display = "block";
+
+        document.getElementById("fnc-gestion-responsable").value = fila.nc.responsable || "";
+        document.getElementById("fnc-gestion-estado").value = fila.nc.estadoGestion || "PENDIENTE";
+        document.getElementById("fnc-gestion-fecha-compromiso").value =
+            fila.nc.fechaCompromiso ? String(fila.nc.fechaCompromiso).substring(0, 10) : "";
+        document.getElementById("fnc-cierre-comentario").value = "";
+        document.getElementById("fnc-seguimiento-comentario").value = "";
+
+        document.getElementById("fnc-gestion-modal").style.display = "flex";
+        await this._cargarSeguimiento(fila.nc.id);
+    }
+
+    _cerrarGestion() {
+        document.getElementById("fnc-gestion-modal").style.display = "none";
+        this._gestionContext = null;
+    }
+
+    async _confirmarCrearGestion() {
+        const errorEl = document.getElementById("fnc-gestion-error");
+        errorEl.style.display = "none";
+
+        const fila = this._gestionContext?.fila;
+        if (!fila) return;
+
+        const payload = {
+            tipo: document.getElementById("fnc-gcrear-tipo").value,
+            origen: document.getElementById("fnc-gcrear-origen").value,
+            titulo: document.getElementById("fnc-gcrear-titulo").value.trim(),
+            descripcion: document.getElementById("fnc-gcrear-descripcion").value.trim(),
+            severidad: document.getElementById("fnc-gcrear-severidad").value,
+            proceso: document.getElementById("fnc-gcrear-proceso").value.trim(),
+            fechaDeteccion: document.getElementById("fnc-gcrear-fecha").value,
+            sistemaOrigen: "DATA_FARET",
+            origenId: String(fila.dataId),
+        };
+
+        if (!payload.titulo || !payload.descripcion || !payload.proceso || !payload.fechaDeteccion) {
+            errorEl.textContent = "Título, descripción, proceso/área y fecha de detección son obligatorios";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        const btn = document.getElementById("fnc-gcrear-confirmar-btn");
+        btn.disabled = true;
+        try {
+            const res = await window.PhotinoBridge.send({ action: "faret.nc.create", ...payload });
+
+            if (!res.ok) {
+                errorEl.textContent = res.error || "Error al crear la gestión";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            this._cerrarGestion();
+            this._showMensaje("Gestión creada correctamente", true);
+            await this._loadLista();
+        } catch {
+            errorEl.textContent = "Error de comunicación con el backend";
+            errorEl.style.display = "block";
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async _guardarGestion() {
+        const fila = this._gestionContext?.fila;
+        if (!fila || !fila.nc) return;
+
+        const errorEl = document.getElementById("fnc-gestion-error");
+        errorEl.style.display = "none";
+
+        const payload = {
+            id: fila.nc.id,
+            responsable: document.getElementById("fnc-gestion-responsable").value.trim(),
+            estadoGestion: document.getElementById("fnc-gestion-estado").value,
+            fechaCompromiso: document.getElementById("fnc-gestion-fecha-compromiso").value || null,
+            actualizadoPor: this._usuarioActual(),
+        };
+
+        const btn = document.getElementById("fnc-gestion-guardar-btn");
+        btn.disabled = true;
+        try {
+            const res = await window.PhotinoBridge.send({ action: "faret.nc.gestion.actualizar", ...payload });
+
+            if (!res.ok) {
+                errorEl.textContent = res.error || "Error al guardar la gestión";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            this._showGestionMensaje("Gestión actualizada", true);
+            await this._loadLista();
+        } catch {
+            errorEl.textContent = "Error de comunicación con el backend";
+            errorEl.style.display = "block";
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async _cargarSeguimiento(ncId) {
+        const cont = document.getElementById("fnc-seguimiento-lista");
+        cont.innerHTML = "Cargando...";
+
+        try {
+            const res = await window.PhotinoBridge.send({ action: "faret.nc.seguimiento.list", id: Number(ncId) });
+            const items = res.ok && Array.isArray(res.data) ? res.data : [];
+
+            if (!items.length) {
+                cont.innerHTML = `<div class="faret-empty">Sin comentarios de seguimiento</div>`;
+                return;
+            }
+
+            cont.innerHTML = items.map(c => `
+                <div class="fnc-seguimiento-item">
+                    <div>${c.comentario ?? "-"}</div>
+                    <div class="fnc-seguimiento-meta">${c.autor ?? "Sin autor"} · ${c.creadoEn ? new Date(c.creadoEn).toLocaleString("es-CL") : "-"}</div>
+                </div>
+            `).join("");
+        } catch {
+            cont.innerHTML = `<div class="faret-error">Error al cargar el seguimiento</div>`;
+        }
+    }
+
+    async _agregarSeguimiento() {
+        const fila = this._gestionContext?.fila;
+        if (!fila || !fila.nc) return;
+
+        const comentario = document.getElementById("fnc-seguimiento-comentario").value.trim();
+        if (!comentario) return;
+
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.seguimiento.crear",
+                id: fila.nc.id,
+                comentario,
+                autor: this._usuarioActual(),
+            });
+
+            if (!res.ok) {
+                this._showGestionMensaje(res.error || "Error al agregar el comentario", false);
+                return;
+            }
+
+            document.getElementById("fnc-seguimiento-comentario").value = "";
+            await this._cargarSeguimiento(fila.nc.id);
+            this._showGestionMensaje("Comentario agregado", true);
+        } catch {
+            this._showGestionMensaje("Error de comunicación con el backend", false);
+        }
+    }
+
+    async _cerrarNc() {
+        const fila = this._gestionContext?.fila;
+        if (!fila || !fila.nc) return;
+
+        if (!confirm("¿Cerrar esta No Conformidad? Quedará marcada como CERRADA.")) return;
+
+        const comentarioCierre = document.getElementById("fnc-cierre-comentario").value.trim();
+
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.cerrar",
+                id: fila.nc.id,
+                cerradoPor: this._usuarioActual(),
+                comentarioCierre: comentarioCierre || null,
+            });
+
+            if (!res.ok) {
+                this._showGestionMensaje(res.error || "Error al cerrar la no conformidad", false);
+                return;
+            }
+
+            this._cerrarGestion();
+            this._showMensaje("No conformidad cerrada", true);
+            await this._loadLista();
+        } catch {
+            this._showGestionMensaje("Error de comunicación con el backend", false);
+        }
+    }
+
+    _showGestionMensaje(texto, ok) {
+        const el = document.getElementById("fnc-gestion-mensaje");
+        el.textContent = texto;
+        el.style.display = "block";
+        el.style.background = ok ? "#ECFDF5" : "#FEF2F2";
+        el.style.color = ok ? "#065F46" : "#991B1B";
+        el.style.borderLeftColor = ok ? "#10B981" : "#EF4444";
+        setTimeout(() => { el.style.display = "none"; }, 4000);
+    }
+
+    // ---------- Analizar (5 Porqués / Ishikawa + Acciones correctivas) ----------
 
     async _abrirAnalisis(id) {
         const item = this._items.find(i => String(i.id) === String(id));
@@ -605,31 +1018,102 @@ window.FaretNcController = class FaretNcController {
         setTimeout(() => { el.style.display = "none"; }, 4000);
     }
 
-    // Solo presentación: no cambia el valor real de severidad/estado, únicamente
-    // cómo se muestra en la tabla.
+    // ---------- Presentación (badges) ----------
+
     _badge(texto, color) {
         const valor = texto ?? "-";
         return `<span class="fnc-badge" style="background:${color}1F;color:${color};">${valor}</span>`;
     }
 
-    _colorSeveridad(severidad) {
-        const s = (severidad || "").toUpperCase();
-        if (s === "ALTA") return "#DC2626";
-        if (s === "MEDIA") return "#D97706";
-        if (s === "BAJA") return "#059669";
+    _colorSeveridad(valor) {
+        const s = (valor || "").toUpperCase();
+        if (s === "ALTA" || s.includes("CRIT")) return "#DC2626";
+        if (s === "MEDIA" || s.includes("MAYOR")) return "#D97706";
+        if (s === "BAJA" || s.includes("MENOR")) return "#059669";
         return "#64748B";
     }
 
-    _colorEstado(estado) {
-        return (estado || "").toUpperCase().includes("CERR") ? "#059669" : "#2563EB";
+    _labelEstadoGestion(estado) {
+        const map = {
+            SIN_GESTION: "Sin gestión",
+            PENDIENTE: "Pendiente",
+            ASIGNADA: "Asignada",
+            EN_GESTION: "En gestión",
+            CERRADA: "Cerrada",
+        };
+        return map[estado] || estado || "-";
     }
 
+    _colorEstadoGestion(estado) {
+        switch (estado) {
+            case "CERRADA": return "#059669";
+            case "EN_GESTION": return "#2563EB";
+            case "ASIGNADA": return "#D97706";
+            case "SIN_GESTION": return "#94A3B8";
+            default: return "#64748B"; // PENDIENTE
+        }
+    }
+
+    // Exporta siempre el conjunto ya filtrado completo (todas las páginas), no solo la página
+    // visible: con filtros activos exporta lo filtrado; sin filtros, exporta todo lo combinado.
     _exportar() {
+        const items = this._filtrarItems();
+        this._exportarFilasDesdeDatos(items);
+    }
+
+    _exportarFilasDesdeDatos(items) {
+        const tabla = document.createElement("table");
+        tabla.id = "fnc-tabla-export-temp";
+        tabla.style.position = "absolute";
+        tabla.style.left = "-99999px";
+        tabla.style.top = "0";
+
+        tabla.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Código NC / ID Data</th>
+                    <th>Fecha ingreso</th>
+                    <th>Fecha salida</th>
+                    <th>NP/NV</th>
+                    <th>Cliente</th>
+                    <th>Producto</th>
+                    <th>Tipo PNC</th>
+                    <th>Categoría defecto</th>
+                    <th>Nivel / Severidad</th>
+                    <th>Estado gestión</th>
+                    <th>Responsable</th>
+                    <th>Fecha compromiso</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${items.map(fila => `
+                    <tr>
+                        <td>${fila.codigo}</td>
+                        <td>${fila.fechaIngreso ? new Date(fila.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
+                        <td>${fila.fechaSalida ? new Date(fila.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
+                        <td>${fila.npNv}</td>
+                        <td>${fila.cliente}</td>
+                        <td>${fila.producto}</td>
+                        <td>${fila.tipoPnc}</td>
+                        <td>${fila.categoriaDefecto}</td>
+                        <td>${fila.nivelSeveridad}</td>
+                        <td>${this._labelEstadoGestion(fila.estadoGestion)}</td>
+                        <td>${fila.responsable}</td>
+                        <td>${fila.fechaCompromiso ? new Date(fila.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</td>
+                    </tr>
+                `).join("")}
+            </tbody>
+        `;
+
+        document.body.appendChild(tabla);
+
         window.ExcelExporter.exportTable({
-            tableSelector: "#fnc-tabla",
+            tableSelector: "#fnc-tabla-export-temp",
             fileName: `faret_no_conformidades_${Date.now()}.xlsx`,
             sheetName: "No Conformidades",
             title: "QCC Faret - No Conformidades"
         });
+
+        tabla.remove();
     }
 };

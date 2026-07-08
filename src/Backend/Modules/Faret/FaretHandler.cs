@@ -80,6 +80,10 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.nc.get" => await HandleNcGet(data),
                 "faret.nc.create" => await HandleNcCreate(data),
                 "faret.nc.update" => await HandleNcUpdate(data),
+                "faret.nc.gestion.actualizar" => await HandleNcGestionActualizar(data),
+                "faret.nc.cerrar" => await HandleNcCerrar(data),
+                "faret.nc.seguimiento.list" => await HandleNcSeguimientoList(data),
+                "faret.nc.seguimiento.crear" => await HandleNcSeguimientoCrear(data),
                 "faret.nc.analisis.get" => await HandleNcAnalisisGet(data),
                 "faret.nc.analisis.guardar" => await HandleNcAnalisisGuardar(data),
                 "faret.nc.acciones.list" => await HandleNcAccionesList(data),
@@ -519,6 +523,75 @@ namespace QualityControlCenter.Modules.Faret
             return Ok(JsonSerializer.Deserialize<object>(body));
         }
 
+        private async Task<string> HandleNcGestionActualizar(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            if (!TryBuildGestionRequest(data, out var request, out var validationError))
+                return Error(validationError);
+
+            var (ok, body) = await _noConformidades.ActualizarGestionAsync(id, request);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcCerrar(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            if (!TryBuildCerrarRequest(data, out var request, out var validationError))
+                return Error(validationError);
+
+            var (ok, body) = await _noConformidades.CerrarAsync(id, request);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcSeguimientoList(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            var (ok, body) = await _noConformidades.GetSeguimientoAsync(id);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcSeguimientoCrear(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            if (!TryBuildSeguimientoRequest(data, out var request, out var validationError))
+                return Error(validationError);
+
+            var (ok, body) = await _noConformidades.CrearSeguimientoAsync(id, request);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
         private async Task<string> HandleDashboardResumen()
         {
             if (!_mcClient.IsConfigured)
@@ -641,6 +714,95 @@ namespace QualityControlCenter.Modules.Faret
             "COMPLETADA",
             "CANCELADA",
         };
+        private static readonly string[] EstadosGestionValidos =
+        {
+            "PENDIENTE",
+            "ASIGNADA",
+            "EN_GESTION",
+            "CERRADA",
+        };
+
+        private static bool TryBuildGestionRequest(
+            Dictionary<string, object> data,
+            out object request,
+            out string error
+        )
+        {
+            request = null!;
+            error = "";
+
+            TryGetString(data, "responsable", out var responsable);
+            TryGetString(data, "estadoGestion", out var estadoGestion);
+            TryGetString(data, "fechaCompromiso", out var fechaCompromiso);
+            TryGetString(data, "actualizadoPor", out var actualizadoPor);
+
+            if (
+                !string.IsNullOrWhiteSpace(estadoGestion)
+                && !EstadosGestionValidos.Contains(estadoGestion)
+            )
+            {
+                error =
+                    $"Estado de gestión inválido. Valores permitidos: {string.Join(", ", EstadosGestionValidos)}";
+                return false;
+            }
+
+            request = new
+            {
+                responsable,
+                estadoGestion,
+                fechaCompromiso,
+                actualizadoPor,
+            };
+            return true;
+        }
+
+        private static bool TryBuildCerrarRequest(
+            Dictionary<string, object> data,
+            out object request,
+            out string error
+        )
+        {
+            request = null!;
+            error = "";
+
+            if (
+                !TryGetString(data, "cerradoPor", out var cerradoPor)
+                || string.IsNullOrWhiteSpace(cerradoPor)
+            )
+            {
+                error = "Falta quién cierra la no conformidad";
+                return false;
+            }
+
+            TryGetString(data, "comentarioCierre", out var comentarioCierre);
+
+            request = new { cerradoPor, comentarioCierre };
+            return true;
+        }
+
+        private static bool TryBuildSeguimientoRequest(
+            Dictionary<string, object> data,
+            out object request,
+            out string error
+        )
+        {
+            request = null!;
+            error = "";
+
+            if (
+                !TryGetString(data, "comentario", out var comentario)
+                || string.IsNullOrWhiteSpace(comentario)
+            )
+            {
+                error = "Falta el comentario de seguimiento";
+                return false;
+            }
+
+            TryGetString(data, "autor", out var autor);
+
+            request = new { comentario, autor };
+            return true;
+        }
 
         private static bool TryBuildAnalisisRequest(
             Dictionary<string, object> data,
@@ -881,11 +1043,17 @@ namespace QualityControlCenter.Modules.Faret
             TryGetString(data, "norma", out var norma);
             TryGetString(data, "reportadoPor", out var reportadoPor);
             TryGetString(data, "responsable", out var responsable);
+            // Vínculo opcional con un registro externo (ej. una fila de Data) — sin esto,
+            // sistemaOrigen/origenId quedan null y la NC se crea como siempre (formulario manual).
+            TryGetString(data, "sistemaOrigen", out var sistemaOrigen);
+            TryGetString(data, "origenId", out var origenId);
 
             request = new
             {
                 tipo,
                 origen,
+                sistemaOrigen,
+                origenId,
                 titulo,
                 descripcion,
                 severidad,

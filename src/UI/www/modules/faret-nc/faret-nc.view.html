@@ -49,6 +49,15 @@
                 <div class="home-module-card-value" id="fnc-criticas">0</div>
             </div>
         </div>
+        <div class="home-module-card fnc-kpi-purple">
+            <div class="home-module-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            </div>
+            <div class="home-module-card-body">
+                <div class="home-module-card-title">Sin gestión</div>
+                <div class="home-module-card-value" id="fnc-sin-gestion">0</div>
+            </div>
+        </div>
     </div>
 
     <!-- Formulario nueva / editar NC -->
@@ -140,25 +149,43 @@
         </div>
         <div class="fnc-filtros-row">
             <div class="fnc-filtro-campo">
-                <label for="fnc-filtro-estado">Estado</label>
-                <select id="fnc-filtro-estado">
+                <label for="fnc-filtro-cliente">Cliente</label>
+                <input type="text" id="fnc-filtro-cliente" placeholder="Nombre del cliente">
+            </div>
+            <div class="fnc-filtro-campo">
+                <label for="fnc-filtro-tipo-pnc">Tipo PNC</label>
+                <input type="text" id="fnc-filtro-tipo-pnc" placeholder="Tipo PNC">
+            </div>
+            <div class="fnc-filtro-campo">
+                <label for="fnc-filtro-nivel">Nivel</label>
+                <select id="fnc-filtro-nivel">
                     <option value="">Todos</option>
+                    <option value="Crítico">Crítico</option>
+                    <option value="Mayor">Mayor</option>
+                    <option value="Menor">Menor</option>
                 </select>
             </div>
             <div class="fnc-filtro-campo">
-                <label for="fnc-filtro-proceso">Proceso / Área</label>
-                <input type="text" id="fnc-filtro-proceso" placeholder="Ej: Producción">
+                <label for="fnc-filtro-estado-gestion">Estado de gestión</label>
+                <select id="fnc-filtro-estado-gestion">
+                    <option value="">Todos</option>
+                    <option value="SIN_GESTION">Sin gestión</option>
+                    <option value="PENDIENTE">Pendiente</option>
+                    <option value="ASIGNADA">Asignada</option>
+                    <option value="EN_GESTION">En gestión</option>
+                    <option value="CERRADA">Cerrada</option>
+                </select>
             </div>
             <div class="fnc-filtro-campo">
                 <label for="fnc-filtro-responsable">Responsable</label>
-                <input type="text" id="fnc-filtro-responsable" placeholder="No disponible en esta API" disabled>
+                <input type="text" id="fnc-filtro-responsable" placeholder="Nombre del responsable">
             </div>
             <div class="fnc-filtro-campo">
-                <label for="fnc-filtro-fecha-desde">Fecha desde</label>
+                <label for="fnc-filtro-fecha-desde">Fecha ingreso desde</label>
                 <input type="date" id="fnc-filtro-fecha-desde">
             </div>
             <div class="fnc-filtro-campo">
-                <label for="fnc-filtro-fecha-hasta">Fecha hasta</label>
+                <label for="fnc-filtro-fecha-hasta">Fecha ingreso hasta</label>
                 <input type="date" id="fnc-filtro-fecha-hasta">
             </div>
             <div class="fnc-filtro-divisor"></div>
@@ -168,7 +195,7 @@
                 <button id="fnc-refresh-btn" class="btn-ghost" title="Actualizar">↻ Actualizar</button>
             </div>
         </div>
-        <div class="fnc-nota">Los filtros se aplican sobre los datos ya cargados: la API no soporta filtros del lado del servidor todavía.</div>
+        <div class="fnc-nota">La tabla combina todos los registros de Data con su gestión de No Conformidad (si ya existe). Los filtros se aplican sobre los datos ya cargados.</div>
     </div>
 
     <!-- Tabla -->
@@ -180,22 +207,31 @@
             <table class="table faret-table" id="fnc-tabla">
                 <thead>
                     <tr>
-                        <th>Código</th>
-                        <th>Título</th>
-                        <th>Tipo</th>
-                        <th>Origen</th>
-                        <th>Severidad</th>
-                        <th>Proceso / Área</th>
-                        <th>Estado</th>
-                        <th>Norma</th>
-                        <th>Fecha creación</th>
+                        <th>Código NC / ID Data</th>
+                        <th>Fecha ingreso</th>
+                        <th>Fecha salida</th>
+                        <th>NP/NV</th>
+                        <th>Cliente</th>
+                        <th>Producto</th>
+                        <th>Tipo PNC</th>
+                        <th>Categoría defecto</th>
+                        <th>Nivel / Severidad</th>
+                        <th>Estado gestión</th>
+                        <th>Responsable</th>
+                        <th>Fecha compromiso</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="fnc-tbody">
-                    <tr><td colspan="10" class="faret-empty">Cargando...</td></tr>
+                    <tr><td colspan="13" class="faret-empty">Cargando...</td></tr>
                 </tbody>
             </table>
+        </div>
+
+        <div class="fnc-paginacion">
+            <button id="fnc-anterior-btn" class="btn-secondary" disabled>‹ Anterior</button>
+            <span id="fnc-pagina-info">Página 1</span>
+            <button id="fnc-siguiente-btn" class="btn-secondary" disabled>Siguiente ›</button>
         </div>
     </div>
 
@@ -207,6 +243,125 @@
                 <button id="fnc-detalle-cerrar-btn" class="btn-secondary">Cerrar</button>
             </div>
             <div id="fnc-detalle-body" class="fnc-detalle-body"></div>
+        </div>
+    </div>
+
+    <!-- Modal Gestionar (crea el vínculo Data → NC si no existe, o gestiona/cierra/da seguimiento si ya existe) -->
+    <div id="fnc-gestion-modal" class="fnc-modal-overlay" style="display:none;">
+        <div class="fnc-modal card">
+            <div class="module-header">
+                <div>
+                    <div class="module-title" id="fnc-gestion-titulo" style="font-size:1rem;">Gestionar</div>
+                    <div class="subtitle" id="fnc-gestion-subtitulo"></div>
+                </div>
+                <button id="fnc-gestion-cerrar-btn" class="btn-secondary">Cerrar</button>
+            </div>
+
+            <div id="fnc-gestion-error" class="faret-error" style="display:none;"></div>
+            <div id="fnc-gestion-mensaje" class="fi-success" style="display:none;"></div>
+
+            <!-- Sub-vista: crear el vínculo (fila de Data sin NC todavía) -->
+            <div id="fnc-gestion-crear" style="display:none;">
+                <div class="fnc-nota">Esta fila de Data aún no tiene una No Conformidad asociada. Revise/ajuste los datos y confirme para crearla.</div>
+                <div class="fnc-form-row">
+                    <div class="fnc-form-campo">
+                        <label for="fnc-gcrear-tipo">Tipo *</label>
+                        <select id="fnc-gcrear-tipo">
+                            <option value="INTERNA">INTERNA</option>
+                            <option value="EXTERNA">EXTERNA</option>
+                        </select>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-gcrear-origen">Origen *</label>
+                        <select id="fnc-gcrear-origen">
+                            <option value="AUDITORIA_INTERNA">AUDITORIA_INTERNA</option>
+                            <option value="AUDITORIA_EXTERNA">AUDITORIA_EXTERNA</option>
+                        </select>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-gcrear-severidad">Severidad *</label>
+                        <select id="fnc-gcrear-severidad">
+                            <option value="ALTA">ALTA</option>
+                            <option value="MEDIA">MEDIA</option>
+                            <option value="BAJA">BAJA</option>
+                        </select>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-gcrear-fecha">Fecha detección *</label>
+                        <input type="date" id="fnc-gcrear-fecha">
+                    </div>
+                    <div class="fnc-form-campo" style="min-width:220px;">
+                        <label for="fnc-gcrear-proceso">Proceso / Área *</label>
+                        <input type="text" id="fnc-gcrear-proceso">
+                    </div>
+                </div>
+                <div class="fnc-form-campo fnc-form-campo-full">
+                    <label for="fnc-gcrear-titulo">Título *</label>
+                    <input type="text" id="fnc-gcrear-titulo">
+                </div>
+                <div class="fnc-form-campo fnc-form-campo-full">
+                    <label for="fnc-gcrear-descripcion">Descripción *</label>
+                    <textarea id="fnc-gcrear-descripcion" rows="3"></textarea>
+                </div>
+                <div class="fnc-form-acciones">
+                    <button id="fnc-gcrear-confirmar-btn" class="btn-primary">Crear y gestionar</button>
+                </div>
+            </div>
+
+            <!-- Sub-vista: gestión de una NC ya existente -->
+            <div id="fnc-gestion-existente" style="display:none;">
+                <div class="fnc-analisis-seccion">
+                    <div class="fnc-analisis-seccion-titulo"><span class="fnc-seccion-badge">1</span>Gestión</div>
+                    <div class="fnc-form-row">
+                        <div class="fnc-form-campo">
+                            <label for="fnc-gestion-responsable">Responsable</label>
+                            <input type="text" id="fnc-gestion-responsable" placeholder="Nombre">
+                        </div>
+                        <div class="fnc-form-campo">
+                            <label for="fnc-gestion-estado">Estado de gestión</label>
+                            <select id="fnc-gestion-estado">
+                                <option value="PENDIENTE">Pendiente</option>
+                                <option value="ASIGNADA">Asignada</option>
+                                <option value="EN_GESTION">En gestión</option>
+                                <option value="CERRADA">Cerrada</option>
+                            </select>
+                        </div>
+                        <div class="fnc-form-campo">
+                            <label for="fnc-gestion-fecha-compromiso">Fecha compromiso</label>
+                            <input type="date" id="fnc-gestion-fecha-compromiso">
+                        </div>
+                        <div class="fnc-form-campo">
+                            <label>&nbsp;</label>
+                            <button id="fnc-gestion-guardar-btn" class="btn-primary">Guardar gestión</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fnc-analisis-seccion">
+                    <div class="fnc-analisis-seccion-titulo"><span class="fnc-seccion-badge">2</span>Seguimiento</div>
+                    <div id="fnc-seguimiento-lista"></div>
+                    <div class="fnc-form-row">
+                        <div class="fnc-form-campo fnc-form-campo-full" style="margin-top:0;">
+                            <label for="fnc-seguimiento-comentario">Agregar comentario</label>
+                            <textarea id="fnc-seguimiento-comentario" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="fnc-form-acciones">
+                        <button id="fnc-seguimiento-agregar-btn" class="btn-secondary">Agregar comentario</button>
+                    </div>
+                </div>
+
+                <div class="fnc-analisis-seccion">
+                    <div class="fnc-analisis-seccion-titulo"><span class="fnc-seccion-badge">3</span>Cierre</div>
+                    <div class="fnc-form-campo fnc-form-campo-full" style="margin-top:0;">
+                        <label for="fnc-cierre-comentario">Comentario de cierre</label>
+                        <textarea id="fnc-cierre-comentario" rows="2" placeholder="Opcional"></textarea>
+                    </div>
+                    <div class="fnc-form-acciones">
+                        <button id="fnc-cerrar-nc-btn" class="btn-danger">Cerrar No Conformidad</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

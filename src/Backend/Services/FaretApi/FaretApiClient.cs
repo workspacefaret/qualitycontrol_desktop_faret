@@ -31,8 +31,10 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public void SetToken(string token)
         {
             _token = token;
-            _http.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", token);
+            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                token
+            );
         }
 
         public void ClearToken()
@@ -62,7 +64,12 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
-                    return (false, string.IsNullOrWhiteSpace(body) ? Err($"HTTP {status}: {response.ReasonPhrase}") : body);
+                    return (
+                        false,
+                        string.IsNullOrWhiteSpace(body)
+                            ? Err($"HTTP {status}: {response.ReasonPhrase}")
+                            : body
+                    );
                 }
 
                 return (true, body);
@@ -109,7 +116,12 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
-                    return (false, string.IsNullOrWhiteSpace(body) ? Err($"HTTP {status}: {response.ReasonPhrase}") : body);
+                    return (
+                        false,
+                        string.IsNullOrWhiteSpace(body)
+                            ? Err($"HTTP {status}: {response.ReasonPhrase}")
+                            : body
+                    );
                 }
 
                 return (true, body);
@@ -139,7 +151,9 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         )
         {
             var url = BuildUrl(path);
-            Console.WriteLine($"[FaretApi] POST {url} (multipart: {fileName}, {fileBytes.Length} bytes)");
+            Console.WriteLine(
+                $"[FaretApi] POST {url} (multipart: {fileName}, {fileBytes.Length} bytes)"
+            );
             try
             {
                 using var content = new MultipartFormDataContent();
@@ -167,7 +181,9 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                     Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
                     return (
                         false,
-                        string.IsNullOrWhiteSpace(body) ? Err($"HTTP {status}: {response.ReasonPhrase}") : body
+                        string.IsNullOrWhiteSpace(body)
+                            ? Err($"HTTP {status}: {response.ReasonPhrase}")
+                            : body
                     );
                 }
 
@@ -215,7 +231,12 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
-                    return (false, string.IsNullOrWhiteSpace(body) ? Err($"HTTP {status}: {response.ReasonPhrase}") : body);
+                    return (
+                        false,
+                        string.IsNullOrWhiteSpace(body)
+                            ? Err($"HTTP {status}: {response.ReasonPhrase}")
+                            : body
+                    );
                 }
 
                 return (true, body);
@@ -233,6 +254,58 @@ namespace QualityControlCenter.Backend.Services.FaretApi
             catch (Exception ex)
             {
                 Console.WriteLine($"[FaretApi] PUT  {url} → ERROR: {ex.Message}");
+                return (false, Err($"Error inesperado: {ex.Message}"));
+            }
+        }
+
+        public async Task<(bool ok, string body)> PatchJsonAsync(string path, object payload)
+        {
+            var url = BuildUrl(path);
+            Console.WriteLine($"[FaretApi] PATCH {url}");
+            try
+            {
+                var json = JsonSerializer.Serialize(payload, _jsonOpts);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _http.PatchAsync(url, content);
+                var body = await response.Content.ReadAsStringAsync();
+                var status = (int)response.StatusCode;
+
+                Console.WriteLine($"[FaretApi] PATCH {url} → {status}");
+
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    ClearToken();
+                    Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
+                    return (false, string.IsNullOrWhiteSpace(body) ? Err("No autorizado") : body);
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
+                    return (
+                        false,
+                        string.IsNullOrWhiteSpace(body)
+                            ? Err($"HTTP {status}: {response.ReasonPhrase}")
+                            : body
+                    );
+                }
+
+                return (true, body);
+            }
+            catch (TaskCanceledException)
+            {
+                Console.WriteLine($"[FaretApi] PATCH {url} → TIMEOUT");
+                return (false, Err("Timeout al conectar con la API Faret"));
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"[FaretApi] PATCH {url} → RED: {ex.Message}");
+                return (false, Err($"Error de red: {ex.Message}"));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[FaretApi] PATCH {url} → ERROR: {ex.Message}");
                 return (false, Err($"Error inesperado: {ex.Message}"));
             }
         }
@@ -259,7 +332,12 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 if (!response.IsSuccessStatusCode)
                 {
                     Console.WriteLine($"[FaretApi] BODY {body[..Math.Min(200, body.Length)]}");
-                    return (false, string.IsNullOrWhiteSpace(body) ? Err($"HTTP {status}: {response.ReasonPhrase}") : body);
+                    return (
+                        false,
+                        string.IsNullOrWhiteSpace(body)
+                            ? Err($"HTTP {status}: {response.ReasonPhrase}")
+                            : body
+                    );
                 }
 
                 return (true, body);

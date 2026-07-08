@@ -84,6 +84,9 @@
 .faret-nc-module .fnc-kpi-red .home-module-card-icon { background: rgba(239, 68, 68, 0.12); color: #DC2626; }
 .faret-nc-module .fnc-kpi-red .home-module-card-value { color: #B91C1C; }
 
+.faret-nc-module .fnc-kpi-purple { border-top-color: #8B5CF6; }
+.faret-nc-module .fnc-kpi-purple .home-module-card-icon { background: rgba(139, 92, 246, 0.12); color: #7C3AED; }
+
 /* ---------- Botones (scoped) ---------- */
 
 .faret-nc-module .btn-primary,
@@ -318,6 +321,19 @@
     margin-left: auto;
 }
 
+/* ---------- Paginación ---------- */
+
+.fnc-paginacion {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: #475569;
+    font-weight: 500;
+}
+
 /* ---------- Badges (severidad / estado) ---------- */
 
 .fnc-badge {
@@ -347,6 +363,7 @@
 }
 
 .faret-nc-module .table thead th {
+    background: #F8FAFC;
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
@@ -447,6 +464,24 @@
     color: white;
     font-size: 12px;
     font-weight: 700;
+}
+
+/* ---------- Seguimiento (comentarios) ---------- */
+
+.fnc-seguimiento-item {
+    border-bottom: 1px solid #F1F5F9;
+    padding: 8px 0;
+    font-size: 13px;
+}
+
+.fnc-seguimiento-item:last-child {
+    border-bottom: none;
+}
+
+.fnc-seguimiento-meta {
+    font-size: 11px;
+    color: #94A3B8;
+    margin-top: 2px;
 }
 
 .fnc-accion-estado-select {
