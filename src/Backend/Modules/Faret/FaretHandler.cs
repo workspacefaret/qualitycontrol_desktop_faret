@@ -92,6 +92,7 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.dashboard.resumen" => await HandleDashboardResumen(),
                 "faret.inspecciones.list" => await HandleInspeccionesList(data),
                 "faret.inspecciones.resumen" => await HandleInspeccionesResumen(data),
+                "faret.inspecciones.adjuntos" => await HandleInspeccionesAdjuntos(data),
                 "faret.maquinas.resumen" => await HandleMaquinasResumen(data),
                 _ => Error($"Acción Faret no reconocida: {action}"),
             };
@@ -330,6 +331,18 @@ namespace QualityControlCenter.Modules.Faret
             var filtros = BuildInspeccionesFiltros(data);
 
             var (ok, body) = await _inspecciones.GetResumenAsync(filtros);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleInspeccionesAdjuntos(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("id es requerido");
+
+            var (ok, body) = await _inspecciones.GetAdjuntosAsync(id);
             if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
                 return Error(error);
 

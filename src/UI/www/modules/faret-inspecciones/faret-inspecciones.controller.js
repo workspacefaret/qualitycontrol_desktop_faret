@@ -31,6 +31,11 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         document.getElementById("fi-exportar-btn")
             ?.addEventListener("click", () => this._exportar());
 
+        document.getElementById("fi-tbody")?.addEventListener("click", (e) => {
+            const btn = e.target.closest(".fi-ver-adjuntos-btn");
+            if (btn) this._verAdjuntos(btn.dataset.id);
+        });
+
         this._loadAll();
     }
 
@@ -186,9 +191,15 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
                 <td>${this._defectosBadge(i.presentaDefectos)}</td>
                 <td>${i.defectos ?? "-"}</td>
                 <td>${i.accionCorrectiva ?? "-"}</td>
-                <td>${i.cantidadAdjuntos ?? 0}</td>
+                <td>${this._celdaAdjuntos(i)}</td>
             </tr>
         `).join("");
+    }
+
+    _celdaAdjuntos(i) {
+        const cantidad = i.cantidadAdjuntos ?? 0;
+        if (!cantidad) return "0";
+        return `<button class="btn-secondary fi-ver-adjuntos-btn" data-id="${i.id}">Ver adjuntos (${cantidad})</button>`;
     }
 
     _emptyStateHtml() {
@@ -308,5 +319,128 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         });
 
         tabla.remove();
+    }
+
+    // ---------- Ver adjuntos (fotos subidas desde la app móvil) ----------
+
+    async _verAdjuntos(id) {
+        this._cerrarAdjuntos();
+
+        const modal = document.createElement("div");
+        modal.id = "fi-modal-adjuntos";
+        modal.style.position = "fixed";
+        modal.style.left = "0";
+        modal.style.top = "0";
+        modal.style.width = "100%";
+        modal.style.height = "100%";
+        modal.style.background = "rgba(15, 23, 42, 0.75)";
+        modal.style.zIndex = "9999";
+        modal.style.display = "flex";
+        modal.style.alignItems = "center";
+        modal.style.justifyContent = "center";
+        modal.style.padding = "24px";
+
+        modal.innerHTML = `
+            <div style="
+                background:#ffffff;
+                border-radius:12px;
+                max-width:90%;
+                max-height:90%;
+                padding:16px;
+                box-shadow:0 20px 60px rgba(0,0,0,0.35);
+                position:relative;
+            ">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;">
+                    <strong>Adjuntos del registro</strong>
+                    <button id="fi-cerrar-adjuntos-btn" class="btn-secondary" type="button">Cerrar</button>
+                </div>
+                <div id="fi-adjuntos-contenido" style="min-width:280px;min-height:120px;display:flex;align-items:center;justify-content:center;color:#64748B;">
+                    Cargando...
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        modal.addEventListener("click", (e) => { if (e.target === modal) this._cerrarAdjuntos(); });
+        document.getElementById("fi-cerrar-adjuntos-btn")
+            ?.addEventListener("click", () => this._cerrarAdjuntos());
+
+        try {
+            const res = await window.PhotinoBridge.send({ action: "faret.inspecciones.adjuntos", id: Number(id) });
+            const contenido = document.getElementById("fi-adjuntos-contenido");
+            if (!contenido) return; // el modal ya se cerró antes de que llegara la respuesta
+
+            if (!res.ok) {
+                contenido.innerHTML = `<div class="faret-error">${this._escape(res.error || "Error al cargar los adjuntos")}</div>`;
+                return;
+            }
+
+            const adjuntos = Array.isArray(res.data) ? res.data : [];
+            if (!adjuntos.length) {
+                contenido.innerHTML = `<div>Sin adjuntos disponibles.</div>`;
+                return;
+            }
+
+            this._renderAdjuntos(adjuntos);
+        } catch {
+            const contenido = document.getElementById("fi-adjuntos-contenido");
+            if (contenido) contenido.innerHTML = `<div class="faret-error">Error de comunicación con el backend</div>`;
+        }
+    }
+
+    _renderAdjuntos(adjuntos) {
+        const contenido = document.getElementById("fi-adjuntos-contenido");
+        if (!contenido) return;
+
+        contenido.style.display = "block";
+        contenido.innerHTML = `
+            <img id="fi-adjunto-imagen-principal"
+                 src="${this._escape(this._normalizarImagenUrl(adjuntos[0].rutaArchivo))}"
+                 alt="Adjunto"
+                 style="display:block;max-width:100%;max-height:65vh;object-fit:contain;border-radius:8px;margin:0 auto;">
+            ${adjuntos.length > 1 ? `
+                <div style="display:flex;gap:8px;margin-top:12px;overflow-x:auto;padding-bottom:4px;">
+                    ${adjuntos.map((a, idx) => `
+                        <img src="${this._escape(this._normalizarImagenUrl(a.rutaArchivo))}"
+                             data-index="${idx}"
+                             class="fi-adjunto-miniatura"
+                             style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid ${idx === 0 ? "#2563EB" : "transparent"};">
+                    `).join("")}
+                </div>
+            ` : ""}
+        `;
+
+        contenido.querySelectorAll(".fi-adjunto-miniatura").forEach(thumb => {
+            thumb.addEventListener("click", () => {
+                const idx = Number(thumb.dataset.index);
+                const principal = document.getElementById("fi-adjunto-imagen-principal");
+                if (principal) principal.src = this._normalizarImagenUrl(adjuntos[idx].rutaArchivo);
+                contenido.querySelectorAll(".fi-adjunto-miniatura").forEach(t => t.style.borderColor = "transparent");
+                thumb.style.borderColor = "#2563EB";
+            });
+        });
+    }
+
+    _cerrarAdjuntos() {
+        const modal = document.getElementById("fi-modal-adjuntos");
+        if (modal) modal.remove();
+    }
+
+    _normalizarImagenUrl(url) {
+        const value = String(url || "").trim();
+
+        if (!value) return "";
+        if (value.startsWith("http://") || value.startsWith("https://")) return value;
+        if (value.startsWith("/")) return `https://api.faret.cl/calidad${value}`;
+        return `https://api.faret.cl/calidad/${value}`;
+    }
+
+    _escape(value) {
+        return String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
     }
 };

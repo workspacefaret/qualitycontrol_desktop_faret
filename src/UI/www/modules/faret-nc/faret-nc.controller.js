@@ -4,6 +4,7 @@ window.FaretNcController = class FaretNcController {
         console.log("FaretNcController iniciado");
 
         this._dataItems = [];
+        this._inspeccionItems = [];
         this._ncItems = [];
         this._items = []; // alias de _ncItems, usado por Ver/Editar/Analizar (búsqueda por id de NC)
         this._combinados = [];
@@ -89,19 +90,21 @@ window.FaretNcController = class FaretNcController {
         errorEl.style.display = "none";
 
         try {
-            const [dataItems, ncRes] = await Promise.all([
+            const [dataItems, inspeccionItems, ncRes] = await Promise.all([
                 this._cargarDataCompleta(),
+                this._cargarInspeccionesCompleta(),
                 window.PhotinoBridge.send({ action: "faret.nc.list" }),
             ]);
 
             if (!ncRes.ok) {
                 errorEl.textContent = ncRes.error || "Error al cargar las no conformidades";
                 errorEl.style.display = "block";
-                tbody.innerHTML = `<tr><td colspan="13" class="faret-empty">Sin datos</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14" class="faret-empty">Sin datos</td></tr>`;
                 return;
             }
 
             this._dataItems = dataItems;
+            this._inspeccionItems = inspeccionItems;
             this._ncItems = Array.isArray(ncRes.data) ? ncRes.data : [];
             this._items = this._ncItems;
 
@@ -110,7 +113,7 @@ window.FaretNcController = class FaretNcController {
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
             errorEl.style.display = "block";
-            tbody.innerHTML = `<tr><td colspan="13" class="faret-empty">Sin datos</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="14" class="faret-empty">Sin datos</td></tr>`;
         } finally {
             loadingEl.style.display = "none";
         }
@@ -143,47 +146,92 @@ window.FaretNcController = class FaretNcController {
         return items;
     }
 
-    // Une Data (fuente base) con la gestión de NC vinculada por sistemaOrigen="DATA_FARET" +
-    // origenId=String(data.id). Las NC que no calzan con ninguna fila de Data (manuales, o con
-    // un origenId que ya no existe) se agregan igual al final para no perder información.
+    // Recorre todas las páginas de Inspecciones (misma API `calidad`, mismo tope de seguridad).
+    async _cargarInspeccionesCompleta() {
+        const pageSize = 200;
+        let page = 1;
+        let total = Infinity;
+        const items = [];
+
+        while (items.length < total && page <= 200) {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.inspecciones.list",
+                page,
+                pageSize,
+            });
+
+            if (!res.ok) break;
+
+            const lote = Array.isArray(res.data.items) ? res.data.items : [];
+            if (!lote.length) break;
+
+            items.push(...lote);
+            total = res.data.totalCount ?? items.length;
+            page++;
+        }
+
+        return items;
+    }
+
+    // Une Data e Inspecciones (fuentes base) con la gestión de NC vinculada por
+    // sistemaOrigen="DATA_FARET"/"INSPECCION_FARET" + origenId=String(id). Las NC que no calzan
+    // con ninguna fila de Data/Inspecciones (manuales, o con un origenId que ya no existe) se
+    // agregan igual al final para no perder información.
     _combinar() {
         const ncPorOrigenId = new Map();
         this._ncItems.forEach(nc => {
-            if (nc.sistemaOrigen === "DATA_FARET" && nc.origenId) {
-                ncPorOrigenId.set(String(nc.origenId), nc);
+            if ((nc.sistemaOrigen === "DATA_FARET" || nc.sistemaOrigen === "INSPECCION_FARET") && nc.origenId) {
+                ncPorOrigenId.set(`${nc.sistemaOrigen}:${nc.origenId}`, nc);
             }
         });
 
         const usados = new Set();
+
         const filasData = this._dataItems.map(d => {
-            const nc = ncPorOrigenId.get(String(d.id)) || null;
+            const nc = ncPorOrigenId.get(`DATA_FARET:${d.id}`) || null;
             if (nc) usados.add(nc.id);
-            return this._normalizarFila(d, nc);
+            return this._normalizarFila(d, nc, null);
+        });
+
+        const filasInspecciones = this._inspeccionItems.map(i => {
+            const nc = ncPorOrigenId.get(`INSPECCION_FARET:${i.id}`) || null;
+            if (nc) usados.add(nc.id);
+            return this._normalizarFila(null, nc, i);
         });
 
         const filasManuales = this._ncItems
             .filter(nc => !usados.has(nc.id))
-            .map(nc => this._normalizarFila(null, nc));
+            .map(nc => this._normalizarFila(null, nc, null));
 
-        this._combinados = [...filasData, ...filasManuales];
+        this._combinados = [...filasData, ...filasInspecciones, ...filasManuales];
+        this._combinados.sort((a, b) => {
+            const fa = a.fechaIngreso ? new Date(a.fechaIngreso).getTime() : -Infinity;
+            const fb = b.fechaIngreso ? new Date(b.fechaIngreso).getTime() : -Infinity;
+            return fb - fa; // más reciente primero; sin fecha queda al final
+        });
         this._combinadosPorKey = new Map(this._combinados.map(f => [f.key, f]));
     }
 
-    _normalizarFila(dataRow, ncRow) {
+    _normalizarFila(dataRow, ncRow, inspRow) {
+        const fuente = dataRow ? "DATA" : (inspRow ? "INSPECCION" : "MANUAL");
+
         return {
-            key: dataRow ? `data-${dataRow.id}` : `nc-${ncRow.id}`,
+            key: dataRow ? `data-${dataRow.id}` : (inspRow ? `insp-${inspRow.id}` : `nc-${ncRow.id}`),
+            fuente,
             dataId: dataRow ? dataRow.id : null,
+            inspeccionId: inspRow ? inspRow.id : null,
             data: dataRow,
+            inspeccion: inspRow,
             nc: ncRow,
             tieneNc: !!ncRow,
-            codigo: ncRow?.codigo || (dataRow ? `Data #${dataRow.id}` : "-"),
-            fechaIngreso: dataRow?.fechaIngreso || ncRow?.fechaCreacion || null,
+            codigo: ncRow?.codigo || (dataRow ? `Data #${dataRow.id}` : (inspRow ? `Inspección #${inspRow.id}` : "-")),
+            fechaIngreso: dataRow?.fechaIngreso || inspRow?.fechaRegistro || ncRow?.fechaCreacion || null,
             fechaSalida: dataRow?.fechaSalida || null,
-            npNv: dataRow?.npNv || "-",
+            npNv: dataRow?.npNv || inspRow?.nvFaret || "-",
             cliente: dataRow?.cliente || "-",
             producto: dataRow?.producto || "-",
-            tipoPnc: dataRow?.tipoPnc || "-",
-            categoriaDefecto: dataRow?.categoriaDefecto || "-",
+            tipoPnc: dataRow?.tipoPnc || inspRow?.areaControl || "-",
+            categoriaDefecto: dataRow?.categoriaDefecto || inspRow?.defectos || "-",
             nivelSeveridad: dataRow?.nivel || ncRow?.severidad || "-",
             estadoGestion: ncRow?.estadoGestion || "SIN_GESTION",
             responsable: ncRow?.responsable || "-",
@@ -200,6 +248,7 @@ window.FaretNcController = class FaretNcController {
             nivel: document.getElementById("fnc-filtro-nivel")?.value || "",
             estadoGestion: document.getElementById("fnc-filtro-estado-gestion")?.value || "",
             responsable: document.getElementById("fnc-filtro-responsable")?.value.trim().toLowerCase() || "",
+            fuente: document.getElementById("fnc-filtro-fuente")?.value || "",
             fechaDesde: document.getElementById("fnc-filtro-fecha-desde")?.value || "",
             fechaHasta: document.getElementById("fnc-filtro-fecha-hasta")?.value || "",
         };
@@ -211,6 +260,7 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-filtro-nivel").value = "";
         document.getElementById("fnc-filtro-estado-gestion").value = "";
         document.getElementById("fnc-filtro-responsable").value = "";
+        document.getElementById("fnc-filtro-fuente").value = "";
         document.getElementById("fnc-filtro-fecha-desde").value = "";
         document.getElementById("fnc-filtro-fecha-hasta").value = "";
         this._page = 1;
@@ -232,6 +282,7 @@ window.FaretNcController = class FaretNcController {
             if (f.nivel && fila.nivelSeveridad !== f.nivel) return false;
             if (f.estadoGestion && fila.estadoGestion !== f.estadoGestion) return false;
             if (f.responsable && !fila.responsable.toLowerCase().includes(f.responsable)) return false;
+            if (f.fuente && fila.fuente !== f.fuente) return false;
 
             if (fila.fechaIngreso) {
                 const fecha = String(fila.fechaIngreso).substring(0, 10);
@@ -259,7 +310,7 @@ window.FaretNcController = class FaretNcController {
         const tbody = document.getElementById("fnc-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="13" class="faret-empty">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="14" class="faret-empty">Sin registros</td></tr>`;
             this._renderPaginacion(filtrados.length);
             return;
         }
@@ -278,6 +329,7 @@ window.FaretNcController = class FaretNcController {
                 <td>${this._badge(this._labelEstadoGestion(fila.estadoGestion), this._colorEstadoGestion(fila.estadoGestion))}</td>
                 <td>${fila.responsable}</td>
                 <td>${fila.fechaCompromiso ? new Date(fila.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</td>
+                <td>${this._badge(this._labelFuente(fila.fuente), this._colorFuente(fila.fuente))}</td>
                 <td>
                     ${fila.tieneNc ? `
                         <button class="btn-ghost fnc-ver-btn" data-key="${fila.key}">Ver</button>
@@ -371,7 +423,11 @@ window.FaretNcController = class FaretNcController {
                     <div><strong>Severidad:</strong> ${nc.severidad ?? "-"}</div>
                     <div><strong>Proceso / Área:</strong> ${nc.proceso ?? "-"}</div>
                     <div><strong>Norma:</strong> ${nc.norma ?? "-"}</div>
-                    <div><strong>Vínculo Data:</strong> ${nc.sistemaOrigen === "DATA_FARET" && nc.origenId ? `Data #${nc.origenId}` : "Manual"}</div>
+                    <div><strong>Vínculo:</strong> ${
+                        nc.sistemaOrigen === "DATA_FARET" && nc.origenId ? `Data #${nc.origenId}`
+                        : nc.sistemaOrigen === "INSPECCION_FARET" && nc.origenId ? `Inspección #${nc.origenId}`
+                        : "Manual"
+                    }</div>
                     <div><strong>Fecha compromiso:</strong> ${nc.fechaCompromiso ? new Date(nc.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</div>
                     <div><strong>Fecha creación:</strong> ${nc.fechaCreacion ? new Date(nc.fechaCreacion).toLocaleString("es-CL") : "-"}</div>
                 </div>
@@ -519,22 +575,34 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-gestion-mensaje").style.display = "none";
 
         if (!fila.tieneNc) {
-            const d = fila.data;
-
             document.getElementById("fnc-gestion-titulo").textContent = "Crear gestión de NC";
-            document.getElementById("fnc-gestion-subtitulo").textContent = `Vinculado a Data #${fila.dataId}`;
             document.getElementById("fnc-gestion-crear").style.display = "block";
             document.getElementById("fnc-gestion-existente").style.display = "none";
 
             document.getElementById("fnc-gcrear-tipo").value = "INTERNA";
             document.getElementById("fnc-gcrear-origen").value = "AUDITORIA_INTERNA";
-            document.getElementById("fnc-gcrear-severidad").value = this._mapNivelASeveridad(d.nivel);
-            document.getElementById("fnc-gcrear-fecha").value = d.fechaIngreso ? String(d.fechaIngreso).substring(0, 10) : "";
-            document.getElementById("fnc-gcrear-proceso").value = d.tipoPnc || "PNC Data";
-            document.getElementById("fnc-gcrear-titulo").value = `PNC Data #${d.id} - ${d.producto || d.cliente || ""}`.trim();
-            document.getElementById("fnc-gcrear-descripcion").value =
-                [d.categoriaDefecto, d.observacion].filter(Boolean).join(" - ")
-                || `Registro importado de Data (ID ${d.id}, cliente ${d.cliente || "-"})`;
+
+            if (fila.fuente === "INSPECCION") {
+                const i = fila.inspeccion;
+                document.getElementById("fnc-gestion-subtitulo").textContent = `Vinculado a Inspección #${fila.inspeccionId}`;
+                document.getElementById("fnc-gcrear-severidad").value = "MEDIA";
+                document.getElementById("fnc-gcrear-fecha").value = i.fechaRegistro ? String(i.fechaRegistro).substring(0, 10) : "";
+                document.getElementById("fnc-gcrear-proceso").value = i.areaControl || "Inspección Faret";
+                document.getElementById("fnc-gcrear-titulo").value = `Inspección NV ${i.nvFaret || fila.inspeccionId}`.trim();
+                document.getElementById("fnc-gcrear-descripcion").value =
+                    [i.defectos, i.accionCorrectiva].filter(Boolean).join(" - ")
+                    || `Registro de inspección (ID ${i.id}, máquina ${i.maquina || "-"})`;
+            } else {
+                const d = fila.data;
+                document.getElementById("fnc-gestion-subtitulo").textContent = `Vinculado a Data #${fila.dataId}`;
+                document.getElementById("fnc-gcrear-severidad").value = this._mapNivelASeveridad(d.nivel);
+                document.getElementById("fnc-gcrear-fecha").value = d.fechaIngreso ? String(d.fechaIngreso).substring(0, 10) : "";
+                document.getElementById("fnc-gcrear-proceso").value = d.tipoPnc || "PNC Data";
+                document.getElementById("fnc-gcrear-titulo").value = `PNC Data #${d.id} - ${d.producto || d.cliente || ""}`.trim();
+                document.getElementById("fnc-gcrear-descripcion").value =
+                    [d.categoriaDefecto, d.observacion].filter(Boolean).join(" - ")
+                    || `Registro importado de Data (ID ${d.id}, cliente ${d.cliente || "-"})`;
+            }
 
             document.getElementById("fnc-gestion-modal").style.display = "flex";
             return;
@@ -542,7 +610,9 @@ window.FaretNcController = class FaretNcController {
 
         document.getElementById("fnc-gestion-titulo").textContent = `Gestionar ${fila.nc.codigo || ""}`;
         document.getElementById("fnc-gestion-subtitulo").textContent =
-            fila.dataId ? `Vinculado a Data #${fila.dataId}` : "No conformidad manual (sin vínculo a Data)";
+            fila.dataId ? `Vinculado a Data #${fila.dataId}`
+            : fila.inspeccionId ? `Vinculado a Inspección #${fila.inspeccionId}`
+            : "No conformidad manual (sin vínculo)";
         document.getElementById("fnc-gestion-crear").style.display = "none";
         document.getElementById("fnc-gestion-existente").style.display = "block";
 
@@ -577,8 +647,8 @@ window.FaretNcController = class FaretNcController {
             severidad: document.getElementById("fnc-gcrear-severidad").value,
             proceso: document.getElementById("fnc-gcrear-proceso").value.trim(),
             fechaDeteccion: document.getElementById("fnc-gcrear-fecha").value,
-            sistemaOrigen: "DATA_FARET",
-            origenId: String(fila.dataId),
+            sistemaOrigen: fila.fuente === "INSPECCION" ? "INSPECCION_FARET" : "DATA_FARET",
+            origenId: String(fila.fuente === "INSPECCION" ? fila.inspeccionId : fila.dataId),
         };
 
         if (!payload.titulo || !payload.descripcion || !payload.proceso || !payload.fechaDeteccion) {
@@ -1054,6 +1124,22 @@ window.FaretNcController = class FaretNcController {
         }
     }
 
+    _labelFuente(fuente) {
+        switch (fuente) {
+            case "DATA": return "Data";
+            case "INSPECCION": return "Inspección";
+            default: return "Manual";
+        }
+    }
+
+    _colorFuente(fuente) {
+        switch (fuente) {
+            case "DATA": return "#2563EB";
+            case "INSPECCION": return "#7C3AED";
+            default: return "#64748B"; // MANUAL
+        }
+    }
+
     // Exporta siempre el conjunto ya filtrado completo (todas las páginas), no solo la página
     // visible: con filtros activos exporta lo filtrado; sin filtros, exporta todo lo combinado.
     _exportar() {
@@ -1083,6 +1169,7 @@ window.FaretNcController = class FaretNcController {
                     <th>Estado gestión</th>
                     <th>Responsable</th>
                     <th>Fecha compromiso</th>
+                    <th>Fuente</th>
                 </tr>
             </thead>
             <tbody>
@@ -1100,6 +1187,7 @@ window.FaretNcController = class FaretNcController {
                         <td>${this._labelEstadoGestion(fila.estadoGestion)}</td>
                         <td>${fila.responsable}</td>
                         <td>${fila.fechaCompromiso ? new Date(fila.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</td>
+                        <td>${this._labelFuente(fila.fuente)}</td>
                     </tr>
                 `).join("")}
             </tbody>

@@ -181,6 +181,15 @@
                 <input type="text" id="fnc-filtro-responsable" placeholder="Nombre del responsable">
             </div>
             <div class="fnc-filtro-campo">
+                <label for="fnc-filtro-fuente">Fuente</label>
+                <select id="fnc-filtro-fuente">
+                    <option value="">Todas</option>
+                    <option value="DATA">Data</option>
+                    <option value="INSPECCION">Inspección</option>
+                    <option value="MANUAL">Manual</option>
+                </select>
+            </div>
+            <div class="fnc-filtro-campo">
                 <label for="fnc-filtro-fecha-desde">Fecha ingreso desde</label>
                 <input type="date" id="fnc-filtro-fecha-desde">
             </div>
@@ -219,11 +228,12 @@
                         <th>Estado gestión</th>
                         <th>Responsable</th>
                         <th>Fecha compromiso</th>
+                        <th>Fuente</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="fnc-tbody">
-                    <tr><td colspan="13" class="faret-empty">Cargando...</td></tr>
+                    <tr><td colspan="14" class="faret-empty">Cargando...</td></tr>
                 </tbody>
             </table>
         </div>
