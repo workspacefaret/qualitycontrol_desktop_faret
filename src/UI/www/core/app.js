@@ -200,13 +200,25 @@ console.log("🔥 APP INICIO");
             usuariosBtn.style.display = empresaOk && esAdmin ? "" : "none";
         }
 
-        // 🔹 gating por rol (Gestión de Usuarios de FARET, solo ADMIN)
+        // 🔹 gating por rol (Gestión de Usuarios de FARET: ADMIN / ADMIN_TI / INSPECTOR)
+        const faretRolActual = (sessionStorage.getItem("faretRol") || "").toUpperCase();
+        const esFaretAdminFull = faretRolActual === "ADMIN" || faretRolActual === "ADMIN_TI";
+        const esFaretUsuariosOk = esFaretAdminFull || faretRolActual === "INSPECTOR";
+
         const faretUsuariosBtn = document.getElementById("btn-faret-usuarios");
         if (faretUsuariosBtn) {
-            const faretRol = (sessionStorage.getItem("faretRol") || "").toUpperCase();
             const empresaOk = faretUsuariosBtn.getAttribute("data-empresa") === empresa;
-            faretUsuariosBtn.style.display = empresaOk && faretRol === "ADMIN" ? "" : "none";
+            faretUsuariosBtn.style.display = empresaOk && esFaretUsuariosOk ? "" : "none";
         }
+
+        // 🔹 gating por rol (Data y Carga Masiva de FARET, solo ADMIN / ADMIN_TI)
+        const faretDataBtn = document.querySelector('[data-module="faret-data"]');
+        const faretImportacionBtn = document.querySelector('[data-module="faret-importacion"]');
+        [faretDataBtn, faretImportacionBtn].forEach(btn => {
+            if (!btn) return;
+            const empresaOk = btn.getAttribute("data-empresa") === empresa;
+            btn.style.display = empresaOk && esFaretAdminFull ? "" : "none";
+        });
 
         // 🔹 título del header según empresa
         const headerTitle = document.querySelector(".header .title");

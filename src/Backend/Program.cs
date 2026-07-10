@@ -172,10 +172,12 @@ namespace QualityControlCenter
                             0
                         );
 
+                        var localInstaller = updateService.PrepareLocalInstaller(updateInfo.Installer);
+
                         System.Diagnostics.Process.Start(
                             new System.Diagnostics.ProcessStartInfo
                             {
-                                FileName = updateInfo.Installer,
+                                FileName = localInstaller,
                                 UseShellExecute = true,
                             }
                         );

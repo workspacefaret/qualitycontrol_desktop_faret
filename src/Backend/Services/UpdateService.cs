@@ -8,7 +8,11 @@ namespace QualityControlCenter.Backend.Services
 {
     public class UpdateService
     {
-        private const string LatestJsonPath = @"\\192.168.1.71\Qcontrol_Updates\latest.json";
+        private const string LatestJsonPath =
+            @"\\192.168.1.71\Programas TI\Programas\Quality Control Center\Qcontrol_Updates\latest.json";
+
+        private const string LocalStagingFolder = @"C:\ProgramData\QualityControlCenter";
+        private const string LocalInstallerName = "setup.exe";
 
         public string GetCurrentVersion()
         {
@@ -37,6 +41,16 @@ namespace QualityControlCenter.Backend.Services
             {
                 return null;
             }
+        }
+
+        public string PrepareLocalInstaller(string networkInstallerPath)
+        {
+            Directory.CreateDirectory(LocalStagingFolder);
+
+            var localPath = Path.Combine(LocalStagingFolder, LocalInstallerName);
+            File.Copy(networkInstallerPath, localPath, overwrite: true);
+
+            return localPath;
         }
 
         public bool IsUpdateAvailable(out UpdateInfo? updateInfo)

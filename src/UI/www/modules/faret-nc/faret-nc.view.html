@@ -185,7 +185,6 @@
                 <select id="fnc-filtro-fuente">
                     <option value="">Todas</option>
                     <option value="DATA">Data</option>
-                    <option value="INSPECCION">Inspección</option>
                     <option value="MANUAL">Manual</option>
                 </select>
             </div>
@@ -253,6 +252,344 @@
                 <button id="fnc-detalle-cerrar-btn" class="btn-secondary">Cerrar</button>
             </div>
             <div id="fnc-detalle-body" class="fnc-detalle-body"></div>
+
+            <!-- Registro completo (Data/importacion_pnc). Solo visible si esta NC está vinculada a
+                 una fila de Data. Estático por defecto; "Editar" habilita todos los campos. -->
+            <div id="fnc-detalle-registro" style="display:none; margin-top:16px; border-top:1px solid #E2E8F0; padding-top:16px;">
+                <div class="module-header">
+                    <div>
+                        <div class="module-title" style="font-size:1rem;">Registro completo (Data)</div>
+                        <div class="subtitle">Campos del registro original. Presione "Editar" para modificarlos.</div>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button id="fnc-reg-editar-btn" class="btn-secondary">Editar</button>
+                        <button id="fnc-reg-guardar-cambio-btn" class="btn-secondary" style="display:none;">Guardar cambio</button>
+                        <button id="fnc-reg-guardar-todo-btn" class="btn-primary" style="display:none;">Guardar todo</button>
+                        <button id="fnc-reg-cancelar-btn" class="btn-ghost" style="display:none;">Cancelar edición</button>
+                    </div>
+                </div>
+
+                <div id="fnc-reg-error" class="faret-error" style="display:none;"></div>
+
+                <div class="fnc-form-row">
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-fecha-ingreso">Fecha ingreso</label>
+                        <input type="date" id="fnc-reg-fecha-ingreso" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-np-nv">NP/NV</label>
+                        <input type="text" id="fnc-reg-np-nv" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-cliente">Cliente</label>
+                        <input type="text" id="fnc-reg-cliente" list="fnc-dl-cliente" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-codigo">Código</label>
+                        <input type="text" id="fnc-reg-codigo" disabled>
+                    </div>
+                    <div class="fnc-form-campo" style="min-width:220px;">
+                        <label for="fnc-reg-producto">Producto</label>
+                        <input type="text" id="fnc-reg-producto" disabled>
+                    </div>
+                </div>
+
+                <div class="fnc-form-row">
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-tipo-pnc">Tipo PNC</label>
+                        <select id="fnc-reg-tipo-pnc" disabled>
+                            <option value="">-</option>
+                            <option value="Cuarentena">Cuarentena</option>
+                            <option value="Rechazo">Rechazo</option>
+                            <option value="Reclamo">Reclamo</option>
+                        </select>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-nivel">Nivel</label>
+                        <select id="fnc-reg-nivel" disabled>
+                            <option value="Crítico">Crítico</option>
+                            <option value="Mayor">Mayor</option>
+                            <option value="Menor">Menor</option>
+                        </select>
+                    </div>
+                    <div class="fnc-form-campo" style="min-width:220px;">
+                        <label for="fnc-reg-categoria-defecto">Categoría defecto</label>
+                        <input type="text" id="fnc-reg-categoria-defecto" list="fnc-dl-categoria" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-tipo-falla">Tipo de falla</label>
+                        <select id="fnc-reg-tipo-falla" disabled>
+                            <option value="">-</option>
+                            <option value="Sin clasificar">Sin clasificar</option>
+                            <option value="Control operacional">Control operacional</option>
+                            <option value="Fallas Ajuste de máquina">Fallas Ajuste de máquina</option>
+                            <option value="Fallas del Proceso de Configuración Inicial">Fallas del Proceso de Configuración Inicial</option>
+                            <option value="Fallas de limpieza/ condición de equipo">Fallas de limpieza/ condición de equipo</option>
+                            <option value="Fallas de Supervisión">Fallas de Supervisión</option>
+                            <option value="Fallas de control de insumos en el proceso">Fallas de control de insumos en el proceso</option>
+                            <option value="Fallas de Comunicación Operativa">Fallas de Comunicación Operativa</option>
+                        </select>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-impacto">Impacto</label>
+                        <select id="fnc-reg-impacto" disabled>
+                            <option value="Calidad">Calidad</option>
+                            <option value="Legalidad">Legalidad</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="fnc-form-row">
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-cant-requerida">Cant. requerida</label>
+                        <input type="number" id="fnc-reg-cant-requerida" min="0" step="any" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-cant-rechazada">Cant. rechazada</label>
+                        <input type="number" id="fnc-reg-cant-rechazada" min="0" step="any" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-cant-recuperada">Cant. recuperada</label>
+                        <input type="number" id="fnc-reg-cant-recuperada" min="0" step="any" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-pnc-real">PNC real</label>
+                        <input type="number" id="fnc-reg-pnc-real" min="0" step="any" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-pct-recup">% Recup.</label>
+                        <input type="text" id="fnc-reg-pct-recup" disabled placeholder="-">
+                    </div>
+                </div>
+
+                <div class="fnc-form-row">
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-area">Área</label>
+                        <input type="text" id="fnc-reg-area" list="fnc-dl-area" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-maquina">Máquina</label>
+                        <input type="text" id="fnc-reg-maquina" list="fnc-dl-maquina" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-operador">Operador</label>
+                        <input type="text" id="fnc-reg-operador" list="fnc-dl-operador" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-supervisor">Supervisor</label>
+                        <input type="text" id="fnc-reg-supervisor" list="fnc-dl-supervisor" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-revisado-por">Revisado por</label>
+                        <input type="text" id="fnc-reg-revisado-por" list="fnc-dl-revisado" disabled>
+                    </div>
+                </div>
+
+                <div class="fnc-form-row">
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-fecha-salida">Fecha salida</label>
+                        <input type="date" id="fnc-reg-fecha-salida" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-fecha-fabricacion">Fecha fabricación</label>
+                        <input type="date" id="fnc-reg-fecha-fabricacion" disabled>
+                    </div>
+                </div>
+
+                <div class="fnc-form-campo fnc-form-campo-full">
+                    <label for="fnc-reg-descripcion-defecto">Descripción defecto</label>
+                    <textarea id="fnc-reg-descripcion-defecto" rows="2" disabled></textarea>
+                </div>
+                <div class="fnc-form-campo fnc-form-campo-full">
+                    <label for="fnc-reg-observacion">Observación</label>
+                    <textarea id="fnc-reg-observacion" rows="2" disabled></textarea>
+                </div>
+                <div class="fnc-form-campo fnc-form-campo-full">
+                    <label for="fnc-reg-causa-raiz">Causa raíz</label>
+                    <textarea id="fnc-reg-causa-raiz" rows="2" disabled></textarea>
+                </div>
+                <div class="fnc-form-campo fnc-form-campo-full">
+                    <label for="fnc-reg-acciones-correctivas">Acciones correctivas</label>
+                    <textarea id="fnc-reg-acciones-correctivas" rows="2" disabled></textarea>
+                </div>
+                <div class="fnc-form-campo fnc-form-campo-full">
+                    <label for="fnc-reg-verificacion-seguimiento">Verificación/seguimiento</label>
+                    <textarea id="fnc-reg-verificacion-seguimiento" rows="2" disabled></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nueva No Conformidad (crea el registro completo en Data/importacion_pnc y su gestión vinculada) -->
+    <div id="fnc-nuevo-pnc-modal" class="fnc-modal-overlay" style="display:none;">
+        <div class="fnc-modal card">
+            <div class="module-header">
+                <div>
+                    <div class="module-title" style="font-size:1rem;">Nueva No Conformidad</div>
+                    <div class="subtitle">Se guarda como un registro completo de Data y queda disponible para gestionar de inmediato</div>
+                </div>
+                <button id="fnc-npnc-cerrar-btn" class="btn-secondary">Cerrar</button>
+            </div>
+
+            <div id="fnc-npnc-error" class="faret-error" style="display:none;"></div>
+
+            <div class="fnc-form-row">
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-fecha-ingreso">Fecha ingreso</label>
+                    <input type="text" id="fnc-npnc-fecha-ingreso" disabled>
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-np-nv">NP/NV *</label>
+                    <input type="text" id="fnc-npnc-np-nv">
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-cliente">Cliente *</label>
+                    <input type="text" id="fnc-npnc-cliente" list="fnc-dl-cliente">
+                    <datalist id="fnc-dl-cliente"></datalist>
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-codigo">Código *</label>
+                    <input type="text" id="fnc-npnc-codigo">
+                </div>
+                <div class="fnc-form-campo" style="min-width:220px;">
+                    <label for="fnc-npnc-producto">Producto *</label>
+                    <input type="text" id="fnc-npnc-producto">
+                </div>
+            </div>
+
+            <div class="fnc-form-row">
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-tipo-pnc">Tipo PNC</label>
+                    <select id="fnc-npnc-tipo-pnc">
+                        <option value="">-</option>
+                        <option value="Cuarentena">Cuarentena</option>
+                        <option value="Rechazo">Rechazo</option>
+                        <option value="Reclamo">Reclamo</option>
+                    </select>
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-nivel">Nivel *</label>
+                    <select id="fnc-npnc-nivel">
+                        <option value="Crítico">Crítico</option>
+                        <option value="Mayor">Mayor</option>
+                        <option value="Menor">Menor</option>
+                    </select>
+                </div>
+                <div class="fnc-form-campo" style="min-width:220px;">
+                    <label for="fnc-npnc-categoria-defecto">Categoría defecto *</label>
+                    <input type="text" id="fnc-npnc-categoria-defecto" list="fnc-dl-categoria">
+                    <datalist id="fnc-dl-categoria"></datalist>
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-tipo-falla">Tipo de falla</label>
+                    <select id="fnc-npnc-tipo-falla">
+                        <option value="">-</option>
+                        <option value="Sin clasificar">Sin clasificar</option>
+                        <option value="Control operacional">Control operacional</option>
+                        <option value="Fallas Ajuste de máquina">Fallas Ajuste de máquina</option>
+                        <option value="Fallas del Proceso de Configuración Inicial">Fallas del Proceso de Configuración Inicial</option>
+                        <option value="Fallas de limpieza/ condición de equipo">Fallas de limpieza/ condición de equipo</option>
+                        <option value="Fallas de Supervisión">Fallas de Supervisión</option>
+                        <option value="Fallas de control de insumos en el proceso">Fallas de control de insumos en el proceso</option>
+                        <option value="Fallas de Comunicación Operativa">Fallas de Comunicación Operativa</option>
+                    </select>
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-impacto">Impacto</label>
+                    <select id="fnc-npnc-impacto">
+                        <option value="Calidad">Calidad</option>
+                        <option value="Legalidad">Legalidad</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="fnc-form-row">
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-cant-requerida">Cant. requerida *</label>
+                    <input type="number" id="fnc-npnc-cant-requerida" min="0" step="any">
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-cant-rechazada">Cant. rechazada *</label>
+                    <input type="number" id="fnc-npnc-cant-rechazada" min="0" step="any">
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-cant-recuperada">Cant. recuperada</label>
+                    <input type="number" id="fnc-npnc-cant-recuperada" min="0" step="any">
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-pnc-real">PNC real</label>
+                    <input type="number" id="fnc-npnc-pnc-real" min="0" step="any">
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-pct-recup">% Recup.</label>
+                    <input type="text" id="fnc-npnc-pct-recup" disabled placeholder="-">
+                </div>
+            </div>
+
+            <div class="fnc-form-row">
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-area">Área</label>
+                    <input type="text" id="fnc-npnc-area" list="fnc-dl-area">
+                    <datalist id="fnc-dl-area"></datalist>
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-maquina">Máquina</label>
+                    <input type="text" id="fnc-npnc-maquina" list="fnc-dl-maquina">
+                    <datalist id="fnc-dl-maquina"></datalist>
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-operador">Operador</label>
+                    <input type="text" id="fnc-npnc-operador" list="fnc-dl-operador">
+                    <datalist id="fnc-dl-operador"></datalist>
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-supervisor">Supervisor</label>
+                    <input type="text" id="fnc-npnc-supervisor" list="fnc-dl-supervisor">
+                    <datalist id="fnc-dl-supervisor"></datalist>
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-revisado-por">Revisado por</label>
+                    <input type="text" id="fnc-npnc-revisado-por" list="fnc-dl-revisado">
+                    <datalist id="fnc-dl-revisado"></datalist>
+                </div>
+            </div>
+
+            <div class="fnc-form-row">
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-fecha-salida">Fecha salida</label>
+                    <input type="date" id="fnc-npnc-fecha-salida">
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-fecha-fabricacion">Fecha fabricación</label>
+                    <input type="date" id="fnc-npnc-fecha-fabricacion">
+                </div>
+            </div>
+
+            <div class="fnc-form-campo fnc-form-campo-full">
+                <label for="fnc-npnc-descripcion-defecto">Descripción defecto *</label>
+                <textarea id="fnc-npnc-descripcion-defecto" rows="2"></textarea>
+            </div>
+            <div class="fnc-form-campo fnc-form-campo-full">
+                <label for="fnc-npnc-observacion">Observación</label>
+                <textarea id="fnc-npnc-observacion" rows="2"></textarea>
+            </div>
+            <div class="fnc-form-campo fnc-form-campo-full">
+                <label for="fnc-npnc-causa-raiz">Causa raíz</label>
+                <textarea id="fnc-npnc-causa-raiz" rows="2"></textarea>
+            </div>
+            <div class="fnc-form-campo fnc-form-campo-full">
+                <label for="fnc-npnc-acciones-correctivas">Acciones correctivas</label>
+                <textarea id="fnc-npnc-acciones-correctivas" rows="2"></textarea>
+            </div>
+            <div class="fnc-form-campo fnc-form-campo-full">
+                <label for="fnc-npnc-verificacion-seguimiento">Verificación/seguimiento</label>
+                <textarea id="fnc-npnc-verificacion-seguimiento" rows="2"></textarea>
+            </div>
+
+            <div class="fnc-form-acciones">
+                <button id="fnc-npnc-guardar-btn" class="btn-primary">Guardar</button>
+                <button id="fnc-npnc-cancelar-btn" class="btn-secondary">Cancelar</button>
+            </div>
         </div>
     </div>
 

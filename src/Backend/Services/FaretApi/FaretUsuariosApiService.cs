@@ -31,6 +31,9 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 }
             );
 
+        public Task<(bool ok, string body)> UpdateRolesAsync(int id, string rol) =>
+            _client.PutJsonAsync($"api/usuarios/{id}/roles", new { roles = new[] { rol } });
+
         public Task<(bool ok, string body)> ResetPasswordAsync(int id) =>
             _client.PutJsonAsync($"api/usuarios/{id}/password", new { password = "Faret2026" });
 

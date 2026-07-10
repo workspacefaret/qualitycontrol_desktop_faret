@@ -73,12 +73,15 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.data.resumen" => await HandleDataResumen(data),
                 "faret.usuarios.list" => await HandleUsuariosList(data),
                 "faret.usuarios.create" => await HandleUsuariosCreate(data),
+                "faret.usuarios.cambiarRol" => await HandleUsuariosCambiarRol(data),
                 "faret.usuarios.resetPassword" => await HandleUsuariosResetPassword(data),
                 "faret.usuarios.activar" => await HandleUsuariosActivar(data),
                 "faret.usuarios.desactivar" => await HandleUsuariosDesactivar(data),
                 "faret.nc.list" => await HandleNcList(),
                 "faret.nc.get" => await HandleNcGet(data),
                 "faret.nc.create" => await HandleNcCreate(data),
+                "faret.nc.crearRegistro" => await HandleNcCrearRegistro(data),
+                "faret.nc.actualizarRegistro" => await HandleNcActualizarRegistro(data),
                 "faret.nc.update" => await HandleNcUpdate(data),
                 "faret.nc.gestion.actualizar" => await HandleNcGestionActualizar(data),
                 "faret.nc.cerrar" => await HandleNcCerrar(data),
@@ -431,6 +434,24 @@ namespace QualityControlCenter.Modules.Faret
             return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
         }
 
+        private async Task<string> HandleUsuariosCambiarRol(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id del usuario");
+
+            if (!TryGetString(data, "rol", out var rol) || string.IsNullOrWhiteSpace(rol))
+                return Error("Falta el rol");
+
+            var (ok, body) = await _usuarios.UpdateRolesAsync(id, rol!);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
         private async Task<string> HandleUsuariosResetPassword(Dictionary<string, object> data)
         {
             if (!_client.HasToken)
@@ -516,6 +537,126 @@ namespace QualityControlCenter.Modules.Faret
                 return Error(ExtractMcErrorMessage(body));
 
             return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        // Crea una fila completa en importacion_pnc (misma API/tabla que usa la carga masiva) y,
+        // si sale bien, encadena la creación del vínculo de gestión en Mejora Continua
+        // (sistemaOrigen="DATA_FARET", origenId=<id nuevo>) — mismo mecanismo que ya usa
+        // "Gestionar" sobre una fila de Data importada por Excel. Si el vínculo falla, la fila de
+        // Data ya quedó creada (visible en el módulo Data) y se puede gestionar después desde ahí.
+        private async Task<string> HandleNcCrearRegistro(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            var pncPayload = BuildPncPayload(data);
+
+            var (pncOk, pncBody) = await _importacion.CrearPncAsync(pncPayload);
+            if (!TryUnwrapApiResponse(pncBody, out var pncData, out var pncError) || !pncOk)
+                return Error(pncError);
+
+            if (!pncData.TryGetProperty("id", out var idEl) || !idEl.TryGetInt64(out var pncId))
+                return Error("La API de Faret no devolvió el id del registro creado.");
+
+            data["sistemaOrigen"] = "DATA_FARET";
+            data["origenId"] = pncId.ToString();
+
+            if (!TryBuildNcRequest(data, out var ncRequest, out var ncError))
+                return Error(ncError);
+
+            var (ncOk, ncBody) = await _noConformidades.CreateAsync(ncRequest);
+            if (!ncOk)
+                return Error(ExtractMcErrorMessage(ncBody));
+
+            return Ok(new { pncId, nc = JsonSerializer.Deserialize<object>(ncBody) });
+        }
+
+        private static object BuildPncPayload(Dictionary<string, object> data)
+        {
+            // fechaIngreso solo la usa la edición de un registro existente (faret.nc.actualizarRegistro);
+            // en la creación (faret.nc.crearRegistro) nunca viaja en el payload, así que queda null y
+            // CrearPncManualRequest (que no tiene esa propiedad) la ignora sin efecto.
+            TryGetString(data, "fechaIngreso", out var fechaIngreso);
+            TryGetString(data, "tipoPnc", out var tipoPnc);
+            TryGetString(data, "fechaSalida", out var fechaSalida);
+            TryGetString(data, "npNv", out var npNv);
+            TryGetString(data, "cliente", out var cliente);
+            TryGetString(data, "codigo", out var codigo);
+            TryGetString(data, "producto", out var producto);
+            TryGetDecimal(data, "cantRequerida", out var cantRequerida);
+            TryGetDecimal(data, "cantRechazada", out var cantRechazada);
+            TryGetDecimal(data, "cantRecuperada", out var cantRecuperada);
+            TryGetDecimal(data, "pncReal", out var pncReal);
+            TryGetString(data, "fechaFabricacion", out var fechaFabricacion);
+            TryGetString(data, "descripcionDefecto", out var descripcionDefecto);
+            TryGetString(data, "categoriaDefecto", out var categoriaDefecto);
+            TryGetString(data, "nivel", out var nivel);
+            TryGetString(data, "tipoFalla", out var tipoFalla);
+            TryGetString(data, "area", out var area);
+            TryGetString(data, "maquina", out var maquina);
+            TryGetString(data, "operador", out var operador);
+            TryGetString(data, "supervisor", out var supervisor);
+            TryGetString(data, "revisadoPor", out var revisadoPor);
+            TryGetString(data, "impacto", out var impacto);
+            TryGetString(data, "observacion", out var observacion);
+            TryGetString(data, "causaRaiz", out var causaRaiz);
+            TryGetString(data, "accionesCorrectivas", out var accionesCorrectivas);
+            TryGetString(data, "verificacionSeguimiento", out var verificacionSeguimiento);
+
+            return new
+            {
+                fechaIngreso,
+                tipoPnc,
+                fechaSalida,
+                npNv,
+                cliente,
+                codigo,
+                producto,
+                cantRequerida,
+                cantRechazada,
+                cantRecuperada,
+                pncReal,
+                fechaFabricacion,
+                descripcionDefecto,
+                categoriaDefecto,
+                nivel,
+                tipoFalla,
+                area,
+                maquina,
+                operador,
+                supervisor,
+                revisadoPor,
+                impacto,
+                observacion,
+                causaRaiz,
+                accionesCorrectivas,
+                verificacionSeguimiento,
+            };
+        }
+
+        // Actualiza el registro completo en importacion_pnc (la misma fuente maestra que usa
+        // "Nueva NC"). BuildPncPayload ya deja en null los campos que no vinieron en `data`, así
+        // que el mismo endpoint/payload sirve tanto para "guardar todo" (el frontend manda el
+        // formulario completo) como para "guardar solo el último campo editado" (el frontend manda
+        // únicamente ese campo) — la distinción la decide el frontend, no esta capa.
+        private async Task<string> HandleNcActualizarRegistro(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id del registro a actualizar");
+
+            var payload = BuildPncPayload(data);
+
+            var (ok, body) = await _importacion.ActualizarPncAsync(id, payload);
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
+
+            return Ok(new { id });
         }
 
         private async Task<string> HandleNcUpdate(Dictionary<string, object> data)
@@ -1201,6 +1342,29 @@ namespace QualityControlCenter.Modules.Faret
             if (raw is JsonElement el && el.TryGetInt32(out value))
                 return true;
             return int.TryParse(raw?.ToString(), out value);
+        }
+
+        // Igual que TryGetInt/TryGetString pero para campos numéricos decimales (cantidades del
+        // Excel PNC). Necesario porque el payload Photino envuelve números en JsonElement — leerlos
+        // con TryGetString lanzaría InvalidOperationException (ver gotcha documentado en CLAUDE.md).
+        private static bool TryGetDecimal(Dictionary<string, object> data, string key, out decimal? value)
+        {
+            value = null;
+            if (!data.TryGetValue(key, out var raw))
+                return false;
+            if (raw is JsonElement el)
+            {
+                if (el.ValueKind != JsonValueKind.Number || !el.TryGetDecimal(out var d))
+                    return false;
+                value = d;
+                return true;
+            }
+            if (decimal.TryParse(raw?.ToString(), out var parsed))
+            {
+                value = parsed;
+                return true;
+            }
+            return false;
         }
 
         private static bool TryGetBool(Dictionary<string, object> data, string key, out bool value)

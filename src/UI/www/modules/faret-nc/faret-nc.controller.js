@@ -18,7 +18,7 @@ window.FaretNcController = class FaretNcController {
             ?.addEventListener("click", () => this._loadLista());
 
         document.getElementById("fnc-nuevo-btn")
-            ?.addEventListener("click", () => this._abrirFormNuevo());
+            ?.addEventListener("click", () => this._abrirNuevoPnc());
 
         document.getElementById("fnc-cancelar-btn")
             ?.addEventListener("click", () => this._cerrarForm());
@@ -40,6 +40,18 @@ window.FaretNcController = class FaretNcController {
 
         document.getElementById("fnc-detalle-cerrar-btn")
             ?.addEventListener("click", () => this._cerrarDetalle());
+
+        document.getElementById("fnc-reg-editar-btn")
+            ?.addEventListener("click", () => this._habilitarEdicionRegistro());
+
+        document.getElementById("fnc-reg-cancelar-btn")
+            ?.addEventListener("click", () => this._cancelarEdicionRegistro());
+
+        document.getElementById("fnc-reg-guardar-cambio-btn")
+            ?.addEventListener("click", () => this._guardarCambioRegistro());
+
+        document.getElementById("fnc-reg-guardar-todo-btn")
+            ?.addEventListener("click", () => this._guardarTodoRegistro());
 
         document.getElementById("fnc-analisis-cerrar-btn")
             ?.addEventListener("click", () => this._cerrarAnalisis());
@@ -68,6 +80,18 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-cerrar-nc-btn")
             ?.addEventListener("click", () => this._cerrarNc());
 
+        document.getElementById("fnc-npnc-cerrar-btn")
+            ?.addEventListener("click", () => this._cerrarNuevoPnc());
+
+        document.getElementById("fnc-npnc-cancelar-btn")
+            ?.addEventListener("click", () => this._cerrarNuevoPnc());
+
+        document.getElementById("fnc-npnc-guardar-btn")
+            ?.addEventListener("click", () => this._guardarNuevoPnc());
+
+        ["fnc-npnc-cant-rechazada", "fnc-npnc-cant-recuperada"].forEach(id =>
+            document.getElementById(id)?.addEventListener("input", () => this._recalcularPctRecup()));
+
         this._ncAnalisisId = null;
         this._analisisActual = null;
         this._acciones = [];
@@ -92,7 +116,7 @@ window.FaretNcController = class FaretNcController {
         try {
             const [dataItems, inspeccionItems, ncRes] = await Promise.all([
                 this._cargarDataCompleta(),
-                this._cargarInspeccionesCompleta(),
+                Promise.resolve([]), // Inspecciones deshabilitadas en este módulo (ver _cargarInspeccionesCompleta)
                 window.PhotinoBridge.send({ action: "faret.nc.list" }),
             ]);
 
@@ -333,7 +357,7 @@ window.FaretNcController = class FaretNcController {
                 <td>
                     ${fila.tieneNc ? `
                         <button class="btn-ghost fnc-ver-btn" data-key="${fila.key}">Ver</button>
-                        <button class="btn-secondary fnc-editar-btn" data-key="${fila.key}">Editar</button>
+                        <button class="btn-secondary fnc-editar-btn" data-key="${fila.key}" style="display:none;">Editar</button>
                         <button class="btn-primary fnc-analizar-btn" data-key="${fila.key}">Analizar</button>
                     ` : ""}
                     <button class="btn-secondary fnc-gestionar-btn" data-key="${fila.key}">Gestionar</button>
@@ -365,7 +389,7 @@ window.FaretNcController = class FaretNcController {
 
     _verDetallePorKey(key) {
         const fila = this._combinadosPorKey.get(key);
-        if (fila?.nc) this._verDetalle(fila.nc.id);
+        if (fila?.nc) this._verDetalle(fila.nc.id, fila.dataId);
     }
 
     _abrirFormEditarPorKey(key) {
@@ -396,12 +420,16 @@ window.FaretNcController = class FaretNcController {
 
     // ---------- Detalle (Ver) ----------
 
-    async _verDetalle(id) {
+    async _verDetalle(id, dataId) {
         const modal = document.getElementById("fnc-detalle-modal");
         const body = document.getElementById("fnc-detalle-body");
+        const regSeccion = document.getElementById("fnc-detalle-registro");
 
         body.innerHTML = "Cargando...";
         modal.style.display = "flex";
+        regSeccion.style.display = "none";
+        this._detalleDataId = dataId || null;
+        this._detalleDataRow = null;
 
         try {
             const res = await window.PhotinoBridge.send({ action: "faret.nc.get", id: Number(id) });
@@ -436,11 +464,220 @@ window.FaretNcController = class FaretNcController {
             `;
         } catch {
             body.innerHTML = `<div class="faret-error">Error de comunicación con el backend</div>`;
+            return;
+        }
+
+        if (this._detalleDataId) {
+            const dataRow = this._dataItems.find(d => String(d.id) === String(this._detalleDataId));
+            if (dataRow) {
+                this._detalleDataRow = dataRow;
+                this._renderRegistro(dataRow);
+                regSeccion.style.display = "block";
+            }
         }
     }
 
     _cerrarDetalle() {
         document.getElementById("fnc-detalle-modal").style.display = "none";
+    }
+
+    // ---------- Registro completo (Data/importacion_pnc) dentro del modal de detalle ----------
+
+    _regCamposMap() {
+        return {
+            fechaIngreso: { id: "fnc-reg-fecha-ingreso", tipo: "fecha" },
+            npNv: { id: "fnc-reg-np-nv", tipo: "texto" },
+            cliente: { id: "fnc-reg-cliente", tipo: "texto" },
+            codigo: { id: "fnc-reg-codigo", tipo: "texto" },
+            producto: { id: "fnc-reg-producto", tipo: "texto" },
+            tipoPnc: { id: "fnc-reg-tipo-pnc", tipo: "texto" },
+            nivel: { id: "fnc-reg-nivel", tipo: "texto" },
+            categoriaDefecto: { id: "fnc-reg-categoria-defecto", tipo: "texto" },
+            tipoFalla: { id: "fnc-reg-tipo-falla", tipo: "texto" },
+            impacto: { id: "fnc-reg-impacto", tipo: "texto" },
+            cantRequerida: { id: "fnc-reg-cant-requerida", tipo: "numero" },
+            cantRechazada: { id: "fnc-reg-cant-rechazada", tipo: "numero" },
+            cantRecuperada: { id: "fnc-reg-cant-recuperada", tipo: "numero" },
+            pncReal: { id: "fnc-reg-pnc-real", tipo: "numero" },
+            area: { id: "fnc-reg-area", tipo: "texto" },
+            maquina: { id: "fnc-reg-maquina", tipo: "texto" },
+            operador: { id: "fnc-reg-operador", tipo: "texto" },
+            supervisor: { id: "fnc-reg-supervisor", tipo: "texto" },
+            revisadoPor: { id: "fnc-reg-revisado-por", tipo: "texto" },
+            fechaSalida: { id: "fnc-reg-fecha-salida", tipo: "fecha" },
+            fechaFabricacion: { id: "fnc-reg-fecha-fabricacion", tipo: "fecha" },
+            descripcionDefecto: { id: "fnc-reg-descripcion-defecto", tipo: "texto" },
+            observacion: { id: "fnc-reg-observacion", tipo: "texto" },
+            causaRaiz: { id: "fnc-reg-causa-raiz", tipo: "texto" },
+            accionesCorrectivas: { id: "fnc-reg-acciones-correctivas", tipo: "texto" },
+            verificacionSeguimiento: { id: "fnc-reg-verificacion-seguimiento", tipo: "texto" },
+        };
+    }
+
+    _renderRegistro(d) {
+        const campos = this._regCamposMap();
+        Object.entries(campos).forEach(([campo, { id, tipo }]) => {
+            const el = document.getElementById(id);
+            if (tipo === "fecha") {
+                el.value = d[campo] ? String(d[campo]).substring(0, 10) : "";
+            } else {
+                el.value = d[campo] ?? "";
+            }
+        });
+
+        this._recalcularPctRecupRegistro();
+        this._poblarDatalistsNuevoPnc(); // reutiliza los mismos <datalist> del modal "Nueva NC"
+        this._modoEdicionRegistro(false);
+        this._ultimoCampoEditadoRegistro = null;
+        document.getElementById("fnc-reg-error").style.display = "none";
+    }
+
+    _modoEdicionRegistro(editable) {
+        Object.values(this._regCamposMap()).forEach(({ id }) => {
+            document.getElementById(id).disabled = !editable;
+        });
+
+        document.getElementById("fnc-reg-editar-btn").style.display = editable ? "none" : "inline-block";
+        document.getElementById("fnc-reg-guardar-cambio-btn").style.display = editable ? "inline-block" : "none";
+        document.getElementById("fnc-reg-guardar-todo-btn").style.display = editable ? "inline-block" : "none";
+        document.getElementById("fnc-reg-cancelar-btn").style.display = editable ? "inline-block" : "none";
+    }
+
+    _habilitarEdicionRegistro() {
+        this._modoEdicionRegistro(true);
+        this._ultimoCampoEditadoRegistro = null;
+
+        Object.entries(this._regCamposMap()).forEach(([campo, { id }]) => {
+            const el = document.getElementById(id);
+            const marcar = () => {
+                this._ultimoCampoEditadoRegistro = campo;
+                if (campo === "cantRechazada" || campo === "cantRecuperada") this._recalcularPctRecupRegistro();
+            };
+            el.oninput = marcar;
+            el.onchange = marcar;
+        });
+    }
+
+    _cancelarEdicionRegistro() {
+        if (this._detalleDataRow) this._renderRegistro(this._detalleDataRow);
+    }
+
+    // Mismo cálculo que el backend (CantRecuperada / CantRechazada), solo para feedback visual.
+    _recalcularPctRecupRegistro() {
+        const rechazada = parseFloat(document.getElementById("fnc-reg-cant-rechazada").value);
+        const recuperada = parseFloat(document.getElementById("fnc-reg-cant-recuperada").value);
+        const el = document.getElementById("fnc-reg-pct-recup");
+
+        if (!rechazada || isNaN(recuperada)) {
+            el.value = "";
+            return;
+        }
+        el.value = `${(recuperada / rechazada * 100).toFixed(2)}%`;
+    }
+
+    _leerValorCampoRegistro(campo) {
+        const { id, tipo } = this._regCamposMap()[campo];
+        const raw = document.getElementById(id).value;
+        if (tipo === "numero") return raw === "" ? null : parseFloat(raw);
+        if (tipo === "fecha") return raw || null;
+        return raw.trim();
+    }
+
+    // Aplica los cambios ya guardados en la API al objeto en memoria (el mismo que usan la tabla
+    // principal y el propio modal), recalcula % Recup. localmente y refresca la tabla — evita un
+    // refetch completo de Data solo para reflejar la edición.
+    _aplicarCambiosRegistroEnMemoria(cambios) {
+        Object.assign(this._detalleDataRow, cambios);
+        this._detalleDataRow.pctRecuperacion =
+            this._detalleDataRow.cantRecuperada != null && this._detalleDataRow.cantRechazada > 0
+                ? this._detalleDataRow.cantRecuperada / this._detalleDataRow.cantRechazada
+                : null;
+        this._combinar();
+        this._renderTabla();
+    }
+
+    async _guardarCambioRegistro() {
+        const errorEl = document.getElementById("fnc-reg-error");
+        errorEl.style.display = "none";
+
+        if (!this._ultimoCampoEditadoRegistro) {
+            errorEl.textContent = "No se detectó ningún cambio. Modifique un campo antes de guardar.";
+            errorEl.style.display = "block";
+            return;
+        }
+        if (!this._detalleDataId) return;
+
+        const campo = this._ultimoCampoEditadoRegistro;
+        const valor = this._leerValorCampoRegistro(campo);
+
+        const btn = document.getElementById("fnc-reg-guardar-cambio-btn");
+        btn.disabled = true;
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.actualizarRegistro",
+                id: Number(this._detalleDataId),
+                [campo]: valor,
+            });
+
+            if (!res.ok) {
+                errorEl.textContent = res.error || "Error al guardar el cambio";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            this._aplicarCambiosRegistroEnMemoria({ [campo]: valor });
+            this._renderRegistro(this._detalleDataRow);
+            this._showMensaje("Campo actualizado", true);
+        } catch {
+            errorEl.textContent = "Error de comunicación con el backend";
+            errorEl.style.display = "block";
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async _guardarTodoRegistro() {
+        const errorEl = document.getElementById("fnc-reg-error");
+        errorEl.style.display = "none";
+        if (!this._detalleDataId) return;
+
+        const campos = this._regCamposMap();
+        const payload = {};
+        Object.keys(campos).forEach(campo => { payload[campo] = this._leerValorCampoRegistro(campo); });
+
+        if (!payload.npNv || !payload.cliente || !payload.codigo || !payload.producto
+            || !payload.descripcionDefecto || !payload.categoriaDefecto || !payload.nivel
+            || payload.cantRequerida === null || payload.cantRechazada === null) {
+            errorEl.textContent = "NP/NV, Cliente, Código, Producto, Categoría defecto, Nivel, "
+                + "Descripción defecto, Cant. requerida y Cant. rechazada son obligatorios";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        const btn = document.getElementById("fnc-reg-guardar-todo-btn");
+        btn.disabled = true;
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.actualizarRegistro",
+                id: Number(this._detalleDataId),
+                ...payload,
+            });
+
+            if (!res.ok) {
+                errorEl.textContent = res.error || "Error al guardar los cambios";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            this._aplicarCambiosRegistroEnMemoria(payload);
+            this._renderRegistro(this._detalleDataRow);
+            this._showMensaje("Registro actualizado completo", true);
+        } catch {
+            errorEl.textContent = "Error de comunicación con el backend";
+            errorEl.style.display = "block";
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     // ---------- Formulario Nueva / Editar NC (manual, sin vínculo a Data) ----------
@@ -554,6 +791,169 @@ window.FaretNcController = class FaretNcController {
 
     _usuarioActual() {
         return sessionStorage.getItem("faretNombreUsuario") || "";
+    }
+
+    // ---------- Nueva No Conformidad (registro completo en Data + vínculo de gestión automático) ----------
+
+    // Arma las <datalist> de autocompletar con los valores reales ya cargados en el módulo
+    // (this._dataItems, ya se trae completo en _loadLista) — nada hardcodeado, se actualiza solo.
+    _poblarDatalistsNuevoPnc() {
+        const mapa = {
+            "fnc-dl-cliente": "cliente",
+            "fnc-dl-categoria": "categoriaDefecto",
+            "fnc-dl-area": "area",
+            "fnc-dl-maquina": "maquina",
+            "fnc-dl-operador": "operador",
+            "fnc-dl-supervisor": "supervisor",
+            "fnc-dl-revisado": "revisadoPor",
+        };
+
+        Object.entries(mapa).forEach(([datalistId, campo]) => {
+            const valores = new Set(
+                this._dataItems
+                    .map(d => (d[campo] || "").toString().trim())
+                    .filter(Boolean)
+            );
+            const datalist = document.getElementById(datalistId);
+            if (datalist) {
+                datalist.innerHTML = [...valores].sort()
+                    .map(v => `<option value="${v}"></option>`).join("");
+            }
+        });
+    }
+
+    _abrirNuevoPnc() {
+        document.getElementById("fnc-npnc-error").style.display = "none";
+        document.getElementById("fnc-npnc-fecha-ingreso").value = new Date().toLocaleDateString("es-CL");
+
+        [
+            "fnc-npnc-np-nv", "fnc-npnc-cliente", "fnc-npnc-codigo", "fnc-npnc-producto",
+            "fnc-npnc-categoria-defecto", "fnc-npnc-cant-requerida", "fnc-npnc-cant-rechazada",
+            "fnc-npnc-cant-recuperada", "fnc-npnc-pnc-real", "fnc-npnc-area", "fnc-npnc-maquina",
+            "fnc-npnc-operador", "fnc-npnc-supervisor", "fnc-npnc-revisado-por",
+            "fnc-npnc-fecha-salida", "fnc-npnc-fecha-fabricacion", "fnc-npnc-descripcion-defecto",
+            "fnc-npnc-observacion", "fnc-npnc-causa-raiz", "fnc-npnc-acciones-correctivas",
+            "fnc-npnc-verificacion-seguimiento",
+        ].forEach(id => { document.getElementById(id).value = ""; });
+
+        document.getElementById("fnc-npnc-tipo-pnc").value = "";
+        document.getElementById("fnc-npnc-nivel").value = "Mayor";
+        document.getElementById("fnc-npnc-tipo-falla").value = "";
+        document.getElementById("fnc-npnc-impacto").value = "Calidad";
+        document.getElementById("fnc-npnc-pct-recup").value = "";
+
+        this._poblarDatalistsNuevoPnc();
+        document.getElementById("fnc-nuevo-pnc-modal").style.display = "flex";
+    }
+
+    _cerrarNuevoPnc() {
+        document.getElementById("fnc-nuevo-pnc-modal").style.display = "none";
+    }
+
+    // Mismo cálculo que el backend (CantRecuperada / CantRechazada), solo para feedback visual
+    // inmediato — el valor que se guarda de verdad lo calcula la API.
+    _recalcularPctRecup() {
+        const rechazada = parseFloat(document.getElementById("fnc-npnc-cant-rechazada").value);
+        const recuperada = parseFloat(document.getElementById("fnc-npnc-cant-recuperada").value);
+        const el = document.getElementById("fnc-npnc-pct-recup");
+
+        if (!rechazada || isNaN(recuperada)) {
+            el.value = "";
+            return;
+        }
+        el.value = `${(recuperada / rechazada * 100).toFixed(2)}%`;
+    }
+
+    async _guardarNuevoPnc() {
+        const errorEl = document.getElementById("fnc-npnc-error");
+        errorEl.style.display = "none";
+
+        const val = id => document.getElementById(id).value.trim();
+        const num = id => {
+            const v = document.getElementById(id).value;
+            return v === "" ? null : parseFloat(v);
+        };
+
+        const npNv = val("fnc-npnc-np-nv");
+        const cliente = val("fnc-npnc-cliente");
+        const codigo = val("fnc-npnc-codigo");
+        const producto = val("fnc-npnc-producto");
+        const categoriaDefecto = val("fnc-npnc-categoria-defecto");
+        const nivel = val("fnc-npnc-nivel");
+        const descripcionDefecto = val("fnc-npnc-descripcion-defecto");
+        const cantRequerida = num("fnc-npnc-cant-requerida");
+        const cantRechazada = num("fnc-npnc-cant-rechazada");
+
+        if (!npNv || !cliente || !codigo || !producto || !categoriaDefecto || !nivel || !descripcionDefecto
+            || cantRequerida === null || cantRechazada === null) {
+            errorEl.textContent = "NP/NV, Cliente, Código, Producto, Categoría defecto, Nivel, "
+                + "Descripción defecto, Cant. requerida y Cant. rechazada son obligatorios";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        const tipoPnc = val("fnc-npnc-tipo-pnc");
+        const area = val("fnc-npnc-area");
+        const hoy = new Date().toISOString().substring(0, 10);
+
+        const payload = {
+            // Campos del registro Data (importacion_pnc)
+            tipoPnc,
+            npNv,
+            cliente,
+            codigo,
+            producto,
+            cantRequerida,
+            cantRechazada,
+            cantRecuperada: num("fnc-npnc-cant-recuperada"),
+            pncReal: num("fnc-npnc-pnc-real"),
+            fechaSalida: val("fnc-npnc-fecha-salida") || null,
+            fechaFabricacion: val("fnc-npnc-fecha-fabricacion") || null,
+            descripcionDefecto,
+            categoriaDefecto,
+            nivel,
+            tipoFalla: val("fnc-npnc-tipo-falla"),
+            area,
+            maquina: val("fnc-npnc-maquina"),
+            operador: val("fnc-npnc-operador"),
+            supervisor: val("fnc-npnc-supervisor"),
+            revisadoPor: val("fnc-npnc-revisado-por"),
+            impacto: val("fnc-npnc-impacto"),
+            observacion: val("fnc-npnc-observacion"),
+            causaRaiz: val("fnc-npnc-causa-raiz"),
+            accionesCorrectivas: val("fnc-npnc-acciones-correctivas"),
+            verificacionSeguimiento: val("fnc-npnc-verificacion-seguimiento"),
+            // Campos del vínculo de gestión (Mejora Continua) — se autocompletan a partir de los
+            // datos de arriba, igual que ya hace "Gestionar" al crear el vínculo desde una fila de Data.
+            tipo: "INTERNA",
+            origen: "AUDITORIA_INTERNA",
+            titulo: `PNC ${npNv} - ${producto || cliente}`.trim(),
+            descripcion: [categoriaDefecto, descripcionDefecto].filter(Boolean).join(" - "),
+            severidad: this._mapNivelASeveridad(nivel),
+            proceso: tipoPnc || area || "PNC Nueva",
+            fechaDeteccion: hoy,
+        };
+
+        const btn = document.getElementById("fnc-npnc-guardar-btn");
+        btn.disabled = true;
+        try {
+            const res = await window.PhotinoBridge.send({ action: "faret.nc.crearRegistro", ...payload });
+
+            if (!res.ok) {
+                errorEl.textContent = res.error || "Error al crear la no conformidad";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            this._cerrarNuevoPnc();
+            this._showMensaje("No conformidad creada y gestionable", true);
+            await this._loadLista();
+        } catch {
+            errorEl.textContent = "Error de comunicación con el backend";
+            errorEl.style.display = "block";
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     // ---------- Gestionar (crear vínculo Data→NC, o gestionar/cerrar/seguimiento de una NC existente) ----------

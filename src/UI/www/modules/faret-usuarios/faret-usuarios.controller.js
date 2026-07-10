@@ -127,7 +127,13 @@ window.FaretUsuariosController = class FaretUsuariosController {
                 <td>${u.id ?? "-"}</td>
                 <td>${u.username ?? u.correo ?? "-"}</td>
                 <td>${u.nombre ?? "-"}</td>
-                <td>${u.rol ?? "-"}</td>
+                <td>
+                    <select class="fu-rol-select" data-id="${u.id}" data-rol-actual="${u.rol ?? ""}">
+                        ${["ADMIN_TI", "ADMIN", "CALIDAD", "INSPECTOR", "CONSULTA"].map(r =>
+                            `<option value="${r}" ${u.rol === r ? "selected" : ""}>${r}</option>`
+                        ).join("")}
+                    </select>
+                </td>
                 <td>${u.activo ? "Activo" : "Inactivo"}</td>
                 <td>${u.createdAt ? new Date(u.createdAt).toLocaleDateString("es-CL") : "-"}</td>
                 <td>
@@ -139,11 +145,51 @@ window.FaretUsuariosController = class FaretUsuariosController {
             </tr>
         `).join("");
 
+        tbody.querySelectorAll(".fu-rol-select").forEach(sel =>
+            sel.addEventListener("change", () => this._cambiarRol(sel)));
+
         tbody.querySelectorAll(".fu-reset-btn").forEach(btn =>
             btn.addEventListener("click", () => this._resetPassword(btn.dataset.id, btn.dataset.nombre)));
 
         tbody.querySelectorAll(".fu-toggle-btn").forEach(btn =>
             btn.addEventListener("click", () => this._toggleActivo(btn.dataset.id, btn.dataset.activo === "1", btn.dataset.nombre)));
+    }
+
+    async _cambiarRol(selectEl) {
+        const id = selectEl.dataset.id;
+        const nuevoRol = selectEl.value;
+        const rolAnterior = selectEl.dataset.rolActual;
+
+        if (nuevoRol === rolAnterior) return;
+
+        const confirmado = window.confirm(`¿Cambiar el rol a "${nuevoRol}"?`);
+        if (!confirmado) {
+            selectEl.value = rolAnterior;
+            return;
+        }
+
+        selectEl.disabled = true;
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.usuarios.cambiarRol",
+                id: Number(id),
+                rol: nuevoRol,
+            });
+
+            if (!res.ok) {
+                this._showMensaje(res.error || "Error al cambiar el rol", false);
+                selectEl.value = rolAnterior;
+                return;
+            }
+
+            selectEl.dataset.rolActual = nuevoRol;
+            this._showMensaje(`Rol actualizado a "${nuevoRol}"`, true);
+        } catch {
+            this._showMensaje("Error de comunicación con el backend", false);
+            selectEl.value = rolAnterior;
+        } finally {
+            selectEl.disabled = false;
+        }
     }
 
     async _resetPassword(id, nombre) {
