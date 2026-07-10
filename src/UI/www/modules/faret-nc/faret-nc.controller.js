@@ -852,7 +852,7 @@ window.FaretNcController = class FaretNcController {
 
     _abrirNuevoPnc() {
         document.getElementById("fnc-npnc-error").style.display = "none";
-        document.getElementById("fnc-npnc-fecha-ingreso").value = new Date().toLocaleDateString("es-CL");
+        document.getElementById("fnc-npnc-fecha-ingreso").value = new Date().toISOString().substring(0, 10);
 
         [
             "fnc-npnc-np-nv", "fnc-npnc-cliente", "fnc-npnc-codigo", "fnc-npnc-producto",
@@ -923,10 +923,12 @@ window.FaretNcController = class FaretNcController {
         const tipoPnc = val("fnc-npnc-tipo-pnc");
         const area = val("fnc-npnc-area");
         const hoy = new Date().toISOString().substring(0, 10);
+        const fechaIngreso = val("fnc-npnc-fecha-ingreso") || hoy;
 
         const payload = {
             // Campos del registro Data (importacion_pnc)
             tipoPnc,
+            fechaIngreso,
             npNv,
             cliente,
             codigo,
@@ -959,7 +961,7 @@ window.FaretNcController = class FaretNcController {
             descripcion: [categoriaDefecto, descripcionDefecto].filter(Boolean).join(" - "),
             severidad: this._mapNivelASeveridad(nivel),
             proceso: tipoPnc || area || "PNC Nueva",
-            fechaDeteccion: hoy,
+            fechaDeteccion: fechaIngreso,
         };
 
         const btn = document.getElementById("fnc-npnc-guardar-btn");

@@ -162,14 +162,17 @@ Alta velocidad de carga
 Diseño reutilizable por módulos
 Base de Datos
 
-El sistema puede conectarse a:
+MySQL (base `calidad`) es la única base de datos usada activamente. La configuración se gestiona
+mediante `config.json`. Existen referencias legacy a SQL Server / SAP Business One en el código,
+pero `DbService` bloquea intencionalmente esas conexiones (`LegacyDbBlocked`) — no están en uso.
 
-MySQL
-SQL Server
-SAP Business One
-Bases operacionales independientes
+## Multiempresa (INNPACK / Faret)
 
-La configuración se gestiona mediante archivos de entorno/configuración.
+QCC soporta dos empresas, elegidas en un selector previo al login:
+
+- **INNPACK**: login desktop, acceso directo a MySQL (`calidad`).
+- **FARET**: login propio contra APIs REST externas (`api.faret.cl`) — el desktop no accede a
+  MySQL directamente para Faret, todo pasa por `FaretApiClient`.
 
 Exportación de Datos
 Exportación Excel mediante ClosedXML
@@ -187,7 +190,7 @@ Ejecutar en Desarrollo
 dotnet run
 
 Publicar Aplicación Windows
-dotnet publish -c Release -r osx-x64 --self-contained true
+dotnet publish -c Release -r win-x64 --self-contained true
 
 Principios de Desarrollo
 Arquitectura desacoplada
