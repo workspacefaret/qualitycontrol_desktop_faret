@@ -7,8 +7,8 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{F1777909-B606-410F-84D5-1278F87F84F6}
 AppName=Quality Control Center
-AppVersion=1.7.2
-;AppVerName=Quality Control Center 1.7.2
+AppVersion=1.7.3
+;AppVerName=Quality Control Center 1.7.3
 AppPublisher=Faret
 AppPublisherURL=https://workspace.faret.cl/
 AppSupportURL=https://workspace.faret.cl/
@@ -27,7 +27,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 OutputDir=C:\Installers
-OutputBaseFilename=QualityControlCenter_Setup_v1.7.2
+OutputBaseFilename=QualityControlCenter_Setup_v1.7.3
 SetupIconFile=C:\Users\dcarrasco\Desktop\Proyectos\qualitycontrol_desktop_faret\logo2.ico
 SolidCompression=yes
 WizardStyle=classic

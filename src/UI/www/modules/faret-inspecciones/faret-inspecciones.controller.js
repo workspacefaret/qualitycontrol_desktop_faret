@@ -72,7 +72,33 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
     }
 
     async _loadAll() {
-        await Promise.all([this._loadResumen(), this._loadLista()]);
+        await Promise.all([this._loadResumen(), this._loadLista(), this._poblarFiltrosSelect()]);
+    }
+
+    // Arma las opciones de los <select> de Operador/Máquina con los valores reales de TODOS los
+    // registros (sin filtros), no solo la página visible — reutiliza _traerTodosLosRegistros.
+    async _poblarFiltrosSelect() {
+        const items = await this._traerTodosLosRegistros({});
+
+        const mapa = {
+            "fi-filtro-operador": "operador",
+            "fi-filtro-maquina": "maquina",
+        };
+
+        Object.entries(mapa).forEach(([selectId, campo]) => {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+
+            const valorActual = select.value;
+            const valores = new Set(
+                items.map(r => (r[campo] || "").toString().trim()).filter(Boolean)
+            );
+
+            select.innerHTML = `<option value="">Todos</option>` +
+                [...valores].sort().map(v => `<option value="${v}">${v}</option>`).join("");
+
+            if (valorActual && valores.has(valorActual)) select.value = valorActual;
+        });
     }
 
     async _loadResumen() {
@@ -242,7 +268,7 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         this._exportarRegistrosDesdeDatos(items);
     }
 
-    async _traerTodosLosRegistros() {
+    async _traerTodosLosRegistros(filtros = this._getFiltros()) {
         const pageSize = 500;
         let page = 1;
         let total = Infinity;
@@ -253,7 +279,7 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
                 action: "faret.inspecciones.list",
                 page,
                 pageSize,
-                ...this._getFiltros(),
+                ...filtros,
             });
 
             if (!res.ok) break;

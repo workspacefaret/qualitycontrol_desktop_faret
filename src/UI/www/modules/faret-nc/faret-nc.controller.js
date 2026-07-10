@@ -133,6 +133,7 @@ window.FaretNcController = class FaretNcController {
             this._items = this._ncItems;
 
             this._combinar();
+            this._poblarFiltrosSelect();
             this._renderTabla();
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
@@ -264,6 +265,33 @@ window.FaretNcController = class FaretNcController {
     }
 
     // ---------- Filtros ----------
+
+    // Arma las opciones de los <select> de Cliente/Tipo PNC/Responsable con los valores reales
+    // ya presentes en this._combinados (dataset completo en memoria) — nada hardcodeado.
+    _poblarFiltrosSelect() {
+        const mapa = {
+            "fnc-filtro-cliente": "cliente",
+            "fnc-filtro-tipo-pnc": "tipoPnc",
+            "fnc-filtro-responsable": "responsable",
+        };
+
+        Object.entries(mapa).forEach(([selectId, campo]) => {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+
+            const valorActual = select.value;
+            const valores = new Set(
+                this._combinados
+                    .map(f => (f[campo] || "").toString().trim())
+                    .filter(v => v && v !== "-")
+            );
+
+            select.innerHTML = `<option value="">Todos</option>` +
+                [...valores].sort().map(v => `<option value="${v}">${v}</option>`).join("");
+
+            if (valorActual && valores.has(valorActual)) select.value = valorActual;
+        });
+    }
 
     _getFiltros() {
         return {
