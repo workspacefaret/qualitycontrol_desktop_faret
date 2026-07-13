@@ -11,6 +11,7 @@ using QualityControlCenter.Modules.Faret;
 using QualityControlCenter.Modules.Home;
 using QualityControlCenter.Modules.Laboratorio;
 using QualityControlCenter.Modules.MaquinasSeguimiento;
+using QualityControlCenter.Modules.NoConformidades;
 using QualityControlCenter.Modules.RegistrosControl;
 using QualityControlCenter.Modules.RegistrosProduccion;
 using QualityControlCenter.Modules.Usuarios;
@@ -120,6 +121,11 @@ namespace QualityControlCenter.Services
                 else if (action.StartsWith("maquinasSeguimiento"))
                 {
                     var handler = new MaquinasSeguimientoHandler(_db);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("noConformidades"))
+                {
+                    var handler = new NoConformidadesHandler(_db);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("faret"))
