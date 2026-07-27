@@ -142,7 +142,7 @@ window.NoConformidadesController = class NoConformidadesController {
 
     async _loadLista() {
         const tbody = document.getElementById("ncq-tbody");
-        tbody.innerHTML = `<tr><td colspan="13">Cargando...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="14">Cargando...</td></tr>`;
 
         const filtros = this._getFiltros();
 
@@ -153,7 +153,7 @@ window.NoConformidadesController = class NoConformidadesController {
             ]);
 
             if (!listRes.ok) {
-                tbody.innerHTML = `<tr><td colspan="13">${listRes.error || "Error al cargar"}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14">${listRes.error || "Error al cargar"}</td></tr>`;
                 return;
             }
 
@@ -166,7 +166,7 @@ window.NoConformidadesController = class NoConformidadesController {
             this._renderTabla();
             this._renderPaginacion();
         } catch {
-            tbody.innerHTML = `<tr><td colspan="13">Error de comunicación con el backend</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="14">Error de comunicación con el backend</td></tr>`;
         }
     }
 
@@ -181,7 +181,7 @@ window.NoConformidadesController = class NoConformidadesController {
         const tbody = document.getElementById("ncq-tbody");
 
         if (!this._items.length) {
-            tbody.innerHTML = `<tr><td colspan="13">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="14">Sin registros</td></tr>`;
             return;
         }
 
@@ -192,6 +192,7 @@ window.NoConformidadesController = class NoConformidadesController {
                 <td>${this._fecha(nc.fechaSalida)}</td>
                 <td>${nc.npNv ?? "-"}</td>
                 <td>${nc.cliente ?? "-"}</td>
+                <td>${nc.codigoProducto ?? "-"}</td>
                 <td>${nc.producto ?? "-"}</td>
                 <td>${nc.tipoPnc ?? "-"}</td>
                 <td>${nc.categoriaDefecto ?? "-"}</td>
@@ -851,7 +852,7 @@ window.NoConformidadesController = class NoConformidadesController {
             <thead>
                 <tr>
                     <th>Código</th><th>Fecha ingreso</th><th>Fecha salida</th><th>NP/NV</th><th>Cliente</th>
-                    <th>Producto</th><th>Tipo PNC</th><th>Categoría defecto</th><th>Nivel</th>
+                    <th>Código producto</th><th>Producto</th><th>Tipo PNC</th><th>Categoría defecto</th><th>Nivel</th>
                     <th>Estado gestión</th><th>Responsable</th><th>Fecha compromiso</th>
                 </tr>
             </thead>
@@ -863,6 +864,7 @@ window.NoConformidadesController = class NoConformidadesController {
                         <td>${this._fecha(nc.fechaSalida)}</td>
                         <td>${nc.npNv ?? "-"}</td>
                         <td>${nc.cliente ?? "-"}</td>
+                        <td>${nc.codigoProducto ?? "-"}</td>
                         <td>${nc.producto ?? "-"}</td>
                         <td>${nc.tipoPnc ?? "-"}</td>
                         <td>${nc.categoriaDefecto ?? "-"}</td>

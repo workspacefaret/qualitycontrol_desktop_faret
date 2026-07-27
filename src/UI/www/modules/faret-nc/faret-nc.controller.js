@@ -74,6 +74,15 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-gestion-guardar-btn")
             ?.addEventListener("click", () => this._guardarGestion());
 
+        document.getElementById("fnc-gdetalle-editar-btn")
+            ?.addEventListener("click", () => this._habilitarEdicionGestionDetalle());
+
+        document.getElementById("fnc-gdetalle-cancelar-btn")
+            ?.addEventListener("click", () => this._cancelarEdicionGestionDetalle());
+
+        document.getElementById("fnc-gdetalle-guardar-btn")
+            ?.addEventListener("click", () => this._guardarGestionDetalle());
+
         document.getElementById("fnc-seguimiento-agregar-btn")
             ?.addEventListener("click", () => this._agregarSeguimiento());
 
@@ -95,6 +104,27 @@ window.FaretNcController = class FaretNcController {
         this._ncAnalisisId = null;
         this._analisisActual = null;
         this._acciones = [];
+        this._responsablesBase = this._responsablesDefault();
+
+        const responsableInput = document.getElementById("fnc-gestion-responsable");
+        responsableInput?.addEventListener("focus", () => this._renderResponsableDropdown());
+        responsableInput?.addEventListener("input", () => this._renderResponsableDropdown());
+        // "blur" (no un listener de click en document) para no depender de nodos del dropdown que
+        // se recrean en cada render (ej. al usar la "x") — el mousedown+preventDefault de los
+        // items evita que el input pierda foco al hacer click adentro, así que blur solo dispara
+        // al hacer click realmente afuera.
+        responsableInput?.addEventListener("blur", () => {
+            setTimeout(() => {
+                const dropdown = document.getElementById("fnc-gestion-responsable-dropdown");
+                if (dropdown) dropdown.style.display = "none";
+            }, 150);
+        });
+
+        this._filasFijas = window.TableUtils.init(
+            document.getElementById("fnc-tabla"),
+            document.getElementById("fnc-filas-fijadas"),
+            { obtenerId: tr => tr.dataset.id }
+        );
 
         this._loadLista();
     }
@@ -106,6 +136,11 @@ window.FaretNcController = class FaretNcController {
     // ---------- Carga y fusión Data + NC ----------
 
     async _loadLista() {
+        const contenedor = document.getElementById("fnc-tabla")?.closest(".table-container");
+        await window.TableUtils.preservarScroll(contenedor, () => this._loadListaInterna());
+    }
+
+    async _loadListaInterna() {
         const loadingEl = document.getElementById("fnc-loading");
         const errorEl = document.getElementById("fnc-error");
         const tbody = document.getElementById("fnc-tbody");
@@ -123,7 +158,7 @@ window.FaretNcController = class FaretNcController {
             if (!ncRes.ok) {
                 errorEl.textContent = ncRes.error || "Error al cargar las no conformidades";
                 errorEl.style.display = "block";
-                tbody.innerHTML = `<tr><td colspan="14" class="faret-empty">Sin datos</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin datos</td></tr>`;
                 return;
             }
 
@@ -134,11 +169,12 @@ window.FaretNcController = class FaretNcController {
 
             this._combinar();
             this._poblarFiltrosSelect();
+            this._actualizarResponsablesBase();
             this._renderTabla();
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
             errorEl.style.display = "block";
-            tbody.innerHTML = `<tr><td colspan="14" class="faret-empty">Sin datos</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin datos</td></tr>`;
         } finally {
             loadingEl.style.display = "none";
         }
@@ -254,6 +290,7 @@ window.FaretNcController = class FaretNcController {
             fechaSalida: dataRow?.fechaSalida || null,
             npNv: dataRow?.npNv || inspRow?.nvFaret || "-",
             cliente: dataRow?.cliente || "-",
+            codigoProducto: dataRow?.codigo || "-",
             producto: dataRow?.producto || "-",
             tipoPnc: dataRow?.tipoPnc || inspRow?.areaControl || "-",
             categoriaDefecto: dataRow?.categoriaDefecto || inspRow?.defectos || "-",
@@ -291,6 +328,79 @@ window.FaretNcController = class FaretNcController {
 
             if (valorActual && valores.has(valorActual)) select.value = valorActual;
         });
+    }
+
+    // Combo editable de "Responsable" del modal Gestionar: precarga 2 nombres fijos y suma
+    // cualquier otro valor ya guardado en NC reales (this._ncItems) — no requiere API nueva, un
+    // nombre escrito a mano queda "recordado" en cuanto se guarda una gestión con ese responsable
+    // y vuelve a aparecer en el próximo refresco de la lista. La "x" de cada sugerencia no borra
+    // datos reales, solo la oculta de la lista (persistido en localStorage, por equipo/PC).
+    _responsablesDefault() {
+        return ["Rodrigo Bastías", "Mónica Valdivia"];
+    }
+
+    _actualizarResponsablesBase() {
+        const valores = new Set(this._responsablesDefault());
+        this._ncItems.forEach(nc => {
+            const v = (nc.responsable || "").toString().trim();
+            if (v) valores.add(v);
+        });
+        this._responsablesBase = [...valores].sort();
+    }
+
+    _responsablesOcultos() {
+        try {
+            const raw = localStorage.getItem("faretNcResponsablesOcultos");
+            return new Set(raw ? JSON.parse(raw) : []);
+        } catch {
+            return new Set();
+        }
+    }
+
+    _ocultarResponsable(nombre) {
+        const ocultos = this._responsablesOcultos();
+        ocultos.add(nombre);
+        localStorage.setItem("faretNcResponsablesOcultos", JSON.stringify([...ocultos]));
+    }
+
+    _renderResponsableDropdown() {
+        const dropdown = document.getElementById("fnc-gestion-responsable-dropdown");
+        const input = document.getElementById("fnc-gestion-responsable");
+        if (!dropdown || !input) return;
+
+        const filtro = input.value.trim().toLowerCase();
+        const ocultos = this._responsablesOcultos();
+        const opciones = (this._responsablesBase || [])
+            .filter(v => !ocultos.has(v))
+            .filter(v => !filtro || v.toLowerCase().includes(filtro));
+
+        if (!opciones.length) {
+            dropdown.innerHTML = `<div class="fnc-combo-empty">Sin sugerencias</div>`;
+        } else {
+            dropdown.innerHTML = opciones.map(v => `
+                <div class="fnc-combo-item" data-nombre="${v}">
+                    <span class="fnc-combo-item-nombre">${v}</span>
+                    <span class="fnc-combo-item-x" data-accion="eliminar" title="Quitar de las sugerencias">×</span>
+                </div>
+            `).join("");
+
+            dropdown.querySelectorAll(".fnc-combo-item-x").forEach(x =>
+                x.addEventListener("mousedown", e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this._ocultarResponsable(x.closest(".fnc-combo-item").dataset.nombre);
+                    this._renderResponsableDropdown();
+                }));
+
+            dropdown.querySelectorAll(".fnc-combo-item-nombre").forEach(span =>
+                span.addEventListener("mousedown", e => {
+                    e.preventDefault();
+                    input.value = span.closest(".fnc-combo-item").dataset.nombre;
+                    dropdown.style.display = "none";
+                }));
+        }
+
+        dropdown.style.display = "block";
     }
 
     _getFiltros() {
@@ -362,25 +472,27 @@ window.FaretNcController = class FaretNcController {
         const tbody = document.getElementById("fnc-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="14" class="faret-empty">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin registros</td></tr>`;
+            this._filasFijas?.refrescar();
             this._renderPaginacion(filtrados.length);
             return;
         }
 
         tbody.innerHTML = items.map(fila => `
-            <tr>
+            <tr data-id="${fila.key}">
                 <td>${fila.codigo}</td>
                 <td>${fila.fechaIngreso ? new Date(fila.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
                 <td>${fila.fechaSalida ? new Date(fila.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
                 <td>${fila.npNv}</td>
                 <td>${fila.cliente}</td>
+                <td>${fila.codigoProducto}</td>
                 <td>${fila.producto}</td>
                 <td>${fila.tipoPnc}</td>
                 <td>${fila.categoriaDefecto}</td>
                 <td>${this._badge(fila.nivelSeveridad, this._colorSeveridad(fila.nivelSeveridad))}</td>
                 <td>${this._badge(this._labelEstadoGestion(fila.estadoGestion), this._colorEstadoGestion(fila.estadoGestion))}</td>
                 <td>${fila.responsable}</td>
-                <td>${fila.fechaCompromiso ? new Date(fila.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</td>
+                <td style="display:none;">${fila.fechaCompromiso ? new Date(fila.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</td>
                 <td>${this._badge(this._labelFuente(fila.fuente), this._colorFuente(fila.fuente))}</td>
                 <td>
                     ${fila.tieneNc ? `
@@ -389,6 +501,7 @@ window.FaretNcController = class FaretNcController {
                         <button class="btn-primary fnc-analizar-btn" data-key="${fila.key}">Analizar</button>
                     ` : ""}
                     <button class="btn-secondary fnc-gestionar-btn" data-key="${fila.key}">Gestionar</button>
+                    <button class="btn-danger fnc-eliminar-btn" data-key="${fila.key}">Eliminar</button>
                 </td>
             </tr>
         `).join("");
@@ -405,6 +518,10 @@ window.FaretNcController = class FaretNcController {
         tbody.querySelectorAll(".fnc-gestionar-btn").forEach(btn =>
             btn.addEventListener("click", () => this._abrirGestion(btn.dataset.key)));
 
+        tbody.querySelectorAll(".fnc-eliminar-btn").forEach(btn =>
+            btn.addEventListener("click", () => this._eliminarFila(btn.dataset.key)));
+
+        this._filasFijas?.refrescar();
         this._renderPaginacion(filtrados.length);
     }
 
@@ -484,7 +601,6 @@ window.FaretNcController = class FaretNcController {
                         : nc.sistemaOrigen === "INSPECCION_FARET" && nc.origenId ? `Inspección #${nc.origenId}`
                         : "Manual"
                     }</div>
-                    <div><strong>Fecha compromiso:</strong> ${nc.fechaCompromiso ? new Date(nc.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</div>
                     <div><strong>Fecha creación:</strong> ${nc.fechaCreacion ? new Date(nc.fechaCreacion).toLocaleString("es-CL") : "-"}</div>
                 </div>
                 <div class="fnc-detalle-titulo"><strong>Título:</strong> ${nc.titulo ?? "-"}</div>
@@ -1053,8 +1169,112 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-cierre-comentario").value = "";
         document.getElementById("fnc-seguimiento-comentario").value = "";
 
+        this._renderGestionDetalle(fila.nc);
+
         document.getElementById("fnc-gestion-modal").style.display = "flex";
         await this._cargarSeguimiento(fila.nc.id);
+    }
+
+    // ---------- Detalle de la NC dentro de "Gestionar" (tipo/origen/severidad/proceso/título/
+    // descripción/norma) — mismo patrón de "Editar" que ya usa el registro de Data en "Ver detalle",
+    // reutiliza faret.nc.update (ya wireado, no requiere cambios de API). ----------
+
+    _gdetalleCamposMap() {
+        return {
+            tipo: { id: "fnc-gdetalle-tipo" },
+            origen: { id: "fnc-gdetalle-origen" },
+            severidad: { id: "fnc-gdetalle-severidad" },
+            fechaDeteccion: { id: "fnc-gdetalle-fecha", tipo: "fecha" },
+            proceso: { id: "fnc-gdetalle-proceso" },
+            norma: { id: "fnc-gdetalle-norma" },
+            titulo: { id: "fnc-gdetalle-titulo" },
+            descripcion: { id: "fnc-gdetalle-descripcion" },
+        };
+    }
+
+    _renderGestionDetalle(nc) {
+        const campos = this._gdetalleCamposMap();
+        Object.entries(campos).forEach(([campo, { id, tipo }]) => {
+            const el = document.getElementById(id);
+            if (tipo === "fecha") {
+                el.value = nc[campo] ? String(nc[campo]).substring(0, 10) : "";
+            } else {
+                el.value = nc[campo] ?? "";
+            }
+        });
+
+        this._modoEdicionGestionDetalle(false);
+        document.getElementById("fnc-gdetalle-error").style.display = "none";
+    }
+
+    _modoEdicionGestionDetalle(editable) {
+        Object.values(this._gdetalleCamposMap()).forEach(({ id }) => {
+            document.getElementById(id).disabled = !editable;
+        });
+
+        document.getElementById("fnc-gdetalle-editar-btn").style.display = editable ? "none" : "inline-block";
+        document.getElementById("fnc-gdetalle-guardar-btn").style.display = editable ? "inline-block" : "none";
+        document.getElementById("fnc-gdetalle-cancelar-btn").style.display = editable ? "inline-block" : "none";
+    }
+
+    _habilitarEdicionGestionDetalle() {
+        this._modoEdicionGestionDetalle(true);
+    }
+
+    _cancelarEdicionGestionDetalle() {
+        const fila = this._gestionContext?.fila;
+        if (fila?.nc) this._renderGestionDetalle(fila.nc);
+    }
+
+    async _guardarGestionDetalle() {
+        const fila = this._gestionContext?.fila;
+        if (!fila || !fila.nc) return;
+
+        const errorEl = document.getElementById("fnc-gdetalle-error");
+        errorEl.style.display = "none";
+
+        const campos = this._gdetalleCamposMap();
+        const payload = { id: fila.nc.id };
+        Object.keys(campos).forEach(campo => {
+            const { id, tipo } = campos[campo];
+            const raw = document.getElementById(id).value;
+            payload[campo] = tipo === "fecha" ? (raw || "") : raw.trim();
+        });
+
+        if (!payload.tipo || !payload.origen || !payload.titulo || !payload.descripcion
+            || !payload.severidad || !payload.proceso || !payload.fechaDeteccion) {
+            errorEl.textContent = "Tipo, origen, severidad, proceso/área, fecha de detección, "
+                + "título y descripción son obligatorios";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        // La API (Actualizar) pisa "responsable" sin COALESCE si no viaja en el payload — se manda
+        // el valor actual (gestionado en la sección "Gestión") para no perderlo al guardar el detalle.
+        payload.responsable = fila.nc.responsable || "";
+
+        const btn = document.getElementById("fnc-gdetalle-guardar-btn");
+        btn.disabled = true;
+        try {
+            const res = await window.PhotinoBridge.send({ action: "faret.nc.update", ...payload });
+
+            if (!res.ok) {
+                errorEl.textContent = res.error || "Error al guardar los cambios";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            Object.assign(fila.nc, payload);
+            this._combinar();
+            this._renderTabla();
+            this._modoEdicionGestionDetalle(false);
+            this._showGestionMensaje("Detalle de la NC actualizado", true);
+        } catch {
+            errorEl.textContent = "Error de comunicación con el backend";
+            errorEl.style.display = "block";
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     _cerrarGestion() {
@@ -1223,6 +1443,40 @@ window.FaretNcController = class FaretNcController {
             await this._loadLista();
         } catch {
             this._showGestionMensaje("Error de comunicación con el backend", false);
+        }
+    }
+
+    async _eliminarFila(key) {
+        const fila = this._combinadosPorKey.get(key);
+        if (!fila) return;
+
+        const partes = [];
+        if (fila.dataId) partes.push(`el registro de Data #${fila.dataId}`);
+        if (fila.nc) partes.push(`la gestión de NC ${fila.nc.codigo || ""}`.trim());
+
+        if (!partes.length) return;
+
+        const confirmado = confirm(
+            `¿Eliminar esta fila? Se eliminará ${partes.join(" y ")}. Esta acción no se puede deshacer desde la pantalla.`
+        );
+        if (!confirmado) return;
+
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.eliminarFila",
+                dataId: fila.dataId || undefined,
+                ncId: fila.nc ? fila.nc.id : undefined,
+            });
+
+            if (!res.ok) {
+                alert(res.error || "Error al eliminar la fila");
+                return;
+            }
+
+            this._showMensaje("Fila eliminada", true);
+            await this._loadLista();
+        } catch {
+            alert("Error de comunicación con el backend");
         }
     }
 
@@ -1592,13 +1846,13 @@ window.FaretNcController = class FaretNcController {
                     <th>Fecha salida</th>
                     <th>NP/NV</th>
                     <th>Cliente</th>
+                    <th>Código producto</th>
                     <th>Producto</th>
                     <th>Tipo PNC</th>
                     <th>Categoría defecto</th>
                     <th>Nivel / Severidad</th>
                     <th>Estado gestión</th>
                     <th>Responsable</th>
-                    <th>Fecha compromiso</th>
                     <th>Fuente</th>
                 </tr>
             </thead>
@@ -1610,13 +1864,13 @@ window.FaretNcController = class FaretNcController {
                         <td>${fila.fechaSalida ? new Date(fila.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
                         <td>${fila.npNv}</td>
                         <td>${fila.cliente}</td>
+                        <td>${fila.codigoProducto}</td>
                         <td>${fila.producto}</td>
                         <td>${fila.tipoPnc}</td>
                         <td>${fila.categoriaDefecto}</td>
                         <td>${fila.nivelSeveridad}</td>
                         <td>${this._labelEstadoGestion(fila.estadoGestion)}</td>
                         <td>${fila.responsable}</td>
-                        <td>${fila.fechaCompromiso ? new Date(fila.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</td>
                         <td>${this._labelFuente(fila.fuente)}</td>
                     </tr>
                 `).join("")}
