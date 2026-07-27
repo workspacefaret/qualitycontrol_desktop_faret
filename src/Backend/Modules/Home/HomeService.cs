@@ -207,7 +207,8 @@ namespace QualityControlCenter.Modules.Home
                     pcv.nombre AS defecto,
                     pcv.criticidad AS criticidad,
                     COUNT(*) AS total,
-                    MAX(rc.hora_registro) AS hora
+                    MAX(rc.hora_registro) AS hora,
+                    MAX(rc.id) AS registro_id
                 FROM registro_fallas_visuales rfv
                 INNER JOIN registros_control rc
                     ON rc.id = rfv.registro_id
@@ -242,19 +243,34 @@ namespace QualityControlCenter.Modules.Home
                             descripcion = $"{Int(reader, "total")} casos de {Text(reader, "defecto")}",
                             criticidad = Text(reader, "criticidad"),
                             hora = Hora(reader, "hora"),
+                            modulo = "registros-control",
+                            registroId = Int(reader, "registro_id"),
                         }
                     );
                 }
             }
 
-            var pendientesLab = await Count(
-                conn,
-                @"
-                SELECT COUNT(*)
+            var pendientesLab = 0;
+            var pendienteLabId = 0;
+
+            using (
+                var cmdLab = new MySqlCommand(
+                    @"
+                SELECT COUNT(*) AS total, MIN(id) AS primer_id
                 FROM registro_ensayos
                 WHERE valor IS NULL;
-                "
-            );
+                ",
+                    conn
+                )
+            )
+            {
+                using var readerLab = await cmdLab.ExecuteReaderAsync();
+                if (await readerLab.ReadAsync())
+                {
+                    pendientesLab = Int(readerLab, "total");
+                    pendienteLabId = Int(readerLab, "primer_id");
+                }
+            }
 
             if (pendientesLab > 0)
             {
@@ -266,6 +282,8 @@ namespace QualityControlCenter.Modules.Home
                         descripcion = $"{pendientesLab} análisis pendientes",
                         criticidad = "info",
                         hora = DateTime.Now.ToString("HH:mm"),
+                        modulo = "laboratorio",
+                        registroId = pendienteLabId,
                     }
                 );
             }
@@ -568,6 +586,85 @@ namespace QualityControlCenter.Modules.Home
                 noConformesAbiertas,
                 ensayosPendientes,
             };
+        }
+
+        // Frecuencias mínimas de inspección por área/proceso (cat_frecuencias_inspeccion): calcula
+        // cuántos minutos pasaron desde el último registro_control real de esa área/proceso y lo
+        // compara contra el mínimo configurado. Sin registros todavía => se considera atrasada.
+        public async Task<List<object>> ObtenerFrecuenciasInspeccion()
+        {
+            var lista = new List<object>();
+
+            using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            using var cmd = new MySqlCommand(
+                @"
+                SELECT
+                    cfi.id,
+                    cfi.nombre,
+                    cfi.frecuencia_minutos,
+                    TIMESTAMPDIFF(MINUTE,
+                        (SELECT MAX(TIMESTAMP(rc.fecha_registro, rc.hora_registro))
+                         FROM registros_control rc
+                         WHERE rc.eliminado = 0
+                           AND (
+                               (cfi.tipo_referencia = 'PROCESO' AND rc.proceso_id = cfi.proceso_id)
+                               OR (cfi.tipo_referencia = 'AREA' AND UPPER(IFNULL(rc.area, '')) LIKE CONCAT(cfi.area_valor, '%'))
+                           )
+                        ),
+                        NOW()
+                    ) AS minutos_sin_control
+                FROM cat_frecuencias_inspeccion cfi
+                WHERE cfi.activo = 1
+                ORDER BY cfi.id;
+                ",
+                conn
+            );
+
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                var frecuencia = Int(reader, "frecuencia_minutos");
+                var minutosSinControl =
+                    reader["minutos_sin_control"] == DBNull.Value
+                        ? (int?)null
+                        : Convert.ToInt32(reader["minutos_sin_control"]);
+
+                lista.Add(
+                    new
+                    {
+                        id = Int(reader, "id"),
+                        nombre = Text(reader, "nombre"),
+                        frecuenciaMinutos = frecuencia,
+                        minutosSinControl,
+                        atrasada = minutosSinControl == null || minutosSinControl > frecuencia,
+                    }
+                );
+            }
+
+            return lista;
+        }
+
+        public async Task ActualizarFrecuenciaInspeccion(int id, int frecuenciaMinutos)
+        {
+            using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            using var cmd = new MySqlCommand(
+                @"
+                UPDATE cat_frecuencias_inspeccion
+                SET frecuencia_minutos = @minutos, actualizado_en = NOW()
+                WHERE id = @id;
+                ",
+                conn
+            );
+
+            cmd.Parameters.AddWithValue("@minutos", frecuenciaMinutos);
+            cmd.Parameters.AddWithValue("@id", id);
+
+            await cmd.ExecuteNonQueryAsync();
         }
 
         private async Task<int> Count(MySqlConnection conn, string sql)

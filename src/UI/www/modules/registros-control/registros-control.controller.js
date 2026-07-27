@@ -8,13 +8,64 @@ if (!window.RegistrosControlController) {
       this.total = 0
       this.loading = false
       this._clickHandler = null
+      this.deepLinkId = null
     }
 
     async init() {
       console.log("INIT REGISTROS CONTROL")
+      this.consumirDeepLink()
       this.bindEvents()
       this.initDatePickers()
       await this.cargarDatos()
+    }
+
+    // Si "Gestionar" de una alerta en Inicio dejó un id pendiente para este módulo, lo toma y
+    // lo borra de inmediato (evita que quede "pegado" si el usuario navega de nuevo más tarde).
+    consumirDeepLink() {
+      const raw = sessionStorage.getItem("qccDeepLinkId")
+      if (!raw) return
+
+      try {
+        const info = JSON.parse(raw)
+        if (info?.modulo === "registros-control" && info.id) {
+          this.deepLinkId = Number(info.id)
+        }
+      } catch { /* ignorar */ }
+
+      sessionStorage.removeItem("qccDeepLinkId")
+    }
+
+    quitarDeepLink() {
+      this.deepLinkId = null
+      this.page = 1
+      this.cargarDatos()
+    }
+
+    renderDeepLinkBanner() {
+      const banner = document.getElementById("registrosControlDeepLinkBanner")
+      if (!banner) return
+
+      if (!this.deepLinkId) {
+        banner.style.display = "none"
+        banner.innerHTML = ""
+        return
+      }
+
+      banner.style.display = "block"
+      banner.innerHTML = `
+        <div class="card" style="
+          border-left:4px solid #3b82f6;
+          background:#eff6ff;
+          margin-bottom:16px;
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:12px;
+        ">
+          <span>Mostrando el registro #${this.deepLinkId} desde una alerta de Inicio.</span>
+          <button class="btn-secondary" id="btnVerTodosRegistrosControl">Ver todos</button>
+        </div>
+      `
     }
 
     initDatePickers() {
@@ -39,6 +90,11 @@ if (!window.RegistrosControlController) {
       if (this._clickHandler) return
 
       this._clickHandler = (e) => {
+        if (e.target.id === "btnVerTodosRegistrosControl") {
+          this.quitarDeepLink()
+          return
+        }
+
         if (e.target.id === "btnBuscarRegistros") {
           this.page = 1
           this.cargarDatos()
@@ -83,6 +139,23 @@ if (!window.RegistrosControlController) {
           return
         }
 
+        if (e.target.classList.contains("btn-eliminar-registro-control")) {
+          const id = Number(e.target.dataset.id)
+
+          if (!confirm("¿Eliminar este registro? Esta acción no se puede deshacer desde la pantalla.")) {
+            return
+          }
+
+          window.PhotinoBridge.send({
+            action: "registrosControl.eliminarRegistro",
+            id
+          }).then(() => {
+            this.cargarDatos()
+          })
+
+          return
+        }
+
         if (e.target.classList.contains("btn-ver-imagen-registro-control")) {
           const url = e.target.dataset.url || ""
           this.mostrarImagenRegistroControl(url)
@@ -113,6 +186,7 @@ if (!window.RegistrosControlController) {
             "fechaDesdeRegistros",
             "fechaHastaRegistros",
             "filtroNpRegistros",
+            "filtroIdRegistros",
             "filtroTurnoRegistros",
             "filtroEstadoRegistros"
           ]
@@ -130,13 +204,37 @@ if (!window.RegistrosControlController) {
       })
     }
 
+    // Envuelve el pedido con un tope de tiempo: si por cualquier motivo la respuesta nunca llega
+    // (bridge Photino sin resolver), la promesa igual se resuelve con un error en vez de dejar
+    // `loading` pegado en true para siempre, que era lo que obligaba a reiniciar toda la app para
+    // poder volver a filtrar.
+    enviarConTimeout(payload, ms = 20000) {
+      return Promise.race([
+        window.PhotinoBridge.send(payload),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Tiempo de espera agotado. Intenta nuevamente.")), ms)
+        )
+      ])
+    }
+
+    idFiltroActivo() {
+      if (this.deepLinkId) return this.deepLinkId
+      const valor = this.getVal("filtroIdRegistros").trim()
+      return valor !== "" ? valor : null
+    }
+
     async cargarDatos() {
       if (this.loading) return
 
       this.loading = true
       this.renderLoading()
 
+      const btnBuscar = document.getElementById("btnBuscarRegistros")
+      if (btnBuscar) btnBuscar.disabled = true
+
       try {
+        const idFiltro = this.idFiltroActivo()
+
         const payload = {
           page: this.page,
           limit: this.limit,
@@ -144,10 +242,11 @@ if (!window.RegistrosControlController) {
           fechaHasta: this.getVal("fechaHastaRegistros"),
           np: this.getVal("filtroNpRegistros"),
           turno: this.getVal("filtroTurnoRegistros"),
-          estado: this.getVal("filtroEstadoRegistros")
+          estado: this.getVal("filtroEstadoRegistros"),
+          ...(idFiltro ? { id: idFiltro } : {})
         }
 
-        const res = await window.PhotinoBridge.send({
+        const res = await this.enviarConTimeout({
           action: "registrosControl.obtenerRegistros",
           data: payload
         })
@@ -161,6 +260,7 @@ if (!window.RegistrosControlController) {
         this.pages = res.data.pages || 1
         this.page = res.data.page || 1
 
+        this.renderDeepLinkBanner()
         this.render()
         this.renderPaginacion()
         this.renderKpis()
@@ -169,6 +269,7 @@ if (!window.RegistrosControlController) {
         this.renderError(err.message)
       } finally {
         this.loading = false
+        if (btnBuscar) btnBuscar.disabled = false
       }
     }
 
@@ -179,7 +280,7 @@ if (!window.RegistrosControlController) {
       if (!this.data.length) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="16">Sin registros para los filtros seleccionados</td>
+            <td colspan="17">Sin registros para los filtros seleccionados</td>
           </tr>
         `
         return
@@ -200,6 +301,7 @@ if (!window.RegistrosControlController) {
           <td>${this.escape(r.observacion || "-")}</td>
           <td>${this.escape(r.cantidadMerma || "-")}</td>
           <td>${this.escape(r.tipoMerma || "-")}</td>
+          <td>${this.escape(r.tipoDefecto || "-")}</td>
 
           <td>
             ${this.renderEstadoValidacion(r.estadoValidacion)}
@@ -216,6 +318,12 @@ if (!window.RegistrosControlController) {
               class="btn-secondary btn-rechazar-registro-control"
               data-id="${r.id}">
               Rechazar
+            </button>
+
+            <button
+              class="btn-danger btn-eliminar-registro-control"
+              data-id="${r.id}">
+              Eliminar
             </button>
           </td>
 
@@ -236,8 +344,17 @@ if (!window.RegistrosControlController) {
     }
 
     renderEstado(estado) {
-      const value = estado || "-"
+      const value = this.traducirEstado(estado)
       return `<span style="font-weight:600;">${this.escape(value)}</span>`
+    }
+
+    traducirEstado(estado) {
+      const mapa = {
+        "Aprobado": "Conforme",
+        "Rechazado": "No conforme"
+      }
+
+      return mapa[estado] || estado || "-"
     }
 
     renderEstadoValidacion(estado) {
@@ -264,7 +381,7 @@ if (!window.RegistrosControlController) {
 
       tbody.innerHTML = `
         <tr>
-          <td colspan="16">Cargando registros...</td>
+          <td colspan="17">Cargando registros...</td>
         </tr>
       `
     }
@@ -275,7 +392,7 @@ if (!window.RegistrosControlController) {
 
       tbody.innerHTML = `
         <tr>
-          <td colspan="16">Error: ${this.escape(message)}</td>
+          <td colspan="17">Error: ${this.escape(message)}</td>
         </tr>
       `
     }
@@ -335,6 +452,7 @@ if (!window.RegistrosControlController) {
         "fechaDesdeRegistros",
         "fechaHastaRegistros",
         "filtroNpRegistros",
+        "filtroIdRegistros",
         "filtroTurnoRegistros",
         "filtroEstadoRegistros"
       ].forEach(id => {
@@ -437,32 +555,26 @@ if (!window.RegistrosControlController) {
         "fechaDesdeRegistros",
         "fechaHastaRegistros",
         "filtroNpRegistros",
+        "filtroIdRegistros",
         "filtroTurnoRegistros",
         "filtroEstadoRegistros"
       ].some(id => this.getVal(id).trim() !== "")
     }
 
     async exportarRegistrosControl() {
-      if (this.hayFiltrosActivos()) {
-        window.ExcelExporter.exportTable({
-          tableSelector: "#tablaRegistrosControl",
-          fileName: `qcc_registros_control_${Date.now()}.xlsx`,
-          sheetName: "Registros Control",
-          title: "QCC - Registros de Control"
-        })
-        return
-      }
+      const idFiltro = this.idFiltroActivo()
 
       const res = await window.PhotinoBridge.send({
         action: "registrosControl.obtenerRegistros",
         data: {
           page: 1,
           limit: this.total || 999999,
-          fechaDesde: "",
-          fechaHasta: "",
-          np: "",
-          turno: "",
-          estado: ""
+          fechaDesde: this.getVal("fechaDesdeRegistros"),
+          fechaHasta: this.getVal("fechaHastaRegistros"),
+          np: this.getVal("filtroNpRegistros"),
+          turno: this.getVal("filtroTurnoRegistros"),
+          estado: this.getVal("filtroEstadoRegistros"),
+          ...(idFiltro ? { id: idFiltro } : {})
         }
       })
 
@@ -499,6 +611,7 @@ if (!window.RegistrosControlController) {
             <th>Observación</th>
             <th>Cantidad Merma</th>
             <th>Detalle Merma</th>
+            <th>Tipo Defecto</th>
             <th>Estado Validación</th>
             <th>Imagen</th>
           </tr>
@@ -515,10 +628,11 @@ if (!window.RegistrosControlController) {
               <td>${this.escape(r.formulario || "-")}</td>
               <td>${this.escape(r.np || "-")}</td>
               <td>${this.escape(r.turno || "-")}</td>
-              <td>${this.escape(r.estado || "-")}</td>
+              <td>${this.escape(this.traducirEstado(r.estado))}</td>
               <td>${this.escape(r.observacion || "-")}</td>
               <td>${this.escape(r.cantidadMerma || "-")}</td>
               <td>${this.escape(r.tipoMerma || "-")}</td>
+              <td>${this.escape(r.tipoDefecto || "-")}</td>
               <td>${this.escape(r.estadoValidacion || "PENDIENTE")}</td>
               <td>${this.escape(r.imagenUrl || "-")}</td>
             </tr>

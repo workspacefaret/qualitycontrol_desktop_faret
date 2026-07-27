@@ -90,6 +90,23 @@ if (!window.RegistrosProduccionController) {
                     return
                 }
 
+                if (e.target.classList.contains("btn-eliminar-produccion")) {
+                    const id = Number(e.target.dataset.id)
+
+                    if (!confirm("¿Eliminar este registro? Esta acción no se puede deshacer desde la pantalla.")) {
+                        return
+                    }
+
+                    window.PhotinoBridge.send({
+                        action: "registrosProduccion.eliminarRegistro",
+                        id
+                    }).then(() => {
+                        this.cargarDatos()
+                    })
+
+                    return
+                }
+
                 if (e.target.classList.contains("btn-ver-imagen-produccion")) {
                     const url = e.target.dataset.url || ""
                     this.mostrarImagenProduccion(url)
@@ -339,7 +356,7 @@ if (!window.RegistrosProduccionController) {
             if (!registros.length) {
                 tbody.innerHTML = `
             <tr>
-              <td colspan="17">Sin registros disponibles</td>
+              <td colspan="18">Sin registros disponibles</td>
             </tr>
           `
                 return
@@ -357,10 +374,11 @@ if (!window.RegistrosProduccionController) {
             <td>${this.escape(r.np || "-")}</td>
             <td>${this.escape(r.producto || "-")}</td>
             <td>${this.escape(r.turno || "-")}</td>
-            <td>${this.escape(r.estado || "-")}</td>
+            <td>${this.escape(this.traducirEstado(r.estado))}</td>
             <td>${this.escape(r.observacion || "-")}</td>
             <td>${this.escape(r.cantidadMerma || "-")}</td>
             <td>${this.escape(r.tipoMerma || "-")}</td>
+            <td>${this.escape(r.tipoDefecto || "-")}</td>
 
             <td>
               ${this.renderEstadoValidacion(r.estadoValidacion)}
@@ -377,6 +395,12 @@ if (!window.RegistrosProduccionController) {
                 class="btn-secondary btn-rechazar-produccion"
                 data-id="${r.id}">
                 Rechazar
+              </button>
+
+              <button
+                class="btn-danger btn-eliminar-produccion"
+                data-id="${r.id}">
+                Eliminar
               </button>
             </td>
 
@@ -593,7 +617,7 @@ if (!window.RegistrosProduccionController) {
             if (tbody2) {
                 tbody2.innerHTML = `
             <tr>
-              <td colspan="17">Cargando registros...</td>
+              <td colspan="18">Cargando registros...</td>
             </tr>
           `
             }
@@ -614,7 +638,7 @@ if (!window.RegistrosProduccionController) {
             if (tbody2) {
                 tbody2.innerHTML = `
             <tr>
-              <td colspan="17">Error: ${this.escape(message)}</td>
+              <td colspan="18">Error: ${this.escape(message)}</td>
             </tr>
           `
             }
@@ -728,6 +752,15 @@ if (!window.RegistrosProduccionController) {
                 .replaceAll(">", "&gt;")
                 .replaceAll('"', "&quot;")
                 .replaceAll("'", "&#039;")
+        }
+
+        traducirEstado(estado) {
+            const mapa = {
+                "Aprobado": "Conforme",
+                "Rechazado": "No conforme"
+            }
+
+            return mapa[estado] || estado || "-"
         }
 
         getVal(id) {

@@ -25,6 +25,11 @@ window.FaretDataController = class FaretDataController {
         document.getElementById("fd-exportar-btn")
             ?.addEventListener("click", () => this._exportar());
 
+        this._filasFijas = window.TableUtils.init(
+            document.getElementById("fd-tabla"),
+            document.getElementById("fd-filas-fijadas")
+        );
+
         this._loadAll();
     }
 
@@ -112,6 +117,11 @@ window.FaretDataController = class FaretDataController {
     }
 
     async _loadLista() {
+        const contenedor = document.getElementById("fd-tabla")?.closest(".table-container");
+        await window.TableUtils.preservarScroll(contenedor, () => this._loadListaInterna());
+    }
+
+    async _loadListaInterna() {
         const loadingEl = document.getElementById("fd-loading");
         const errorEl = document.getElementById("fd-error");
         const tbody = document.getElementById("fd-tbody");
@@ -130,7 +140,7 @@ window.FaretDataController = class FaretDataController {
             if (!res.ok) {
                 errorEl.textContent = res.error || "Error al cargar los registros";
                 errorEl.style.display = "block";
-                tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin datos</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="17" class="faret-empty">Sin datos</td></tr>`;
                 return;
             }
 
@@ -141,7 +151,7 @@ window.FaretDataController = class FaretDataController {
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
             errorEl.style.display = "block";
-            tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin datos</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="17" class="faret-empty">Sin datos</td></tr>`;
         } finally {
             loadingEl.style.display = "none";
         }
@@ -151,12 +161,12 @@ window.FaretDataController = class FaretDataController {
         const tbody = document.getElementById("fd-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="17" class="faret-empty">Sin registros</td></tr>`;
             return;
         }
 
         tbody.innerHTML = items.map(r => `
-            <tr>
+            <tr data-id="${r.id}">
                 <td>${r.id ?? "-"}</td>
                 <td>${r.fechaIngreso ? new Date(r.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
                 <td>${r.fechaSalida ? new Date(r.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
@@ -175,6 +185,8 @@ window.FaretDataController = class FaretDataController {
                 <td>${r.observacion ?? "-"}</td>
             </tr>
         `).join("");
+
+        this._filasFijas?.refrescar();
     }
 
     _renderPaginacion() {

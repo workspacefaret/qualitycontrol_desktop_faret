@@ -32,6 +32,7 @@ namespace QualityControlCenter.Modules.RegistrosControl
 
         public string TipoMerma { get; set; } = "";
         public string CantidadMerma { get; set; } = "";
+        public string TipoDefecto { get; set; } = "";
 
         public string FechaRegistro { get; set; } = "";
         public string HoraRegistro { get; set; } = "";

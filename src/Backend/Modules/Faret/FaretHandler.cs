@@ -20,7 +20,9 @@ namespace QualityControlCenter.Modules.Faret
         private readonly FaretNoConformidadesApiService _noConformidades;
         private readonly FaretDashboardService _dashboard;
         private readonly FaretInspeccionesApiService _inspecciones;
+        private readonly FaretInspeccionesPalletApiService _inspeccionesPallet;
         private readonly FaretMaquinasApiService _maquinas;
+        private readonly FaretTalleresExternosApiService _talleresExternos;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
@@ -44,7 +46,9 @@ namespace QualityControlCenter.Modules.Faret
             _noConformidades = new FaretNoConformidadesApiService(mcClient);
             _dashboard = new FaretDashboardService(_noConformidades);
             _inspecciones = new FaretInspeccionesApiService(calidadClient);
+            _inspeccionesPallet = new FaretInspeccionesPalletApiService(calidadClient);
             _maquinas = new FaretMaquinasApiService(calidadClient);
+            _talleresExternos = new FaretTalleresExternosApiService(client);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -83,6 +87,7 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.nc.crearRegistro" => await HandleNcCrearRegistro(data),
                 "faret.nc.actualizarRegistro" => await HandleNcActualizarRegistro(data),
                 "faret.nc.update" => await HandleNcUpdate(data),
+                "faret.nc.eliminarFila" => await HandleNcEliminarFila(data),
                 "faret.nc.gestion.actualizar" => await HandleNcGestionActualizar(data),
                 "faret.nc.cerrar" => await HandleNcCerrar(data),
                 "faret.nc.seguimiento.list" => await HandleNcSeguimientoList(data),
@@ -96,7 +101,23 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.inspecciones.list" => await HandleInspeccionesList(data),
                 "faret.inspecciones.resumen" => await HandleInspeccionesResumen(data),
                 "faret.inspecciones.adjuntos" => await HandleInspeccionesAdjuntos(data),
+                "faret.inspecciones.eliminar" => await HandleInspeccionesEliminar(data),
+                "faret.inspeccionesPallet.list" => await HandleInspeccionesPalletList(data),
+                "faret.inspeccionesPallet.get" => await HandleInspeccionesPalletGet(data),
+                "faret.inspeccionesPallet.eliminar" => await HandleInspeccionesPalletEliminar(data),
                 "faret.maquinas.resumen" => await HandleMaquinasResumen(data),
+                "faret.talleresExternos.list" => await HandleTalleresExternosList(data),
+                "faret.talleresExternos.resumen" => await HandleTalleresExternosResumen(data),
+                "faret.talleresExternos.catalogos" => await HandleTalleresExternosCatalogos(),
+                "faret.talleresExternos.catalogos.crearTaller" => await HandleTalleresExternosCrearTaller(data),
+                "faret.talleresExternos.catalogos.crearProceso" => await HandleTalleresExternosCrearProceso(data),
+                "faret.talleresExternos.catalogos.eliminarTaller" => await HandleTalleresExternosEliminarTaller(data),
+                "faret.talleresExternos.catalogos.eliminarProceso" => await HandleTalleresExternosEliminarProceso(data),
+                "faret.talleresExternos.get" => await HandleTalleresExternosGet(data),
+                "faret.talleresExternos.create" => await HandleTalleresExternosCreate(data),
+                "faret.talleresExternos.update" => await HandleTalleresExternosUpdate(data),
+                "faret.talleresExternos.lote" => await HandleTalleresExternosLote(data),
+                "faret.talleresExternos.eliminar" => await HandleTalleresExternosEliminar(data),
                 _ => Error($"Acción Faret no reconocida: {action}"),
             };
         }
@@ -352,6 +373,81 @@ namespace QualityControlCenter.Modules.Faret
             return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
         }
 
+        private async Task<string> HandleInspeccionesEliminar(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("id es requerido");
+
+            var (ok, body) = await _inspecciones.EliminarAsync(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        // API `calidad` (backend Node.js) sin autenticación — igual que Inspecciones Calidad.
+        private async Task<string> HandleInspeccionesPalletList(Dictionary<string, object> data)
+        {
+            var filtros = BuildInspeccionesPalletFiltros(data);
+            if (TryGetInt(data, "page", out var page) && page > 0)
+                filtros["page"] = page.ToString();
+            if (TryGetInt(data, "pageSize", out var pageSize) && pageSize > 0)
+                filtros["pageSize"] = pageSize.ToString();
+
+            var (ok, body) = await _inspeccionesPallet.GetListAsync(filtros);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleInspeccionesPalletGet(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("id es requerido");
+
+            var (ok, body) = await _inspeccionesPallet.GetByIdAsync(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleInspeccionesPalletEliminar(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("id es requerido");
+
+            var (ok, body) = await _inspeccionesPallet.EliminarAsync(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private static Dictionary<string, string?> BuildInspeccionesPalletFiltros(
+            Dictionary<string, object> data
+        )
+        {
+            var filtros = new Dictionary<string, string?>();
+
+            TryGetString(data, "fechaDesde", out var fechaDesde);
+            TryGetString(data, "fechaHasta", out var fechaHasta);
+            TryGetString(data, "tipoMaterial", out var tipoMaterial);
+            TryGetString(data, "numeroPallet", out var numeroPallet);
+            TryGetString(data, "maquina", out var maquina);
+            TryGetString(data, "operador", out var operador);
+
+            filtros["fechaDesde"] = fechaDesde;
+            filtros["fechaHasta"] = fechaHasta;
+            filtros["tipoMaterial"] = tipoMaterial;
+            filtros["numeroPallet"] = numeroPallet;
+            filtros["maquina"] = maquina;
+            filtros["operador"] = operador;
+
+            return filtros;
+        }
+
         private async Task<string> HandleMaquinasResumen(Dictionary<string, object> data)
         {
             TryGetString(data, "maquina", out var maquina);
@@ -375,6 +471,7 @@ namespace QualityControlCenter.Modules.Faret
             TryGetString(data, "operador", out var operador);
             TryGetString(data, "maquina", out var maquina);
             TryGetString(data, "presentaDefectos", out var presentaDefectos);
+            TryGetString(data, "nvFaret", out var nvFaret);
 
             filtros["fechaDesde"] = fechaDesde;
             filtros["fechaHasta"] = fechaHasta;
@@ -382,6 +479,7 @@ namespace QualityControlCenter.Modules.Faret
             filtros["operador"] = operador;
             filtros["maquina"] = maquina;
             filtros["presentaDefectos"] = presentaDefectos;
+            filtros["nvFaret"] = nvFaret;
 
             return filtros;
         }
@@ -675,6 +773,50 @@ namespace QualityControlCenter.Modules.Faret
                 return Error(ExtractMcErrorMessage(body));
 
             return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        // Elimina (borrado suave) la fila combinada de No Conformidades: el registro de Data
+        // vinculado (importacion_pnc) y/o la gestión de NC (nc_no_conformidades), según lo que la
+        // fila tenga vinculado. Decisión explícita del usuario: "eliminar fila completa" borra
+        // ambos lados cuando existen los dos, no solo la gestión.
+        private async Task<string> HandleNcEliminarFila(Dictionary<string, object> data)
+        {
+            var tieneDataId = TryGetInt(data, "dataId", out var dataId) && dataId > 0;
+            var tieneNcId = TryGetInt(data, "ncId", out var ncId) && ncId > 0;
+
+            if (!tieneDataId && !tieneNcId)
+                return Error("Falta dataId o ncId");
+
+            var errores = new List<string>();
+
+            if (tieneDataId)
+            {
+                if (!_client.HasToken)
+                    return Error("No autenticado en API Faret");
+
+                var (okData, bodyData) = await _importacion.EliminarPncAsync(dataId);
+                if (!TryUnwrapApiResponse(bodyData, out _, out var errorData) || !okData)
+                    errores.Add($"Data: {errorData}");
+            }
+
+            if (tieneNcId)
+            {
+                if (!_mcClient.IsConfigured)
+                {
+                    errores.Add("Gestión NC: API de Mejora Continua no configurada");
+                }
+                else
+                {
+                    var (okNc, bodyNc) = await _noConformidades.EliminarAsync(ncId);
+                    if (!okNc)
+                        errores.Add($"Gestión NC: {ExtractMcErrorMessage(bodyNc)}");
+                }
+            }
+
+            if (errores.Count > 0)
+                return Error(string.Join(" | ", errores));
+
+            return Ok(new { eliminado = true });
         }
 
         private async Task<string> HandleNcGestionActualizar(Dictionary<string, object> data)
@@ -1218,6 +1360,366 @@ namespace QualityControlCenter.Modules.Faret
                 fechaDeteccion,
             };
             return true;
+        }
+
+        // ── TALLERES EXTERNOS (Faret) ────────────────────────────────────────
+        // API "qualitycontrol" (mismo _client con JWT que Importaciones/Usuarios), no mejora-continua
+        // ni calidad Node — ver decisión de arquitectura del plan aprobado.
+
+        private async Task<string> HandleTalleresExternosList(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            var filtros = BuildTalleresExternosFiltros(data);
+            if (TryGetInt(data, "page", out var page) && page > 0)
+                filtros["page"] = page.ToString();
+            if (TryGetInt(data, "pageSize", out var pageSize) && pageSize > 0)
+                filtros["pageSize"] = pageSize.ToString();
+
+            var (ok, body) = await _talleresExternos.GetListAsync(filtros);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleTalleresExternosResumen(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            var filtros = BuildTalleresExternosFiltros(data);
+            var (ok, body) = await _talleresExternos.GetResumenAsync(filtros);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private static Dictionary<string, string?> BuildTalleresExternosFiltros(Dictionary<string, object> data)
+        {
+            var filtros = new Dictionary<string, string?>();
+
+            TryGetString(data, "nv", out var nv);
+            TryGetString(data, "producto", out var producto);
+            TryGetString(data, "cliente", out var cliente);
+            TryGetString(data, "tallerExterno", out var tallerExterno);
+            TryGetString(data, "proceso", out var proceso);
+            TryGetString(data, "responsable", out var responsable);
+            TryGetString(data, "prioridad", out var prioridad);
+            TryGetString(data, "estado", out var estado);
+            TryGetString(data, "fechaAsignacionDesde", out var fechaAsignacionDesde);
+            TryGetString(data, "fechaAsignacionHasta", out var fechaAsignacionHasta);
+            TryGetString(data, "fechaCompromisoDesde", out var fechaCompromisoDesde);
+            TryGetString(data, "fechaCompromisoHasta", out var fechaCompromisoHasta);
+
+            filtros["nv"] = nv;
+            filtros["producto"] = producto;
+            filtros["cliente"] = cliente;
+            filtros["tallerExterno"] = tallerExterno;
+            filtros["proceso"] = proceso;
+            filtros["responsable"] = responsable;
+            filtros["prioridad"] = prioridad;
+            filtros["estado"] = estado;
+            filtros["fechaAsignacionDesde"] = fechaAsignacionDesde;
+            filtros["fechaAsignacionHasta"] = fechaAsignacionHasta;
+            filtros["fechaCompromisoDesde"] = fechaCompromisoDesde;
+            filtros["fechaCompromisoHasta"] = fechaCompromisoHasta;
+
+            return filtros;
+        }
+
+        private async Task<string> HandleTalleresExternosCatalogos()
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            var (ok, body) = await _talleresExternos.GetCatalogosAsync();
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleTalleresExternosCrearTaller(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+            if (!TryGetString(data, "nombre", out var nombre) || string.IsNullOrWhiteSpace(nombre))
+                return Error("Falta el nombre del taller");
+
+            var (ok, body) = await _talleresExternos.CrearTallerAsync(new { nombre });
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleTalleresExternosCrearProceso(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+            if (!TryGetString(data, "nombre", out var nombre) || string.IsNullOrWhiteSpace(nombre))
+                return Error("Falta el nombre del proceso");
+
+            var (ok, body) = await _talleresExternos.CrearProcesoAsync(new { nombre });
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleTalleresExternosEliminarTaller(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("Falta el id del taller");
+
+            var (ok, body) = await _talleresExternos.EliminarTallerAsync(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleTalleresExternosEliminarProceso(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("Falta el id del proceso");
+
+            var (ok, body) = await _talleresExternos.EliminarProcesoAsync(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleTalleresExternosGet(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("Falta el id del trabajo");
+
+            var (ok, body) = await _talleresExternos.GetByIdAsync(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleTalleresExternosCreate(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+            if (!TryBuildTrabajoRequest(data, out var request, out var buildError, requireVersion: false))
+                return Error(buildError);
+
+            var (ok, body) = await _talleresExternos.CrearAsync(request);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleTalleresExternosUpdate(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("Falta el id del trabajo");
+            if (!TryBuildTrabajoRequest(data, out var request, out var buildError, requireVersion: true))
+                return Error(buildError);
+
+            var (ok, body) = await _talleresExternos.ActualizarAsync(id, request);
+            if (!ok)
+                return BuildConflictAwareError(body);
+
+            if (!TryUnwrapApiResponse(body, out var payload, out var error))
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleTalleresExternosEliminar(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("Falta el id del trabajo");
+            if (!TryGetInt(data, "version", out var version))
+                return Error("Falta 'version' para anular (recarga el registro antes de anular).");
+            TryGetString(data, "motivo", out var motivo);
+
+            var (ok, body) = await _talleresExternos.EliminarAsync(id, version, motivo);
+            if (!ok)
+                return BuildConflictAwareError(body);
+
+            if (!TryUnwrapApiResponse(body, out var payload, out var error))
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleTalleresExternosLote(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (
+                !data.TryGetValue("filas", out var filasRaw)
+                || filasRaw is not JsonElement filasEl
+                || filasEl.ValueKind != JsonValueKind.Array
+            )
+                return Error("El lote no trae filas.");
+
+            var filas = new List<object>();
+            foreach (var filaEl in filasEl.EnumerateArray())
+            {
+                var filaData = JsonElementToDictionary(filaEl);
+
+                if (
+                    !TryGetString(filaData, "clienteTempId", out var clienteTempId)
+                    || string.IsNullOrWhiteSpace(clienteTempId)
+                )
+                    return Error("Cada fila del lote debe traer un 'clienteTempId'.");
+
+                long? idFila = null;
+                if (TryGetInt(filaData, "id", out var idInt) && idInt > 0)
+                    idFila = idInt;
+
+                int? versionFila = null;
+                if (TryGetInt(filaData, "version", out var versionInt))
+                    versionFila = versionInt;
+
+                if (!filaData.TryGetValue("datos", out var datosRaw) || datosRaw is not JsonElement datosEl)
+                    return Error($"Fila '{clienteTempId}' no trae 'datos'.");
+
+                var datosDict = JsonElementToDictionary(datosEl);
+                if (!TryBuildTrabajoRequest(datosDict, out var datosRequest, out var buildError, requireVersion: false))
+                    return Error($"Fila '{clienteTempId}': {buildError}");
+
+                filas.Add(
+                    new
+                    {
+                        clienteTempId,
+                        id = idFila,
+                        version = versionFila,
+                        datos = datosRequest,
+                    }
+                );
+            }
+
+            var (ok, body) = await _talleresExternos.GuardarLoteAsync(new { filas });
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private static Dictionary<string, object> JsonElementToDictionary(JsonElement el)
+        {
+            var dict = new Dictionary<string, object>();
+            if (el.ValueKind != JsonValueKind.Object)
+                return dict;
+            foreach (var prop in el.EnumerateObject())
+                dict[prop.Name] = prop.Value;
+            return dict;
+        }
+
+        private static bool TryBuildTrabajoRequest(
+            Dictionary<string, object> data,
+            out object request,
+            out string error,
+            bool requireVersion
+        )
+        {
+            request = null!;
+            error = "";
+
+            if (!TryGetString(data, "nv", out var nv) || string.IsNullOrWhiteSpace(nv))
+            {
+                error = "Falta NV";
+                return false;
+            }
+            if (!TryGetString(data, "producto", out var producto) || string.IsNullOrWhiteSpace(producto))
+            {
+                error = "Falta Producto";
+                return false;
+            }
+            if (!TryGetString(data, "item", out var item) || string.IsNullOrWhiteSpace(item))
+            {
+                error = "Falta Ítem";
+                return false;
+            }
+
+            if (!TryGetInt(data, "version", out var version) && requireVersion)
+            {
+                error = "Falta 'version' para actualizar (recarga el registro antes de guardar).";
+                return false;
+            }
+
+            TryGetString(data, "codigoProducto", out var codigoProducto);
+            TryGetString(data, "cliente", out var cliente);
+            TryGetString(data, "fechaAsignacion", out var fechaAsignacion);
+            TryGetInt(data, "tallerExternoId", out var tallerExternoId);
+            TryGetString(data, "tallerExternoNombre", out var tallerExternoNombre);
+            TryGetInt(data, "procesoId", out var procesoId);
+            TryGetString(data, "procesoNombre", out var procesoNombre);
+            TryGetInt(data, "responsableInternoId", out var responsableInternoId);
+            TryGetString(data, "responsableInternoNombre", out var responsableInternoNombre);
+            TryGetString(data, "prioridad", out var prioridad);
+            TryGetString(data, "fechaCompromiso", out var fechaCompromiso);
+            TryGetString(data, "estado", out var estado);
+            TryGetDecimal(data, "cantidadARevisar", out var cantidadARevisar);
+            TryGetDecimal(data, "cantidadRevisadaEntregada", out var cantidadRevisadaEntregada);
+            TryGetBool(data, "cantidadFaltanteAjusteManual", out var ajusteManual);
+            TryGetDecimal(data, "cantidadFaltanteManual", out var cantidadFaltanteManual);
+            TryGetString(data, "cantidadFaltanteJustificacion", out var justificacion);
+            TryGetString(data, "observaciones", out var observaciones);
+
+            request = new
+            {
+                nv,
+                producto,
+                codigoProducto,
+                item,
+                cliente,
+                fechaAsignacion,
+                tallerExternoId = tallerExternoId > 0 ? (int?)tallerExternoId : null,
+                tallerExternoNombre,
+                procesoId = procesoId > 0 ? (int?)procesoId : null,
+                procesoNombre,
+                responsableInternoId = responsableInternoId > 0 ? (int?)responsableInternoId : null,
+                responsableInternoNombre,
+                prioridad = string.IsNullOrWhiteSpace(prioridad) ? "MEDIA" : prioridad,
+                fechaCompromiso,
+                estado = string.IsNullOrWhiteSpace(estado) ? "PENDIENTE_ASIGNACION" : estado,
+                cantidadARevisar = cantidadARevisar ?? 0,
+                cantidadRevisadaEntregada = cantidadRevisadaEntregada ?? 0,
+                cantidadFaltanteAjusteManual = ajusteManual,
+                cantidadFaltanteManual,
+                cantidadFaltanteJustificacion = justificacion,
+                observaciones,
+                version,
+            };
+            return true;
+        }
+
+        // El control de concurrencia (409) y los errores de validación (400) llegan ambos como
+        // ApiResponse<T>{success:false,message} — no hay forma de distinguir el status HTTP real
+        // una vez que FaretApiClient lo colapsa a (ok:false, body). Se detecta el conflicto por el
+        // texto exacto que usa TalleresExternosService (ver ConcurrencyConflictException) para que
+        // el frontend pueda tratarlo distinto (no sobrescribir en silencio).
+        private string BuildConflictAwareError(string body)
+        {
+            TryUnwrapApiResponse(body, out _, out var error);
+            var isConflict = error.Contains("modificado por otro usuario", StringComparison.OrdinalIgnoreCase);
+            return JsonSerializer.Serialize(new { ok = false, error, conflict = isConflict }, _jsonOpts);
         }
 
         // La API de Mejora Continua responde con JSON crudo en éxito y, en error, con

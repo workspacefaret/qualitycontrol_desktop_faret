@@ -32,6 +32,8 @@ namespace QualityControlCenter.Modules.RegistrosControl
                     var np = GetString(data, "np");
                     var turno = GetString(data, "turno");
                     var estado = GetString(data, "estado");
+                    var idStr = GetString(data, "id");
+                    int? id = int.TryParse(idStr, out var parsedId) ? parsedId : null;
 
                     var result = await _service.ObtenerRegistros(
                         page,
@@ -40,7 +42,8 @@ namespace QualityControlCenter.Modules.RegistrosControl
                         fechaHasta,
                         np,
                         turno,
-                        estado
+                        estado,
+                        id
                     );
 
                     return Ok(result);
@@ -60,6 +63,15 @@ namespace QualityControlCenter.Modules.RegistrosControl
                     var id = GetIntFromPayload(payload, "id", 0);
 
                     await _service.RechazarRegistro(id);
+
+                    return Ok((object?)null);
+                }
+
+                if (action == "registrosControl.eliminarRegistro")
+                {
+                    var id = GetIntFromPayload(payload, "id", 0);
+
+                    await _service.EliminarRegistro(id);
 
                     return Ok((object?)null);
                 }

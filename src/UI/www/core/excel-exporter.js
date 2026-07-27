@@ -23,11 +23,13 @@ window.ExcelExporter = {
         }
 
         const data = rows.map(row =>
-            Array.from(row.children).map(cell =>
-                String(cell.innerText || "")
-                    .replace(/\s+/g, " ")
-                    .trim()
-            )
+            Array.from(row.children)
+                .filter(cell => !cell.classList.contains("tu-th-check") && !cell.classList.contains("tu-td-check"))
+                .map(cell =>
+                    String(cell.innerText || "")
+                        .replace(/\s+/g, " ")
+                        .trim()
+                )
         )
 
         const now = new Date()

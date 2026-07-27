@@ -281,6 +281,20 @@ body {
     cursor: pointer;
 }
 
+.btn-danger {
+    background: #DC2626;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-danger:hover {
+    background: #B91C1C;
+}
+
 button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -333,6 +347,77 @@ button:disabled {
 
 .table tbody tr:hover {
     background: #F1F5F9;
+}
+
+/* ROW SELECTION / FILAS FIJAS (shared/utils.js TableUtils) */
+
+.tu-th-check,
+.tu-td-check {
+    width: 34px;
+    text-align: center;
+    padding: 6px !important;
+}
+
+.table tbody tr.row-selected {
+    background: #FEF9C3;
+}
+
+.table tbody tr.row-selected:hover {
+    background: #FEF08A;
+}
+
+.tu-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.tu-franja-unpin {
+    background: #FEE2E2;
+    border: 1px solid #FCA5A5;
+    color: #991B1B;
+    width: 20px;
+    height: 20px;
+    line-height: 1;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.tu-franja-fijas {
+    margin-bottom: 10px;
+}
+
+.tu-franja-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 10px;
+    background: #FEF9C3;
+    border: 1px solid #FDE047;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #713F12;
+}
+
+.tu-franja-header .tu-franja-limpiar {
+    background: none;
+    border: 1px solid #CA8A04;
+    color: #713F12;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.tu-franja-tabla-container {
+    max-height: 160px;
+    border-radius: 0 0 8px 8px;
+    border-color: #FDE047;
 }
 
 /* INPUTS TABLE */

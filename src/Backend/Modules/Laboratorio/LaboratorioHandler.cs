@@ -30,13 +30,16 @@ namespace QualityControlCenter.Modules.Laboratorio
                     var ensayo = GetString(data, "ensayo") ?? "";
                     var material = GetString(data, "material") ?? "";
                     var sinLimite = GetBool(data, "sinLimite");
+                    var idStr = GetString(data, "id");
+                    int? id = int.TryParse(idStr, out var parsedId) ? parsedId : null;
 
                     var result = await _service.ObtenerResumen(
                         fechaDesde,
                         fechaHasta,
                         ensayo,
                         material,
-                        sinLimite
+                        sinLimite,
+                        id
                     );
 
                     return Ok(result);

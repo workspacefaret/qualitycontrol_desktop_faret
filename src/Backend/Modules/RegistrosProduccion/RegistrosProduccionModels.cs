@@ -79,6 +79,7 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
 
         public string TipoMerma { get; set; } = "";
         public string CantidadMerma { get; set; } = "";
+        public string TipoDefecto { get; set; } = "";
 
         public string EstadoValidacion { get; set; } = "";
         public string FechaValidacion { get; set; } = "";

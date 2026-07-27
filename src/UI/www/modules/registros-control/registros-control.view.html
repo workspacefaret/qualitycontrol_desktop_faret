@@ -13,6 +13,8 @@
     </div>
   </div>
 
+  <div id="registrosControlDeepLinkBanner" style="display:none;"></div>
+
   <div class="kpi-row">
     <div class="kpi-card">
       <div class="kpi-label">Total registros</div>
@@ -35,15 +37,23 @@
       <input type="text" id="fechaDesdeRegistros" placeholder="Seleccionar fecha" />
       <input type="text" id="fechaHastaRegistros" placeholder="Seleccionar fecha" />
       <input type="text" id="filtroNpRegistros" placeholder="Buscar NP" />
+      <input type="text" id="filtroIdRegistros" placeholder="N° de ID" />
 
       <select id="filtroTurnoRegistros">
         <option value="">Todos los turnos</option>
-        <option value="A">Turno A</option>
-        <option value="B">Turno B</option>
-        <option value="C">Turno C</option>
+        <option value="A">Turno A (07:00 - 19:00)</option>
+        <option value="B">Turno B (19:00 - 07:00)</option>
       </select>
 
-      <input type="text" id="filtroEstadoRegistros" placeholder="Estado" />
+      <select id="filtroEstadoRegistros">
+        <option value="">Todos los estados</option>
+        <option value="Aprobado">Aprobado</option>
+        <option value="Aprobado con observaciones">Aprobado con observaciones</option>
+        <option value="Cuarentena">Cuarentena</option>
+        <option value="Despachado">Despachado</option>
+        <option value="Liberado">Liberado</option>
+        <option value="Rechazado">Rechazado</option>
+      </select>
     </div>
   </div>
 
@@ -65,6 +75,7 @@
             <th>Observación</th>
             <th>Cantidad Merma</th>
             <th>Detalle Merma</th>
+            <th>Tipo Defecto</th>
             <th>Estado Validación</th>
             <th>Acciones</th>
             <th>Imagen</th>
@@ -73,7 +84,7 @@
 
         <tbody id="tbodyRegistrosControl">
           <tr>
-            <td colspan="16">Cargando...</td>
+            <td colspan="17">Cargando...</td>
           </tr>
         </tbody>
       </table>

@@ -18,6 +18,11 @@ window.FaretUsuariosController = class FaretUsuariosController {
         document.getElementById("fu-exportar-btn")
             ?.addEventListener("click", () => this._exportar());
 
+        this._filasFijas = window.TableUtils.init(
+            document.getElementById("fu-tabla"),
+            document.getElementById("fu-filas-fijadas")
+        );
+
         this._loadLista();
     }
 
@@ -87,6 +92,11 @@ window.FaretUsuariosController = class FaretUsuariosController {
     }
 
     async _loadLista() {
+        const contenedor = document.getElementById("fu-tabla")?.closest(".table-container");
+        await window.TableUtils.preservarScroll(contenedor, () => this._loadListaInterna());
+    }
+
+    async _loadListaInterna() {
         const loadingEl = document.getElementById("fu-loading");
         const errorEl = document.getElementById("fu-error");
         const tbody = document.getElementById("fu-tbody");
@@ -100,7 +110,7 @@ window.FaretUsuariosController = class FaretUsuariosController {
             if (!res.ok) {
                 errorEl.textContent = res.error || "Error al cargar los usuarios";
                 errorEl.style.display = "block";
-                tbody.innerHTML = `<tr><td colspan="7" class="faret-empty">Sin datos</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="faret-empty">Sin datos</td></tr>`;
                 return;
             }
 
@@ -108,7 +118,7 @@ window.FaretUsuariosController = class FaretUsuariosController {
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
             errorEl.style.display = "block";
-            tbody.innerHTML = `<tr><td colspan="7" class="faret-empty">Sin datos</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="faret-empty">Sin datos</td></tr>`;
         } finally {
             loadingEl.style.display = "none";
         }
@@ -118,12 +128,13 @@ window.FaretUsuariosController = class FaretUsuariosController {
         const tbody = document.getElementById("fu-tbody");
 
         if (!usuarios.length) {
-            tbody.innerHTML = `<tr><td colspan="7" class="faret-empty">Sin usuarios registrados</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="faret-empty">Sin usuarios registrados</td></tr>`;
+            this._filasFijas?.refrescar();
             return;
         }
 
         tbody.innerHTML = usuarios.map(u => `
-            <tr>
+            <tr data-id="${u.id}">
                 <td>${u.id ?? "-"}</td>
                 <td>${u.username ?? u.correo ?? "-"}</td>
                 <td>${u.nombre ?? "-"}</td>
@@ -144,6 +155,8 @@ window.FaretUsuariosController = class FaretUsuariosController {
                 </td>
             </tr>
         `).join("");
+
+        this._filasFijas?.refrescar();
 
         tbody.querySelectorAll(".fu-rol-select").forEach(sel =>
             sel.addEventListener("change", () => this._cambiarRol(sel)));

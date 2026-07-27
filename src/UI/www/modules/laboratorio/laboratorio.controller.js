@@ -5,13 +5,63 @@ if (!window.LaboratorioController) {
             this.loading = false
             this._clickHandler = null
             this.charts = []
+            this.deepLinkId = null
         }
 
         async init() {
             console.log("INIT LABORATORIO")
+            this.consumirDeepLink()
             this.bindEvents()
             this.initDatePickers()
             await this.cargarDatos()
+        }
+
+        // Mismo mecanismo que registros-control: si "Gestionar" de una alerta en Inicio dejó un id
+        // pendiente para este módulo, lo toma y lo borra de inmediato de sessionStorage.
+        consumirDeepLink() {
+            const raw = sessionStorage.getItem("qccDeepLinkId")
+            if (!raw) return
+
+            try {
+                const info = JSON.parse(raw)
+                if (info?.modulo === "laboratorio" && info.id) {
+                    this.deepLinkId = Number(info.id)
+                }
+            } catch { /* ignorar */ }
+
+            sessionStorage.removeItem("qccDeepLinkId")
+        }
+
+        quitarDeepLink() {
+            this.deepLinkId = null
+            this.cargarDatos()
+        }
+
+        renderDeepLinkBanner() {
+            const banner = document.getElementById("laboratorioDeepLinkBanner")
+            if (!banner) return
+
+            if (!this.deepLinkId) {
+                banner.style.display = "none"
+                banner.innerHTML = ""
+                return
+            }
+
+            banner.style.display = "block"
+            banner.innerHTML = `
+          <div class="card" style="
+            border-left:4px solid #3b82f6;
+            background:#eff6ff;
+            margin-bottom:16px;
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:12px;
+          ">
+            <span>Mostrando el ensayo #${this.deepLinkId} desde una alerta de Inicio.</span>
+            <button class="btn-secondary" id="btnVerTodosLaboratorio">Ver todos</button>
+          </div>
+        `
         }
 
         initDatePickers() {
@@ -36,6 +86,11 @@ if (!window.LaboratorioController) {
             if (this._clickHandler) return
 
             this._clickHandler = (e) => {
+                if (e.target.id === "btnVerTodosLaboratorio") {
+                    this.quitarDeepLink()
+                    return
+                }
+
                 if (e.target.id === "btnActualizarLaboratorio") {
                     this.cargarDatos()
                     return
@@ -110,7 +165,8 @@ if (!window.LaboratorioController) {
                         fechaDesde: this.getVal("laboratorioFechaDesde"),
                         fechaHasta: this.getVal("laboratorioFechaHasta"),
                         ensayo: this.getVal("laboratorioEnsayo"),
-                        material: this.getVal("laboratorioMaterial")
+                        material: this.getVal("laboratorioMaterial"),
+                        ...(this.deepLinkId ? { id: this.deepLinkId } : {})
                     }
                 })
 
@@ -120,6 +176,7 @@ if (!window.LaboratorioController) {
 
                 this.data = res.data || {}
 
+                this.renderDeepLinkBanner()
                 this.renderHistoricoBanner()
                 this.renderKpis()
                 this.renderFiltros()
@@ -381,23 +438,13 @@ if (!window.LaboratorioController) {
         }
 
         async exportarLaboratorio() {
-            if (this.hayFiltrosActivos()) {
-                window.ExcelExporter.exportTable({
-                    tableSelector: "#tablaLaboratorio",
-                    fileName: `qcc_laboratorio_${Date.now()}.xlsx`,
-                    sheetName: "Laboratorio",
-                    title: "QCC - Laboratorio"
-                })
-                return
-            }
-
             const res = await window.PhotinoBridge.send({
                 action: "laboratorio.obtenerResumen",
                 data: {
-                    fechaDesde: "",
-                    fechaHasta: "",
-                    ensayo: "",
-                    material: "",
+                    fechaDesde: this.getVal("laboratorioFechaDesde"),
+                    fechaHasta: this.getVal("laboratorioFechaHasta"),
+                    ensayo: this.getVal("laboratorioEnsayo"),
+                    material: this.getVal("laboratorioMaterial"),
                     sinLimite: true
                 }
             })

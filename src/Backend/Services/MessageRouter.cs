@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using QualityControlCenter.Backend.Services.FaretApi;
 using QualityControlCenter.Modules.Auth;
+using QualityControlCenter.Modules.ControlDocumental;
 using QualityControlCenter.Modules.Dashboard;
 using QualityControlCenter.Modules.Faret;
 using QualityControlCenter.Modules.Home;
@@ -14,6 +15,7 @@ using QualityControlCenter.Modules.MaquinasSeguimiento;
 using QualityControlCenter.Modules.NoConformidades;
 using QualityControlCenter.Modules.RegistrosControl;
 using QualityControlCenter.Modules.RegistrosProduccion;
+using QualityControlCenter.Modules.TalleresExternos;
 using QualityControlCenter.Modules.Usuarios;
 
 namespace QualityControlCenter.Services
@@ -126,6 +128,16 @@ namespace QualityControlCenter.Services
                 else if (action.StartsWith("noConformidades"))
                 {
                     var handler = new NoConformidadesHandler(_db);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("controlDocumental"))
+                {
+                    var handler = new ControlDocumentalHandler(_db);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("talleresExternos"))
+                {
+                    var handler = new TalleresExternosHandler(_db, _session);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("faret"))

@@ -16,12 +16,19 @@
     <link rel="stylesheet" href="modules/faret-usuarios/faret-usuarios.css">
     <link rel="stylesheet" href="modules/faret-nc/faret-nc.css">
     <link rel="stylesheet" href="modules/faret-inspecciones/faret-inspecciones.css">
+    <link rel="stylesheet" href="modules/faret-inspecciones-pallet/faret-inspecciones-pallet.css">
+    <link rel="stylesheet" href="modules/faret-control-documental/faret-control-documental.css">
     <link rel="stylesheet" href="modules/no-conformidades/no-conformidades.css">
+    <link rel="stylesheet" href="modules/control-documental/control-documental.css">
+    <link rel="stylesheet" href="modules/faret-talleres-externos/faret-talleres-externos.css">
+    <link rel="stylesheet" href="modules/talleres-externos/talleres-externos.css">
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="./libs/chart.js"></script>
+    <link rel="stylesheet" href="libs/tabulator/tabulator.min.css">
+    <script src="libs/tabulator/tabulator.min.js"></script>
     <script src="core/excel-exporter.js"></script>
 </head>
 
@@ -96,7 +103,18 @@
                             <path d="M8 15h3M8 18h5"></path>
                         </svg>
                     </span>
-                    <span>Inspecciones</span>
+                    <span>Inspecciones Calidad</span>
+                </button>
+
+                <button data-module="faret-inspecciones-pallet" data-empresa="FARET">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+                            <path d="M16 3v4M8 3v4M3 10h18"></path>
+                            <path d="M8 15h3M8 18h5"></path>
+                        </svg>
+                    </span>
+                    <span>Inspecciones Pallet / Papel</span>
                 </button>
 
                 <button data-module="faret-nc" data-empresa="FARET">
@@ -108,6 +126,27 @@
                         </svg>
                     </span>
                     <span>No Conformidades</span>
+                </button>
+
+                <button data-module="faret-control-documental" data-empresa="FARET">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <path d="M14 2v6h6"></path>
+                            <path d="M9 13h6"></path>
+                            <path d="M9 17h6"></path>
+                        </svg>
+                    </span>
+                    <span>Control Documental</span>
+                </button>
+
+                <button data-module="faret-talleres-externos" data-empresa="FARET">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                        </svg>
+                    </span>
+                    <span>Talleres Externos</span>
                 </button>
 
                 <button data-module="faret-importacion" data-empresa="FARET">
@@ -192,6 +231,18 @@
                     <span>No Conformidades</span>
                 </button>
 
+                <button data-module="control-documental" data-empresa="INNPACK">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <path d="M14 2v6h6"></path>
+                            <path d="M9 13h6"></path>
+                            <path d="M9 17h6"></path>
+                        </svg>
+                    </span>
+                    <span>Control Documental</span>
+                </button>
+
                 <button data-module="laboratorio" data-empresa="INNPACK">
                     <span class="menu-icon">
                         <svg viewBox="0 0 24 24">
@@ -225,6 +276,17 @@
                         </svg>
                     </span>
                     <span>Data</span>
+                </button>
+
+                <button data-module="talleres-externos" data-empresa="INNPACK">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"></path>
+                            <path d="M14 3v5h5"></path>
+                            <path d="M9 13h6M9 17h6M9 9h2"></path>
+                        </svg>
+                    </span>
+                    <span>Talleres Externos</span>
                 </button>
 
                 <button id="btn-usuarios" data-module="usuarios" data-empresa="INNPACK" style="display: none;">
@@ -338,6 +400,7 @@
         }
     </script>
 
+    <script src="shared/utils.js"></script>
     <script src="core/app.js"></script>
 
 </body>

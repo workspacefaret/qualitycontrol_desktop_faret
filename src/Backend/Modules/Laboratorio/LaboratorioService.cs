@@ -16,7 +16,8 @@ namespace QualityControlCenter.Modules.Laboratorio
             string fechaHasta,
             string ensayo,
             string material,
-            bool sinLimite = false
+            bool sinLimite = false,
+            int? id = null
         )
         {
             return await _repository.ObtenerResumen(
@@ -24,7 +25,8 @@ namespace QualityControlCenter.Modules.Laboratorio
                 fechaHasta,
                 ensayo,
                 material,
-                sinLimite
+                sinLimite,
+                id
             );
         }
     }

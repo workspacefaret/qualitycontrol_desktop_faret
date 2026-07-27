@@ -21,6 +21,7 @@ if (!window.InicioController) {
             this.renderMaquinas(data.maquinas || [])
             this.renderCumplimiento(data.cumplimiento || [])
             this.renderResumen(data.resumen || {})
+            this.renderFrecuencias(data.frecuencias || [])
         }
 
         bindModuleCards() {
@@ -32,8 +33,8 @@ if (!window.InicioController) {
 
                         if (!target) return
 
-                        if (window.app?.loadModule) {
-                            window.app.loadModule(target)
+                        if (window.App?.loadModule) {
+                            window.App.loadModule(target)
                         }
                     })
                 })
@@ -133,15 +134,38 @@ if (!window.InicioController) {
                 const div = document.createElement("div")
                 div.className = "alert-item"
 
+                const puedeGestionar = alerta.modulo && alerta.registroId
+
                 div.innerHTML = `
-                    <div style="display:flex;justify-content:space-between;gap:12px;">
-                        <strong>${this.escape(alerta.titulo || "-")}</strong>
-                        <span>${this.escape(alerta.hora || "")}</span>
+                    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+                        <div>
+                            <div style="display:flex;justify-content:space-between;gap:12px;">
+                                <strong>${this.escape(alerta.titulo || "-")}</strong>
+                                <span>${this.escape(alerta.hora || "")}</span>
+                            </div>
+                            <div>${this.escape(alerta.descripcion || "-")}</div>
+                        </div>
+                        ${puedeGestionar
+                        ? `<button class="btn-secondary alerta-gestionar-btn" data-modulo="${this.escape(alerta.modulo)}" data-id="${alerta.registroId}">Gestionar</button>`
+                        : ""
+                    }
                     </div>
-                    <div>${this.escape(alerta.descripcion || "-")}</div>
                 `
 
                 container.appendChild(div)
+            })
+
+            container.querySelectorAll(".alerta-gestionar-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    const modulo = btn.dataset.modulo
+                    const id = Number(btn.dataset.id)
+
+                    sessionStorage.setItem("qccDeepLinkId", JSON.stringify({ modulo, id }))
+
+                    if (window.App?.loadModule) {
+                        window.App.loadModule(modulo)
+                    }
+                })
             })
         }
 
@@ -191,6 +215,80 @@ if (!window.InicioController) {
 
                 container.appendChild(div)
             })
+        }
+
+        renderFrecuencias(items) {
+            const container = document.getElementById("frecuencias-inspeccion-list")
+            if (!container) return
+
+            container.innerHTML = ""
+
+            if (!items.length) {
+                container.innerHTML = `<div class="activity-item"><span>Sin áreas configuradas</span><strong>-</strong></div>`
+                return
+            }
+
+            items.forEach(item => {
+                const div = document.createElement("div")
+                div.className = "activity-item"
+
+                const tiempo = item.minutosSinControl === null || item.minutosSinControl === undefined
+                    ? "Sin registros"
+                    : this.formatoMinutos(item.minutosSinControl)
+
+                const color = item.atrasada ? "#dc2626" : "#16a34a"
+                const estado = item.atrasada ? "ATRASADA" : "AL DÍA"
+
+                div.innerHTML = `
+                    <span>${this.escape(item.nombre || "-")} <small style="color:#64748b;">(máx. ${this.formatoMinutos(item.frecuenciaMinutos)})</small></span>
+                    <span style="display:flex;align-items:center;gap:10px;">
+                        <span style="color:${color};font-weight:700;">${estado} · ${tiempo}</span>
+                        <button class="btn-secondary frecuencia-editar-btn" data-id="${item.id}" data-minutos="${item.frecuenciaMinutos}" data-nombre="${this.escape(item.nombre || "")}">Editar</button>
+                    </span>
+                `
+
+                container.appendChild(div)
+            })
+
+            container.querySelectorAll(".frecuencia-editar-btn").forEach(btn => {
+                btn.addEventListener("click", () => this.editarFrecuencia(btn))
+            })
+        }
+
+        async editarFrecuencia(btn) {
+            const id = Number(btn.dataset.id)
+            const actual = Number(btn.dataset.minutos)
+            const nombre = btn.dataset.nombre
+
+            const respuesta = prompt(`Frecuencia mínima para "${nombre}" (en minutos):`, actual)
+            if (respuesta === null) return
+
+            const minutos = Number(respuesta)
+            if (!Number.isFinite(minutos) || minutos <= 0) {
+                alert("Ingresa un número de minutos válido, mayor a 0.")
+                return
+            }
+
+            const res = await window.PhotinoBridge.send({
+                action: "inicio.frecuencias.actualizar",
+                data: { id, frecuenciaMinutos: minutos }
+            })
+
+            if (!res || res.ok === false) {
+                alert(res?.error || "No se pudo actualizar la frecuencia.")
+                return
+            }
+
+            const data = await this.cargarDashboard()
+            if (data) this.renderFrecuencias(data.frecuencias || [])
+        }
+
+        formatoMinutos(minutos) {
+            const n = Number(minutos || 0)
+            if (n < 60) return `${n} min`
+            const horas = Math.floor(n / 60)
+            const resto = n % 60
+            return resto === 0 ? `${horas} h` : `${horas} h ${resto} min`
         }
 
         renderResumen(resumen) {

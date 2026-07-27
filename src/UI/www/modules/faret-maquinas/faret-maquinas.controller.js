@@ -15,6 +15,11 @@ window.FaretMaquinasController = class FaretMaquinasController {
         document.getElementById("fm-limpiar-btn")
             ?.addEventListener("click", () => this._limpiar());
 
+        this._filasFijas = window.TableUtils.init(
+            document.getElementById("fm-tabla"),
+            document.getElementById("fm-filas-fijadas")
+        );
+
         this._loadResumen();
     }
 
@@ -23,6 +28,11 @@ window.FaretMaquinasController = class FaretMaquinasController {
     }
 
     async _loadResumen() {
+        const contenedor = document.getElementById("fm-tabla")?.closest(".table-container");
+        await window.TableUtils.preservarScroll(contenedor, () => this._loadResumenInterna());
+    }
+
+    async _loadResumenInterna() {
         try {
             const res = await window.PhotinoBridge.send({
                 action: "faret.maquinas.resumen",
@@ -92,17 +102,19 @@ window.FaretMaquinasController = class FaretMaquinasController {
         const tbody = document.getElementById("fm-tbody");
 
         if (!this._maquinaSeleccionada) {
-            tbody.innerHTML = `<tr><td colspan="8">Selecciona una máquina para ver sus registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9">Selecciona una máquina para ver sus registros</td></tr>`;
+            this._filasFijas?.refrescar();
             return;
         }
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="8">Sin registros para esta máquina</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9">Sin registros para esta máquina</td></tr>`;
+            this._filasFijas?.refrescar();
             return;
         }
 
         tbody.innerHTML = items.map(i => `
-            <tr>
+            <tr data-id="${i.id}">
                 <td>${this._formatoFecha(i.fechaRegistro)}</td>
                 <td>${i.horaRegistro ?? "-"}</td>
                 <td>${i.nvFaret ?? "-"}</td>
@@ -113,5 +125,7 @@ window.FaretMaquinasController = class FaretMaquinasController {
                 <td>${i.accionCorrectiva ?? "-"}</td>
             </tr>
         `).join("");
+
+        this._filasFijas?.refrescar();
     }
 };

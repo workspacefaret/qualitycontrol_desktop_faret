@@ -28,6 +28,9 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public Task<(bool ok, string body)> ActualizarPncAsync(long id, object payload) =>
             _client.PutJsonAsync($"api/importaciones/pnc/{id}", payload);
 
+        public Task<(bool ok, string body)> EliminarPncAsync(long id) =>
+            _client.DeleteAsync($"api/importaciones/pnc/{id}");
+
         public Task<(bool ok, string body)> GetPncListAsync(Dictionary<string, string?> filtros) =>
             _client.GetAsync($"api/importaciones/pnc?{BuildQueryString(filtros)}");
 

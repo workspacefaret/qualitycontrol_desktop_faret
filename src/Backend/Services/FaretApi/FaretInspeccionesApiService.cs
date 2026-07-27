@@ -25,6 +25,9 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public Task<(bool ok, string body)> GetAdjuntosAsync(int registroId) =>
             _client.GetAsync($"calidad-faret/registros/{registroId}/adjuntos");
 
+        public Task<(bool ok, string body)> EliminarAsync(int registroId) =>
+            _client.DeleteAsync($"calidad-faret/registros/{registroId}");
+
         private static string BuildQueryString(Dictionary<string, string?> filtros) =>
             string.Join(
                 "&",

@@ -35,7 +35,8 @@ namespace QualityControlCenter.Modules.Dashboard
                 SELECT COUNT(*)
                 FROM registros_control rc
                 WHERE rc.fecha_registro = CURDATE()
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD';
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK');
                 "
             );
 
@@ -45,7 +46,8 @@ namespace QualityControlCenter.Modules.Dashboard
                 SELECT COUNT(*)
                 FROM registros_control rc
                 WHERE 1 = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD'
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK')
                   {filtros};
                 "
             );
@@ -58,7 +60,8 @@ namespace QualityControlCenter.Modules.Dashboard
                 INNER JOIN registros_control rc
                     ON rc.id = rfv.registro_id
                 WHERE 1 = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD'
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK')
                   {filtros};
                 "
             );
@@ -70,7 +73,8 @@ namespace QualityControlCenter.Modules.Dashboard
                 FROM registros_control rc
                 WHERE rc.fecha_registro = CURDATE()
                   AND rc.requiere_merma = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD';
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK');
                 "
             );
 
@@ -82,7 +86,8 @@ namespace QualityControlCenter.Modules.Dashboard
                 WHERE rc.fecha_registro = CURDATE()
                   AND rc.observacion IS NOT NULL
                   AND TRIM(rc.observacion) <> ''
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD';
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK');
                 "
             );
 
@@ -119,7 +124,8 @@ namespace QualityControlCenter.Modules.Dashboard
                 LEFT JOIN registro_fallas_visuales rfv
                     ON rfv.registro_id = rc.id
                 WHERE 1 = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD'
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK')
                   {filtros}
                 GROUP BY u.id, u.nombre_completo
                 ORDER BY controles DESC;
@@ -162,7 +168,8 @@ namespace QualityControlCenter.Modules.Dashboard
                 INNER JOIN usuarios u
                     ON u.id = rc.usuario_id
                 WHERE 1 = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD'
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK')
                   {filtros}
                 GROUP BY u.id, u.nombre_completo
                 ORDER BY total DESC;
@@ -205,7 +212,8 @@ namespace QualityControlCenter.Modules.Dashboard
                 INNER JOIN usuarios u
                     ON u.id = rc.usuario_id
                 WHERE 1 = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD'
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK')
                   {filtros}
                 GROUP BY p.id, p.nombre, u.id, u.nombre_completo
                 ORDER BY p.id, total DESC;
@@ -244,7 +252,8 @@ namespace QualityControlCenter.Modules.Dashboard
                 LEFT JOIN registro_fallas_visuales rfv
                     ON rfv.registro_id = rc.id
                 WHERE 1 = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD'
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK')
                   {filtros}
                 GROUP BY DATE(rc.fecha_registro)
                 ORDER BY DATE(rc.fecha_registro) ASC;
@@ -290,7 +299,8 @@ namespace QualityControlCenter.Modules.Dashboard
                 LEFT JOIN registro_fallas_visuales rfv
                     ON rfv.registro_id = rc.id
                 WHERE 1 = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD'
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK')
                   {filtros}
                 GROUP BY u.id, u.nombre_completo
                 ORDER BY controles DESC;
@@ -346,6 +356,12 @@ namespace QualityControlCenter.Modules.Dashboard
                     IFNULL(rc.observacion, '-') AS observacion,
                     IFNULL(rc.tipo_merma, '-') AS tipo_merma,
                     IFNULL(rc.cantidad_merma, '-') AS cantidad_merma,
+                    IFNULL((
+                        SELECT GROUP_CONCAT(DISTINCT pcv.nombre SEPARATOR '; ')
+                        FROM registro_fallas_visuales rfv2
+                        INNER JOIN parametros_control_visual pcv ON pcv.id = rfv2.parametro_id
+                        WHERE rfv2.registro_id = rc.id
+                    ), '-') AS tipo_defecto,
 IFNULL(rc.estado_validacion, 'PENDIENTE') AS estado_validacion,
 IFNULL(DATE_FORMAT(rc.fecha_validacion, '%d-%m-%Y %H:%i'), '') AS fecha_validacion,
 IFNULL(rc.usuario_validacion, '') AS usuario_validacion,
@@ -356,9 +372,11 @@ IFNULL(ra.ruta_archivo, '') AS imagen_url
                 LEFT JOIN maquinas m ON rc.maquina_id = m.id
                 LEFT JOIN formularios_control f ON rc.formulario_id = f.id
                 LEFT JOIN estados_catalogo ec ON rc.estado_id = ec.id
-                LEFT JOIN registro_adjuntos ra ON ra.registro_id = rc.id
+                LEFT JOIN registro_adjuntos ra
+                    ON ra.id = (SELECT MIN(ra2.id) FROM registro_adjuntos ra2 WHERE ra2.registro_id = rc.id)
                 WHERE 1 = 1
-                  AND UPPER(IFNULL(rc.area, '')) = 'CALIDAD'
+                  AND rc.eliminado = 0
+                  AND UPPER(IFNULL(rc.area, '')) IN ('CALIDAD', 'CALIDAD INNPACK')
                   {filtros}
                 ORDER BY rc.id DESC
                 LIMIT 15;
@@ -387,6 +405,7 @@ IFNULL(ra.ruta_archivo, '') AS imagen_url
                         Observacion = Text(reader, "observacion"),
                         TipoMerma = Text(reader, "tipo_merma"),
                         CantidadMerma = Text(reader, "cantidad_merma"),
+                        TipoDefecto = Text(reader, "tipo_defecto"),
                         EstadoValidacion = Text(reader, "estado_validacion"),
                         FechaValidacion = Text(reader, "fecha_validacion"),
                         UsuarioValidacion = Text(reader, "usuario_validacion"),
@@ -554,6 +573,26 @@ IFNULL(ra.ruta_archivo, '') AS imagen_url
             fecha_validacion = NOW(),
             usuario_validacion = 'SUPERVISOR'
         WHERE id = @id
+    ",
+                conn
+            );
+
+            cmd.Parameters.AddWithValue("@id", id);
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task EliminarRegistro(int id)
+        {
+            using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            using var cmd = new MySqlCommand(
+                @"
+        UPDATE registros_control
+        SET eliminado = 1
+        WHERE id = @id
+          AND eliminado = 0
     ",
                 conn
             );

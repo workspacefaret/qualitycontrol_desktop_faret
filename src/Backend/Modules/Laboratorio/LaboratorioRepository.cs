@@ -19,7 +19,8 @@ namespace QualityControlCenter.Modules.Laboratorio
             string fechaHasta = "",
             string ensayo = "",
             string material = "",
-            bool sinLimite = false
+            bool sinLimite = false,
+            int? id = null
         )
         {
             var result = new LaboratorioResumenDto();
@@ -30,7 +31,7 @@ namespace QualityControlCenter.Modules.Laboratorio
             var sinFechasExplicitas =
                 string.IsNullOrWhiteSpace(fechaDesde) && string.IsNullOrWhiteSpace(fechaHasta);
 
-            var filtros = BuildFiltros(fechaDesde, fechaHasta, ensayo, material);
+            var filtros = BuildFiltros(fechaDesde, fechaHasta, ensayo, material, id: id);
 
             result.EnsayosHoy = await Count(
                 conn,
@@ -57,7 +58,8 @@ namespace QualityControlCenter.Modules.Laboratorio
                     fechaHasta,
                     ensayo,
                     material,
-                    incluirVentanaPorDefecto: false
+                    incluirVentanaPorDefecto: false,
+                    id: id
                 );
 
                 result.EnsayosPeriodo = await ContarEnsayosPeriodo(conn, filtrosHistoricos);
@@ -241,10 +243,14 @@ namespace QualityControlCenter.Modules.Laboratorio
             string fechaHasta,
             string ensayo,
             string material,
-            bool incluirVentanaPorDefecto = true
+            bool incluirVentanaPorDefecto = true,
+            int? id = null
         )
         {
             var filtros = "";
+
+            if (id.HasValue)
+                filtros += $" AND re.id = {id.Value}";
 
             if (!string.IsNullOrWhiteSpace(fechaDesde))
                 filtros += $" AND rc.fecha_registro >= '{fechaDesde}'";
@@ -256,6 +262,7 @@ namespace QualityControlCenter.Modules.Laboratorio
                 incluirVentanaPorDefecto
                 && string.IsNullOrWhiteSpace(fechaDesde)
                 && string.IsNullOrWhiteSpace(fechaHasta)
+                && !id.HasValue
             )
                 filtros += " AND rc.fecha_registro >= CURDATE() - INTERVAL 30 DAY";
 

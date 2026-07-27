@@ -27,6 +27,9 @@ namespace QualityControlCenter.Backend.Services.FaretApi
             return result;
         }
 
+        public Task<(bool ok, string body)> EliminarAsync(int id) =>
+            _client.DeleteAsync($"api/no-conformidades/{id}");
+
         public async Task<(bool ok, string body)> UpdateAsync(int id, object request)
         {
             LogPayload($"PUT api/no-conformidades/{id}", request);

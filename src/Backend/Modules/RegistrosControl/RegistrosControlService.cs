@@ -19,7 +19,8 @@ namespace QualityControlCenter.Modules.RegistrosControl
             string? fechaHasta,
             string? np,
             string? turno,
-            string? estado
+            string? estado,
+            int? id = null
         )
         {
             page = page <= 0 ? 1 : page;
@@ -32,16 +33,20 @@ namespace QualityControlCenter.Modules.RegistrosControl
                 fechaHasta,
                 np,
                 turno,
-                estado
+                estado,
+                id
             );
 
-            var pages = (int)Math.Ceiling(result.Total / (double)limit);
+            // Cuando hay filtro de NP, el repositorio trae todo sin paginar (ver
+            // RegistrosControlRepository) — la respuesta debe reflejar "todo en una sola página".
+            var sinLimite = !string.IsNullOrWhiteSpace(np);
+            var pages = sinLimite ? 1 : (int)Math.Ceiling(result.Total / (double)limit);
 
             return new
             {
                 items = result.Items,
                 total = result.Total,
-                page,
+                page = sinLimite ? 1 : page,
                 limit,
                 pages
             };
@@ -55,6 +60,11 @@ namespace QualityControlCenter.Modules.RegistrosControl
         public async Task RechazarRegistro(int id)
         {
             await _repo.RechazarRegistro(id);
+        }
+
+        public async Task EliminarRegistro(int id)
+        {
+            await _repo.EliminarRegistro(id);
         }
     }
 }

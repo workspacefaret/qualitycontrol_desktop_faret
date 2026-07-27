@@ -32,9 +32,17 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
             ?.addEventListener("click", () => this._exportar());
 
         document.getElementById("fi-tbody")?.addEventListener("click", (e) => {
-            const btn = e.target.closest(".fi-ver-adjuntos-btn");
-            if (btn) this._verAdjuntos(btn.dataset.id);
+            const verBtn = e.target.closest(".fi-ver-adjuntos-btn");
+            if (verBtn) this._verAdjuntos(verBtn.dataset.id);
+
+            const eliminarBtn = e.target.closest(".fi-eliminar-btn");
+            if (eliminarBtn) this._eliminar(eliminarBtn.dataset.id);
         });
+
+        this._filasFijas = window.TableUtils.init(
+            document.getElementById("fi-tabla"),
+            document.getElementById("fi-filas-fijadas")
+        );
 
         this._loadAll();
     }
@@ -47,6 +55,7 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         return {
             fechaDesde: document.getElementById("fi-filtro-fecha-desde")?.value || "",
             fechaHasta: document.getElementById("fi-filtro-fecha-hasta")?.value || "",
+            nvFaret: document.getElementById("fi-filtro-nv-faret")?.value.trim() || "",
             areaControl: document.getElementById("fi-filtro-area")?.value || "",
             operador: document.getElementById("fi-filtro-operador")?.value.trim() || "",
             maquina: document.getElementById("fi-filtro-maquina")?.value.trim() || "",
@@ -57,6 +66,7 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
     _limpiarFiltros() {
         document.getElementById("fi-filtro-fecha-desde").value = "";
         document.getElementById("fi-filtro-fecha-hasta").value = "";
+        document.getElementById("fi-filtro-nv-faret").value = "";
         document.getElementById("fi-filtro-area").value = "";
         document.getElementById("fi-filtro-operador").value = "";
         document.getElementById("fi-filtro-maquina").value = "";
@@ -122,6 +132,11 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
     }
 
     async _loadLista() {
+        const contenedor = document.getElementById("fi-tabla")?.closest(".table-container");
+        await window.TableUtils.preservarScroll(contenedor, () => this._loadListaInterna());
+    }
+
+    async _loadListaInterna() {
         const loadingEl = document.getElementById("fi-loading");
         const errorEl = document.getElementById("fi-error");
 
@@ -202,30 +217,50 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         const tbody = document.getElementById("fi-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="10">${this._emptyStateHtml()}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="13">${this._emptyStateHtml()}</td></tr>`;
+            this._filasFijas?.refrescar();
             return;
         }
 
         tbody.innerHTML = items.map(i => `
-            <tr>
+            <tr data-id="${i.id}">
                 <td>${this._formatoFecha(i.fechaRegistro)}</td>
                 <td>${i.horaRegistro ?? "-"}</td>
+                <td>${i.operadorRegistro ?? "-"}</td>
                 <td>${i.nvFaret ?? "-"}</td>
                 <td>${i.areaControl ?? "-"}</td>
-                <td>${i.operador === "Otros" ? (i.operadorOtro || "Otros") : (i.operador ?? "-")}</td>
                 <td>${i.maquina ?? "-"}</td>
+                <td>${i.operador === "Otros" ? (i.operadorOtro || "Otros") : (i.operador ?? "-")}</td>
                 <td>${this._defectosBadge(i.presentaDefectos)}</td>
                 <td>${i.defectos ?? "-"}</td>
                 <td>${i.accionCorrectiva ?? "-"}</td>
                 <td>${this._celdaAdjuntos(i)}</td>
+                <td><button class="btn-secondary fi-eliminar-btn" data-id="${i.id}">Eliminar</button></td>
             </tr>
         `).join("");
+
+        this._filasFijas?.refrescar();
     }
 
     _celdaAdjuntos(i) {
         const cantidad = i.cantidadAdjuntos ?? 0;
         if (!cantidad) return "0";
         return `<button class="btn-secondary fi-ver-adjuntos-btn" data-id="${i.id}">Ver adjuntos (${cantidad})</button>`;
+    }
+
+    async _eliminar(id) {
+        if (!confirm("¿Eliminar este registro de inspección? Esta acción no se puede deshacer desde la pantalla.")) return;
+
+        try {
+            const res = await window.PhotinoBridge.send({ action: "faret.inspecciones.eliminar", id: Number(id) });
+            if (!res.ok) {
+                alert(res.error || "Error al eliminar el registro");
+                return;
+            }
+            this._loadAll();
+        } catch {
+            alert("Error de comunicación con el backend");
+        }
     }
 
     _emptyStateHtml() {
@@ -307,10 +342,11 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
                 <tr>
                     <th>Fecha</th>
                     <th>Hora</th>
+                    <th>Operador Calidad</th>
                     <th>NV Faret</th>
                     <th>Área de control</th>
-                    <th>Operador</th>
                     <th>Máquina</th>
+                    <th>Operador Máquina</th>
                     <th>¿Defectos?</th>
                     <th>Defectos</th>
                     <th>Acción correctiva</th>
@@ -322,10 +358,11 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
                     <tr>
                         <td>${this._formatoFecha(i.fechaRegistro)}</td>
                         <td>${i.horaRegistro ?? "-"}</td>
+                        <td>${i.operadorRegistro ?? "-"}</td>
                         <td>${i.nvFaret ?? "-"}</td>
                         <td>${i.areaControl ?? "-"}</td>
-                        <td>${i.operador === "Otros" ? (i.operadorOtro || "Otros") : (i.operador ?? "-")}</td>
                         <td>${i.maquina ?? "-"}</td>
+                        <td>${i.operador === "Otros" ? (i.operadorOtro || "Otros") : (i.operador ?? "-")}</td>
                         <td>${i.presentaDefectos ? "Sí" : "No"}</td>
                         <td>${i.defectos ?? "-"}</td>
                         <td>${i.accionCorrectiva ?? "-"}</td>

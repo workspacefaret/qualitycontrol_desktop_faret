@@ -25,6 +25,11 @@ window.FaretImportacionController = class FaretImportacionController {
         document.getElementById("fi-historial-exportar-btn")
             ?.addEventListener("click", () => this._exportarHistorial());
 
+        this._filasFijas = window.TableUtils.init(
+            document.getElementById("fi-historial-tabla"),
+            document.getElementById("fi-historial-filas-fijadas")
+        );
+
         this._loadHistorial();
     }
 
@@ -185,6 +190,11 @@ window.FaretImportacionController = class FaretImportacionController {
     }
 
     async _loadHistorial() {
+        const contenedor = document.getElementById("fi-historial-tabla")?.closest(".table-container");
+        await window.TableUtils.preservarScroll(contenedor, () => this._loadHistorialInterna());
+    }
+
+    async _loadHistorialInterna() {
         const loadingEl = document.getElementById("fi-historial-loading");
         const errorEl = document.getElementById("fi-historial-error");
         const tbody = document.getElementById("fi-historial-tbody");
@@ -198,7 +208,7 @@ window.FaretImportacionController = class FaretImportacionController {
             if (!res.ok) {
                 errorEl.textContent = res.error || "Error al cargar el historial";
                 errorEl.style.display = "block";
-                tbody.innerHTML = `<tr><td colspan="8" class="faret-empty">Sin datos</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="faret-empty">Sin datos</td></tr>`;
                 return;
             }
 
@@ -207,7 +217,7 @@ window.FaretImportacionController = class FaretImportacionController {
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
             errorEl.style.display = "block";
-            tbody.innerHTML = `<tr><td colspan="8" class="faret-empty">Sin datos</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="faret-empty">Sin datos</td></tr>`;
         } finally {
             loadingEl.style.display = "none";
         }
@@ -217,12 +227,13 @@ window.FaretImportacionController = class FaretImportacionController {
         const tbody = document.getElementById("fi-historial-tbody");
 
         if (!lista.length) {
-            tbody.innerHTML = `<tr><td colspan="8" class="faret-empty">Sin importaciones registradas</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="faret-empty">Sin importaciones registradas</td></tr>`;
+            this._filasFijas?.refrescar();
             return;
         }
 
         tbody.innerHTML = lista.map(i => `
-            <tr>
+            <tr data-id="${i.id}">
                 <td>${i.id ?? "-"}</td>
                 <td>${i.nombreArchivo ?? "-"}</td>
                 <td>${i.usuarioNombre ?? "-"}</td>
@@ -233,6 +244,8 @@ window.FaretImportacionController = class FaretImportacionController {
                 <td>${i.fecha ? new Date(i.fecha).toLocaleString("es-CL") : "-"}</td>
             </tr>
         `).join("");
+
+        this._filasFijas?.refrescar();
     }
 
     _exportarHistorial() {

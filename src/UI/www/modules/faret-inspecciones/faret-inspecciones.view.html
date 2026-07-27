@@ -2,7 +2,7 @@
 
     <div class="module-header">
         <div>
-            <div class="module-title">Inspecciones</div>
+            <div class="module-title">Inspecciones Calidad</div>
             <div class="subtitle">Formulario Calidad/Producción enviado desde la aplicación móvil FARET</div>
         </div>
         <div style="display:flex; gap:10px;">
@@ -66,6 +66,10 @@
                 <input type="date" id="fi-filtro-fecha-hasta">
             </div>
             <div class="fi-filtro-campo">
+                <label for="fi-filtro-nv-faret">NV Faret</label>
+                <input type="text" id="fi-filtro-nv-faret" placeholder="Buscar...">
+            </div>
+            <div class="fi-filtro-campo">
                 <label for="fi-filtro-area">Área de control</label>
                 <select id="fi-filtro-area">
                     <option value="">Todas</option>
@@ -112,24 +116,28 @@
         <div id="fi-loading" class="faret-loading" style="display:none;">Cargando...</div>
         <div id="fi-error" class="faret-error" style="display:none;"></div>
 
+        <div id="fi-filas-fijadas"></div>
+
         <div class="table-container">
             <table class="table faret-table" id="fi-tabla">
                 <thead>
                     <tr>
                         <th class="fi-th-ordenable" data-campo="fechaRegistro">Fecha <span class="fi-sort-icon">↕</span></th>
                         <th>Hora</th>
+                        <th class="fi-th-ordenable" data-campo="operadorRegistro">Operador Calidad <span class="fi-sort-icon">↕</span></th>
                         <th class="fi-th-ordenable" data-campo="nvFaret">NV Faret <span class="fi-sort-icon">↕</span></th>
                         <th class="fi-th-ordenable" data-campo="areaControl">Área de control <span class="fi-sort-icon">↕</span></th>
-                        <th class="fi-th-ordenable" data-campo="operador">Operador <span class="fi-sort-icon">↕</span></th>
                         <th class="fi-th-ordenable" data-campo="maquina">Máquina <span class="fi-sort-icon">↕</span></th>
+                        <th class="fi-th-ordenable" data-campo="operador">Operador Máquina <span class="fi-sort-icon">↕</span></th>
                         <th>¿Defectos?</th>
                         <th>Defectos</th>
                         <th>Acción correctiva</th>
                         <th>Adjuntos</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="fi-tbody">
-                    <tr><td colspan="10" class="faret-empty">Cargando...</td></tr>
+                    <tr><td colspan="13" class="faret-empty">Cargando...</td></tr>
                 </tbody>
             </table>
         </div>

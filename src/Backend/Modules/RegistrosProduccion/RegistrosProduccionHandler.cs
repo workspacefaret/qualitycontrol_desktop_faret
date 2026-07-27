@@ -89,6 +89,31 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
                     );
                 }
 
+                if (action == "registrosProduccion.eliminarRegistro")
+                {
+                    var id = 0;
+
+                    if (
+                        data.TryGetValue("id", out var rawId)
+                        && int.TryParse(rawId?.ToString(), out var parsedId)
+                    )
+                    {
+                        id = parsedId;
+                    }
+
+                    await _repository.EliminarRegistro(id);
+
+                    return JsonSerializer.Serialize(
+                        new
+                        {
+                            ok = true,
+                            data = (object?)null,
+                            error = (string?)null,
+                        },
+                        _jsonOptions
+                    );
+                }
+
                 if (action == "registrosProduccion.validarTodo")
                 {
                     await _repository.ValidarTodo();

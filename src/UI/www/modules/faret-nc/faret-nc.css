@@ -238,6 +238,73 @@
     margin-top: 10px;
 }
 
+/* ---------- Combo editable con sugerencias eliminables (ej. Responsable en Gestionar) ---------- */
+
+.fnc-combo-wrap {
+    position: relative;
+}
+
+.fnc-combo-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: white;
+    border: 1px solid #D8DEE9;
+    border-radius: 10px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+    max-height: 180px;
+    overflow-y: auto;
+    z-index: 20;
+}
+
+.fnc-combo-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #1E293B;
+    cursor: pointer;
+}
+
+.fnc-combo-item:hover {
+    background: #F1F5F9;
+}
+
+.fnc-combo-item-nombre {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fnc-combo-item-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    border-radius: 6px;
+    color: #94A3B8;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.fnc-combo-item-x:hover {
+    background: #FEE2E2;
+    color: #B91C1C;
+}
+
+.fnc-combo-empty {
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #94A3B8;
+}
+
 /* ---------- Toolbar de filtros ---------- */
 
 .faret-nc-module .fnc-filtros-card {
