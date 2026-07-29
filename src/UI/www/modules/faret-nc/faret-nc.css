@@ -305,6 +305,29 @@
     color: #94A3B8;
 }
 
+/* ---------- Selector de columnas opcionales (botón "Columnas" del listado) ---------- */
+
+.fnc-columnas-dropdown {
+    left: auto;
+    right: 0;
+    min-width: 240px;
+    padding: 6px 0;
+}
+
+.fnc-columnas-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #1E293B;
+    cursor: pointer;
+}
+
+.fnc-columnas-item:hover {
+    background: #F1F5F9;
+}
+
 /* ---------- Toolbar de filtros ---------- */
 
 .faret-nc-module .fnc-filtros-card {

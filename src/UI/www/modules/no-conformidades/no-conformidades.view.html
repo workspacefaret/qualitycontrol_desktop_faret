@@ -6,7 +6,12 @@
             <div class="subtitle">Gestión y seguimiento de No Conformidades (PNC)</div>
         </div>
         <div class="module-actions">
+            <div class="ncq-combo-wrap">
+                <button id="ncq-columnas-btn" class="btn-secondary">Columnas ▾</button>
+                <div id="ncq-columnas-dropdown" class="ncq-combo-dropdown" style="display:none;"></div>
+            </div>
             <button id="ncq-exportar-btn" class="btn-secondary">Exportar Excel</button>
+            <button id="ncq-imprimir-btn" class="btn-secondary">Imprimir</button>
             <button id="ncq-nuevo-btn" class="btn-primary">+ Nueva NC</button>
         </div>
     </div>
@@ -100,7 +105,7 @@
                         <th>Estado gestión</th>
                         <th>Responsable</th>
                         <th>Fecha compromiso</th>
-                        <th>Acciones</th>
+                        <th id="ncq-th-acciones">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="ncq-tbody">
@@ -160,6 +165,7 @@
                         <option value="Cuarentena">Cuarentena</option>
                         <option value="Rechazo">Rechazo</option>
                         <option value="Reclamo">Reclamo</option>
+                        <option value="Interna">Interna</option>
                     </select>
                 </div>
                 <div class="ncq-campo">

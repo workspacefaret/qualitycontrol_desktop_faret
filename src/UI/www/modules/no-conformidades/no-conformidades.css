@@ -132,6 +132,42 @@
     margin-left: auto;
 }
 
+/* ---------- Selector de columnas opcionales (botón "Columnas" del listado) ---------- */
+
+.ncq-combo-wrap {
+    position: relative;
+}
+
+.ncq-combo-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 240px;
+    background: white;
+    border: 1px solid #D8DEE9;
+    border-radius: 10px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+    max-height: 260px;
+    overflow-y: auto;
+    z-index: 20;
+    padding: 6px 0;
+}
+
+.ncq-columnas-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: #1E293B;
+    cursor: pointer;
+}
+
+.ncq-columnas-item:hover {
+    background: #F1F5F9;
+}
+
 /* ---------- Formulario (Nueva NC / Ver / Editar) ---------- */
 
 .ncq-form-row {

@@ -31,6 +31,9 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         document.getElementById("fi-exportar-btn")
             ?.addEventListener("click", () => this._exportar());
 
+        document.getElementById("fi-imprimir-btn")
+            ?.addEventListener("click", () => this._imprimir());
+
         document.getElementById("fi-tbody")?.addEventListener("click", (e) => {
             const verBtn = e.target.closest(".fi-ver-adjuntos-btn");
             if (verBtn) this._verAdjuntos(verBtn.dataset.id);
@@ -300,7 +303,50 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         }
 
         const items = await this._traerTodosLosRegistros();
-        this._exportarRegistrosDesdeDatos(items);
+        const tabla = this._construirTablaTemp(items);
+        window.ExcelExporter.exportTable({
+            tableSelector: "#fi-tabla-export-temp",
+            fileName: `faret_inspecciones_todos_${Date.now()}.xlsx`,
+            sheetName: "Inspecciones",
+            title: "QCC Faret - Inspecciones"
+        });
+        tabla.remove();
+    }
+
+    async _imprimir() {
+        if (this._hayFiltrosActivos()) {
+            window.PrintExporter.printTable({
+                tableSelector: "#fi-tabla",
+                titulo: "Inspecciones",
+                empresa: "FARET",
+                subtitulo: this._resumenFiltrosTexto(),
+            });
+            return;
+        }
+
+        const items = await this._traerTodosLosRegistros();
+        const tabla = this._construirTablaTemp(items);
+        window.PrintExporter.printTable({
+            tableSelector: "#fi-tabla-export-temp",
+            titulo: "Inspecciones",
+            empresa: "FARET",
+            subtitulo: this._resumenFiltrosTexto(),
+            totalRegistros: items.length,
+        });
+        tabla.remove();
+    }
+
+    _resumenFiltrosTexto() {
+        const f = this._getFiltros();
+        const partes = [];
+        if (f.nvFaret) partes.push(`NV Faret: ${f.nvFaret}`);
+        if (f.areaControl) partes.push(`Área de control: ${f.areaControl}`);
+        if (f.operador) partes.push(`Operador: ${f.operador}`);
+        if (f.maquina) partes.push(`Máquina: ${f.maquina}`);
+        if (f.presentaDefectos) partes.push(`¿Defectos?: ${f.presentaDefectos === "true" ? "Sí" : "No"}`);
+        if (f.fechaDesde) partes.push(`Fecha desde: ${f.fechaDesde}`);
+        if (f.fechaHasta) partes.push(`Fecha hasta: ${f.fechaHasta}`);
+        return partes.length ? partes.join(" · ") : "Sin filtros — histórico completo";
     }
 
     async _traerTodosLosRegistros(filtros = this._getFiltros()) {
@@ -330,7 +376,7 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         return items;
     }
 
-    _exportarRegistrosDesdeDatos(items) {
+    _construirTablaTemp(items) {
         const tabla = document.createElement("table");
         tabla.id = "fi-tabla-export-temp";
         tabla.style.position = "absolute";
@@ -373,15 +419,7 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         `;
 
         document.body.appendChild(tabla);
-
-        window.ExcelExporter.exportTable({
-            tableSelector: "#fi-tabla-export-temp",
-            fileName: `faret_inspecciones_todos_${Date.now()}.xlsx`,
-            sheetName: "Inspecciones",
-            title: "QCC Faret - Inspecciones"
-        });
-
-        tabla.remove();
+        return tabla;
     }
 
     // ---------- Ver adjuntos (fotos subidas desde la app móvil) ----------

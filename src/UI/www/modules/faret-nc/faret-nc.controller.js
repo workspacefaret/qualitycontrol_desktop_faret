@@ -14,6 +14,25 @@ window.FaretNcController = class FaretNcController {
         this._page = 1;
         this._pageSize = 50;
 
+        // Columnas opcionales del listado (campos de Data que no vienen fijos en la tabla base).
+        // Solo tienen valor real en filas con origen Data (fila.data); en Inspección/Manual muestran "-".
+        this._columnasDisponibles = [
+            { key: "tipoFalla", label: "Tipo de falla" },
+            { key: "impacto", label: "Impacto" },
+            { key: "cantRequerida", label: "Cant. requerida", tipo: "numero" },
+            { key: "cantRechazada", label: "Cant. rechazada", tipo: "numero" },
+            { key: "cantRecuperada", label: "Cant. recuperada", tipo: "numero" },
+            { key: "pncReal", label: "PNC real", tipo: "numero" },
+            { key: "pctRecuperacion", label: "% Recup.", tipo: "porcentaje" },
+            { key: "area", label: "Área" },
+            { key: "maquina", label: "Máquina" },
+            { key: "operador", label: "Operador" },
+            { key: "supervisor", label: "Supervisor" },
+            { key: "revisadoPor", label: "Revisado por" },
+            { key: "fechaFabricacion", label: "Fecha fabricación", tipo: "fecha" },
+        ];
+        this._columnasVisibles = this._cargarColumnasVisibles();
+
         document.getElementById("fnc-refresh-btn")
             ?.addEventListener("click", () => this._loadLista());
 
@@ -64,6 +83,25 @@ window.FaretNcController = class FaretNcController {
 
         document.getElementById("fnc-exportar-btn")
             ?.addEventListener("click", () => this._exportar());
+        document.getElementById("fnc-imprimir-btn")
+            ?.addEventListener("click", () => this._imprimir());
+
+        document.getElementById("fnc-columnas-btn")
+            ?.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const dd = document.getElementById("fnc-columnas-dropdown");
+                if (dd) dd.style.display = dd.style.display === "none" ? "block" : "none";
+            });
+
+        document.addEventListener("click", (e) => {
+            const wrap = document.getElementById("fnc-columnas-btn")?.closest(".fnc-combo-wrap");
+            if (wrap && !wrap.contains(e.target)) {
+                const dd = document.getElementById("fnc-columnas-dropdown");
+                if (dd) dd.style.display = "none";
+            }
+        });
+
+        this._renderColumnasDropdown();
 
         document.getElementById("fnc-gestion-cerrar-btn")
             ?.addEventListener("click", () => this._cerrarGestion());
@@ -158,7 +196,7 @@ window.FaretNcController = class FaretNcController {
             if (!ncRes.ok) {
                 errorEl.textContent = ncRes.error || "Error al cargar las no conformidades";
                 errorEl.style.display = "block";
-                tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin datos</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${this._totalColumnasTabla()}" class="faret-empty">Sin datos</td></tr>`;
                 return;
             }
 
@@ -174,7 +212,7 @@ window.FaretNcController = class FaretNcController {
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
             errorEl.style.display = "block";
-            tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin datos</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${this._totalColumnasTabla()}" class="faret-empty">Sin datos</td></tr>`;
         } finally {
             loadingEl.style.display = "none";
         }
@@ -304,8 +342,12 @@ window.FaretNcController = class FaretNcController {
     // ---------- Filtros ----------
 
     // Arma las opciones de los <select> de Cliente/Tipo PNC/Responsable con los valores reales
-    // ya presentes en this._combinados (dataset completo en memoria) — nada hardcodeado.
+    // ya presentes en this._combinados (dataset completo en memoria) — nada hardcodeado, salvo
+    // Tipo PNC que además siembra el mismo catálogo fijo del formulario "Nueva NC" (Cuarentena/
+    // Rechazo/Reclamo/Interna) para que esas opciones existan en el filtro aunque todavía no haya
+    // ningún registro real con ese valor.
     _poblarFiltrosSelect() {
+        const TIPO_PNC_BASE = ["Cuarentena", "Rechazo", "Reclamo", "Interna"];
         const mapa = {
             "fnc-filtro-cliente": "cliente",
             "fnc-filtro-tipo-pnc": "tipoPnc",
@@ -317,11 +359,13 @@ window.FaretNcController = class FaretNcController {
             if (!select) return;
 
             const valorActual = select.value;
-            const valores = new Set(
-                this._combinados
+            const base = campo === "tipoPnc" ? TIPO_PNC_BASE : [];
+            const valores = new Set([
+                ...base,
+                ...this._combinados
                     .map(f => (f[campo] || "").toString().trim())
-                    .filter(v => v && v !== "-")
-            );
+                    .filter(v => v && v !== "-"),
+            ]);
 
             select.innerHTML = `<option value="">Todos</option>` +
                 [...valores].sort().map(v => `<option value="${v}">${v}</option>`).join("");
@@ -456,9 +500,87 @@ window.FaretNcController = class FaretNcController {
         });
     }
 
+    // ---------- Columnas opcionales del listado ----------
+
+    _cargarColumnasVisibles() {
+        try {
+            const raw = localStorage.getItem("faretNcColumnasVisibles");
+            return new Set(raw ? JSON.parse(raw) : []);
+        } catch {
+            return new Set();
+        }
+    }
+
+    _guardarColumnasVisibles() {
+        try {
+            localStorage.setItem("faretNcColumnasVisibles", JSON.stringify([...this._columnasVisibles]));
+        } catch {
+            // localStorage no disponible; el toggle sigue funcionando en memoria para esta sesión
+        }
+    }
+
+    _renderColumnasDropdown() {
+        const dd = document.getElementById("fnc-columnas-dropdown");
+        if (!dd) return;
+
+        dd.innerHTML = this._columnasDisponibles.map(col => `
+            <label class="fnc-columnas-item">
+                <input type="checkbox" data-col="${col.key}" ${this._columnasVisibles.has(col.key) ? "checked" : ""}>
+                ${col.label}
+            </label>
+        `).join("");
+
+        dd.querySelectorAll("input[type=checkbox]").forEach(chk =>
+            chk.addEventListener("change", () => {
+                if (chk.checked) this._columnasVisibles.add(chk.dataset.col);
+                else this._columnasVisibles.delete(chk.dataset.col);
+                this._guardarColumnasVisibles();
+                this._renderTabla();
+            }));
+    }
+
+    _columnasOpcionalesVisibles() {
+        return this._columnasDisponibles.filter(col => this._columnasVisibles.has(col.key));
+    }
+
+    // Solo las filas con origen Data (fila.data) tienen estos campos; Inspección/Manual muestran "-".
+    _formatearColumnaOpcional(fila, col) {
+        const valor = fila.data ? fila.data[col.key] : null;
+        if (valor === null || valor === undefined || valor === "") return "-";
+        if (col.tipo === "fecha") return new Date(valor).toLocaleDateString("es-CL");
+        if (col.tipo === "porcentaje") return `${(valor * 100).toFixed(2)}%`;
+        return valor;
+    }
+
+    // Inserta/quita los <th> de las columnas opcionales activas justo antes de "Fuente", sin tocar
+    // el resto del thead (columnas base fijas).
+    _actualizarThead() {
+        const theadRow = document.querySelector("#fnc-tabla thead tr");
+        const fuenteTh = document.getElementById("fnc-th-fuente");
+        if (!theadRow || !fuenteTh) return;
+
+        theadRow.querySelectorAll('[data-opcional="true"]').forEach(th => th.remove());
+
+        this._columnasOpcionalesVisibles().forEach(col => {
+            const th = document.createElement("th");
+            th.textContent = col.label;
+            th.dataset.opcional = "true";
+            theadRow.insertBefore(th, fuenteTh);
+        });
+    }
+
+    // Total de columnas del thead (14 base visibles + 1 "Fecha compromiso" oculta + opcionales
+    // activas), usado para el colspan de las filas de estado (Cargando/Sin registros/Error).
+    _totalColumnasTabla() {
+        return 15 + this._columnasOpcionalesVisibles().length;
+    }
+
     // ---------- Tabla ----------
 
     _renderTabla() {
+        this._actualizarThead();
+        const colsOpcionales = this._columnasOpcionalesVisibles();
+
         const filtrados = this._filtrarItems();
         this._renderResumen(filtrados);
 
@@ -472,7 +594,7 @@ window.FaretNcController = class FaretNcController {
         const tbody = document.getElementById("fnc-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="16" class="faret-empty">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${this._totalColumnasTabla()}" class="faret-empty">Sin registros</td></tr>`;
             this._filasFijas?.refrescar();
             this._renderPaginacion(filtrados.length);
             return;
@@ -493,6 +615,7 @@ window.FaretNcController = class FaretNcController {
                 <td>${this._badge(this._labelEstadoGestion(fila.estadoGestion), this._colorEstadoGestion(fila.estadoGestion))}</td>
                 <td>${fila.responsable}</td>
                 <td style="display:none;">${fila.fechaCompromiso ? new Date(fila.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</td>
+                ${colsOpcionales.map(col => `<td>${this._formatearColumnaOpcional(fila, col)}</td>`).join("")}
                 <td>${this._badge(this._labelFuente(fila.fuente), this._colorFuente(fila.fuente))}</td>
                 <td>
                     ${fila.tieneNc ? `
@@ -1828,10 +1951,46 @@ window.FaretNcController = class FaretNcController {
     // visible: con filtros activos exporta lo filtrado; sin filtros, exporta todo lo combinado.
     _exportar() {
         const items = this._filtrarItems();
-        this._exportarFilasDesdeDatos(items);
+        const tabla = this._construirTablaTemp(items);
+        window.ExcelExporter.exportTable({
+            tableSelector: "#fnc-tabla-export-temp",
+            fileName: `faret_no_conformidades_${Date.now()}.xlsx`,
+            sheetName: "No Conformidades",
+            title: "QCC Faret - No Conformidades"
+        });
+        tabla.remove();
     }
 
-    _exportarFilasDesdeDatos(items) {
+    _imprimir() {
+        const items = this._filtrarItems();
+        const tabla = this._construirTablaTemp(items);
+        window.PrintExporter.printTable({
+            tableSelector: "#fnc-tabla-export-temp",
+            titulo: "No Conformidades",
+            empresa: "FARET",
+            subtitulo: this._resumenFiltrosTexto(),
+            totalRegistros: items.length,
+        });
+        tabla.remove();
+    }
+
+    _resumenFiltrosTexto() {
+        const f = this._getFiltros();
+        const partes = [];
+        if (f.cliente) partes.push(`Cliente: ${f.cliente}`);
+        if (f.tipoPnc) partes.push(`Tipo PNC: ${f.tipoPnc}`);
+        if (f.nivel) partes.push(`Nivel: ${f.nivel}`);
+        if (f.estadoGestion) partes.push(`Estado gestión: ${this._labelEstadoGestion(f.estadoGestion)}`);
+        if (f.responsable) partes.push(`Responsable: ${f.responsable}`);
+        if (f.fuente) partes.push(`Fuente: ${this._labelFuente(f.fuente)}`);
+        if (f.fechaDesde) partes.push(`Fecha ingreso desde: ${f.fechaDesde}`);
+        if (f.fechaHasta) partes.push(`Fecha ingreso hasta: ${f.fechaHasta}`);
+        return partes.length ? partes.join(" · ") : "Sin filtros — histórico completo";
+    }
+
+    _construirTablaTemp(items) {
+        const colsOpcionales = this._columnasOpcionalesVisibles();
+
         const tabla = document.createElement("table");
         tabla.id = "fnc-tabla-export-temp";
         tabla.style.position = "absolute";
@@ -1853,6 +2012,7 @@ window.FaretNcController = class FaretNcController {
                     <th>Nivel / Severidad</th>
                     <th>Estado gestión</th>
                     <th>Responsable</th>
+                    ${colsOpcionales.map(col => `<th>${col.label}</th>`).join("")}
                     <th>Fuente</th>
                 </tr>
             </thead>
@@ -1871,6 +2031,7 @@ window.FaretNcController = class FaretNcController {
                         <td>${fila.nivelSeveridad}</td>
                         <td>${this._labelEstadoGestion(fila.estadoGestion)}</td>
                         <td>${fila.responsable}</td>
+                        ${colsOpcionales.map(col => `<td>${this._formatearColumnaOpcional(fila, col)}</td>`).join("")}
                         <td>${this._labelFuente(fila.fuente)}</td>
                     </tr>
                 `).join("")}
@@ -1878,14 +2039,6 @@ window.FaretNcController = class FaretNcController {
         `;
 
         document.body.appendChild(tabla);
-
-        window.ExcelExporter.exportTable({
-            tableSelector: "#fnc-tabla-export-temp",
-            fileName: `faret_no_conformidades_${Date.now()}.xlsx`,
-            sheetName: "No Conformidades",
-            title: "QCC Faret - No Conformidades"
-        });
-
-        tabla.remove();
+        return tabla;
     }
 };

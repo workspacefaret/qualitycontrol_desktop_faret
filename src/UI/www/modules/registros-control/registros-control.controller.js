@@ -106,6 +106,11 @@ if (!window.RegistrosControlController) {
           return
         }
 
+        if (e.target.id === "btnImprimirRegistrosControl") {
+          this.imprimirRegistrosControl()
+          return
+        }
+
         if (e.target.id === "btnLimpiarRegistros") {
           this.limpiarFiltros()
           this.page = 1
@@ -585,10 +590,76 @@ if (!window.RegistrosControlController) {
 
       const items = res.data?.items || []
 
-      this.exportarRegistrosDesdeDatos(items)
+      const tabla = this.construirTablaTemp(items)
+
+      window.ExcelExporter.exportTable({
+        tableSelector: "#tablaRegistrosControlExportTemp",
+        fileName: `qcc_registros_control_todos_${Date.now()}.xlsx`,
+        sheetName: "Registros Control",
+        title: "QCC - Registros de Control"
+      })
+
+      tabla.remove()
     }
 
-    exportarRegistrosDesdeDatos(items) {
+    async imprimirRegistrosControl() {
+      const idFiltro = this.idFiltroActivo()
+
+      const res = await window.PhotinoBridge.send({
+        action: "registrosControl.obtenerRegistros",
+        data: {
+          page: 1,
+          limit: this.total || 999999,
+          fechaDesde: this.getVal("fechaDesdeRegistros"),
+          fechaHasta: this.getVal("fechaHastaRegistros"),
+          np: this.getVal("filtroNpRegistros"),
+          turno: this.getVal("filtroTurnoRegistros"),
+          estado: this.getVal("filtroEstadoRegistros"),
+          ...(idFiltro ? { id: idFiltro } : {})
+        }
+      })
+
+      if (!res || res.ok === false) {
+        alert(res?.error || "Error al imprimir registros")
+        return
+      }
+
+      const items = res.data?.items || []
+      const tabla = this.construirTablaTemp(items)
+
+      window.PrintExporter.printTable({
+        tableSelector: "#tablaRegistrosControlExportTemp",
+        titulo: "Registros de Control",
+        empresa: "INNPACK",
+        subtitulo: this.resumenFiltrosTexto(),
+        totalRegistros: items.length
+      })
+
+      tabla.remove()
+    }
+
+    resumenFiltrosTexto() {
+      const partes = []
+
+      const desde = this.getVal("fechaDesdeRegistros")
+      const hasta = this.getVal("fechaHastaRegistros")
+      const np = this.getVal("filtroNpRegistros")
+      const id = this.getVal("filtroIdRegistros")
+      const turnoSel = document.getElementById("filtroTurnoRegistros")
+      const estado = this.getVal("filtroEstadoRegistros")
+
+      if (this.deepLinkId) partes.push(`ID: ${this.deepLinkId}`)
+      if (id) partes.push(`ID: ${id}`)
+      if (np) partes.push(`NP: ${np}`)
+      if (turnoSel?.value) partes.push(`Turno: ${turnoSel.options[turnoSel.selectedIndex].text}`)
+      if (estado) partes.push(`Estado: ${estado}`)
+      if (desde) partes.push(`Fecha desde: ${desde}`)
+      if (hasta) partes.push(`Fecha hasta: ${hasta}`)
+
+      return partes.length ? partes.join(" · ") : "Sin filtros — histórico completo"
+    }
+
+    construirTablaTemp(items) {
       const tabla = document.createElement("table")
       tabla.id = "tablaRegistrosControlExportTemp"
       tabla.style.position = "absolute"
@@ -641,16 +712,9 @@ if (!window.RegistrosControlController) {
       `
 
       document.body.appendChild(tabla)
-
-      window.ExcelExporter.exportTable({
-        tableSelector: "#tablaRegistrosControlExportTemp",
-        fileName: `qcc_registros_control_todos_${Date.now()}.xlsx`,
-        sheetName: "Registros Control",
-        title: "QCC - Registros de Control"
-      })
-
-      tabla.remove()
+      return tabla
     }
+
     getVal(id) {
       return document.getElementById(id)?.value || ""
     }

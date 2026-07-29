@@ -6,7 +6,12 @@
             <div class="subtitle">Gestión y seguimiento de NC</div>
         </div>
         <div style="display:flex; gap:10px;">
+            <div class="fnc-combo-wrap">
+                <button id="fnc-columnas-btn" class="btn-secondary">Columnas ▾</button>
+                <div id="fnc-columnas-dropdown" class="fnc-combo-dropdown fnc-columnas-dropdown" style="display:none;"></div>
+            </div>
             <button id="fnc-exportar-btn" class="btn-secondary">Exportar Excel</button>
+            <button id="fnc-imprimir-btn" class="btn-secondary">Imprimir</button>
             <button id="fnc-nuevo-btn" class="btn-primary">+ Nueva NC</button>
         </div>
     </div>
@@ -236,7 +241,7 @@
                         <th>Estado gestión</th>
                         <th>Responsable</th>
                         <th style="display:none;">Fecha compromiso</th>
-                        <th>Fuente</th>
+                        <th id="fnc-th-fuente">Fuente</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -311,6 +316,7 @@
                             <option value="Cuarentena">Cuarentena</option>
                             <option value="Rechazo">Rechazo</option>
                             <option value="Reclamo">Reclamo</option>
+                            <option value="Interna">Interna</option>
                         </select>
                     </div>
                     <div class="fnc-form-campo">
@@ -474,6 +480,7 @@
                         <option value="Cuarentena">Cuarentena</option>
                         <option value="Rechazo">Rechazo</option>
                         <option value="Reclamo">Reclamo</option>
+                        <option value="Interna">Interna</option>
                     </select>
                 </div>
                 <div class="fnc-form-campo">

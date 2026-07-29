@@ -25,6 +25,9 @@ window.FaretDataController = class FaretDataController {
         document.getElementById("fd-exportar-btn")
             ?.addEventListener("click", () => this._exportar());
 
+        document.getElementById("fd-imprimir-btn")
+            ?.addEventListener("click", () => this._imprimir());
+
         this._filasFijas = window.TableUtils.init(
             document.getElementById("fd-tabla"),
             document.getElementById("fd-filas-fijadas")
@@ -213,7 +216,48 @@ window.FaretDataController = class FaretDataController {
         }
 
         const items = await this._traerTodosLosRegistros();
-        this._exportarRegistrosDesdeDatos(items);
+        const tabla = this._construirTablaTemp(items);
+        window.ExcelExporter.exportTable({
+            tableSelector: "#fd-tabla-export-temp",
+            fileName: `faret_data_todos_${Date.now()}.xlsx`,
+            sheetName: "Data",
+            title: "QCC Faret - Data"
+        });
+        tabla.remove();
+    }
+
+    async _imprimir() {
+        if (this._hayFiltrosActivos()) {
+            window.PrintExporter.printTable({
+                tableSelector: "#fd-tabla",
+                titulo: "Data",
+                empresa: "FARET",
+                subtitulo: this._resumenFiltrosTexto(),
+            });
+            return;
+        }
+
+        const items = await this._traerTodosLosRegistros();
+        const tabla = this._construirTablaTemp(items);
+        window.PrintExporter.printTable({
+            tableSelector: "#fd-tabla-export-temp",
+            titulo: "Data",
+            empresa: "FARET",
+            subtitulo: this._resumenFiltrosTexto(),
+            totalRegistros: items.length,
+        });
+        tabla.remove();
+    }
+
+    _resumenFiltrosTexto() {
+        const f = this._getFiltros();
+        const partes = [];
+        if (f.cliente) partes.push(`Cliente: ${f.cliente}`);
+        if (f.tipoPnc) partes.push(`Tipo PNC: ${f.tipoPnc}`);
+        if (f.nivel) partes.push(`Nivel: ${f.nivel}`);
+        if (f.fechaDesde) partes.push(`Fecha desde: ${f.fechaDesde}`);
+        if (f.fechaHasta) partes.push(`Fecha hasta: ${f.fechaHasta}`);
+        return partes.length ? partes.join(" · ") : "Sin filtros — histórico completo";
     }
 
     async _traerTodosLosRegistros(filtros = this._getFiltros()) {
@@ -243,7 +287,7 @@ window.FaretDataController = class FaretDataController {
         return items;
     }
 
-    _exportarRegistrosDesdeDatos(items) {
+    _construirTablaTemp(items) {
         const tabla = document.createElement("table");
         tabla.id = "fd-tabla-export-temp";
         tabla.style.position = "absolute";
@@ -296,14 +340,6 @@ window.FaretDataController = class FaretDataController {
         `;
 
         document.body.appendChild(tabla);
-
-        window.ExcelExporter.exportTable({
-            tableSelector: "#fd-tabla-export-temp",
-            fileName: `faret_data_todos_${Date.now()}.xlsx`,
-            sheetName: "Data",
-            title: "QCC Faret - Data"
-        });
-
-        tabla.remove();
+        return tabla;
     }
 };

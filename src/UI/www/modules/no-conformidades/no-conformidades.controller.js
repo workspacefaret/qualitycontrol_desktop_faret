@@ -15,8 +15,44 @@ window.NoConformidadesController = class NoConformidadesController {
         this._analisisActual = null;
         this._acciones = [];
 
+        // Columnas opcionales del listado (campos que ya vienen en cada fila de "noConformidades.list"
+        // pero no se muestran por defecto en la tabla base).
+        this._columnasDisponibles = [
+            { key: "tipoFalla", label: "Tipo de falla" },
+            { key: "impacto", label: "Impacto" },
+            { key: "cantRequerida", label: "Cant. requerida", tipo: "numero" },
+            { key: "cantRechazada", label: "Cant. rechazada", tipo: "numero" },
+            { key: "cantRecuperada", label: "Cant. recuperada", tipo: "numero" },
+            { key: "pncReal", label: "PNC real", tipo: "numero" },
+            { key: "pctRecuperacion", label: "% Recup.", tipo: "porcentaje" },
+            { key: "area", label: "Área" },
+            { key: "maquina", label: "Máquina" },
+            { key: "operador", label: "Operador" },
+            { key: "supervisor", label: "Supervisor" },
+            { key: "revisadoPor", label: "Revisado por" },
+            { key: "fechaFabricacion", label: "Fecha fabricación", tipo: "fecha" },
+        ];
+        this._columnasVisibles = this._cargarColumnasVisibles();
+
         document.getElementById("ncq-nuevo-btn")?.addEventListener("click", () => this._abrirNuevo());
         document.getElementById("ncq-exportar-btn")?.addEventListener("click", () => this._exportar());
+        document.getElementById("ncq-imprimir-btn")?.addEventListener("click", () => this._imprimir());
+
+        document.getElementById("ncq-columnas-btn")?.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const dd = document.getElementById("ncq-columnas-dropdown");
+            if (dd) dd.style.display = dd.style.display === "none" ? "block" : "none";
+        });
+
+        document.addEventListener("click", (e) => {
+            const wrap = document.getElementById("ncq-columnas-btn")?.closest(".ncq-combo-wrap");
+            if (wrap && !wrap.contains(e.target)) {
+                const dd = document.getElementById("ncq-columnas-dropdown");
+                if (dd) dd.style.display = "none";
+            }
+        });
+
+        this._renderColumnasDropdown();
         document.getElementById("ncq-filtrar-btn")?.addEventListener("click", () => { this._page = 1; this._loadLista(); });
         document.getElementById("ncq-limpiar-btn")?.addEventListener("click", () => this._limpiarFiltros());
 
@@ -63,6 +99,10 @@ window.NoConformidadesController = class NoConformidadesController {
             if (!res.ok) return;
             this._filtrosOpciones = res.data;
 
+            // Tipo PNC además siembra el mismo catálogo fijo del formulario "Nueva NC" (Cuarentena/
+            // Rechazo/Reclamo/Interna) para que esas opciones existan en el filtro aunque todavía
+            // no haya ningún registro real con ese valor.
+            const TIPO_PNC_BASE = ["Cuarentena", "Rechazo", "Reclamo", "Interna"];
             const mapa = {
                 "ncq-filtro-cliente": "clientes",
                 "ncq-filtro-tipo-pnc": "tiposPnc",
@@ -72,8 +112,10 @@ window.NoConformidadesController = class NoConformidadesController {
                 const select = document.getElementById(selectId);
                 if (!select) return;
                 const valorActual = select.value;
+                const base = campo === "tiposPnc" ? TIPO_PNC_BASE : [];
+                const valores = new Set([...base, ...(this._filtrosOpciones[campo] || [])]);
                 select.innerHTML = `<option value="">Todos</option>` +
-                    (this._filtrosOpciones[campo] || []).map(v => `<option value="${v}">${v}</option>`).join("");
+                    [...valores].sort().map(v => `<option value="${v}">${v}</option>`).join("");
                 if (valorActual) select.value = valorActual;
             });
 
@@ -142,7 +184,7 @@ window.NoConformidadesController = class NoConformidadesController {
 
     async _loadLista() {
         const tbody = document.getElementById("ncq-tbody");
-        tbody.innerHTML = `<tr><td colspan="14">Cargando...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${this._totalColumnasTabla()}">Cargando...</td></tr>`;
 
         const filtros = this._getFiltros();
 
@@ -153,7 +195,7 @@ window.NoConformidadesController = class NoConformidadesController {
             ]);
 
             if (!listRes.ok) {
-                tbody.innerHTML = `<tr><td colspan="14">${listRes.error || "Error al cargar"}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${this._totalColumnasTabla()}">${listRes.error || "Error al cargar"}</td></tr>`;
                 return;
             }
 
@@ -166,7 +208,7 @@ window.NoConformidadesController = class NoConformidadesController {
             this._renderTabla();
             this._renderPaginacion();
         } catch {
-            tbody.innerHTML = `<tr><td colspan="14">Error de comunicación con el backend</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${this._totalColumnasTabla()}">Error de comunicación con el backend</td></tr>`;
         }
     }
 
@@ -177,11 +219,87 @@ window.NoConformidadesController = class NoConformidadesController {
         document.getElementById("ncq-criticas").textContent = r.criticas ?? 0;
     }
 
+    // ---------- Columnas opcionales del listado ----------
+
+    _cargarColumnasVisibles() {
+        try {
+            const raw = localStorage.getItem("noConformidadesColumnasVisibles");
+            return new Set(raw ? JSON.parse(raw) : []);
+        } catch {
+            return new Set();
+        }
+    }
+
+    _guardarColumnasVisibles() {
+        try {
+            localStorage.setItem("noConformidadesColumnasVisibles", JSON.stringify([...this._columnasVisibles]));
+        } catch {
+            // localStorage no disponible; el toggle sigue funcionando en memoria para esta sesión
+        }
+    }
+
+    _renderColumnasDropdown() {
+        const dd = document.getElementById("ncq-columnas-dropdown");
+        if (!dd) return;
+
+        dd.innerHTML = this._columnasDisponibles.map(col => `
+            <label class="ncq-columnas-item">
+                <input type="checkbox" data-col="${col.key}" ${this._columnasVisibles.has(col.key) ? "checked" : ""}>
+                ${col.label}
+            </label>
+        `).join("");
+
+        dd.querySelectorAll("input[type=checkbox]").forEach(chk =>
+            chk.addEventListener("change", () => {
+                if (chk.checked) this._columnasVisibles.add(chk.dataset.col);
+                else this._columnasVisibles.delete(chk.dataset.col);
+                this._guardarColumnasVisibles();
+                this._renderTabla();
+            }));
+    }
+
+    _columnasOpcionalesVisibles() {
+        return this._columnasDisponibles.filter(col => this._columnasVisibles.has(col.key));
+    }
+
+    _formatearColumnaOpcional(nc, col) {
+        const valor = nc[col.key];
+        if (valor === null || valor === undefined || valor === "") return "-";
+        if (col.tipo === "fecha") return this._fecha(valor);
+        if (col.tipo === "porcentaje") return `${(valor * 100).toFixed(2)}%`;
+        return valor;
+    }
+
+    // Inserta/quita los <th> de las columnas opcionales activas justo antes de "Acciones".
+    _actualizarThead() {
+        const theadRow = document.querySelector("#ncq-tabla thead tr");
+        const accionesTh = document.getElementById("ncq-th-acciones");
+        if (!theadRow || !accionesTh) return;
+
+        theadRow.querySelectorAll('[data-opcional="true"]').forEach(th => th.remove());
+
+        this._columnasOpcionalesVisibles().forEach(col => {
+            const th = document.createElement("th");
+            th.textContent = col.label;
+            th.dataset.opcional = "true";
+            theadRow.insertBefore(th, accionesTh);
+        });
+    }
+
+    // Total de columnas del thead (14 base + opcionales activas), usado para el colspan de las
+    // filas de estado (Cargando/Sin registros/Error).
+    _totalColumnasTabla() {
+        return 14 + this._columnasOpcionalesVisibles().length;
+    }
+
     _renderTabla() {
+        this._actualizarThead();
+        const colsOpcionales = this._columnasOpcionalesVisibles();
+
         const tbody = document.getElementById("ncq-tbody");
 
         if (!this._items.length) {
-            tbody.innerHTML = `<tr><td colspan="14">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${this._totalColumnasTabla()}">Sin registros</td></tr>`;
             return;
         }
 
@@ -200,6 +318,7 @@ window.NoConformidadesController = class NoConformidadesController {
                 <td>${this._badge(this._labelEstadoGestion(nc.estadoGestion), this._colorEstadoGestion(nc.estadoGestion))}</td>
                 <td>${nc.responsable ?? "-"}</td>
                 <td>${this._fecha(nc.fechaCompromiso)}</td>
+                ${colsOpcionales.map(col => `<td>${this._formatearColumnaOpcional(nc, col)}</td>`).join("")}
                 <td>
                     <button class="btn-ghost ncq-ver-btn" data-id="${nc.id}">Ver</button>
                     <button class="btn-primary ncq-analizar-btn" data-id="${nc.id}">Analizar</button>
@@ -828,20 +947,63 @@ window.NoConformidadesController = class NoConformidadesController {
         }
     }
 
-    // ---------- Exportar ----------
+    // ---------- Exportar / Imprimir ----------
+
+    async _obtenerItemsFiltrados() {
+        const filtros = this._getFiltros();
+        const res = await window.PhotinoBridge.send({ action: "noConformidades.list", page: 1, pageSize: 999999, ...filtros });
+        return res.ok && Array.isArray(res.data.items) ? res.data.items : [];
+    }
+
+    _resumenFiltrosTexto() {
+        const f = this._getFiltros();
+        const partes = [];
+        if (f.cliente) partes.push(`Cliente: ${f.cliente}`);
+        if (f.tipoPnc) partes.push(`Tipo PNC: ${f.tipoPnc}`);
+        if (f.nivel) partes.push(`Nivel: ${f.nivel}`);
+        if (f.estadoGestion) partes.push(`Estado gestión: ${this._labelEstadoGestion(f.estadoGestion)}`);
+        if (f.responsable) partes.push(`Responsable: ${f.responsable}`);
+        if (f.fechaDesde) partes.push(`Fecha ingreso desde: ${f.fechaDesde}`);
+        if (f.fechaHasta) partes.push(`Fecha ingreso hasta: ${f.fechaHasta}`);
+        return partes.length ? partes.join(" · ") : "Sin filtros — histórico completo";
+    }
 
     async _exportar() {
-        const filtros = this._getFiltros();
         try {
-            const res = await window.PhotinoBridge.send({ action: "noConformidades.list", page: 1, pageSize: 999999, ...filtros });
-            const items = res.ok && Array.isArray(res.data.items) ? res.data.items : [];
-            this._exportarDesdeItems(items);
+            const items = await this._obtenerItemsFiltrados();
+            const tabla = this._construirTablaTemp(items);
+            window.ExcelExporter.exportTable({
+                tableSelector: "#ncq-tabla-export-temp",
+                fileName: `no_conformidades_${Date.now()}.xlsx`,
+                sheetName: "No Conformidades",
+                title: "QCC - No Conformidades",
+            });
+            tabla.remove();
         } catch {
             this._showMensaje("Error al exportar", false);
         }
     }
 
-    _exportarDesdeItems(items) {
+    async _imprimir() {
+        try {
+            const items = await this._obtenerItemsFiltrados();
+            const tabla = this._construirTablaTemp(items);
+            window.PrintExporter.printTable({
+                tableSelector: "#ncq-tabla-export-temp",
+                titulo: "No Conformidades",
+                empresa: "INNPACK",
+                subtitulo: this._resumenFiltrosTexto(),
+                totalRegistros: items.length,
+            });
+            tabla.remove();
+        } catch {
+            this._showMensaje("Error al imprimir", false);
+        }
+    }
+
+    _construirTablaTemp(items) {
+        const colsOpcionales = this._columnasOpcionalesVisibles();
+
         const tabla = document.createElement("table");
         tabla.id = "ncq-tabla-export-temp";
         tabla.style.position = "absolute";
@@ -854,6 +1016,7 @@ window.NoConformidadesController = class NoConformidadesController {
                     <th>Código</th><th>Fecha ingreso</th><th>Fecha salida</th><th>NP/NV</th><th>Cliente</th>
                     <th>Código producto</th><th>Producto</th><th>Tipo PNC</th><th>Categoría defecto</th><th>Nivel</th>
                     <th>Estado gestión</th><th>Responsable</th><th>Fecha compromiso</th>
+                    ${colsOpcionales.map(col => `<th>${col.label}</th>`).join("")}
                 </tr>
             </thead>
             <tbody>
@@ -872,18 +1035,13 @@ window.NoConformidadesController = class NoConformidadesController {
                         <td>${this._labelEstadoGestion(nc.estadoGestion)}</td>
                         <td>${nc.responsable ?? "-"}</td>
                         <td>${this._fecha(nc.fechaCompromiso)}</td>
+                        ${colsOpcionales.map(col => `<td>${this._formatearColumnaOpcional(nc, col)}</td>`).join("")}
                     </tr>
                 `).join("")}
             </tbody>
         `;
 
         document.body.appendChild(tabla);
-        window.ExcelExporter.exportTable({
-            tableSelector: "#ncq-tabla-export-temp",
-            fileName: `no_conformidades_${Date.now()}.xlsx`,
-            sheetName: "No Conformidades",
-            title: "QCC - No Conformidades",
-        });
-        tabla.remove();
+        return tabla;
     }
 };
