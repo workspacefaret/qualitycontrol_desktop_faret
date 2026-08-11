@@ -4,13 +4,17 @@ Documento de contexto **exclusivo** para el trabajo de incorporar un nuevo módu
 Gestión Documental (protocolos/procedimientos/instructivos/registros) al sistema,
 a partir del Excel `docs/Matriz Control Documental  REG-SGI-MCD-V10.xlsx`.
 
-Estado actual (2026-07-14): **MVP implementado completo — Etapas 1, 2 y 3 hechas
-y aprobadas explícitamente por el usuario** (SQL ejecutado en la BD real,
-backend y frontend compilando sin errores). Pendiente: **prueba manual del
-usuario en `dotnet run`** antes de dar el módulo por cerrado, y **nada de esto
-está commiteado todavía** (ver "Para retomar mañana" al final del documento).
-Modo de trabajo: seguro (ver `CLAUDE.md` — plan → aprobación → un paso a la
-vez).
+Estado actual (2026-08-10): **MVP (Etapas 1-3) más Etapa 4 — Eliminar (borrado
+lógico) y Adjuntos reales por versión — implementados, aprobados y probados**.
+Ver `contex.md`, Paso 51, para el detalle completo de esta segunda etapa: columna
+`documentos.eliminado`, tabla nueva `documento_adjuntos` (BLOB, un adjunto por
+versión), y la corrección de ubicación pedida por el usuario (el adjunto vive en
+la tabla principal de documentos y en los modales de "Nuevo Documento"/"+ Agregar
+versión", no dentro de "Ver/Editar → Historial de versiones" donde había quedado
+en la primera pasada). Sigue sin haber importador desde el Excel original (nunca
+se pidió) — ese sigue siendo el único punto del plan original de abajo que no se
+implementó. Modo de trabajo: seguro (ver `CLAUDE.md` — plan → aprobación → un
+paso a la vez).
 
 ## Objetivo
 
@@ -260,39 +264,46 @@ Conformidades INNPACK:
   flujo completo (crear documento, agregar versión, filtrar, exportar) en
   `dotnet run` antes de dar por cerrado el módulo.
 
-## Para retomar mañana
+## Para retomar (actualizado 2026-08-10)
 
-**Estado exacto donde quedó la sesión (2026-07-14)**: MVP completo (Etapas
-1-3) implementado y funcionando (build OK, arranque sin excepciones), pero
-**sin probar clic a clic** y **sin commitear**.
+**Estado exacto**: MVP (Etapas 1-3) **más** Eliminar + Adjuntos (ver `contex.md`
+Paso 51) implementados, compilando sin errores, y probados por el usuario en
+`dotnet run` (aprobó explícitamente el resultado y luego pidió corregir la
+ubicación del adjunto, ya aplicado). **Sigue todo sin commitear** — el MVP base
+(`control-documental.*`, `ControlDocumentalHandler.cs`/`Repository.cs`,
+`MessageRouter.cs`, `index.html`) aparece como `M` (modificado) en `git status`
+en vez de `??`, lo que indica que en algún momento entre el 2026-07-14 y ahora
+sí se commiteó el MVP base — pero todo el trabajo de Eliminar/Adjuntos de esta
+sesión, más el resto de cambios de la sesión (No Conformidades, indicadores
+Faret, columnas de producto, etc. — ver `contex.md`), sigue como working tree
+sin commitear.
 
-### Archivos nuevos (sin trackear en git — `git status` los muestra como `??`)
-- `contex-control-documental.md` (este archivo)
-- `sql/control_documental.sql`
-- `src/Backend/Modules/ControlDocumental/ControlDocumentalHandler.cs`
-- `src/Backend/Repositories/ControlDocumental/ControlDocumentalRepository.cs`
-- `src/UI/www/modules/control-documental/` (`.view.html` / `.controller.js` / `.css`)
+### Scripts SQL nuevos de esta sesión (sin trackear, `??`)
+- `sql/control_documental_eliminar_adjuntos.sql` (columna `eliminado` + tabla
+  `documento_adjuntos`) — **ya ejecutado** contra la BD real, no es solo un
+  borrador.
+- `sql/no_conformidades_eliminar.sql` y `sql/no_conformidades_familia_disposicion.sql`
+  (no son de Control Documental, pero quedaron sin commitear en el mismo estado).
 
-### Archivos existentes modificados para este módulo
-- `src/Backend/Services/MessageRouter.cs` (1 `using` + rama `controlDocumental`)
-- `src/UI/www/index.html` (1 `<link>` CSS + 1 botón sidebar)
-
-Ojo: `git status` también muestra `QualityControlCenter.csproj`,
-`installers/QualityControlCenter.iss` y
-`src/Backend/Modules/Dashboard/DashboardRepository.cs` modificados — **esos
-cambios son previos a esta sesión de Control Documental, no tocarlos ni
-asumir que son parte de este trabajo** salvo que el usuario lo confirme.
+### Archivos de este módulo modificados en esta sesión
+- `src/Backend/Modules/ControlDocumental/ControlDocumentalHandler.cs` /
+  `src/Backend/Repositories/ControlDocumental/ControlDocumentalRepository.cs`
+  (acciones `eliminar`/`adjunto.subir`/`adjunto.abrir`, adjunto opcional en
+  `create`/`version.crear`)
+- `src/UI/www/modules/control-documental/` y
+  `src/UI/www/modules/faret-control-documental/` (`.controller.js`/`.view.html`
+  en ambos — columna Adjunto en tabla principal, input de archivo en "Nuevo
+  Documento" y "+ Agregar versión", botón Eliminar por fila)
 
 ### Pasos concretos al retomar
-1. Preguntar al usuario si ya probó el módulo en `dotnet run` (crear
-   documento, ver detalle, agregar versión, filtrar, exportar Excel) y si
-   encontró algo que corregir.
-2. Si todo OK y el usuario lo pide, ofrecer hacer commit (**nunca sin
-   pedirlo explícitamente** — regla del modo seguro). Revisar primero que el
-   commit no arrastre los 3 archivos modificados ajenos a este trabajo, salvo
-   que el usuario confirme que también quiere incluirlos.
-3. Recién después, evaluar si se aprueba la **2ª etapa** (no MVP, nada
-   implementado todavía): importador desde el Excel original (Etapa 4 del
-   plan original — separa `codigo_base`/versión, normaliza estados, solo
-   hojas "Control de Registros" y "Procedimientos"), adjuntos reales por
-   versión, bitácora de campañas de revisión anual, KPIs simples.
+1. Si se necesita seguir ampliando el módulo, seguir el modo seguro de
+   siempre (plan → aprobación → un paso a la vez).
+2. Ofrecer commit solo si el usuario lo pide explícitamente — hay bastante
+   trabajo de varias sesiones/temas distintos mezclado en el working tree sin
+   commitear (ver `contex.md`), conviene revisar con el usuario cómo lo
+   quiere agrupar en commits antes de ejecutar nada.
+3. Evaluar si se aprueba la **siguiente etapa** (nada de esto implementado
+   todavía): importador desde el Excel original (separa `codigo_base`/
+   versión, normaliza estados, solo hojas "Control de Registros" y
+   "Procedimientos"), bitácora de campañas de revisión anual, KPIs simples.
+   (Adjuntos reales por versión ya no está pendiente — ver arriba, Paso 51.)

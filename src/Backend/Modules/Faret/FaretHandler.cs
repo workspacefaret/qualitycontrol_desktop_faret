@@ -75,6 +75,7 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.importacion.list" => await HandleImportacionList(),
                 "faret.data.list" => await HandleDataList(data),
                 "faret.data.resumen" => await HandleDataResumen(data),
+                "faret.indicadoresCalidad.resumen" => await HandleIndicadoresCalidad(data),
                 "faret.usuarios.list" => await HandleUsuariosList(data),
                 "faret.usuarios.create" => await HandleUsuariosCreate(data),
                 "faret.usuarios.cambiarRol" => await HandleUsuariosCambiarRol(data),
@@ -308,6 +309,26 @@ namespace QualityControlCenter.Modules.Faret
             var filtros = BuildDataFiltros(data);
 
             var (ok, body) = await _importacion.GetPncResumenAsync(filtros);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        // Indicadores de calidad del Panel Faret (cuarentenas/rechazos/reclamos mensuales, familia
+        // de producto, área, Pareto de defectos) — solo período como filtro (ver
+        // IndicadoresCalidadFiltro en la API: un filtro de tipo_pnc no aplica acá porque cada serie
+        // ya fija su propio tipo).
+        private async Task<string> HandleIndicadoresCalidad(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            TryGetString(data, "fechaDesde", out var fechaDesde);
+            TryGetString(data, "fechaHasta", out var fechaHasta);
+            var filtros = new Dictionary<string, string?> { ["fechaDesde"] = fechaDesde, ["fechaHasta"] = fechaHasta };
+
+            var (ok, body) = await _importacion.GetIndicadoresCalidadAsync(filtros);
             if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
                 return Error(error);
 
@@ -684,10 +705,14 @@ namespace QualityControlCenter.Modules.Faret
             TryGetString(data, "cliente", out var cliente);
             TryGetString(data, "codigo", out var codigo);
             TryGetString(data, "producto", out var producto);
+            TryGetString(data, "familiaProducto", out var familiaProducto);
             TryGetDecimal(data, "cantRequerida", out var cantRequerida);
             TryGetDecimal(data, "cantRechazada", out var cantRechazada);
             TryGetDecimal(data, "cantRecuperada", out var cantRecuperada);
             TryGetDecimal(data, "pncReal", out var pncReal);
+            TryGetString(data, "disposicion", out var disposicion);
+            TryGetDecimal(data, "cantDestruida", out var cantDestruida);
+            TryGetDecimal(data, "cantRepuesta", out var cantRepuesta);
             TryGetString(data, "fechaFabricacion", out var fechaFabricacion);
             TryGetString(data, "descripcionDefecto", out var descripcionDefecto);
             TryGetString(data, "categoriaDefecto", out var categoriaDefecto);
@@ -713,10 +738,14 @@ namespace QualityControlCenter.Modules.Faret
                 cliente,
                 codigo,
                 producto,
+                familiaProducto,
                 cantRequerida,
                 cantRechazada,
                 cantRecuperada,
                 pncReal,
+                disposicion,
+                cantDestruida,
+                cantRepuesta,
                 fechaFabricacion,
                 descripcionDefecto,
                 categoriaDefecto,

@@ -64,6 +64,9 @@ window.NoConformidadesController = class NoConformidadesController {
         ["ncq-f-cant-rechazada", "ncq-f-cant-recuperada"].forEach(id =>
             document.getElementById(id)?.addEventListener("input", () => this._recalcularPctRecup()));
 
+        document.getElementById("ncq-f-tipo-pnc")?.addEventListener("change", () =>
+            this._actualizarVisibilidadDisposicion());
+
         document.getElementById("ncq-gestion-cerrar-btn")?.addEventListener("click", () => this._cerrarGestion());
         document.getElementById("ncq-gestion-guardar-btn")?.addEventListener("click", () => this._guardarGestion());
         document.getElementById("ncq-seguimiento-agregar-btn")?.addEventListener("click", () => this._agregarSeguimiento());
@@ -323,6 +326,7 @@ window.NoConformidadesController = class NoConformidadesController {
                     <button class="btn-ghost ncq-ver-btn" data-id="${nc.id}">Ver</button>
                     <button class="btn-primary ncq-analizar-btn" data-id="${nc.id}">Analizar</button>
                     <button class="btn-secondary ncq-gestionar-btn" data-id="${nc.id}">Gestionar</button>
+                    <button class="btn-danger ncq-eliminar-btn" data-id="${nc.id}">Eliminar</button>
                 </td>
             </tr>
         `).join("");
@@ -330,6 +334,26 @@ window.NoConformidadesController = class NoConformidadesController {
         tbody.querySelectorAll(".ncq-ver-btn").forEach(btn => btn.addEventListener("click", () => this._verDetalle(Number(btn.dataset.id))));
         tbody.querySelectorAll(".ncq-analizar-btn").forEach(btn => btn.addEventListener("click", () => this._abrirAnalisis(Number(btn.dataset.id))));
         tbody.querySelectorAll(".ncq-gestionar-btn").forEach(btn => btn.addEventListener("click", () => this._abrirGestion(Number(btn.dataset.id))));
+        tbody.querySelectorAll(".ncq-eliminar-btn").forEach(btn => btn.addEventListener("click", () => this._eliminarNc(Number(btn.dataset.id))));
+    }
+
+    async _eliminarNc(id) {
+        if (!confirm("¿Eliminar esta No Conformidad? Ya no aparecerá en el listado.")) return;
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "noConformidades.eliminar",
+                id,
+                actualizadoPor: this._usuarioActual(),
+            });
+            if (!res.ok) {
+                this._showMensaje(res.error || "Error al eliminar la No Conformidad", false);
+                return;
+            }
+            this._showMensaje("No conformidad eliminada", true);
+            await this._loadLista();
+        } catch {
+            this._showMensaje("Error de comunicación con el backend", false);
+        }
     }
 
     _renderPaginacion() {
@@ -373,6 +397,7 @@ window.NoConformidadesController = class NoConformidadesController {
             cliente: { id: "ncq-f-cliente", tipo: "texto" },
             codigoProducto: { id: "ncq-f-codigo", tipo: "texto" },
             producto: { id: "ncq-f-producto", tipo: "texto" },
+            familiaProducto: { id: "ncq-f-familia-producto", tipo: "texto" },
             tipoPnc: { id: "ncq-f-tipo-pnc", tipo: "texto" },
             nivel: { id: "ncq-f-nivel", tipo: "texto" },
             categoriaDefecto: { id: "ncq-f-categoria-defecto", tipo: "texto" },
@@ -382,6 +407,9 @@ window.NoConformidadesController = class NoConformidadesController {
             cantRechazada: { id: "ncq-f-cant-rechazada", tipo: "numero" },
             cantRecuperada: { id: "ncq-f-cant-recuperada", tipo: "numero" },
             pncReal: { id: "ncq-f-pnc-real", tipo: "numero" },
+            disposicion: { id: "ncq-f-disposicion", tipo: "texto" },
+            cantDestruida: { id: "ncq-f-cant-destruida", tipo: "numero" },
+            cantRepuesta: { id: "ncq-f-cant-repuesta", tipo: "numero" },
             area: { id: "ncq-f-area", tipo: "texto" },
             maquina: { id: "ncq-f-maquina", tipo: "texto" },
             operador: { id: "ncq-f-operador", tipo: "texto" },
@@ -404,6 +432,18 @@ window.NoConformidadesController = class NoConformidadesController {
         return raw.trim();
     }
 
+    // Disposición (reposición/destrucción) solo aplica a Cuarentena y Rechazo Cliente — el resto
+    // de los tipos de PNC no la necesitan (decisión explícita del usuario).
+    _esDisposicionAplicable(tipoPnc) {
+        return tipoPnc === "Cuarentena" || tipoPnc === "Rechazo Cliente";
+    }
+
+    _actualizarVisibilidadDisposicion() {
+        const tipoPnc = document.getElementById("ncq-f-tipo-pnc").value;
+        document.getElementById("ncq-f-disposicion-row").style.display =
+            this._esDisposicionAplicable(tipoPnc) ? "flex" : "none";
+    }
+
     _setModoEdicion(editable) {
         Object.values(this._camposMap()).forEach(({ id }) => { document.getElementById(id).disabled = !editable; });
         document.getElementById("ncq-form-editar-btn").style.display = (!editable && this._editingId) ? "inline-block" : "none";
@@ -422,7 +462,9 @@ window.NoConformidadesController = class NoConformidadesController {
         document.getElementById("ncq-f-fecha-ingreso").value = new Date().toISOString().substring(0, 10);
         document.getElementById("ncq-f-nivel").value = "Mayor";
         document.getElementById("ncq-f-impacto").value = "Calidad";
+        document.getElementById("ncq-f-disposicion").value = "No aplica";
         document.getElementById("ncq-f-pct-recup").value = "";
+        this._actualizarVisibilidadDisposicion();
 
         this._setModoEdicion(true);
         document.getElementById("ncq-form-modal").style.display = "flex";
@@ -460,6 +502,7 @@ window.NoConformidadesController = class NoConformidadesController {
             else el.value = nc[campo] ?? "";
         });
         this._recalcularPctRecup();
+        this._actualizarVisibilidadDisposicion();
     }
 
     _habilitarEdicion() {

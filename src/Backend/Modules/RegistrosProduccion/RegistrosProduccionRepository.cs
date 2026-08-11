@@ -395,6 +395,7 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
                     IFNULL(m.nombre, '-') AS maquina,
                     IFNULL(f.nombre, '-') AS formulario,
                     IFNULL(rc.np, '-') AS np,
+                    IFNULL(rc.codigo_producto, '-') AS codigo_producto,
                     IFNULL(rc.descripcion_producto, '-') AS producto,
                     IFNULL(rc.turno, '-') AS turno,
                     IFNULL(ec.nombre, '-') AS estado,
@@ -407,6 +408,42 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
                         INNER JOIN parametros_control_visual pcv ON pcv.id = rfv2.parametro_id
                         WHERE rfv2.registro_id = rc.id
                     ), '-') AS tipo_defecto,
+                    IFNULL((
+                        SELECT GROUP_CONCAT(
+                            rb.lote
+                            ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
+                        )
+                        FROM registro_control_bobinas rb
+                        INNER JOIN registros_control rc2 ON rc2.id = rb.registro_id
+                        WHERE rc2.np = rc.np
+                          AND rc2.eliminado = 0
+                          AND rc.np IS NOT NULL AND rc.np <> ''
+                          AND ABS(DATEDIFF(rc2.fecha_registro, rc.fecha_registro)) <= 7
+                    ), '-') AS bobina_lote,
+                    IFNULL((
+                        SELECT GROUP_CONCAT(
+                            COALESCE(rb.item_code, '')
+                            ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
+                        )
+                        FROM registro_control_bobinas rb
+                        INNER JOIN registros_control rc2 ON rc2.id = rb.registro_id
+                        WHERE rc2.np = rc.np
+                          AND rc2.eliminado = 0
+                          AND rc.np IS NOT NULL AND rc.np <> ''
+                          AND ABS(DATEDIFF(rc2.fecha_registro, rc.fecha_registro)) <= 7
+                    ), '-') AS bobina_codigo,
+                    IFNULL((
+                        SELECT GROUP_CONCAT(
+                            COALESCE(rb.item_name, '')
+                            ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
+                        )
+                        FROM registro_control_bobinas rb
+                        INNER JOIN registros_control rc2 ON rc2.id = rb.registro_id
+                        WHERE rc2.np = rc.np
+                          AND rc2.eliminado = 0
+                          AND rc.np IS NOT NULL AND rc.np <> ''
+                          AND ABS(DATEDIFF(rc2.fecha_registro, rc.fecha_registro)) <= 7
+                    ), '-') AS bobina_descripcion,
                     IFNULL(rc.estado_validacion, 'PENDIENTE') AS estado_validacion,
                     IFNULL(DATE_FORMAT(rc.fecha_validacion, '%d-%m-%Y %H:%i'), '') AS fecha_validacion,
                     IFNULL(rc.usuario_validacion, '') AS usuario_validacion,
@@ -444,6 +481,7 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
                         Maquina = Text(reader, "maquina"),
                         Formulario = Text(reader, "formulario"),
                         Np = Text(reader, "np"),
+                        CodigoProducto = Text(reader, "codigo_producto"),
                         Producto = Text(reader, "producto"),
                         Turno = Text(reader, "turno"),
                         Estado = Text(reader, "estado"),
@@ -451,6 +489,9 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
                         TipoMerma = Text(reader, "tipo_merma"),
                         CantidadMerma = Text(reader, "cantidad_merma"),
                         TipoDefecto = Text(reader, "tipo_defecto"),
+                        BobinaLote = Text(reader, "bobina_lote"),
+                        BobinaCodigo = Text(reader, "bobina_codigo"),
+                        BobinaDescripcion = Text(reader, "bobina_descripcion"),
                         EstadoValidacion = Text(reader, "estado_validacion"),
                         FechaValidacion = Text(reader, "fecha_validacion"),
                         UsuarioValidacion = Text(reader, "usuario_validacion"),

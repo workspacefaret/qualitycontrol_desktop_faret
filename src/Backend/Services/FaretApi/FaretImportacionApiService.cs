@@ -37,6 +37,9 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public Task<(bool ok, string body)> GetPncResumenAsync(Dictionary<string, string?> filtros) =>
             _client.GetAsync($"api/importaciones/pnc/resumen?{BuildQueryString(filtros)}");
 
+        public Task<(bool ok, string body)> GetIndicadoresCalidadAsync(Dictionary<string, string?> filtros) =>
+            _client.GetAsync($"api/importaciones/pnc/indicadores-calidad?{BuildQueryString(filtros)}");
+
         private static string BuildQueryString(Dictionary<string, string?> filtros) =>
             string.Join(
                 "&",

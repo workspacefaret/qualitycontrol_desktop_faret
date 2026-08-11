@@ -26,10 +26,11 @@ window.FaretController = class FaretController {
     async _loadDashboard() {
         this._destroyCharts();
 
-        const [dashboard, inspecciones, maquinas] = await Promise.all([
+        const [dashboard, inspecciones, maquinas, indicadoresCalidad] = await Promise.all([
             this._fetch("faret.dashboard.resumen"),
             this._fetch("faret.inspecciones.resumen"),
             this._fetch("faret.maquinas.resumen"),
+            this._fetch("faret.indicadoresCalidad.resumen"),
         ]);
 
         this._renderKpis(dashboard?.kpis || {}, inspecciones || {}, maquinas || {});
@@ -37,6 +38,7 @@ window.FaretController = class FaretController {
         this._renderAlertas(dashboard?.alertas || []);
         this._renderMaquinas(maquinas?.maquinas || []);
         this._renderResumen(dashboard?.kpis || {}, inspecciones || {}, maquinas || {});
+        this._renderIndicadoresCalidad(indicadoresCalidad || {});
     }
 
     async _fetch(action) {
@@ -199,6 +201,108 @@ window.FaretController = class FaretController {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: { y: { beginAtZero: true }, x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+            },
+        });
+
+        this._charts.push(chart);
+    }
+
+    _renderIndicadoresCalidad(ind) {
+        const mesActual = new Date().toISOString().substring(0, 7);
+        const cuarentenaMes = (ind.cuarentenasPorMes || []).find(m => m.mes === mesActual);
+        const rechazoMes = (ind.rechazosClientePorMes || []).find(m => m.mes === mesActual);
+
+        this._setText("fh-kpi-cuarentenas-mes", this._numero(cuarentenaMes?.total));
+        this._setText("fh-kpi-rechazos-cliente-mes", this._numero(rechazoMes?.total));
+        this._setText("fh-kpi-reclamos-total", this._numero(ind.totalReclamos));
+
+        const seriesRecuperadoDestruido = [
+            { key: "recuperados", label: "Recuperados", color: "#22c55e" },
+            { key: "destruidos", label: "Destruidos", color: "#ef4444" },
+        ];
+        this._chartBarAgrupada("fh-chart-cuarentenas-mes", ind.cuarentenasPorMes || [], "mes", seriesRecuperadoDestruido);
+        this._chartBarAgrupada("fh-chart-rechazos-cliente-mes", ind.rechazosClientePorMes || [], "mes", seriesRecuperadoDestruido);
+
+        this._chartBarHorizontal("fh-chart-incidentes-area", ind.porArea || [], "categoria", "total", "Incidentes");
+        this._chartBarHorizontal("fh-chart-incidentes-familia", ind.porFamilia || [], "categoria", "total", "Incidentes");
+
+        this._chartPareto("fh-chart-pareto-defectos", ind.paretoDefectos || [], "defecto", "frecuencia", "porcentajeAcumulado");
+    }
+
+    _chartBarAgrupada(canvasId, rows, labelKey, series) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const chart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: rows.map(r => r[labelKey] || "-"),
+                datasets: series.map(s => ({
+                    label: s.label,
+                    data: rows.map(r => Number(r[s.key] || 0)),
+                    backgroundColor: s.color,
+                    borderRadius: 6,
+                })),
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: "bottom", labels: { font: { size: 11 } } } },
+                scales: {
+                    y: { beginAtZero: true },
+                    x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+                },
+            },
+        });
+
+        this._charts.push(chart);
+    }
+
+    // Pareto real: barras = frecuencia por defecto, línea = % acumulado sobre eje secundario.
+    _chartPareto(canvasId, rows, labelKey, freqKey, pctKey) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const chart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: rows.map(r => r[labelKey] || "-"),
+                datasets: [
+                    {
+                        label: "Frecuencia",
+                        data: rows.map(r => Number(r[freqKey] || 0)),
+                        backgroundColor: "#3b82f6",
+                        borderRadius: 6,
+                        yAxisID: "y",
+                    },
+                    {
+                        type: "line",
+                        label: "% Acumulado",
+                        data: rows.map(r => Number(r[pctKey] || 0)),
+                        borderColor: "#ef4444",
+                        backgroundColor: "#ef4444",
+                        pointBackgroundColor: "#ef4444",
+                        pointRadius: 3,
+                        tension: 0.25,
+                        yAxisID: "y1",
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: "bottom", labels: { font: { size: 11 } } } },
+                scales: {
+                    y: { beginAtZero: true, position: "left", title: { display: true, text: "Frecuencia" } },
+                    y1: {
+                        beginAtZero: true,
+                        max: 100,
+                        position: "right",
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: "% Acumulado" },
+                    },
+                    x: { ticks: { maxRotation: 30, autoSkip: true, maxTicksLimit: 10, font: { size: 10 } } },
+                },
             },
         });
 

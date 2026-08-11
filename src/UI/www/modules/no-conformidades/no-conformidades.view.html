@@ -155,6 +155,16 @@
                     <label for="ncq-f-producto">Producto *</label>
                     <input type="text" id="ncq-f-producto">
                 </div>
+                <div class="ncq-campo">
+                    <label for="ncq-f-familia-producto">Familia de producto</label>
+                    <select id="ncq-f-familia-producto">
+                        <option value="">-</option>
+                        <option value="Etiquetas">Etiquetas</option>
+                        <option value="Estuches">Estuches</option>
+                        <option value="Folletos">Folletos</option>
+                        <option value="Preformas">Preformas</option>
+                    </select>
+                </div>
             </div>
 
             <div class="ncq-form-row">
@@ -164,6 +174,7 @@
                         <option value="">-</option>
                         <option value="Cuarentena">Cuarentena</option>
                         <option value="Rechazo">Rechazo</option>
+                        <option value="Rechazo Cliente">Rechazo Cliente</option>
                         <option value="Reclamo">Reclamo</option>
                         <option value="Interna">Interna</option>
                     </select>
@@ -224,6 +235,26 @@
                 <div class="ncq-campo">
                     <label for="ncq-f-pct-recup">% Recup.</label>
                     <input type="text" id="ncq-f-pct-recup" disabled placeholder="-">
+                </div>
+            </div>
+
+            <div class="ncq-form-row" id="ncq-f-disposicion-row" style="display:none;">
+                <div class="ncq-campo">
+                    <label for="ncq-f-disposicion">Disposición</label>
+                    <select id="ncq-f-disposicion">
+                        <option value="No aplica">No aplica</option>
+                        <option value="Reposición">Reposición</option>
+                        <option value="Destrucción">Destrucción</option>
+                        <option value="Reposición y destrucción">Reposición y destrucción</option>
+                    </select>
+                </div>
+                <div class="ncq-campo">
+                    <label for="ncq-f-cant-destruida">Cant. destruida</label>
+                    <input type="number" id="ncq-f-cant-destruida" min="0" step="any">
+                </div>
+                <div class="ncq-campo">
+                    <label for="ncq-f-cant-repuesta">Cant. repuesta</label>
+                    <input type="number" id="ncq-f-cant-repuesta" min="0" step="any">
                 </div>
             </div>
 

@@ -52,6 +52,7 @@ namespace QualityControlCenter.Modules.NoConformidades
                     "noConformidades.get" => await HandleGet(data),
                     "noConformidades.create" => await HandleCreate(data),
                     "noConformidades.update" => await HandleUpdate(data),
+                    "noConformidades.eliminar" => await HandleEliminar(data),
                     "noConformidades.gestion.actualizar" => await HandleGestionActualizar(data),
                     "noConformidades.cerrar" => await HandleCerrar(data),
                     "noConformidades.seguimiento.list" => await HandleSeguimientoList(data),
@@ -268,6 +269,18 @@ namespace QualityControlCenter.Modules.NoConformidades
 
             TryGetString(data, "actualizadoPor", out var actualizadoPor);
             await _repo.Actualizar(id, campos, actualizadoPor);
+            return Ok(new { id });
+        }
+
+        // Borrado lógico — disponible para cualquier usuario logueado, sin gating de rol (mismo
+        // criterio que el resto del módulo, ninguna acción de NoConformidades restringe por rol).
+        private async Task<string> HandleEliminar(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            TryGetString(data, "actualizadoPor", out var actualizadoPor);
+            await _repo.Eliminar(id, actualizadoPor);
             return Ok(new { id });
         }
 

@@ -139,6 +139,9 @@ window.FaretNcController = class FaretNcController {
         ["fnc-npnc-cant-rechazada", "fnc-npnc-cant-recuperada"].forEach(id =>
             document.getElementById(id)?.addEventListener("input", () => this._recalcularPctRecup()));
 
+        document.getElementById("fnc-npnc-tipo-pnc")?.addEventListener("change", () =>
+            this._actualizarVisibilidadDisposicion("fnc-npnc-tipo-pnc", "fnc-npnc-disposicion-row"));
+
         this._ncAnalisisId = null;
         this._analisisActual = null;
         this._acciones = [];
@@ -757,6 +760,7 @@ window.FaretNcController = class FaretNcController {
             cliente: { id: "fnc-reg-cliente", tipo: "texto" },
             codigo: { id: "fnc-reg-codigo", tipo: "texto" },
             producto: { id: "fnc-reg-producto", tipo: "texto" },
+            familiaProducto: { id: "fnc-reg-familia-producto", tipo: "texto" },
             tipoPnc: { id: "fnc-reg-tipo-pnc", tipo: "texto" },
             nivel: { id: "fnc-reg-nivel", tipo: "texto" },
             categoriaDefecto: { id: "fnc-reg-categoria-defecto", tipo: "texto" },
@@ -766,6 +770,9 @@ window.FaretNcController = class FaretNcController {
             cantRechazada: { id: "fnc-reg-cant-rechazada", tipo: "numero" },
             cantRecuperada: { id: "fnc-reg-cant-recuperada", tipo: "numero" },
             pncReal: { id: "fnc-reg-pnc-real", tipo: "numero" },
+            disposicion: { id: "fnc-reg-disposicion", tipo: "texto" },
+            cantDestruida: { id: "fnc-reg-cant-destruida", tipo: "numero" },
+            cantRepuesta: { id: "fnc-reg-cant-repuesta", tipo: "numero" },
             area: { id: "fnc-reg-area", tipo: "texto" },
             maquina: { id: "fnc-reg-maquina", tipo: "texto" },
             operador: { id: "fnc-reg-operador", tipo: "texto" },
@@ -793,10 +800,23 @@ window.FaretNcController = class FaretNcController {
         });
 
         this._recalcularPctRecupRegistro();
+        this._actualizarVisibilidadDisposicion("fnc-reg-tipo-pnc", "fnc-reg-disposicion-row");
         this._poblarDatalistsNuevoPnc(); // reutiliza los mismos <datalist> del modal "Nueva NC"
         this._modoEdicionRegistro(false);
         this._ultimoCampoEditadoRegistro = null;
         document.getElementById("fnc-reg-error").style.display = "none";
+    }
+
+    // Disposición (reposición/destrucción) solo aplica a Cuarentena y Rechazo Cliente — el resto
+    // de los tipos de PNC no la necesitan (decisión explícita del usuario).
+    _esDisposicionAplicable(tipoPnc) {
+        return tipoPnc === "Cuarentena" || tipoPnc === "Rechazo Cliente";
+    }
+
+    _actualizarVisibilidadDisposicion(tipoPncSelectId, filaId) {
+        const tipoPnc = document.getElementById(tipoPncSelectId).value;
+        document.getElementById(filaId).style.display =
+            this._esDisposicionAplicable(tipoPnc) ? "flex" : "none";
     }
 
     _modoEdicionRegistro(editable) {
@@ -819,6 +839,7 @@ window.FaretNcController = class FaretNcController {
             const marcar = () => {
                 this._ultimoCampoEditadoRegistro = campo;
                 if (campo === "cantRechazada" || campo === "cantRecuperada") this._recalcularPctRecupRegistro();
+                if (campo === "tipoPnc") this._actualizarVisibilidadDisposicion("fnc-reg-tipo-pnc", "fnc-reg-disposicion-row");
             };
             el.oninput = marcar;
             el.onchange = marcar;
@@ -1096,7 +1117,8 @@ window.FaretNcController = class FaretNcController {
         [
             "fnc-npnc-np-nv", "fnc-npnc-cliente", "fnc-npnc-codigo", "fnc-npnc-producto",
             "fnc-npnc-categoria-defecto", "fnc-npnc-cant-requerida", "fnc-npnc-cant-rechazada",
-            "fnc-npnc-cant-recuperada", "fnc-npnc-pnc-real", "fnc-npnc-area", "fnc-npnc-maquina",
+            "fnc-npnc-cant-recuperada", "fnc-npnc-pnc-real", "fnc-npnc-cant-destruida",
+            "fnc-npnc-cant-repuesta", "fnc-npnc-area", "fnc-npnc-maquina",
             "fnc-npnc-operador", "fnc-npnc-supervisor", "fnc-npnc-revisado-por",
             "fnc-npnc-fecha-salida", "fnc-npnc-fecha-fabricacion", "fnc-npnc-descripcion-defecto",
             "fnc-npnc-observacion", "fnc-npnc-causa-raiz", "fnc-npnc-acciones-correctivas",
@@ -1107,7 +1129,10 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-npnc-nivel").value = "Mayor";
         document.getElementById("fnc-npnc-tipo-falla").value = "";
         document.getElementById("fnc-npnc-impacto").value = "Calidad";
+        document.getElementById("fnc-npnc-familia-producto").value = "";
+        document.getElementById("fnc-npnc-disposicion").value = "No aplica";
         document.getElementById("fnc-npnc-pct-recup").value = "";
+        this._actualizarVisibilidadDisposicion("fnc-npnc-tipo-pnc", "fnc-npnc-disposicion-row");
 
         this._poblarDatalistsNuevoPnc();
         document.getElementById("fnc-nuevo-pnc-modal").style.display = "flex";
@@ -1172,10 +1197,14 @@ window.FaretNcController = class FaretNcController {
             cliente,
             codigo,
             producto,
+            familiaProducto: val("fnc-npnc-familia-producto") || null,
             cantRequerida,
             cantRechazada,
             cantRecuperada: num("fnc-npnc-cant-recuperada"),
             pncReal: num("fnc-npnc-pnc-real"),
+            disposicion: this._esDisposicionAplicable(tipoPnc) ? val("fnc-npnc-disposicion") : null,
+            cantDestruida: this._esDisposicionAplicable(tipoPnc) ? num("fnc-npnc-cant-destruida") : null,
+            cantRepuesta: this._esDisposicionAplicable(tipoPnc) ? num("fnc-npnc-cant-repuesta") : null,
             fechaSalida: val("fnc-npnc-fecha-salida") || null,
             fechaFabricacion: val("fnc-npnc-fecha-fabricacion") || null,
             descripcionDefecto,

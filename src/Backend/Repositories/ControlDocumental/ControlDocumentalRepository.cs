@@ -139,10 +139,10 @@ namespace QualityControlCenter.Repositories.ControlDocumental
             string? alcanceEmpresa
         )
         {
-            var where = new List<string>();
+            var where = new List<string> { "d.eliminado = 0" };
             var parameters = new List<MySqlParameter>();
             AplicarFiltros(where, parameters, texto, tipoDocumento, area, estado, alcanceEmpresa);
-            var whereSql = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
+            var whereSql = "WHERE " + string.Join(" AND ", where);
 
             await using var conn = _db.GetCalidadConnection();
             await conn.OpenAsync();
@@ -161,9 +161,12 @@ namespace QualityControlCenter.Repositories.ControlDocumental
 
             var selectSql =
                 "SELECT " + string.Join(", ", DocumentoColumns.Select(c => "d." + c.Column))
-                + ", v.version AS version_vigente, v.fecha_actualizacion AS version_fecha_actualizacion, v.proxima_revision AS version_proxima_revision "
+                + ", v.id AS version_vigente_id, v.version AS version_vigente, "
+                + "v.fecha_actualizacion AS version_fecha_actualizacion, v.proxima_revision AS version_proxima_revision, "
+                + "da.nombre_archivo AS adjunto_vigente_nombre "
                 + "FROM documentos d "
                 + "LEFT JOIN documento_versiones v ON v.documento_id = d.id AND v.es_version_vigente = 1 "
+                + "LEFT JOIN documento_adjuntos da ON da.documento_version_id = v.id "
                 + $"{whereSql} ORDER BY d.nombre ASC, d.id DESC LIMIT @limit OFFSET @offset";
 
             await using (var cmd = new MySqlCommand(selectSql, conn))
@@ -178,8 +181,12 @@ namespace QualityControlCenter.Repositories.ControlDocumental
                 {
                     var row = MapDocumentoRow(reader);
                     row["versionVigente"] = GetVal(reader, "version_vigente");
+                    row["versionVigenteId"] = GetVal(reader, "version_vigente_id");
                     row["versionFechaActualizacion"] = GetVal(reader, "version_fecha_actualizacion");
                     row["versionProximaRevision"] = GetVal(reader, "version_proxima_revision");
+                    var adjuntoNombre = GetVal(reader, "adjunto_vigente_nombre");
+                    row["adjuntoVigenteNombre"] = adjuntoNombre;
+                    row["tieneAdjuntoVigente"] = adjuntoNombre != null;
                     items.Add(row);
                 }
             }
@@ -193,7 +200,7 @@ namespace QualityControlCenter.Repositories.ControlDocumental
             await conn.OpenAsync();
 
             Dictionary<string, object?>? documento = null;
-            await using (var cmd = new MySqlCommand($"{DocumentoSelectSql} WHERE d.id = @id", conn))
+            await using (var cmd = new MySqlCommand($"{DocumentoSelectSql} WHERE d.id = @id AND d.eliminado = 0", conn))
             {
                 cmd.Parameters.AddWithValue("@id", id);
                 await using var reader = await cmd.ExecuteReaderAsync();
@@ -228,7 +235,10 @@ namespace QualityControlCenter.Repositories.ControlDocumental
             string version,
             string fechaActualizacion,
             string? proximaRevision,
-            string? creadoPor
+            string? creadoPor,
+            string? adjuntoNombreArchivo = null,
+            string? adjuntoTipoMime = null,
+            byte[]? adjuntoContenido = null
         )
         {
             await using var conn = _db.GetCalidadConnection();
@@ -264,10 +274,11 @@ namespace QualityControlCenter.Repositories.ControlDocumental
                     documentoId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
                 }
 
+                int versionId;
                 await using (
                     var cmd = new MySqlCommand(
                         "INSERT INTO documento_versiones (documento_id, version, fecha_actualizacion, proxima_revision, es_version_vigente, creado_por) "
-                            + "VALUES (@documentoId, @version, @fechaActualizacion, @proximaRevision, 1, @creadoPor)",
+                            + "VALUES (@documentoId, @version, @fechaActualizacion, @proximaRevision, 1, @creadoPor); SELECT LAST_INSERT_ID();",
                         conn,
                         tx
                     )
@@ -278,7 +289,24 @@ namespace QualityControlCenter.Repositories.ControlDocumental
                     cmd.Parameters.AddWithValue("@fechaActualizacion", fechaActualizacion);
                     cmd.Parameters.AddWithValue("@proximaRevision", (object?)proximaRevision ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@creadoPor", (object?)creadoPor ?? DBNull.Value);
-                    await cmd.ExecuteNonQueryAsync();
+                    versionId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+                }
+
+                if (adjuntoContenido != null)
+                {
+                    await using var cmdAdjunto = new MySqlCommand(
+                        "INSERT INTO documento_adjuntos (documento_version_id, nombre_archivo, tipo_mime, tamano_bytes, contenido, subido_por) "
+                            + "VALUES (@versionId, @nombreArchivo, @tipoMime, @tamanoBytes, @contenido, @subidoPor)",
+                        conn,
+                        tx
+                    );
+                    cmdAdjunto.Parameters.AddWithValue("@versionId", versionId);
+                    cmdAdjunto.Parameters.AddWithValue("@nombreArchivo", adjuntoNombreArchivo!);
+                    cmdAdjunto.Parameters.AddWithValue("@tipoMime", adjuntoTipoMime!);
+                    cmdAdjunto.Parameters.AddWithValue("@tamanoBytes", adjuntoContenido.Length);
+                    cmdAdjunto.Parameters.AddWithValue("@contenido", adjuntoContenido);
+                    cmdAdjunto.Parameters.AddWithValue("@subidoPor", (object?)creadoPor ?? DBNull.Value);
+                    await cmdAdjunto.ExecuteNonQueryAsync();
                 }
 
                 await tx.CommitAsync();
@@ -332,7 +360,10 @@ namespace QualityControlCenter.Repositories.ControlDocumental
             string version,
             string fechaActualizacion,
             string? proximaRevision,
-            string? creadoPor
+            string? creadoPor,
+            string? adjuntoNombreArchivo = null,
+            string? adjuntoTipoMime = null,
+            byte[]? adjuntoContenido = null
         )
         {
             await using var conn = _db.GetCalidadConnection();
@@ -384,6 +415,23 @@ namespace QualityControlCenter.Repositories.ControlDocumental
                     await cmd.ExecuteNonQueryAsync();
                 }
 
+                if (adjuntoContenido != null)
+                {
+                    await using var cmdAdjunto = new MySqlCommand(
+                        "INSERT INTO documento_adjuntos (documento_version_id, nombre_archivo, tipo_mime, tamano_bytes, contenido, subido_por) "
+                            + "VALUES (@versionId, @nombreArchivo, @tipoMime, @tamanoBytes, @contenido, @subidoPor)",
+                        conn,
+                        tx
+                    );
+                    cmdAdjunto.Parameters.AddWithValue("@versionId", versionId);
+                    cmdAdjunto.Parameters.AddWithValue("@nombreArchivo", adjuntoNombreArchivo!);
+                    cmdAdjunto.Parameters.AddWithValue("@tipoMime", adjuntoTipoMime!);
+                    cmdAdjunto.Parameters.AddWithValue("@tamanoBytes", adjuntoContenido.Length);
+                    cmdAdjunto.Parameters.AddWithValue("@contenido", adjuntoContenido);
+                    cmdAdjunto.Parameters.AddWithValue("@subidoPor", (object?)creadoPor ?? DBNull.Value);
+                    await cmdAdjunto.ExecuteNonQueryAsync();
+                }
+
                 await tx.CommitAsync();
                 return versionId;
             }
@@ -392,6 +440,80 @@ namespace QualityControlCenter.Repositories.ControlDocumental
                 await tx.RollbackAsync();
                 throw;
             }
+        }
+
+        // Borrado lógico: nunca se hace DELETE físico sobre documentos (mismo criterio que
+        // registros_control/no_conformidades/importacion_pnc en el resto del sistema).
+        public async Task Eliminar(int id, string? actualizadoPor)
+        {
+            await using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            await using var cmd = new MySqlCommand(
+                "UPDATE documentos SET eliminado = 1, actualizado_por = @actualizadoPor WHERE id = @id",
+                conn
+            );
+            cmd.Parameters.AddWithValue("@actualizadoPor", (object?)actualizadoPor ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@id", id);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Un solo adjunto por versión (UNIQUE documento_version_id): volver a subir reemplaza el anterior.
+        public async Task SubirAdjunto(
+            int documentoVersionId,
+            string nombreArchivo,
+            string tipoMime,
+            byte[] contenido,
+            string? subidoPor
+        )
+        {
+            await using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            await using var cmd = new MySqlCommand(
+                @"INSERT INTO documento_adjuntos
+                    (documento_version_id, nombre_archivo, tipo_mime, tamano_bytes, contenido, subido_por)
+                  VALUES (@versionId, @nombreArchivo, @tipoMime, @tamanoBytes, @contenido, @subidoPor)
+                  ON DUPLICATE KEY UPDATE
+                    nombre_archivo = VALUES(nombre_archivo),
+                    tipo_mime = VALUES(tipo_mime),
+                    tamano_bytes = VALUES(tamano_bytes),
+                    contenido = VALUES(contenido),
+                    subido_por = VALUES(subido_por),
+                    fecha_subida = CURRENT_TIMESTAMP",
+                conn
+            );
+            cmd.Parameters.AddWithValue("@versionId", documentoVersionId);
+            cmd.Parameters.AddWithValue("@nombreArchivo", nombreArchivo);
+            cmd.Parameters.AddWithValue("@tipoMime", tipoMime);
+            cmd.Parameters.AddWithValue("@tamanoBytes", contenido.Length);
+            cmd.Parameters.AddWithValue("@contenido", contenido);
+            cmd.Parameters.AddWithValue("@subidoPor", (object?)subidoPor ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<(string NombreArchivo, string TipoMime, byte[] Contenido)?> ObtenerAdjunto(
+            int documentoVersionId
+        )
+        {
+            await using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            await using var cmd = new MySqlCommand(
+                "SELECT nombre_archivo, tipo_mime, contenido FROM documento_adjuntos WHERE documento_version_id = @versionId",
+                conn
+            );
+            cmd.Parameters.AddWithValue("@versionId", documentoVersionId);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (!await reader.ReadAsync())
+                return null;
+
+            return (
+                reader.GetString("nombre_archivo"),
+                reader.GetString("tipo_mime"),
+                (byte[])reader["contenido"]
+            );
         }
     }
 }

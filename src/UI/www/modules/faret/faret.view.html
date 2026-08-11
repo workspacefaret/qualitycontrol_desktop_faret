@@ -152,4 +152,70 @@
 
     </div>
 
+    <!-- INDICADORES DE CALIDAD -->
+    <div class="module-header" style="margin-top:10px;">
+        <div>
+            <div class="module-title">Indicadores de calidad</div>
+            <div class="subtitle">Cuarentenas, rechazos de cliente, reclamos y análisis de defectos</div>
+        </div>
+    </div>
+
+    <div class="home-modules-grid">
+
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">🧊 CUARENTENAS (MES)</div>
+                <div class="home-module-card-value" id="fh-kpi-cuarentenas-mes">0</div>
+            </div>
+        </div>
+
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">↩️ RECHAZOS CLIENTE (MES)</div>
+                <div class="home-module-card-value" id="fh-kpi-rechazos-cliente-mes">0</div>
+            </div>
+        </div>
+
+        <div class="home-module-card">
+            <div>
+                <div class="home-module-card-title">📣 RECLAMOS (TOTAL)</div>
+                <div class="home-module-card-value" id="fh-kpi-reclamos-total">0</div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="home-middle">
+
+        <div class="card">
+            <div class="module-title">Cuarentenas por mes (recuperados vs. destruidos)</div>
+            <canvas id="fh-chart-cuarentenas-mes"></canvas>
+        </div>
+
+        <div class="card">
+            <div class="module-title">Rechazos de cliente por mes (recuperados vs. destruidos)</div>
+            <canvas id="fh-chart-rechazos-cliente-mes"></canvas>
+        </div>
+
+    </div>
+
+    <div class="home-middle">
+
+        <div class="card">
+            <div class="module-title">Incidentes por área</div>
+            <canvas id="fh-chart-incidentes-area"></canvas>
+        </div>
+
+        <div class="card">
+            <div class="module-title">Incidentes por familia de producto</div>
+            <canvas id="fh-chart-incidentes-familia"></canvas>
+        </div>
+
+    </div>
+
+    <div class="card">
+        <div class="module-title">Pareto de defectos</div>
+        <canvas id="fh-chart-pareto-defectos"></canvas>
+    </div>
+
 </div>

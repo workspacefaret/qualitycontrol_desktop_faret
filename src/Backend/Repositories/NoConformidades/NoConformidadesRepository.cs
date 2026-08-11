@@ -43,11 +43,15 @@ namespace QualityControlCenter.Repositories.NoConformidades
             ("cliente", "cliente"),
             ("codigoProducto", "codigo_producto"),
             ("producto", "producto"),
+            ("familiaProducto", "familia_producto"),
             ("cantRequerida", "cant_requerida"),
             ("cantRechazada", "cant_rechazada"),
             ("cantRecuperada", "cant_recuperada"),
             ("pncReal", "pnc_real"),
             ("pctRecuperacion", "pct_recuperacion"),
+            ("disposicion", "disposicion"),
+            ("cantDestruida", "cant_destruida"),
+            ("cantRepuesta", "cant_repuesta"),
             ("fechaFabricacion", "fecha_fabricacion"),
             ("descripcionDefecto", "descripcion_defecto"),
             ("categoriaDefecto", "categoria_defecto"),
@@ -88,10 +92,14 @@ namespace QualityControlCenter.Repositories.NoConformidades
             ("cliente", "cliente", "texto"),
             ("codigoProducto", "codigo_producto", "texto"),
             ("producto", "producto", "texto"),
+            ("familiaProducto", "familia_producto", "texto"),
             ("cantRequerida", "cant_requerida", "decimal"),
             ("cantRechazada", "cant_rechazada", "decimal"),
             ("cantRecuperada", "cant_recuperada", "decimal"),
             ("pncReal", "pnc_real", "decimal"),
+            ("disposicion", "disposicion", "texto"),
+            ("cantDestruida", "cant_destruida", "decimal"),
+            ("cantRepuesta", "cant_repuesta", "decimal"),
             ("fechaFabricacion", "fecha_fabricacion", "fecha"),
             ("descripcionDefecto", "descripcion_defecto", "texto"),
             ("categoriaDefecto", "categoria_defecto", "texto"),
@@ -201,7 +209,7 @@ namespace QualityControlCenter.Repositories.NoConformidades
             string? fechaHasta
         )
         {
-            var where = new List<string>();
+            var where = new List<string> { "eliminado = 0" };
             var parameters = new List<MySqlParameter>();
             AplicarFiltros(
                 where,
@@ -214,7 +222,7 @@ namespace QualityControlCenter.Repositories.NoConformidades
                 fechaDesde,
                 fechaHasta
             );
-            var whereSql = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
+            var whereSql = "WHERE " + string.Join(" AND ", where);
 
             await using var conn = _db.GetCalidadConnection();
             await conn.OpenAsync();
@@ -261,7 +269,7 @@ namespace QualityControlCenter.Repositories.NoConformidades
             string? fechaHasta
         )
         {
-            var where = new List<string>();
+            var where = new List<string> { "eliminado = 0" };
             var parameters = new List<MySqlParameter>();
             AplicarFiltros(
                 where,
@@ -274,7 +282,7 @@ namespace QualityControlCenter.Repositories.NoConformidades
                 fechaDesde,
                 fechaHasta
             );
-            var whereSql = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
+            var whereSql = "WHERE " + string.Join(" AND ", where);
 
             await using var conn = _db.GetCalidadConnection();
             await conn.OpenAsync();
@@ -348,7 +356,7 @@ namespace QualityControlCenter.Repositories.NoConformidades
             await using var conn = _db.GetCalidadConnection();
             await conn.OpenAsync();
 
-            await using var cmd = new MySqlCommand($"{SelectSql} WHERE id = @id", conn);
+            await using var cmd = new MySqlCommand($"{SelectSql} WHERE id = @id AND eliminado = 0", conn);
             cmd.Parameters.AddWithValue("@id", id);
 
             await using var reader = await cmd.ExecuteReaderAsync();
@@ -514,6 +522,22 @@ namespace QualityControlCenter.Repositories.NoConformidades
             cmd.Parameters.AddWithValue("@responsable", (object?)responsable ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@estadoGestion", (object?)estadoGestion ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@fechaCompromiso", (object?)fechaCompromiso ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@actualizadoPor", (object?)actualizadoPor ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@id", id);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Borrado lógico: nunca DELETE físico (mismo criterio que registros_control/importacion_pnc/
+        // Control Documental en el resto del sistema).
+        public async Task Eliminar(int id, string? actualizadoPor)
+        {
+            await using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            await using var cmd = new MySqlCommand(
+                "UPDATE no_conformidades SET eliminado = 1, actualizado_por = @actualizadoPor WHERE id = @id",
+                conn
+            );
             cmd.Parameters.AddWithValue("@actualizadoPor", (object?)actualizadoPor ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@id", id);
             await cmd.ExecuteNonQueryAsync();

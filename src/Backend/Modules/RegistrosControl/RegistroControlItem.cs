@@ -17,6 +17,8 @@ namespace QualityControlCenter.Modules.RegistrosControl
         public string Formulario { get; set; } = "";
 
         public string Np { get; set; } = "";
+        public string CodigoProducto { get; set; } = "";
+        public string Producto { get; set; } = "";
         public string Turno { get; set; } = "";
 
         public int EstadoId { get; set; }
@@ -33,6 +35,9 @@ namespace QualityControlCenter.Modules.RegistrosControl
         public string TipoMerma { get; set; } = "";
         public string CantidadMerma { get; set; } = "";
         public string TipoDefecto { get; set; } = "";
+        public string BobinaLote { get; set; } = "";
+        public string BobinaCodigo { get; set; } = "";
+        public string BobinaDescripcion { get; set; } = "";
 
         public string FechaRegistro { get; set; } = "";
         public string HoraRegistro { get; set; } = "";

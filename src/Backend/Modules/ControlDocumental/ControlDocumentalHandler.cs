@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -9,7 +11,8 @@ using QualityControlCenter.Services;
 namespace QualityControlCenter.Modules.ControlDocumental
 {
     // Módulo "Control Documental" — INNPACK, standalone (MySQL calidad).
-    // Etapa 2: list/get/create/update + cambio de versión (ver contex-control-documental.md).
+    // Etapa 2: list/get/create/update + cambio de versión. Etapa 3: eliminar (lógico) + adjuntos
+    // reales por versión (ver contex-control-documental.md).
     public class ControlDocumentalHandler
     {
         private readonly ControlDocumentalRepository _repo;
@@ -21,6 +24,21 @@ namespace QualityControlCenter.Modules.ControlDocumental
 
         private static readonly string[] EstadosValidos = { "VIGENTE", "EN_REVISION", "OBSOLETO" };
         private static readonly string[] AlcancesValidos = { "INNPACK", "FARET", "AMBAS" };
+
+        private static readonly Dictionary<string, string> MimePorExtension = new(
+            StringComparer.OrdinalIgnoreCase
+        )
+        {
+            [".pdf"] = "application/pdf",
+            [".doc"] = "application/msword",
+            [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            [".jpg"] = "image/jpeg",
+            [".jpeg"] = "image/jpeg",
+            [".png"] = "image/png",
+            [".webp"] = "image/webp",
+        };
+
+        private const int MaxTamanoBytesAdjunto = 10 * 1024 * 1024; // 10 MB
 
         public ControlDocumentalHandler(DbService db)
         {
@@ -38,6 +56,9 @@ namespace QualityControlCenter.Modules.ControlDocumental
                     "controlDocumental.create" => await HandleCreate(data),
                     "controlDocumental.update" => await HandleUpdate(data),
                     "controlDocumental.version.crear" => await HandleVersionCrear(data),
+                    "controlDocumental.eliminar" => await HandleEliminar(data),
+                    "controlDocumental.adjunto.subir" => await HandleAdjuntoSubir(data),
+                    "controlDocumental.adjunto.abrir" => await HandleAdjuntoAbrir(data),
                     _ => Error($"Acción no reconocida en ControlDocumental: {action}"),
                 };
             }
@@ -145,7 +166,19 @@ namespace QualityControlCenter.Modules.ControlDocumental
             if (string.IsNullOrWhiteSpace(proximaRevision))
                 proximaRevision = CalcularProximaRevision(fechaActualizacion!);
 
-            var id = await _repo.Crear(campos, version!, fechaActualizacion!, proximaRevision, creadoPor);
+            if (!TryLeerAdjuntoOpcional(data, out var adjNombre, out var adjTipoMime, out var adjContenido, out var adjError))
+                return Error(adjError);
+
+            var id = await _repo.Crear(
+                campos,
+                version!,
+                fechaActualizacion!,
+                proximaRevision,
+                creadoPor,
+                adjNombre,
+                adjTipoMime,
+                adjContenido
+            );
             return Ok(new { id });
         }
 
@@ -195,8 +228,157 @@ namespace QualityControlCenter.Modules.ControlDocumental
             if (string.IsNullOrWhiteSpace(proximaRevision))
                 proximaRevision = CalcularProximaRevision(fechaActualizacion!);
 
-            var versionId = await _repo.CrearVersion(documentoId, version!, fechaActualizacion!, proximaRevision, creadoPor);
+            if (!TryLeerAdjuntoOpcional(data, out var adjNombre, out var adjTipoMime, out var adjContenido, out var adjError))
+                return Error(adjError);
+
+            var versionId = await _repo.CrearVersion(
+                documentoId,
+                version!,
+                fechaActualizacion!,
+                proximaRevision,
+                creadoPor,
+                adjNombre,
+                adjTipoMime,
+                adjContenido
+            );
             return Ok(new { id = versionId });
+        }
+
+        // Borrado lógico — disponible para cualquier usuario logueado, sin gating de rol (mismo
+        // criterio que el resto del módulo).
+        private async Task<string> HandleEliminar(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id del documento");
+
+            TryGetString(data, "actualizadoPor", out var actualizadoPor);
+            await _repo.Eliminar(id, actualizadoPor);
+            return Ok(new { id });
+        }
+
+        private async Task<string> HandleAdjuntoSubir(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "documentoVersionId", out var versionId))
+                return Error("Falta el id de la versión");
+            if (!TryGetString(data, "nombreArchivo", out var nombreArchivo) || string.IsNullOrWhiteSpace(nombreArchivo))
+                return Error("Falta el nombre del archivo");
+            if (!TryGetString(data, "contenidoBase64", out var contenidoBase64) || string.IsNullOrWhiteSpace(contenidoBase64))
+                return Error("Falta el contenido del archivo");
+
+            if (!TryValidarAdjunto(nombreArchivo!, contenidoBase64!, out var tipoMime, out var contenido, out var error))
+                return Error(error);
+
+            TryGetString(data, "subidoPor", out var subidoPor);
+            await _repo.SubirAdjunto(versionId, nombreArchivo!, tipoMime, contenido, subidoPor);
+            return Ok(new { documentoVersionId = versionId });
+        }
+
+        // Valida extensión/tamaño y decodifica el base64 — usado tanto al subir un adjunto suelto
+        // (adjunto.subir) como al adjuntar en el mismo paso que se crea una versión (create /
+        // version.crear).
+        private static bool TryValidarAdjunto(
+            string nombreArchivo,
+            string contenidoBase64,
+            out string tipoMime,
+            out byte[] contenido,
+            out string error
+        )
+        {
+            contenido = Array.Empty<byte>();
+            error = "";
+
+            var extension = Path.GetExtension(nombreArchivo);
+            if (!MimePorExtension.TryGetValue(extension, out tipoMime!))
+            {
+                error = $"Tipo de archivo no permitido. Formatos válidos: {string.Join(", ", MimePorExtension.Keys)}";
+                return false;
+            }
+
+            try
+            {
+                contenido = Convert.FromBase64String(contenidoBase64);
+            }
+            catch (FormatException)
+            {
+                error = "El contenido del archivo no es válido";
+                return false;
+            }
+
+            if (contenido.Length > MaxTamanoBytesAdjunto)
+            {
+                error = $"El archivo supera el tamaño máximo permitido ({MaxTamanoBytesAdjunto / 1024 / 1024} MB)";
+                return false;
+            }
+
+            return true;
+        }
+
+        // Lee y valida un adjunto opcional del payload (create / version.crear). Devuelve false
+        // solo si el archivo vino y era inválido — si simplemente no se adjuntó nada, no es error.
+        private static bool TryLeerAdjuntoOpcional(
+            Dictionary<string, object> data,
+            out string? nombreArchivo,
+            out string? tipoMime,
+            out byte[]? contenido,
+            out string error
+        )
+        {
+            nombreArchivo = null;
+            tipoMime = null;
+            contenido = null;
+            error = "";
+
+            var tieneNombre = TryGetString(data, "adjuntoNombreArchivo", out var nombre) && !string.IsNullOrWhiteSpace(nombre);
+            var tieneContenido = TryGetString(data, "adjuntoContenidoBase64", out var base64) && !string.IsNullOrWhiteSpace(base64);
+            if (!tieneNombre || !tieneContenido)
+                return true;
+
+            if (!TryValidarAdjunto(nombre!, base64!, out var mime, out var bytes, out error))
+                return false;
+
+            nombreArchivo = nombre;
+            tipoMime = mime;
+            contenido = bytes;
+            return true;
+        }
+
+        // Imágenes/PDF: devuelve el contenido en base64 para previsualizar embebido en el frontend
+        // (WebView2 renderiza PDF nativo vía data: URI). Word u otros no previsualizables: se
+        // escriben a una carpeta temporal y se abren con la app del sistema — mismo patrón que
+        // UpdateService usa para lanzar el instalador del auto-updater — sin mandar esos bytes al
+        // frontend para nada.
+        private async Task<string> HandleAdjuntoAbrir(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "documentoVersionId", out var versionId))
+                return Error("Falta el id de la versión");
+
+            var adjunto = await _repo.ObtenerAdjunto(versionId);
+            if (adjunto == null)
+                return Error("Esta versión no tiene ningún archivo adjunto");
+
+            var (nombreArchivo, tipoMime, contenido) = adjunto.Value;
+
+            if (tipoMime.StartsWith("image/") || tipoMime == "application/pdf")
+            {
+                return Ok(
+                    new
+                    {
+                        previsualizable = true,
+                        nombreArchivo,
+                        tipoMime,
+                        contenidoBase64 = Convert.ToBase64String(contenido),
+                    }
+                );
+            }
+
+            var carpetaTemp = Path.Combine(Path.GetTempPath(), "QCC_ControlDocumental");
+            Directory.CreateDirectory(carpetaTemp);
+            var rutaArchivo = Path.Combine(carpetaTemp, $"{versionId}_{nombreArchivo}");
+            await File.WriteAllBytesAsync(rutaArchivo, contenido);
+
+            Process.Start(new ProcessStartInfo { FileName = rutaArchivo, UseShellExecute = true });
+
+            return Ok(new { previsualizable = false, nombreArchivo });
         }
 
         // Replica la única fórmula viva del Excel original: próxima revisión = fecha última

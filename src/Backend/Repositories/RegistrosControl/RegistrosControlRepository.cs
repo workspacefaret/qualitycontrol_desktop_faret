@@ -115,6 +115,8 @@ namespace QualityControlCenter.Repositories.RegistrosControl
                         rc.formulario_id,
                         COALESCE(fc.nombre, '') AS formulario,
                         COALESCE(rc.np, '') AS np,
+                        COALESCE(rc.codigo_producto, '') AS codigo_producto,
+                        COALESCE(rc.descripcion_producto, '') AS producto,
                         {TurnoCalculadoSql} AS turno,
                         rc.estado_id,
                         ec.nombre AS estado,
@@ -127,6 +129,42 @@ namespace QualityControlCenter.Repositories.RegistrosControl
                             INNER JOIN parametros_control_visual pcv ON pcv.id = rfv2.parametro_id
                             WHERE rfv2.registro_id = rc.id
                         ), '') AS tipo_defecto,
+                        IFNULL((
+                            SELECT GROUP_CONCAT(
+                                rb.lote
+                                ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
+                            )
+                            FROM registro_control_bobinas rb
+                            INNER JOIN registros_control rc2 ON rc2.id = rb.registro_id
+                            WHERE rc2.np = rc.np
+                              AND rc2.eliminado = 0
+                              AND rc.np IS NOT NULL AND rc.np <> ''
+                              AND ABS(DATEDIFF(rc2.fecha_registro, rc.fecha_registro)) <= 7
+                        ), '') AS bobina_lote,
+                        IFNULL((
+                            SELECT GROUP_CONCAT(
+                                COALESCE(rb.item_code, '')
+                                ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
+                            )
+                            FROM registro_control_bobinas rb
+                            INNER JOIN registros_control rc2 ON rc2.id = rb.registro_id
+                            WHERE rc2.np = rc.np
+                              AND rc2.eliminado = 0
+                              AND rc.np IS NOT NULL AND rc.np <> ''
+                              AND ABS(DATEDIFF(rc2.fecha_registro, rc.fecha_registro)) <= 7
+                        ), '') AS bobina_codigo,
+                        IFNULL((
+                            SELECT GROUP_CONCAT(
+                                COALESCE(rb.item_name, '')
+                                ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
+                            )
+                            FROM registro_control_bobinas rb
+                            INNER JOIN registros_control rc2 ON rc2.id = rb.registro_id
+                            WHERE rc2.np = rc.np
+                              AND rc2.eliminado = 0
+                              AND rc.np IS NOT NULL AND rc.np <> ''
+                              AND ABS(DATEDIFF(rc2.fecha_registro, rc.fecha_registro)) <= 7
+                        ), '') AS bobina_descripcion,
                         IFNULL(rc.estado_validacion, 'PENDIENTE') AS estado_validacion,
                         IFNULL(DATE_FORMAT(rc.fecha_validacion, '%d-%m-%Y %H:%i'), '') AS fecha_validacion,
                         IFNULL(rc.usuario_validacion, '') AS usuario_validacion,
@@ -177,6 +215,8 @@ namespace QualityControlCenter.Repositories.RegistrosControl
                                 : reader.GetInt32("formulario_id"),
                             Formulario = reader.GetString("formulario"),
                             Np = reader.GetString("np"),
+                            CodigoProducto = reader.GetString("codigo_producto"),
+                            Producto = reader.GetString("producto"),
                             Turno = reader.GetString("turno"),
                             EstadoId = reader.GetInt32("estado_id"),
                             Estado = reader.GetString("estado"),
@@ -184,6 +224,9 @@ namespace QualityControlCenter.Repositories.RegistrosControl
                             TipoMerma = reader.GetString("tipo_merma"),
                             CantidadMerma = reader.GetString("cantidad_merma"),
                             TipoDefecto = reader.GetString("tipo_defecto"),
+                            BobinaLote = reader.GetString("bobina_lote"),
+                            BobinaCodigo = reader.GetString("bobina_codigo"),
+                            BobinaDescripcion = reader.GetString("bobina_descripcion"),
                             EstadoValidacion = reader.GetString("estado_validacion"),
                             FechaValidacion = reader.GetString("fecha_validacion"),
                             UsuarioValidacion = reader.GetString("usuario_validacion"),

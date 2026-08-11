@@ -208,7 +208,11 @@ if (!window.RegistrosProduccionController) {
 
         async cargarDatos() {
             if (this.loading) return
+            const contenedor = document.getElementById("tbodyRegistrosProduccion")?.closest(".table-container")
+            await window.TableUtils.preservarScroll(contenedor, () => this._cargarDatosInterno())
+        }
 
+        async _cargarDatosInterno() {
             this.loading = true
             this.renderLoading()
 
@@ -356,7 +360,7 @@ if (!window.RegistrosProduccionController) {
             if (!registros.length) {
                 tbody.innerHTML = `
             <tr>
-              <td colspan="18">Sin registros disponibles</td>
+              <td colspan="21">Sin registros disponibles</td>
             </tr>
           `
                 return
@@ -370,8 +374,8 @@ if (!window.RegistrosProduccionController) {
             <td>${this.escape(r.usuario)}</td>
             <td>${this.escape(r.proceso)}</td>
             <td>${this.escape(r.maquina)}</td>
-            <td>${this.escape(r.formulario || "-")}</td>
             <td>${this.escape(r.np || "-")}</td>
+            <td>${this.escape(r.codigoProducto || "-")}</td>
             <td>${this.escape(r.producto || "-")}</td>
             <td>${this.escape(r.turno || "-")}</td>
             <td>${this.escape(this.traducirEstado(r.estado))}</td>
@@ -379,6 +383,9 @@ if (!window.RegistrosProduccionController) {
             <td>${this.escape(r.cantidadMerma || "-")}</td>
             <td>${this.escape(r.tipoMerma || "-")}</td>
             <td>${this.escape(r.tipoDefecto || "-")}</td>
+            <td>${this.escape(r.bobinaLote || "-")}</td>
+            <td>${this.escape(r.bobinaCodigo || "-")}</td>
+            <td>${this.escape(r.bobinaDescripcion || "-")}</td>
 
             <td>
               ${this.renderEstadoValidacion(r.estadoValidacion)}
@@ -617,7 +624,7 @@ if (!window.RegistrosProduccionController) {
             if (tbody2) {
                 tbody2.innerHTML = `
             <tr>
-              <td colspan="18">Cargando registros...</td>
+              <td colspan="21">Cargando registros...</td>
             </tr>
           `
             }
@@ -638,7 +645,7 @@ if (!window.RegistrosProduccionController) {
             if (tbody2) {
                 tbody2.innerHTML = `
             <tr>
-              <td colspan="18">Error: ${this.escape(message)}</td>
+              <td colspan="21">Error: ${this.escape(message)}</td>
             </tr>
           `
             }

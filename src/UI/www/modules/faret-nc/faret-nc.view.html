@@ -306,6 +306,16 @@
                         <label for="fnc-reg-producto">Producto</label>
                         <input type="text" id="fnc-reg-producto" disabled>
                     </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-familia-producto">Familia de producto</label>
+                        <select id="fnc-reg-familia-producto" disabled>
+                            <option value="">-</option>
+                            <option value="Etiquetas">Etiquetas</option>
+                            <option value="Estuches">Estuches</option>
+                            <option value="Folletos">Folletos</option>
+                            <option value="Preformas">Preformas</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="fnc-form-row">
@@ -315,6 +325,7 @@
                             <option value="">-</option>
                             <option value="Cuarentena">Cuarentena</option>
                             <option value="Rechazo">Rechazo</option>
+                            <option value="Rechazo Cliente">Rechazo Cliente</option>
                             <option value="Reclamo">Reclamo</option>
                             <option value="Interna">Interna</option>
                         </select>
@@ -374,6 +385,26 @@
                     <div class="fnc-form-campo">
                         <label for="fnc-reg-pct-recup">% Recup.</label>
                         <input type="text" id="fnc-reg-pct-recup" disabled placeholder="-">
+                    </div>
+                </div>
+
+                <div class="fnc-form-row" id="fnc-reg-disposicion-row" style="display:none;">
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-disposicion">Disposición</label>
+                        <select id="fnc-reg-disposicion" disabled>
+                            <option value="No aplica">No aplica</option>
+                            <option value="Reposición">Reposición</option>
+                            <option value="Destrucción">Destrucción</option>
+                            <option value="Reposición y destrucción">Reposición y destrucción</option>
+                        </select>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-cant-destruida">Cant. destruida</label>
+                        <input type="number" id="fnc-reg-cant-destruida" min="0" step="any" disabled>
+                    </div>
+                    <div class="fnc-form-campo">
+                        <label for="fnc-reg-cant-repuesta">Cant. repuesta</label>
+                        <input type="number" id="fnc-reg-cant-repuesta" min="0" step="any" disabled>
                     </div>
                 </div>
 
@@ -470,6 +501,16 @@
                     <label for="fnc-npnc-producto">Producto *</label>
                     <input type="text" id="fnc-npnc-producto">
                 </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-familia-producto">Familia de producto</label>
+                    <select id="fnc-npnc-familia-producto">
+                        <option value="">-</option>
+                        <option value="Etiquetas">Etiquetas</option>
+                        <option value="Estuches">Estuches</option>
+                        <option value="Folletos">Folletos</option>
+                        <option value="Preformas">Preformas</option>
+                    </select>
+                </div>
             </div>
 
             <div class="fnc-form-row">
@@ -479,6 +520,7 @@
                         <option value="">-</option>
                         <option value="Cuarentena">Cuarentena</option>
                         <option value="Rechazo">Rechazo</option>
+                        <option value="Rechazo Cliente">Rechazo Cliente</option>
                         <option value="Reclamo">Reclamo</option>
                         <option value="Interna">Interna</option>
                     </select>
@@ -539,6 +581,26 @@
                 <div class="fnc-form-campo">
                     <label for="fnc-npnc-pct-recup">% Recup.</label>
                     <input type="text" id="fnc-npnc-pct-recup" disabled placeholder="-">
+                </div>
+            </div>
+
+            <div class="fnc-form-row" id="fnc-npnc-disposicion-row" style="display:none;">
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-disposicion">Disposición</label>
+                    <select id="fnc-npnc-disposicion">
+                        <option value="No aplica">No aplica</option>
+                        <option value="Reposición">Reposición</option>
+                        <option value="Destrucción">Destrucción</option>
+                        <option value="Reposición y destrucción">Reposición y destrucción</option>
+                    </select>
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-cant-destruida">Cant. destruida</label>
+                    <input type="number" id="fnc-npnc-cant-destruida" min="0" step="any">
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-cant-repuesta">Cant. repuesta</label>
+                    <input type="number" id="fnc-npnc-cant-repuesta" min="0" step="any">
                 </div>
             </div>
 

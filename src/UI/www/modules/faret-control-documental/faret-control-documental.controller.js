@@ -24,6 +24,14 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
         document.getElementById("fcd-nv-fecha-actualizacion")?.addEventListener("change", () => this._autocalcularProximaRevision("fcd-nv-fecha-actualizacion", "fcd-nv-proxima-revision"));
         document.getElementById("fcd-nv-agregar-btn")?.addEventListener("click", () => this._agregarVersion());
 
+        document.getElementById("fcd-adjunto-cerrar-btn")?.addEventListener("click", () => {
+            document.getElementById("fcd-adjunto-modal").style.display = "none";
+        });
+        document.getElementById("fcd-adjunto-input")?.addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) this._subirAdjunto(file);
+        });
+
         document.getElementById("fcd-paginacion")?.addEventListener("click", (e) => {
             const btn = e.target.closest("[data-fcd-page]");
             if (!btn || btn.disabled) return;
@@ -91,7 +99,7 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
 
     async _loadLista() {
         const tbody = document.getElementById("fcd-tbody");
-        tbody.innerHTML = `<tr><td colspan="10">Cargando...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11">Cargando...</td></tr>`;
 
         const filtros = this._getFiltros();
 
@@ -99,7 +107,7 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
             const res = await window.PhotinoBridge.send({ action: "controlDocumental.list", page: this._page, pageSize: this._pageSize, ...filtros });
 
             if (!res.ok) {
-                tbody.innerHTML = `<tr><td colspan="10">${res.error || "Error al cargar"}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="11">${res.error || "Error al cargar"}</td></tr>`;
                 return;
             }
 
@@ -112,7 +120,7 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
             this._renderTabla();
             this._renderPaginacion();
         } catch {
-            tbody.innerHTML = `<tr><td colspan="10">Error de comunicación con el backend</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="11">Error de comunicación con el backend</td></tr>`;
         }
     }
 
@@ -120,7 +128,7 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
         const tbody = document.getElementById("fcd-tbody");
 
         if (!this._items.length) {
-            tbody.innerHTML = `<tr><td colspan="10">Sin documentos</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="11">Sin documentos</td></tr>`;
             return;
         }
 
@@ -135,11 +143,46 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
                 <td>${d.versionVigente ?? "-"}</td>
                 <td>${this._fecha(d.versionProximaRevision)}</td>
                 <td>${d.responsable ?? "-"}</td>
-                <td><button class="btn-ghost fcd-ver-btn" data-id="${d.id}">Ver</button></td>
+                <td>
+                    ${d.tieneAdjuntoVigente
+                        ? `<button class="btn-ghost fcd-ver-adjunto-btn" data-version-id="${d.versionVigenteId}">📎 Ver</button>`
+                        : ""}
+                    ${d.versionVigenteId
+                        ? `<button class="btn-ghost fcd-subir-adjunto-btn" data-version-id="${d.versionVigenteId}">${d.tieneAdjuntoVigente ? "Reemplazar" : "Adjuntar"}</button>`
+                        : ""}
+                </td>
+                <td>
+                    <button class="btn-ghost fcd-ver-btn" data-id="${d.id}">Ver</button>
+                    <button class="btn-danger fcd-eliminar-btn" data-id="${d.id}">Eliminar</button>
+                </td>
             </tr>
         `).join("");
 
         tbody.querySelectorAll(".fcd-ver-btn").forEach(btn => btn.addEventListener("click", () => this._verDetalle(Number(btn.dataset.id))));
+        tbody.querySelectorAll(".fcd-eliminar-btn").forEach(btn => btn.addEventListener("click", () => this._eliminarDocumento(Number(btn.dataset.id))));
+        tbody.querySelectorAll(".fcd-ver-adjunto-btn").forEach(btn =>
+            btn.addEventListener("click", () => this._verAdjunto(Number(btn.dataset.versionId))));
+        tbody.querySelectorAll(".fcd-subir-adjunto-btn").forEach(btn =>
+            btn.addEventListener("click", () => this._pedirArchivoAdjunto(Number(btn.dataset.versionId))));
+    }
+
+    async _eliminarDocumento(id) {
+        if (!confirm("¿Eliminar este documento? Ya no aparecerá en el listado.")) return;
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "controlDocumental.eliminar",
+                id,
+                actualizadoPor: this._usuarioActual(),
+            });
+            if (!res.ok) {
+                this._showMensaje(res.error || "Error al eliminar el documento", false);
+                return;
+            }
+            this._showMensaje("Documento eliminado", true);
+            await this._loadLista();
+        } catch {
+            this._showMensaje("Error de comunicación con el backend", false);
+        }
     }
 
     _renderPaginacion() {
@@ -224,6 +267,7 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
         document.getElementById("fcd-f-version").value = "";
         document.getElementById("fcd-f-fecha-actualizacion").value = new Date().toISOString().substring(0, 10);
         document.getElementById("fcd-f-proxima-revision").value = "";
+        document.getElementById("fcd-f-adjunto").value = "";
 
         document.getElementById("fcd-version-inicial-seccion").style.display = "block";
         document.getElementById("fcd-historial-seccion").style.display = "none";
@@ -258,6 +302,7 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
             document.getElementById("fcd-nv-version").value = "";
             document.getElementById("fcd-nv-fecha-actualizacion").value = "";
             document.getElementById("fcd-nv-proxima-revision").value = "";
+            document.getElementById("fcd-nv-adjunto").value = "";
         } catch {
             document.getElementById("fcd-form-error").textContent = "Error de comunicación con el backend";
             document.getElementById("fcd-form-error").style.display = "block";
@@ -284,6 +329,102 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
                 <td>${v.esVersionVigente ? this._badge("Vigente", "#059669") : "-"}</td>
             </tr>
         `).join("");
+    }
+
+    // ---------- Adjuntos ----------
+
+    _pedirArchivoAdjunto(versionId) {
+        this._versionIdParaAdjunto = versionId;
+        const input = document.getElementById("fcd-adjunto-input");
+        input.value = "";
+        input.click();
+    }
+
+    _leerArchivoComoBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result || "").toString().split(",")[1] || "");
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Devuelve un mensaje de error si el archivo no es válido, o null si está OK. Se usa tanto al
+    // adjuntar suelto desde la tabla principal como al adjuntar en el mismo paso de crear un
+    // documento/versión.
+    _validarArchivoAdjunto(file) {
+        const extensionesValidas = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".webp"];
+        const extension = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+        if (!extensionesValidas.includes(extension)) {
+            return `Tipo de archivo no permitido. Formatos válidos: ${extensionesValidas.join(", ")}`;
+        }
+        const MAX_BYTES = 10 * 1024 * 1024;
+        if (file.size > MAX_BYTES) {
+            return "El archivo supera el tamaño máximo permitido (10 MB)";
+        }
+        return null;
+    }
+
+    async _subirAdjunto(file) {
+        const versionId = this._versionIdParaAdjunto;
+        if (!versionId) return;
+
+        const error = this._validarArchivoAdjunto(file);
+        if (error) {
+            this._showMensaje(error, false);
+            return;
+        }
+
+        try {
+            const contenidoBase64 = await this._leerArchivoComoBase64(file);
+            const res = await window.PhotinoBridge.send({
+                action: "controlDocumental.adjunto.subir",
+                documentoVersionId: versionId,
+                nombreArchivo: file.name,
+                contenidoBase64,
+                subidoPor: this._usuarioActual(),
+            });
+            if (!res.ok) {
+                this._showMensaje(res.error || "Error al subir el adjunto", false);
+                return;
+            }
+            this._showMensaje("Adjunto subido", true);
+            await this._loadLista();
+        } catch {
+            this._showMensaje("Error de comunicación con el backend", false);
+        }
+    }
+
+    async _verAdjunto(versionId) {
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "controlDocumental.adjunto.abrir",
+                documentoVersionId: versionId,
+            });
+            if (!res.ok) {
+                this._showMensaje(res.error || "Error al abrir el adjunto", false);
+                return;
+            }
+            if (!res.data.previsualizable) {
+                this._showMensaje(`Abriendo "${res.data.nombreArchivo}"...`, true);
+                return;
+            }
+            this._mostrarAdjunto(res.data);
+        } catch {
+            this._showMensaje("Error de comunicación con el backend", false);
+        }
+    }
+
+    _mostrarAdjunto({ nombreArchivo, tipoMime, contenidoBase64 }) {
+        document.getElementById("fcd-adjunto-titulo").textContent = nombreArchivo;
+        const contenedor = document.getElementById("fcd-adjunto-contenido");
+        const dataUri = `data:${tipoMime};base64,${contenidoBase64}`;
+
+        contenedor.innerHTML = tipoMime.startsWith("image/")
+            ? `<img src="${dataUri}" style="max-width:100%; max-height:65vh;">`
+            : `<iframe src="${dataUri}" style="width:100%; height:65vh; border:0;"></iframe>`;
+
+        document.getElementById("fcd-adjunto-modal").style.display = "flex";
     }
 
     _habilitarEdicion() {
@@ -332,6 +473,21 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
                     return;
                 }
 
+                const archivoAdjunto = document.getElementById("fcd-f-adjunto").files[0];
+                let adjuntoNombreArchivo = null;
+                let adjuntoContenidoBase64 = null;
+                if (archivoAdjunto) {
+                    const errorAdjunto = this._validarArchivoAdjunto(archivoAdjunto);
+                    if (errorAdjunto) {
+                        errorEl.textContent = errorAdjunto;
+                        errorEl.style.display = "block";
+                        btn.disabled = false;
+                        return;
+                    }
+                    adjuntoNombreArchivo = archivoAdjunto.name;
+                    adjuntoContenidoBase64 = await this._leerArchivoComoBase64(archivoAdjunto);
+                }
+
                 res = await window.PhotinoBridge.send({
                     action: "controlDocumental.create",
                     creadoPor: usuario,
@@ -339,6 +495,8 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
                     version,
                     fechaActualizacion,
                     proximaRevision,
+                    adjuntoNombreArchivo,
+                    adjuntoContenidoBase64,
                 });
             }
 
@@ -375,6 +533,20 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
         }
         if (!confirm(`¿Agregar la versión "${version}" como la nueva versión vigente?`)) return;
 
+        const archivoAdjunto = document.getElementById("fcd-nv-adjunto").files[0];
+        let adjuntoNombreArchivo = null;
+        let adjuntoContenidoBase64 = null;
+        if (archivoAdjunto) {
+            const errorAdjunto = this._validarArchivoAdjunto(archivoAdjunto);
+            if (errorAdjunto) {
+                errorEl.textContent = errorAdjunto;
+                errorEl.style.display = "block";
+                return;
+            }
+            adjuntoNombreArchivo = archivoAdjunto.name;
+            adjuntoContenidoBase64 = await this._leerArchivoComoBase64(archivoAdjunto);
+        }
+
         const btn = document.getElementById("fcd-nv-agregar-btn");
         btn.disabled = true;
         try {
@@ -385,6 +557,8 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
                 fechaActualizacion,
                 proximaRevision,
                 creadoPor: this._usuarioActual(),
+                adjuntoNombreArchivo,
+                adjuntoContenidoBase64,
             });
             if (!res.ok) {
                 errorEl.textContent = res.error || "Error al agregar la versión";
