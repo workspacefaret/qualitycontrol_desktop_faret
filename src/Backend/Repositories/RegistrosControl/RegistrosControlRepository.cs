@@ -135,11 +135,7 @@ namespace QualityControlCenter.Repositories.RegistrosControl
                                 ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
                             )
                             FROM registro_control_bobinas rb
-                            INNER JOIN registros_control rc2 ON rc2.id = rb.registro_id
-                            WHERE rc2.np = rc.np
-                              AND rc2.eliminado = 0
-                              AND rc.np IS NOT NULL AND rc.np <> ''
-                              AND ABS(DATEDIFF(rc2.fecha_registro, rc.fecha_registro)) <= 7
+                            WHERE rb.registro_id = rc.id
                         ), '') AS bobina_lote,
                         IFNULL((
                             SELECT GROUP_CONCAT(
@@ -147,11 +143,7 @@ namespace QualityControlCenter.Repositories.RegistrosControl
                                 ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
                             )
                             FROM registro_control_bobinas rb
-                            INNER JOIN registros_control rc2 ON rc2.id = rb.registro_id
-                            WHERE rc2.np = rc.np
-                              AND rc2.eliminado = 0
-                              AND rc.np IS NOT NULL AND rc.np <> ''
-                              AND ABS(DATEDIFF(rc2.fecha_registro, rc.fecha_registro)) <= 7
+                            WHERE rb.registro_id = rc.id
                         ), '') AS bobina_codigo,
                         IFNULL((
                             SELECT GROUP_CONCAT(
@@ -159,11 +151,7 @@ namespace QualityControlCenter.Repositories.RegistrosControl
                                 ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
                             )
                             FROM registro_control_bobinas rb
-                            INNER JOIN registros_control rc2 ON rc2.id = rb.registro_id
-                            WHERE rc2.np = rc.np
-                              AND rc2.eliminado = 0
-                              AND rc.np IS NOT NULL AND rc.np <> ''
-                              AND ABS(DATEDIFF(rc2.fecha_registro, rc.fecha_registro)) <= 7
+                            WHERE rb.registro_id = rc.id
                         ), '') AS bobina_descripcion,
                         IFNULL(rc.estado_validacion, 'PENDIENTE') AS estado_validacion,
                         IFNULL(DATE_FORMAT(rc.fecha_validacion, '%d-%m-%Y %H:%i'), '') AS fecha_validacion,

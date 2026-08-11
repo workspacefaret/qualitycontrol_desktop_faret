@@ -150,5 +150,124 @@ window.TableUtils = (function () {
         return resultado;
     }
 
-    return { init, preservarScroll };
+    // ---------- Bobinas: separar "A; B; C" en pares código/descripción/lote ----------
+    // bobinaCodigo/bobinaDescripcion/bobinaLote vienen del mismo GROUP_CONCAT con el mismo
+    // ORDER BY en el backend, así que la posición N de cada string corresponde a la misma bobina
+    // en los 3 campos. Se empareja por índice (no se filtran vacíos por separado) para no
+    // desalinear los arreglos si algún campo puntual viniera vacío para una bobina.
+    function parsearListaBobinas(valor) {
+        const texto = String(valor || "").trim();
+        if (!texto) return [];
+        return texto.split(";").map(v => v.trim());
+    }
+
+    function emparejarBobinas(codigo, descripcion, lote) {
+        const codigos = parsearListaBobinas(codigo);
+        const descripciones = parsearListaBobinas(descripcion);
+        const lotes = parsearListaBobinas(lote);
+        const total = Math.max(codigos.length, descripciones.length, lotes.length);
+
+        const pares = [];
+        for (let i = 0; i < total; i++) {
+            pares.push({
+                codigo: codigos[i] || "",
+                descripcion: descripciones[i] || "",
+                lote: lotes[i] || "",
+            });
+        }
+        return pares;
+    }
+
+    // Resumen listo para renderizar: primera bobina + cuántas quedan + el listado completo.
+    function resumenBobinas(codigo, descripcion, lote) {
+        const pares = emparejarBobinas(codigo, descripcion, lote);
+        return {
+            pares,
+            cantidad: pares.length,
+            primera: pares[0] || null,
+            restantes: Math.max(0, pares.length - 1),
+        };
+    }
+
+    // ---------- Popover compacto anclado a un elemento ----------
+    // Vive en document.body (no dentro de la tabla) para no quedar cortado por el overflow de
+    // .table-container. Solo una instancia abierta a la vez en toda la app (compartida entre
+    // módulos): abrirPopover() siempre cierra cualquier popover previo antes de crear el nuevo,
+    // así nunca quedan listeners globales acumulados.
+    let popoverActivo = null;
+
+    function cerrarPopover() {
+        if (!popoverActivo) return;
+        popoverActivo.limpiar();
+        popoverActivo.el.remove();
+        popoverActivo = null;
+    }
+
+    function posicionarPopover(el, trigger) {
+        const margen = 8;
+        const rectTrigger = trigger.getBoundingClientRect();
+        const rectEl = el.getBoundingClientRect();
+
+        let left = rectTrigger.left;
+        let top = rectTrigger.bottom + margen;
+
+        if (left + rectEl.width > window.innerWidth - margen) {
+            left = window.innerWidth - rectEl.width - margen;
+        }
+        if (left < margen) left = margen;
+
+        if (top + rectEl.height > window.innerHeight - margen) {
+            const arriba = rectTrigger.top - rectEl.height - margen;
+            top = arriba > margen ? arriba : margen;
+        }
+
+        el.style.top = `${top}px`;
+        el.style.left = `${left}px`;
+    }
+
+    // `html` debe venir ya escapado por quien llama — TableUtils no conoce el origen de los datos.
+    function abrirPopover(trigger, html) {
+        cerrarPopover();
+
+        const el = document.createElement("div");
+        el.className = "tu-popover";
+        el.setAttribute("role", "dialog");
+        el.style.cssText = `
+            position:fixed; z-index:9999; background:#ffffff; border:1px solid #E2E8F0;
+            border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,0.25);
+            max-width:420px; max-height:60vh; overflow:auto; font-size:13px; color:#0F172A;
+        `;
+        el.innerHTML = html;
+        document.body.appendChild(el);
+        posicionarPopover(el, trigger);
+
+        const onMouseDown = (e) => {
+            if (el.contains(e.target) || e.target === trigger || trigger.contains(e.target)) return;
+            cerrarPopover();
+        };
+        const onKeyDown = (e) => {
+            if (e.key === "Escape") cerrarPopover();
+        };
+        const onReposicionar = () => posicionarPopover(el, trigger);
+
+        document.addEventListener("mousedown", onMouseDown, true);
+        document.addEventListener("keydown", onKeyDown, true);
+        window.addEventListener("resize", onReposicionar);
+        window.addEventListener("scroll", onReposicionar, true);
+
+        popoverActivo = {
+            el,
+            trigger,
+            limpiar: () => {
+                document.removeEventListener("mousedown", onMouseDown, true);
+                document.removeEventListener("keydown", onKeyDown, true);
+                window.removeEventListener("resize", onReposicionar);
+                window.removeEventListener("scroll", onReposicionar, true);
+            },
+        };
+
+        return el;
+    }
+
+    return { init, preservarScroll, resumenBobinas, abrirPopover, cerrarPopover };
 })();

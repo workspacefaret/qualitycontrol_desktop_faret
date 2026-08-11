@@ -37,7 +37,7 @@ window.FaretController = class FaretController {
         this._renderCharts(dashboard || {}, inspecciones || {});
         this._renderAlertas(dashboard?.alertas || []);
         this._renderMaquinas(maquinas?.maquinas || []);
-        this._renderResumen(dashboard?.kpis || {}, inspecciones || {}, maquinas || {});
+        this._renderResumen(dashboard?.kpis || {}, inspecciones || {}, maquinas || {}, indicadoresCalidad || {});
         this._renderIndicadoresCalidad(indicadoresCalidad || {});
     }
 
@@ -54,7 +54,6 @@ window.FaretController = class FaretController {
         this._setText("fh-kpi-inspecciones-hoy", this._numero(inspecciones.inspeccionesHoy));
         this._setText("fh-kpi-inspecciones-defectos", this._numero(inspecciones.conDefectos));
 
-        this._setText("fh-kpi-nc-hoy", this._numero(kpis.ncRegistradasHoy));
         this._setText("fh-kpi-nc-abiertas", this._numero(kpis.ncAbiertas));
 
         this._setText("fh-kpi-acciones-vencidas", this._numero(kpis.accionesVencidas));
@@ -68,7 +67,6 @@ window.FaretController = class FaretController {
 
     _renderCharts(dashboard, inspecciones) {
         this._chartBarHorizontal("fh-chart-nc-proceso", dashboard.ncPorProceso || [], "categoria", "total", "NC");
-        this._chartBarHorizontal("fh-chart-nc-severidad", dashboard.ncPorSeveridad || [], "categoria", "total", "NC");
         this._chartDoughnut("fh-chart-estado-acciones", dashboard.estadoAcciones || [], "categoria", "total");
         this._chartBarHorizontal("fh-chart-acciones-proceso", dashboard.accionesPorProceso || [], "categoria", "total", "Acciones");
 
@@ -76,8 +74,6 @@ window.FaretController = class FaretController {
             { nombre: "Con defectos", total: inspecciones.conDefectos || 0 },
             { nombre: "Sin defectos", total: inspecciones.sinDefectos || 0 },
         ], "nombre", "total");
-
-        this._chartLine("fh-chart-tendencia-nc", dashboard.tendenciaNc30Dias || [], "fecha", "total", "NC");
     }
 
     _renderAlertas(alertas) {
@@ -115,8 +111,8 @@ window.FaretController = class FaretController {
         `).join("");
     }
 
-    _renderResumen(kpis, inspecciones, maquinas) {
-        this._setText("fh-resumen-nc-hoy", this._numero(kpis.ncRegistradasHoy));
+    _renderResumen(kpis, inspecciones, maquinas, indicadoresCalidad) {
+        this._setText("fh-resumen-nc-hoy", this._numero(indicadoresCalidad.pncHoy));
         this._setText("fh-resumen-nc-abiertas", this._numero(kpis.ncAbiertas));
         this._setText("fh-resumen-acciones-pendientes", this._numero(kpis.accionesPendientes));
         this._setText("fh-resumen-acciones-vencidas", this._numero(kpis.accionesVencidas));
@@ -212,9 +208,13 @@ window.FaretController = class FaretController {
         const cuarentenaMes = (ind.cuarentenasPorMes || []).find(m => m.mes === mesActual);
         const rechazoMes = (ind.rechazosClientePorMes || []).find(m => m.mes === mesActual);
 
+        this._setText("fh-kpi-nc-hoy", this._numero(ind.pncHoy));
         this._setText("fh-kpi-cuarentenas-mes", this._numero(cuarentenaMes?.total));
         this._setText("fh-kpi-rechazos-cliente-mes", this._numero(rechazoMes?.total));
         this._setText("fh-kpi-reclamos-total", this._numero(ind.totalReclamos));
+
+        this._chartBarHorizontal("fh-chart-nc-severidad", ind.porNivel || [], "categoria", "total", "PNC");
+        this._chartLine("fh-chart-tendencia-nc", ind.tendenciaPnc30Dias || [], "fecha", "total", "PNC");
 
         const seriesRecuperadoDestruido = [
             { key: "recuperados", label: "Recuperados", color: "#22c55e" },

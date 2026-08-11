@@ -12,6 +12,7 @@
             </div>
             <button id="fnc-exportar-btn" class="btn-secondary">Exportar Excel</button>
             <button id="fnc-imprimir-btn" class="btn-secondary">Imprimir</button>
+            <button id="fnc-imprimir-reporte-btn" class="btn-secondary">Imprimir Reporte Estadístico</button>
             <button id="fnc-nuevo-btn" class="btn-primary">+ Nueva NC</button>
         </div>
     </div>
@@ -215,6 +216,58 @@
             </div>
         </div>
         <div class="fnc-nota">La tabla combina todos los registros de Data con su gestión de No Conformidad (si ya existe). Los filtros se aplican sobre los datos ya cargados.</div>
+    </div>
+
+    <!-- Indicadores estadísticos (calculados sobre el mismo dataset filtrado que la tabla) -->
+    <div class="card fnc-stats-card">
+        <div class="fnc-toolbar-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+            <span>Indicadores Estadísticos</span>
+        </div>
+
+        <div class="fnc-stats-grid">
+            <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">Cuarentenas</div>
+                <div class="fnc-stats-resumen">
+                    <div><span class="home-module-card-value" id="fnc-stat-cuarentenas-total">0</span><div class="fnc-nota">Total período</div></div>
+                    <div><span class="home-module-card-value" id="fnc-stat-cuarentenas-recuperados">0</span><div class="fnc-nota">Recuperados</div></div>
+                    <div><span class="home-module-card-value" id="fnc-stat-cuarentenas-destruidos">0</span><div class="fnc-nota">A destrucción</div></div>
+                </div>
+                <canvas id="fnc-chart-cuarentenas"></canvas>
+                <div id="fnc-nota-cuarentenas" class="fnc-nota" style="display:none;"></div>
+            </div>
+
+            <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">Rechazos de Cliente</div>
+                <div class="fnc-stats-resumen">
+                    <div><span class="home-module-card-value" id="fnc-stat-rechazos-total">0</span><div class="fnc-nota">Total período</div></div>
+                    <div><span class="home-module-card-value" id="fnc-stat-rechazos-recuperados">0</span><div class="fnc-nota">Recuperados</div></div>
+                    <div><span class="home-module-card-value" id="fnc-stat-rechazos-destruidos">0</span><div class="fnc-nota">A destrucción</div></div>
+                </div>
+                <canvas id="fnc-chart-rechazos"></canvas>
+                <div id="fnc-nota-rechazos" class="fnc-nota" style="display:none;"></div>
+            </div>
+
+            <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">Total de Reclamos</div>
+                <span class="home-module-card-value" id="fnc-stat-reclamos-total">0</span>
+            </div>
+
+            <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">PNC por Familia de Producto</div>
+                <canvas id="fnc-chart-familia"></canvas>
+            </div>
+
+            <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">Incidentes por Área</div>
+                <canvas id="fnc-chart-area"></canvas>
+            </div>
+
+            <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">Pareto de Defectos</div>
+                <canvas id="fnc-chart-pareto"></canvas>
+            </div>
+        </div>
     </div>
 
     <!-- Tabla -->

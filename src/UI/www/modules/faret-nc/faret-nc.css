@@ -411,6 +411,43 @@
     margin-left: auto;
 }
 
+/* ---------- Indicadores estadísticos (Paso 52) ----------
+   .home-middle/.home-bottom y el tamaño de canvas de Inicio Faret están scoped a .home-module
+   (core/styles.css) y no aplican fuera de ese módulo — confirmado antes de escribir esto. Se
+   reutilizan .card/.module-title/.fnc-toolbar-header/.fnc-analisis-seccion/.fnc-nota/
+   .home-module-card-value ya existentes; solo se agrega el grid y el alto del canvas, que no
+   tienen ninguna clase existente equivalente fuera de Inicio Faret. */
+
+.faret-nc-module .fnc-stats-card {
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    border: 1px solid #E5E9F0;
+}
+
+.faret-nc-module .fnc-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.faret-nc-module .fnc-stats-resumen {
+    display: flex;
+    gap: 22px;
+    margin: 2px 0 6px;
+}
+
+.faret-nc-module .fnc-stats-card canvas {
+    width: 100% !important;
+    height: 200px !important;
+    margin-top: 8px;
+}
+
+/* El Pareto rota sus etiquetas 40° (hasta 11 categorías: Top 10 + "Otros") — necesita más alto
+   que el resto de los gráficos de esta sección para que las etiquetas no se corten. */
+.faret-nc-module #fnc-chart-pareto {
+    height: 260px !important;
+}
+
 /* ---------- Paginación ---------- */
 
 .fnc-paginacion {

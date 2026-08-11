@@ -14,6 +14,8 @@ window.NoConformidadesController = class NoConformidadesController {
         this._analisisNcId = null;
         this._analisisActual = null;
         this._acciones = [];
+        this._statsCharts = [];
+        this._itemsCompletos = [];
 
         // Columnas opcionales del listado (campos que ya vienen en cada fila de "noConformidades.list"
         // pero no se muestran por defecto en la tabla base).
@@ -37,6 +39,7 @@ window.NoConformidadesController = class NoConformidadesController {
         document.getElementById("ncq-nuevo-btn")?.addEventListener("click", () => this._abrirNuevo());
         document.getElementById("ncq-exportar-btn")?.addEventListener("click", () => this._exportar());
         document.getElementById("ncq-imprimir-btn")?.addEventListener("click", () => this._imprimir());
+        document.getElementById("ncq-imprimir-reporte-btn")?.addEventListener("click", () => this._imprimirReporteEstadistico());
 
         document.getElementById("ncq-columnas-btn")?.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -88,6 +91,7 @@ window.NoConformidadesController = class NoConformidadesController {
 
     destroy() {
         console.log("NoConformidadesController destruido");
+        this._destroyStatsCharts();
     }
 
     _usuarioActual() {
@@ -192,9 +196,10 @@ window.NoConformidadesController = class NoConformidadesController {
         const filtros = this._getFiltros();
 
         try {
-            const [listRes, resumenRes] = await Promise.all([
+            const [listRes, resumenRes, itemsCompletos] = await Promise.all([
                 window.PhotinoBridge.send({ action: "noConformidades.list", page: this._page, pageSize: this._pageSize, ...filtros }),
                 window.PhotinoBridge.send({ action: "noConformidades.resumen", ...filtros }),
+                this._obtenerItemsFiltrados(),
             ]);
 
             if (!listRes.ok) {
@@ -206,8 +211,10 @@ window.NoConformidadesController = class NoConformidadesController {
             this._total = listRes.data.total || 0;
             this._pages = listRes.data.pages || 1;
             this._page = listRes.data.page || 1;
+            this._itemsCompletos = Array.isArray(itemsCompletos) ? itemsCompletos : [];
 
             if (resumenRes.ok) this._renderResumen(resumenRes.data);
+            this._renderIndicadores(this._calcularIndicadores(this._itemsCompletos));
             this._renderTabla();
             this._renderPaginacion();
         } catch {
@@ -220,6 +227,400 @@ window.NoConformidadesController = class NoConformidadesController {
         document.getElementById("ncq-abiertas").textContent = r.abiertas ?? 0;
         document.getElementById("ncq-cerradas").textContent = r.cerradas ?? 0;
         document.getElementById("ncq-criticas").textContent = r.criticas ?? 0;
+    }
+
+    // ---------- Indicadores estadísticos ----------
+    // Se calculan sobre `this._itemsCompletos` (todo el universo que cumple los filtros activos,
+    // vía _obtenerItemsFiltrados() — mismo mecanismo ya usado por Exportar/Imprimir, sin fetch
+    // nuevo ni endpoint nuevo). A diferencia de Faret, acá no hay que fusionar Data+NC: cada fila
+    // de `no_conformidades` ya trae directo tipoPnc/familiaProducto/area/categoriaDefecto/
+    // cantRecuperada/cantDestruida/fechaIngreso, así que no se filtra por "fuente".
+
+    _calcularIndicadores(items) {
+        const porTipo = tipo => items.filter(nc => (nc.tipoPnc || "").trim() === tipo);
+
+        const resumenTipo = tipo => {
+            const rows = porTipo(tipo);
+            return {
+                total: rows.length,
+                recuperados: rows.reduce((s, nc) => s + (Number(nc.cantRecuperada) || 0), 0),
+                destruidos: rows.reduce((s, nc) => s + (Number(nc.cantDestruida) || 0), 0),
+                evolucionMensual: this._agruparPorMes(rows),
+            };
+        };
+
+        const agruparCategoria = campo => {
+            const mapa = new Map();
+            items.forEach(nc => {
+                const valor = (nc[campo] || "").toString().trim();
+                if (!valor) return;
+                mapa.set(valor, (mapa.get(valor) || 0) + 1);
+            });
+            return [...mapa.entries()]
+                .map(([categoria, total]) => ({ categoria, total }))
+                .sort((a, b) => b.total - a.total);
+        };
+
+        return {
+            cuarentenas: resumenTipo("Cuarentena"),
+            rechazosCliente: resumenTipo("Rechazo Cliente"),
+            totalReclamos: porTipo("Reclamo").length,
+            porFamilia: agruparCategoria("familiaProducto"),
+            porArea: agruparCategoria("area"),
+            pareto: this._calcularPareto(items),
+        };
+    }
+
+    _agruparPorMes(rows) {
+        const mapa = new Map();
+        rows.forEach(nc => {
+            if (!nc.fechaIngreso) return;
+            const mes = String(nc.fechaIngreso).substring(0, 7); // yyyy-MM
+            if (!mapa.has(mes)) mapa.set(mes, { recuperados: 0, destruidos: 0 });
+            const acc = mapa.get(mes);
+            acc.recuperados += Number(nc.cantRecuperada) || 0;
+            acc.destruidos += Number(nc.cantDestruida) || 0;
+        });
+        return [...mapa.entries()]
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([mes, v]) => ({
+                mes,
+                mesLabel: this._formatearMesCorto(mes),
+                mesLargo: this._formatearMesLargo(mes),
+                ...v,
+            }));
+    }
+
+    _formatearMesCorto(mesIso) {
+        const [anio, mes] = mesIso.split("-").map(Number);
+        const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+        return `${meses[mes - 1] || mesIso} ${String(anio).slice(-2)}`;
+    }
+
+    _formatearMesLargo(mesIso) {
+        const [anio, mes] = mesIso.split("-").map(Number);
+        const meses = [
+            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+        ];
+        return `${meses[mes - 1] || mesIso} ${anio}`;
+    }
+
+    // Mismo cálculo que el Pareto de Faret: orden descendente por frecuencia, % acumulado con 2
+    // decimales.
+    _calcularPareto(rows) {
+        const mapa = new Map();
+        rows.forEach(nc => {
+            const valor = (nc.categoriaDefecto || "").toString().trim();
+            if (!valor) return;
+            mapa.set(valor, (mapa.get(valor) || 0) + 1);
+        });
+
+        const total = [...mapa.values()].reduce((s, v) => s + v, 0);
+        let acumulado = 0;
+
+        return [...mapa.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([defecto, frecuencia]) => {
+                acumulado += frecuencia;
+                return {
+                    defecto,
+                    frecuencia,
+                    porcentajeAcumulado: total > 0 ? Math.round((acumulado / total) * 10000) / 100 : 0,
+                };
+            });
+    }
+
+    _renderIndicadores(ind) {
+        this._destroyStatsCharts();
+
+        this._setText("ncq-stat-cuarentenas-total", ind.cuarentenas.total);
+        this._setText("ncq-stat-cuarentenas-recuperados", ind.cuarentenas.recuperados);
+        this._setText("ncq-stat-cuarentenas-destruidos", ind.cuarentenas.destruidos);
+
+        this._setText("ncq-stat-rechazos-total", ind.rechazosCliente.total);
+        this._setText("ncq-stat-rechazos-recuperados", ind.rechazosCliente.recuperados);
+        this._setText("ncq-stat-rechazos-destruidos", ind.rechazosCliente.destruidos);
+
+        this._setText("ncq-stat-reclamos-total", ind.totalReclamos);
+
+        this._renderEvolucionMensual(
+            "ncq-chart-cuarentenas", "ncq-nota-cuarentenas",
+            ind.cuarentenas.evolucionMensual, "Cuarentenas — evolución mensual"
+        );
+        this._renderEvolucionMensual(
+            "ncq-chart-rechazos", "ncq-nota-rechazos",
+            ind.rechazosCliente.evolucionMensual, "Rechazos de cliente — evolución mensual"
+        );
+
+        this._chartBarHorizontalStats(
+            "ncq-chart-familia", ind.porFamilia, "categoria", "total", "PNC",
+            "PNC por familia de producto"
+        );
+        this._chartBarHorizontalStats(
+            "ncq-chart-area", ind.porArea, "categoria", "total", "Incidentes",
+            "Incidentes por área"
+        );
+        this._chartParetoStats(
+            "ncq-chart-pareto", this._aplicarTopNOtros(ind.pareto), "defecto", "frecuencia", "porcentajeAcumulado",
+            "Pareto de defectos"
+        );
+    }
+
+    // Limita el Pareto a las N categorías con mayor frecuencia (por defecto 10) y agrupa el resto
+    // en una barra "Otros" — el % acumulado de esa barra usa el acumulado real ya calculado sobre
+    // TODAS las categorías filtradas, nunca se recalcula solo sobre el Top N.
+    _aplicarTopNOtros(pareto, topN = 10) {
+        if (pareto.length <= topN) return pareto;
+
+        const top = pareto.slice(0, topN);
+        const resto = pareto.slice(topN);
+        const frecuenciaOtros = resto.reduce((s, r) => s + r.frecuencia, 0);
+        const acumuladoReal = pareto[pareto.length - 1].porcentajeAcumulado;
+
+        return [...top, {
+            defecto: "Otros",
+            frecuencia: frecuenciaOtros,
+            porcentajeAcumulado: acumuladoReal,
+            esOtros: true,
+        }];
+    }
+
+    _renderEvolucionMensual(canvasId, notaId, evolucion, titulo) {
+        const canvas = document.getElementById(canvasId);
+        const nota = document.getElementById(notaId);
+        const meses = evolucion.length;
+
+        if (meses < 2) {
+            if (canvas) canvas.style.display = "none";
+            if (nota) {
+                nota.textContent = meses === 1
+                    ? "Rango de un solo mes — sin evolución mensual que mostrar."
+                    : "Sin registros en el período para mostrar evolución.";
+                nota.style.display = "block";
+            }
+            return;
+        }
+
+        if (canvas) canvas.style.display = "block";
+        if (nota) nota.style.display = "none";
+
+        this._chartBarAgrupadaStats(canvasId, evolucion, "mesLabel", [
+            { key: "recuperados", label: "Recuperados", color: "#22c55e" },
+            { key: "destruidos", label: "Destruidos", color: "#ef4444" },
+        ], titulo, "mesLargo");
+    }
+
+    // ---------- Charts (mismo patrón visual/técnico que faret-nc.controller.js) ----------
+
+    _chartBarHorizontalStats(canvasId, rows, labelKey, valueKey, label, titulo) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const chart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: rows.map(r => r[labelKey] || "-"),
+                datasets: [{
+                    label,
+                    data: rows.map(r => Number(r[valueKey] || 0)),
+                    backgroundColor: ["#ef4444", "#f97316", "#eab308", "#22c55e", "#16a34a", "#3b82f6", "#6366f1"],
+                    borderRadius: 8,
+                }],
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true }, y: { ticks: { font: { size: 11 } } } },
+            },
+        });
+
+        this._statsCharts.push({ chart, canvas: ctx, titulo });
+    }
+
+    _chartBarAgrupadaStats(canvasId, rows, labelKey, series, titulo, tooltipKey) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const chart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: rows.map(r => r[labelKey] || "-"),
+                datasets: series.map(s => ({
+                    label: s.label,
+                    data: rows.map(r => Number(r[s.key] || 0)),
+                    backgroundColor: s.color,
+                    borderRadius: 6,
+                })),
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: "bottom", labels: { font: { size: 11 } } },
+                    tooltip: tooltipKey ? {
+                        callbacks: {
+                            title: items => (items[0] ? rows[items[0].dataIndex]?.[tooltipKey] || "" : ""),
+                        },
+                    } : undefined,
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: v => Number(v).toLocaleString("es-CL") },
+                    },
+                    x: {
+                        ticks: {
+                            autoSkip: true,
+                            maxRotation: 45,
+                            minRotation: 0,
+                            font: { size: 11 },
+                        },
+                    },
+                },
+            },
+        });
+
+        this._statsCharts.push({ chart, canvas: ctx, titulo });
+    }
+
+    // Pareto real: barras = frecuencia por defecto, línea = % acumulado sobre eje secundario.
+    // `rows` ya viene recortado a Top N + "Otros" (_aplicarTopNOtros). Los nombres largos se
+    // truncan solo en el eje (tooltip conserva el nombre completo desde `rows`).
+    _chartParetoStats(canvasId, rows, labelKey, freqKey, pctKey, titulo) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const truncarEtiqueta = (texto, max = 14) =>
+            texto.length > max ? `${texto.slice(0, max - 1)}…` : texto;
+
+        const chart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: rows.map(r => r[labelKey] || "-"),
+                datasets: [
+                    {
+                        label: "Frecuencia",
+                        data: rows.map(r => Number(r[freqKey] || 0)),
+                        backgroundColor: rows.map(r => r.esOtros ? "#94a3b8" : "#3b82f6"),
+                        borderRadius: 6,
+                        yAxisID: "y",
+                    },
+                    {
+                        type: "line",
+                        label: "% Acumulado",
+                        data: rows.map(r => Number(r[pctKey] || 0)),
+                        borderColor: "#ef4444",
+                        backgroundColor: "#ef4444",
+                        pointBackgroundColor: "#ef4444",
+                        pointRadius: 3,
+                        tension: 0.25,
+                        yAxisID: "y1",
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: "bottom", labels: { font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            title: items => (items[0] ? rows[items[0].dataIndex]?.[labelKey] || "" : ""),
+                        },
+                    },
+                },
+                scales: {
+                    y: { beginAtZero: true, position: "left", title: { display: true, text: "Frecuencia" } },
+                    y1: {
+                        beginAtZero: true,
+                        max: 100,
+                        position: "right",
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: "% Acumulado" },
+                    },
+                    x: {
+                        ticks: {
+                            maxRotation: 40,
+                            minRotation: 40,
+                            font: { size: 10 },
+                            callback: function (value) {
+                                return truncarEtiqueta(String(this.getLabelForValue(value)));
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        // `full: true` marca este gráfico para ocupar el ancho completo en el reporte impreso.
+        this._statsCharts.push({ chart, canvas: ctx, titulo, full: true });
+    }
+
+    _destroyStatsCharts() {
+        (this._statsCharts || []).forEach(({ chart }) => {
+            try { chart.destroy(); } catch { /* noop */ }
+        });
+        this._statsCharts = [];
+    }
+
+    _setText(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = Number(value || 0).toLocaleString("es-CL");
+    }
+
+    // Toma el <canvas> YA renderizado en pantalla de cada gráfico (chart.canvas — mismas
+    // instancias que ve el usuario con los filtros activos, sin crear ni recalcular ningún
+    // Chart). Valida ancho/alto del canvas y el DataURL resultante antes de incluirlo; si algo
+    // falla se omite ESE gráfico puntual sin bloquear el resto del reporte.
+    _capturarGraficosParaImpresion() {
+        const diagnostico = [];
+        const resultado = [];
+
+        (this._statsCharts || []).forEach(({ chart, titulo, full }) => {
+            const canvas = chart?.canvas || null;
+            const fila = {
+                grafico: titulo,
+                "canvas.width": canvas?.width ?? "-",
+                "canvas.height": canvas?.height ?? "-",
+                dataUrlLength: 0,
+                prefijoValido: false,
+                incluido: false,
+            };
+
+            if (!canvas || !canvas.width || !canvas.height) {
+                diagnostico.push(fila);
+                console.warn(`[Reporte NC] "${titulo}" omitido: canvas inexistente o sin dimensiones.`);
+                return;
+            }
+
+            let dataUrl = "";
+            try {
+                dataUrl = canvas.toDataURL("image/png");
+            } catch (err) {
+                diagnostico.push(fila);
+                console.warn(`[Reporte NC] "${titulo}" omitido: canvas.toDataURL() lanzó un error.`, err);
+                return;
+            }
+
+            fila.dataUrlLength = dataUrl.length;
+            fila.prefijoValido = dataUrl.startsWith("data:image/png;base64,");
+
+            if (!fila.prefijoValido || dataUrl.length < 200) {
+                diagnostico.push(fila);
+                console.warn(`[Reporte NC] "${titulo}" omitido: DataURL inválido o demasiado corto (longitud=${dataUrl.length}).`);
+                return;
+            }
+
+            fila.incluido = true;
+            diagnostico.push(fila);
+            resultado.push({ titulo, imagen: dataUrl, full: !!full });
+        });
+
+        console.table(diagnostico);
+        return resultado;
     }
 
     // ---------- Columnas opcionales del listado ----------
@@ -1042,6 +1443,51 @@ window.NoConformidadesController = class NoConformidadesController {
         } catch {
             this._showMensaje("Error al imprimir", false);
         }
+    }
+
+    // Reutiliza this._itemsCompletos (ya cargado por _loadLista con los filtros activos, mismo
+    // universo que alimenta los 6 indicadores) — sin refetch. Los gráficos se capturan tal cual
+    // están renderizados en pantalla (_capturarGraficosParaImpresion), sin recrear ningún Chart.
+    _imprimirReporteEstadistico() {
+        const items = this._itemsCompletos || [];
+        const ind = this._calcularIndicadores(items);
+        const paretoImpreso = this._aplicarTopNOtros(ind.pareto);
+
+        const graficos = this._capturarGraficosParaImpresion();
+
+        window.PrintExporter.printReport({
+            empresa: "INNPACK",
+            titulo: "Reporte Estadístico de No Conformidades",
+            subtitulo: this._resumenFiltrosTexto(),
+            totalRegistros: items.length,
+            resumen: [
+                { label: "Cuarentenas — total", valor: ind.cuarentenas.total },
+                { label: "Cuarentenas — recuperados", valor: ind.cuarentenas.recuperados },
+                { label: "Cuarentenas — a destrucción", valor: ind.cuarentenas.destruidos },
+                { label: "Rechazos cliente — total", valor: ind.rechazosCliente.total },
+                { label: "Rechazos cliente — recuperados", valor: ind.rechazosCliente.recuperados },
+                { label: "Rechazos cliente — a destrucción", valor: ind.rechazosCliente.destruidos },
+                { label: "Total reclamos", valor: ind.totalReclamos },
+            ],
+            graficos,
+            tablas: [
+                {
+                    titulo: "PNC por familia de producto",
+                    columnas: ["Familia", "Total"],
+                    filas: ind.porFamilia.map(r => [r.categoria, r.total]),
+                },
+                {
+                    titulo: "Incidentes por área",
+                    columnas: ["Área", "Total"],
+                    filas: ind.porArea.map(r => [r.categoria, r.total]),
+                },
+                {
+                    titulo: "Pareto de defectos",
+                    columnas: ["Defecto", "Frecuencia", "% Acumulado"],
+                    filas: paretoImpreso.map(r => [r.defecto, r.frecuencia, `${r.porcentajeAcumulado}%`]),
+                },
+            ],
+        });
     }
 
     _construirTablaTemp(items) {

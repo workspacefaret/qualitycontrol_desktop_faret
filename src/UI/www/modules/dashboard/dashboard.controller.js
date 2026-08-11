@@ -113,6 +113,11 @@ if (!window.DashboardController) {
           return
         }
 
+        if (e.target.classList.contains("bobinas-badge")) {
+          this.abrirPopoverBobinas(e.target)
+          return
+        }
+
         if (e.target.id === "btnCerrarImagenDashboard") {
           this.cerrarImagenDashboard()
           return
@@ -324,6 +329,8 @@ if (!window.DashboardController) {
       const tbody = document.getElementById("tbodyDashboardUltimos")
       if (!tbody) return
 
+      window.TableUtils.cerrarPopover()
+
       const registros = this.data?.ultimosRegistros || []
 
       if (!registros.length) {
@@ -335,7 +342,10 @@ if (!window.DashboardController) {
         return
       }
 
-      tbody.innerHTML = registros.map(r => `
+      tbody.innerHTML = registros.map(r => {
+        const bobinas = window.TableUtils.resumenBobinas(r.bobinaCodigo, r.bobinaDescripcion, r.bobinaLote)
+
+        return `
         <tr>
           <td>${this.numero(r.id)}</td>
           <td>${this.escape(r.fechaRegistro)}</td>
@@ -353,8 +363,8 @@ if (!window.DashboardController) {
           <td>${this.escape(r.tipoMerma || "-")}</td>
           <td>${this.escape(r.tipoDefecto || "-")}</td>
           <td>${this.escape(r.bobinaLote || "-")}</td>
-          <td>${this.escape(r.bobinaCodigo || "-")}</td>
-          <td>${this.escape(r.bobinaDescripcion || "-")}</td>
+          <td>${this.celdaBobina(bobinas, "codigo", r.id)}</td>
+          <td>${this.celdaBobina(bobinas, "descripcion", r.id)}</td>
 
           <td>
             ${this.renderEstadoValidacion(r.estadoValidacion)}
@@ -393,7 +403,8 @@ if (!window.DashboardController) {
         }
           </td>
         </tr>
-      `).join("")
+      `
+      }).join("")
     }
 
     chartBarHorizontal(canvasId, rows, labelKey, valueKey, label) {
@@ -725,6 +736,60 @@ if (!window.DashboardController) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;")
+    }
+
+    // Celda compacta de Código/Descripción Bobina: 0 -> "-", 1 -> valor normal, 2+ -> primera + "+N"
+    // (badge clickeable que abre el popover con todas las bobinas emparejadas).
+    celdaBobina(bobinas, campo, rowId) {
+      if (bobinas.cantidad === 0) return "-"
+
+      const valor = this.escape((bobinas.primera && bobinas.primera[campo]) || "-")
+      if (bobinas.cantidad === 1) return valor
+
+      return `
+        <span>${valor}</span>
+        <button type="button" class="bobinas-badge" data-bobinas-row="${rowId}"
+          style="margin-left:6px; padding:1px 7px; border-radius:999px; background:#EFF6FF; color:#2563EB; border:1px solid #DBEAFE; font-size:11px; font-weight:700; cursor:pointer; line-height:1.6; white-space:nowrap;">+${bobinas.restantes}</button>
+      `
+    }
+
+    // Popover "Bobinas utilizadas" anclado al badge +N clickeado. Vive en document.body (vía
+    // TableUtils.abrirPopover), así que nunca queda cortado por el overflow de .table-container.
+    abrirPopoverBobinas(trigger) {
+      const rowId = trigger.dataset.bobinasRow
+      const registros = this.data?.ultimosRegistros || []
+      const r = registros.find(item => String(item.id) === String(rowId))
+      if (!r) return
+
+      const bobinas = window.TableUtils.resumenBobinas(r.bobinaCodigo, r.bobinaDescripcion, r.bobinaLote)
+
+      const filas = bobinas.pares.map(p => `
+        <tr>
+          <td style="padding:6px 10px; border-bottom:1px solid #F1F5F9;">${this.escape(p.codigo || "-")}</td>
+          <td style="padding:6px 10px; border-bottom:1px solid #F1F5F9;">${this.escape(p.descripcion || "-")}</td>
+          <td style="padding:6px 10px; border-bottom:1px solid #F1F5F9;">${this.escape(p.lote || "-")}</td>
+        </tr>
+      `).join("")
+
+      const html = `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-bottom:1px solid #E2E8F0; background:#F8FAFC;">
+          <strong style="font-size:12px; color:#334155;">Bobinas utilizadas (${bobinas.cantidad})</strong>
+          <button type="button" class="tu-popover-cerrar" style="border:none; background:transparent; color:#64748B; font-size:16px; line-height:1; cursor:pointer; padding:2px 4px;">&times;</button>
+        </div>
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+          <thead>
+            <tr style="background:#F1F5F9;">
+              <th style="text-align:left; padding:6px 10px;">Código</th>
+              <th style="text-align:left; padding:6px 10px;">Descripción</th>
+              <th style="text-align:left; padding:6px 10px;">Lote</th>
+            </tr>
+          </thead>
+          <tbody>${filas}</tbody>
+        </table>
+      `
+
+      const el = window.TableUtils.abrirPopover(trigger, html)
+      el.querySelector(".tu-popover-cerrar")?.addEventListener("click", () => window.TableUtils.cerrarPopover())
     }
 
     traducirEstado(estado) {

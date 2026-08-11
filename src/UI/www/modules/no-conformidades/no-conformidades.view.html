@@ -12,6 +12,7 @@
             </div>
             <button id="ncq-exportar-btn" class="btn-secondary">Exportar Excel</button>
             <button id="ncq-imprimir-btn" class="btn-secondary">Imprimir</button>
+            <button id="ncq-imprimir-reporte-btn" class="btn-secondary">Imprimir Reporte Estadístico</button>
             <button id="ncq-nuevo-btn" class="btn-primary">+ Nueva NC</button>
         </div>
     </div>
@@ -82,6 +83,55 @@
             <div class="ncq-campo ncq-filtro-acciones">
                 <button id="ncq-filtrar-btn" class="btn-primary">Filtrar</button>
                 <button id="ncq-limpiar-btn" class="btn-secondary">Limpiar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indicadores estadísticos (calculados sobre el mismo dataset filtrado que la tabla) -->
+    <div class="card ncq-stats-card">
+        <div class="module-title" style="font-size:1rem; margin-bottom:16px;">Indicadores Estadísticos</div>
+
+        <div class="ncq-stats-grid">
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Cuarentenas</div>
+                <div class="ncq-stats-resumen">
+                    <div><span class="kpi-value" id="ncq-stat-cuarentenas-total">0</span><div class="ncq-stats-nota">Total período</div></div>
+                    <div><span class="kpi-value" id="ncq-stat-cuarentenas-recuperados">0</span><div class="ncq-stats-nota">Recuperados</div></div>
+                    <div><span class="kpi-value" id="ncq-stat-cuarentenas-destruidos">0</span><div class="ncq-stats-nota">A destrucción</div></div>
+                </div>
+                <canvas id="ncq-chart-cuarentenas"></canvas>
+                <div id="ncq-nota-cuarentenas" class="ncq-stats-nota" style="display:none;"></div>
+            </div>
+
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Rechazos de Cliente</div>
+                <div class="ncq-stats-resumen">
+                    <div><span class="kpi-value" id="ncq-stat-rechazos-total">0</span><div class="ncq-stats-nota">Total período</div></div>
+                    <div><span class="kpi-value" id="ncq-stat-rechazos-recuperados">0</span><div class="ncq-stats-nota">Recuperados</div></div>
+                    <div><span class="kpi-value" id="ncq-stat-rechazos-destruidos">0</span><div class="ncq-stats-nota">A destrucción</div></div>
+                </div>
+                <canvas id="ncq-chart-rechazos"></canvas>
+                <div id="ncq-nota-rechazos" class="ncq-stats-nota" style="display:none;"></div>
+            </div>
+
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Total de Reclamos</div>
+                <span class="kpi-value" id="ncq-stat-reclamos-total">0</span>
+            </div>
+
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">PNC por Familia de Producto</div>
+                <canvas id="ncq-chart-familia"></canvas>
+            </div>
+
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Incidentes por Área</div>
+                <canvas id="ncq-chart-area"></canvas>
+            </div>
+
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Pareto de Defectos</div>
+                <canvas id="ncq-chart-pareto"></canvas>
             </div>
         </div>
     </div>
