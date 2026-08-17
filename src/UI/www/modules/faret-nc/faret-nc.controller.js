@@ -349,13 +349,14 @@ window.FaretNcController = class FaretNcController {
             nivelSeveridad: dataRow?.nivel || ncRow?.severidad || "-",
             estadoGestion: ncRow?.estadoGestion || "SIN_GESTION",
             responsable: ncRow?.responsable || "-",
+            area: dataRow?.area || "-",
             fechaCompromiso: ncRow?.fechaCompromiso || null,
         };
     }
 
     // ---------- Filtros ----------
 
-    // Arma las opciones de los <select> de Cliente/Tipo PNC/Responsable con los valores reales
+    // Arma las opciones de los <select> de Cliente/Tipo PNC/Área con los valores reales
     // ya presentes en this._combinados (dataset completo en memoria) — nada hardcodeado, salvo
     // Tipo PNC que además siembra el mismo catálogo fijo del formulario "Nueva NC" (Cuarentena/
     // Rechazo/Reclamo/Interna) para que esas opciones existan en el filtro aunque todavía no haya
@@ -365,7 +366,7 @@ window.FaretNcController = class FaretNcController {
         const mapa = {
             "fnc-filtro-cliente": "cliente",
             "fnc-filtro-tipo-pnc": "tipoPnc",
-            "fnc-filtro-responsable": "responsable",
+            "fnc-filtro-area": "area",
         };
 
         Object.entries(mapa).forEach(([selectId, campo]) => {
@@ -467,7 +468,7 @@ window.FaretNcController = class FaretNcController {
             tipoPnc: document.getElementById("fnc-filtro-tipo-pnc")?.value.trim().toLowerCase() || "",
             nivel: document.getElementById("fnc-filtro-nivel")?.value || "",
             estadoGestion: document.getElementById("fnc-filtro-estado-gestion")?.value || "",
-            responsable: document.getElementById("fnc-filtro-responsable")?.value.trim().toLowerCase() || "",
+            area: document.getElementById("fnc-filtro-area")?.value.trim().toLowerCase() || "",
             fuente: document.getElementById("fnc-filtro-fuente")?.value || "",
             fechaDesde: document.getElementById("fnc-filtro-fecha-desde")?.value || "",
             fechaHasta: document.getElementById("fnc-filtro-fecha-hasta")?.value || "",
@@ -479,7 +480,7 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-filtro-tipo-pnc").value = "";
         document.getElementById("fnc-filtro-nivel").value = "";
         document.getElementById("fnc-filtro-estado-gestion").value = "";
-        document.getElementById("fnc-filtro-responsable").value = "";
+        document.getElementById("fnc-filtro-area").value = "";
         document.getElementById("fnc-filtro-fuente").value = "";
         document.getElementById("fnc-filtro-fecha-desde").value = "";
         document.getElementById("fnc-filtro-fecha-hasta").value = "";
@@ -501,7 +502,7 @@ window.FaretNcController = class FaretNcController {
             if (f.tipoPnc && !fila.tipoPnc.toLowerCase().includes(f.tipoPnc)) return false;
             if (f.nivel && fila.nivelSeveridad !== f.nivel) return false;
             if (f.estadoGestion && fila.estadoGestion !== f.estadoGestion) return false;
-            if (f.responsable && !fila.responsable.toLowerCase().includes(f.responsable)) return false;
+            if (f.area && !fila.area.toLowerCase().includes(f.area)) return false;
             if (f.fuente && fila.fuente !== f.fuente) return false;
 
             if (fila.fechaIngreso) {
@@ -2625,7 +2626,7 @@ window.FaretNcController = class FaretNcController {
         if (f.tipoPnc) partes.push(`Tipo PNC: ${f.tipoPnc}`);
         if (f.nivel) partes.push(`Nivel: ${f.nivel}`);
         if (f.estadoGestion) partes.push(`Estado gestión: ${this._labelEstadoGestion(f.estadoGestion)}`);
-        if (f.responsable) partes.push(`Responsable: ${f.responsable}`);
+        if (f.area) partes.push(`Área: ${f.area}`);
         if (f.fuente) partes.push(`Fuente: ${this._labelFuente(f.fuente)}`);
         if (f.fechaDesde) partes.push(`Fecha ingreso desde: ${f.fechaDesde}`);
         if (f.fechaHasta) partes.push(`Fecha ingreso hasta: ${f.fechaHasta}`);

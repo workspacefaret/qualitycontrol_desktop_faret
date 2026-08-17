@@ -147,7 +147,7 @@ namespace QualityControlCenter.Modules.NoConformidades
             var page = TryGetInt(data, "page", out var p) && p > 0 ? p : 1;
             var pageSize = TryGetInt(data, "pageSize", out var ps) && ps > 0 ? ps : 50;
 
-            var (cliente, tipoPnc, nivel, estadoGestion, responsable, fechaDesde, fechaHasta) =
+            var (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta) =
                 LeerFiltros(data);
 
             var (items, total) = await _repo.Listar(
@@ -157,7 +157,7 @@ namespace QualityControlCenter.Modules.NoConformidades
                 tipoPnc,
                 nivel,
                 estadoGestion,
-                responsable,
+                area,
                 fechaDesde,
                 fechaHasta
             );
@@ -177,7 +177,7 @@ namespace QualityControlCenter.Modules.NoConformidades
 
         private async Task<string> HandleResumen(Dictionary<string, object> data)
         {
-            var (cliente, tipoPnc, nivel, estadoGestion, responsable, fechaDesde, fechaHasta) =
+            var (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta) =
                 LeerFiltros(data);
 
             var resumen = await _repo.ObtenerResumen(
@@ -185,7 +185,7 @@ namespace QualityControlCenter.Modules.NoConformidades
                 tipoPnc,
                 nivel,
                 estadoGestion,
-                responsable,
+                area,
                 fechaDesde,
                 fechaHasta
             );
@@ -215,7 +215,7 @@ namespace QualityControlCenter.Modules.NoConformidades
             string? TipoPnc,
             string? Nivel,
             string? EstadoGestion,
-            string? Responsable,
+            string? Area,
             string? FechaDesde,
             string? FechaHasta
         ) LeerFiltros(Dictionary<string, object> data)
@@ -224,10 +224,10 @@ namespace QualityControlCenter.Modules.NoConformidades
             TryGetString(data, "tipoPnc", out var tipoPnc);
             TryGetString(data, "nivel", out var nivel);
             TryGetString(data, "estadoGestion", out var estadoGestion);
-            TryGetString(data, "responsable", out var responsable);
+            TryGetString(data, "area", out var area);
             TryGetString(data, "fechaDesde", out var fechaDesde);
             TryGetString(data, "fechaHasta", out var fechaHasta);
-            return (cliente, tipoPnc, nivel, estadoGestion, responsable, fechaDesde, fechaHasta);
+            return (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta);
         }
 
         // Arma el diccionario de campos editables presentes en el payload (create: todos los

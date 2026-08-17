@@ -178,7 +178,7 @@ window.NoConformidadesController = class NoConformidadesController {
             const mapa = {
                 "ncq-filtro-cliente": "clientes",
                 "ncq-filtro-tipo-pnc": "tiposPnc",
-                "ncq-filtro-responsable": "responsables",
+                "ncq-filtro-area": "areas",
             };
             Object.entries(mapa).forEach(([selectId, campo]) => {
                 const select = document.getElementById(selectId);
@@ -227,14 +227,14 @@ window.NoConformidadesController = class NoConformidadesController {
             tipoPnc: document.getElementById("ncq-filtro-tipo-pnc")?.value || "",
             nivel: document.getElementById("ncq-filtro-nivel")?.value || "",
             estadoGestion: document.getElementById("ncq-filtro-estado-gestion")?.value || "",
-            responsable: document.getElementById("ncq-filtro-responsable")?.value || "",
+            area: document.getElementById("ncq-filtro-area")?.value || "",
             fechaDesde: document.getElementById("ncq-filtro-fecha-desde")?.value || "",
             fechaHasta: document.getElementById("ncq-filtro-fecha-hasta")?.value || "",
         };
     }
 
     _limpiarFiltros() {
-        ["ncq-filtro-cliente", "ncq-filtro-tipo-pnc", "ncq-filtro-nivel", "ncq-filtro-estado-gestion", "ncq-filtro-responsable"]
+        ["ncq-filtro-cliente", "ncq-filtro-tipo-pnc", "ncq-filtro-nivel", "ncq-filtro-estado-gestion", "ncq-filtro-area"]
             .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
         ["ncq-filtro-fecha-desde", "ncq-filtro-fecha-hasta"].forEach(id => { document.getElementById(id).value = ""; });
         this._page = 1;
@@ -1460,7 +1460,7 @@ window.NoConformidadesController = class NoConformidadesController {
         if (f.tipoPnc) partes.push(`Tipo PNC: ${f.tipoPnc}`);
         if (f.nivel) partes.push(`Nivel: ${f.nivel}`);
         if (f.estadoGestion) partes.push(`Estado gestión: ${this._labelEstadoGestion(f.estadoGestion)}`);
-        if (f.responsable) partes.push(`Responsable: ${f.responsable}`);
+        if (f.area) partes.push(`Área: ${f.area}`);
         if (f.fechaDesde) partes.push(`Fecha ingreso desde: ${f.fechaDesde}`);
         if (f.fechaHasta) partes.push(`Fecha ingreso hasta: ${f.fechaHasta}`);
         return partes.length ? partes.join(" · ") : "Sin filtros — histórico completo";

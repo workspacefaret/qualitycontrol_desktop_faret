@@ -155,7 +155,7 @@ namespace QualityControlCenter.Repositories.NoConformidades
             string? tipoPnc,
             string? nivel,
             string? estadoGestion,
-            string? responsable,
+            string? area,
             string? fechaDesde,
             string? fechaHasta
         )
@@ -180,10 +180,10 @@ namespace QualityControlCenter.Repositories.NoConformidades
                 where.Add("estado_gestion = @estadoGestion");
                 parameters.Add(new MySqlParameter("@estadoGestion", estadoGestion));
             }
-            if (!string.IsNullOrWhiteSpace(responsable))
+            if (!string.IsNullOrWhiteSpace(area))
             {
-                where.Add("responsable LIKE @responsable");
-                parameters.Add(new MySqlParameter("@responsable", $"%{responsable}%"));
+                where.Add("area = @area");
+                parameters.Add(new MySqlParameter("@area", area));
             }
             if (!string.IsNullOrWhiteSpace(fechaDesde))
             {
@@ -204,7 +204,7 @@ namespace QualityControlCenter.Repositories.NoConformidades
             string? tipoPnc,
             string? nivel,
             string? estadoGestion,
-            string? responsable,
+            string? area,
             string? fechaDesde,
             string? fechaHasta
         )
@@ -218,7 +218,7 @@ namespace QualityControlCenter.Repositories.NoConformidades
                 tipoPnc,
                 nivel,
                 estadoGestion,
-                responsable,
+                area,
                 fechaDesde,
                 fechaHasta
             );
@@ -264,7 +264,7 @@ namespace QualityControlCenter.Repositories.NoConformidades
             string? tipoPnc,
             string? nivel,
             string? estadoGestion,
-            string? responsable,
+            string? area,
             string? fechaDesde,
             string? fechaHasta
         )
@@ -278,7 +278,7 @@ namespace QualityControlCenter.Repositories.NoConformidades
                 tipoPnc,
                 nivel,
                 estadoGestion,
-                responsable,
+                area,
                 fechaDesde,
                 fechaHasta
             );

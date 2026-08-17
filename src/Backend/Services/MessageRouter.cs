@@ -13,6 +13,7 @@ using QualityControlCenter.Modules.Home;
 using QualityControlCenter.Modules.Laboratorio;
 using QualityControlCenter.Modules.MaquinasSeguimiento;
 using QualityControlCenter.Modules.NoConformidades;
+using QualityControlCenter.Modules.ProductoTerminado;
 using QualityControlCenter.Modules.RegistrosControl;
 using QualityControlCenter.Modules.RegistrosProduccion;
 using QualityControlCenter.Modules.TalleresExternos;
@@ -138,6 +139,11 @@ namespace QualityControlCenter.Services
                 else if (action.StartsWith("talleresExternos"))
                 {
                     var handler = new TalleresExternosHandler(_db, _session);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("productoTerminado"))
+                {
+                    var handler = new ProductoTerminadoHandler(_db);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("faret"))
