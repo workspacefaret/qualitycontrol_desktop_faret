@@ -161,11 +161,12 @@ window.TableUtils = (function () {
         return texto.split(";").map(v => v.trim());
     }
 
-    function emparejarBobinas(codigo, descripcion, lote) {
+    function emparejarBobinas(codigo, descripcion, lote, observacion) {
         const codigos = parsearListaBobinas(codigo);
         const descripciones = parsearListaBobinas(descripcion);
         const lotes = parsearListaBobinas(lote);
-        const total = Math.max(codigos.length, descripciones.length, lotes.length);
+        const observaciones = parsearListaBobinas(observacion);
+        const total = Math.max(codigos.length, descripciones.length, lotes.length, observaciones.length);
 
         const pares = [];
         for (let i = 0; i < total; i++) {
@@ -173,14 +174,15 @@ window.TableUtils = (function () {
                 codigo: codigos[i] || "",
                 descripcion: descripciones[i] || "",
                 lote: lotes[i] || "",
+                observacion: observaciones[i] || "",
             });
         }
         return pares;
     }
 
     // Resumen listo para renderizar: primera bobina + cuántas quedan + el listado completo.
-    function resumenBobinas(codigo, descripcion, lote) {
-        const pares = emparejarBobinas(codigo, descripcion, lote);
+    function resumenBobinas(codigo, descripcion, lote, observacion) {
+        const pares = emparejarBobinas(codigo, descripcion, lote, observacion);
         return {
             pares,
             cantidad: pares.length,
@@ -270,4 +272,197 @@ window.TableUtils = (function () {
     }
 
     return { init, preservarScroll, resumenBobinas, abrirPopover, cerrarPopover };
+})();
+
+// ---------- Combo "seleccionar + buscar + crear" para campos tipo catálogo ----------
+// Genérico: cualquier módulo puede engancharlo a un <input type="text"> + un <div> hermano.
+// Los ítems que genera usan clases neutras .catalog-combo-* (sin prefijo de módulo) — cada
+// módulo define esas 4 reglas en su propio CSS (item/nombre/crear/empty) reutilizando el look
+// que ya tenía su combo de Responsable; el contenedor <div> del dropdown en sí sigue llevando
+// la clase de posicionamiento que cada módulo ya tenía (ej. .fnc-combo-dropdown en Faret,
+// .ncq-combo-dropdown en INNPACK) — eso lo decide el caller, no este archivo. No asume nada del
+// backend — recibe funciones obtenerOpciones()/crear() y solo orquesta cache, filtrado y el
+// afordance "+ Crear...". El caller decide de dónde vienen los datos (catálogo propio,
+// catálogo jerárquico con áreaId, etc.).
+window.CatalogCombo = (function () {
+    const cache = new Map(); // cacheKey -> Array<{id, nombre, activo}>
+
+    async function obtener(cacheKey, fetcher, forzar) {
+        if (!forzar && cache.has(cacheKey)) return cache.get(cacheKey);
+        let items = [];
+        try {
+            items = await fetcher();
+        } catch {
+            items = [];
+        }
+        cache.set(cacheKey, items);
+        return items;
+    }
+
+    function invalidar(cacheKey) {
+        cache.delete(cacheKey);
+    }
+
+    // opciones:
+    //   cacheKey: string único (puede depender de un padre, ej. `maquina:${areaId}`)
+    //   obtenerOpciones: async () => [{id, nombre, activo}]
+    //   crear: async (nombreNormalizado) => {id, nombre, activo} | null  — si no viene (o es
+    //     null), no se ofrece "+ Crear" (campo de solo lectura o sin contexto todavía, ej. sin
+    //     Área elegida)
+    //   onSeleccionar: (item|null) => void — llamado al elegir una opción existente o al crear una nueva
+    //   bloqueadoMsg: () => string|null — si devuelve texto, se muestra en vez de la lista y no
+    //     se permite crear (ej. "Seleccione un Área primero")
+    //
+    // Idempotente: puede llamarse varias veces sobre el mismo <input> (ej. cada vez que se abre
+    // el modal, o cada vez que cambia el Área y hay que re-scopear Máquina/Operador) — los
+    // listeners del DOM (focus/input/blur) se registran una sola vez por input; llamadas
+    // posteriores solo reemplazan `opciones` y limpian la cache local de items para forzar un
+    // refetch con el nuevo scope. Sin este resguardo, cada llamada apilaría listeners nuevos.
+    function attach(input, dropdown, opciones) {
+        if (!input || !dropdown) return null;
+
+        if (input._catalogCombo) {
+            input._catalogCombo.opciones = opciones;
+            input._catalogCombo.items = [];
+            return input._catalogCombo.handle;
+        }
+
+        // Se reparenta a document.body con position:fixed, con coordenadas calculadas desde el
+        // <input> (mismo problema y misma solución ya usada en este archivo por
+        // TableUtils.abrirPopover/posicionarPopover): si el dropdown se queda como hijo
+        // posicionado con position:absolute dentro de un formulario, cualquier <input> cerca del
+        // borde de un contenedor con overflow:auto (ej. .fnc-modal, max-height:85vh) hace que el
+        // navegador recorte el dropdown — el usuario ve las opciones cortadas o directamente no
+        // las ve. position:fixed + coordenadas en document.body no tiene ese problema.
+        document.body.appendChild(dropdown);
+        dropdown.style.position = "fixed";
+        dropdown.style.zIndex = "10000";
+        dropdown.style.left = "0";
+        dropdown.style.right = "auto";
+
+        const estado = { opciones, items: [] };
+        input._catalogCombo = estado;
+
+        // Por defecto se abre debajo del input; si no entra (input cerca del borde inferior de
+        // la ventana) se abre hacia arriba — mismo criterio que posicionarPopover.
+        function posicionar() {
+            const margen = 4;
+            const rect = input.getBoundingClientRect();
+            const altura = Math.min(dropdown.scrollHeight || 200, 280);
+
+            dropdown.style.left = `${Math.max(margen, rect.left)}px`;
+            dropdown.style.width = `${rect.width}px`;
+
+            const espacioAbajo = window.innerHeight - rect.bottom;
+            if (espacioAbajo < altura + margen && rect.top > altura + margen) {
+                dropdown.style.bottom = `${window.innerHeight - rect.top + margen}px`;
+                dropdown.style.top = "auto";
+            } else {
+                dropdown.style.top = `${rect.bottom + margen}px`;
+                dropdown.style.bottom = "auto";
+            }
+        }
+
+        async function cargar(forzar) {
+            estado.items = await obtener(estado.opciones.cacheKey, estado.opciones.obtenerOpciones, forzar);
+        }
+
+        function abrir() {
+            posicionar();
+            dropdown.style.display = "block";
+            window.addEventListener("scroll", posicionar, true);
+            window.addEventListener("resize", posicionar);
+        }
+
+        function cerrar() {
+            dropdown.style.display = "none";
+            window.removeEventListener("scroll", posicionar, true);
+            window.removeEventListener("resize", posicionar);
+        }
+
+        function render() {
+            if (input.disabled) return;
+
+            const bloqueado = estado.opciones.bloqueadoMsg?.();
+            if (bloqueado) {
+                dropdown.innerHTML = `<div class="catalog-combo-empty"></div>`;
+                dropdown.querySelector(".catalog-combo-empty").textContent = bloqueado;
+                abrir();
+                return;
+            }
+
+            const texto = input.value.trim();
+            const filtro = texto.toLowerCase();
+            const activos = estado.items.filter(i => i.activo !== false);
+            const coincidencias = activos
+                .filter(i => !filtro || i.nombre.toLowerCase().includes(filtro))
+                .slice(0, 50);
+            const hayExacto = activos.some(i => i.nombre.toLowerCase() === filtro);
+
+            const puedeCrear = !!estado.opciones.crear && !!texto && !hayExacto;
+
+            if (!coincidencias.length && !puedeCrear) {
+                dropdown.innerHTML = `<div class="catalog-combo-empty">Sin coincidencias</div>`;
+            } else {
+                dropdown.innerHTML = "";
+                coincidencias.forEach(item => {
+                    const el = document.createElement("div");
+                    el.className = "catalog-combo-item";
+                    el.innerHTML = `<span class="catalog-combo-item-nombre"></span>`;
+                    el.querySelector(".catalog-combo-item-nombre").textContent = item.nombre;
+                    el.addEventListener("mousedown", e => {
+                        e.preventDefault();
+                        input.value = item.nombre;
+                        input.dataset.catalogId = item.id;
+                        cerrar();
+                        estado.opciones.onSeleccionar?.(item);
+                    });
+                    dropdown.appendChild(el);
+                });
+
+                if (puedeCrear) {
+                    const btn = document.createElement("div");
+                    btn.className = "catalog-combo-item catalog-combo-item-crear";
+                    btn.innerHTML = `<span></span>`;
+                    btn.querySelector("span").textContent = `+ Crear "${texto}"`;
+                    btn.addEventListener("mousedown", async e => {
+                        e.preventDefault();
+                        btn.querySelector("span").textContent = "Creando…";
+                        try {
+                            const nuevo = await estado.opciones.crear(texto);
+                            if (nuevo) {
+                                estado.items.push(nuevo);
+                                input.value = nuevo.nombre;
+                                input.dataset.catalogId = nuevo.id;
+                                estado.opciones.onSeleccionar?.(nuevo);
+                            }
+                        } finally {
+                            cerrar();
+                        }
+                    });
+                    dropdown.appendChild(btn);
+                }
+            }
+
+            abrir();
+        }
+
+        input.addEventListener("focus", async () => {
+            if (input.disabled) return;
+            if (!estado.items.length) await cargar(false);
+            render();
+        });
+        input.addEventListener("input", () => {
+            delete input.dataset.catalogId; // texto libre distinto a la última selección
+            render();
+        });
+        input.addEventListener("blur", () => setTimeout(cerrar, 150));
+
+        estado.handle = {
+            recargar: async () => { await cargar(true); render(); },
+        };
+        return estado.handle;
+    }
+
+    return { attach, invalidar };
 })();

@@ -7,8 +7,8 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{F1777909-B606-410F-84D5-1278F87F84F6}
 AppName=Quality Control Center
-AppVersion=1.8.1
-;AppVerName=Quality Control Center 1.8.1
+AppVersion=1.8.3
+;AppVerName=Quality Control Center 1.8.3
 AppPublisher=Faret
 AppPublisherURL=https://workspace.faret.cl/
 AppSupportURL=https://workspace.faret.cl/
@@ -27,7 +27,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 OutputDir=C:\Installers
-OutputBaseFilename=QualityControlCenter_Setup_v1.8.1
+OutputBaseFilename=QualityControlCenter_Setup_v1.8.3
 SetupIconFile=C:\Users\dcarrasco\Desktop\Proyectos\qualitycontrol_desktop_faret\logo2.ico
 SolidCompression=yes
 WizardStyle=classic
@@ -44,10 +44,104 @@ Source: "C:\Users\dcarrasco\Desktop\Proyectos\qualitycontrol_desktop_faret\bin\R
 Source: "C:\Users\dcarrasco\Desktop\Proyectos\qualitycontrol_desktop_faret\bin\Release\net8.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
+; QCC.Updater: binario elevado del mecanismo de auto-actualizacion (ver CLAUDE.md / contex.md
+; Paso 59). Se publica aparte como self-contained + single-file (dotnet publish ... -r win-x64
+; --self-contained true -p:PublishSingleFile=true) porque corre como SYSTEM via Scheduled Task y
+; no debe depender de un runtime .NET compartido instalado. Single-file (no solo self-contained
+; multi-archivo) fue una decision deliberada: evita tener que copiar los ~187 archivos del
+; runtime (hostfxr.dll/hostpolicy.dll/coreclr.dll/System.*.dll) sueltos en {app}, donde chocarian
+; o se acoplarian con los del publish self-contained multi-archivo de QualityControlCenter.exe
+; (ver contex.md Paso 59, fix "single-file" -- un primer intento copiando solo el .exe del publish
+; self-contained multi-archivo dejaba a QCC.Updater.exe sin su .dll/.deps.json/.runtimeconfig.json
+; companeros, y el host nativo fallaba antes de llegar a Main() con el codigo 0x8000809A, sin
+; generar ningun log). Con single-file, este .exe es 100% autosuficiente: no requiere ningun otro
+; archivo junto a el.
+;
+; Fix real (contex.md Paso 59, "self-update lock"): NO se instala en {app}. La Scheduled Task
+; (SYSTEM) y el relanzador (usuario normal, arrancado desde QualityControlCenter.exe) corren este
+; mismo binario de forma simultanea durante una actualizacion -- si viviera en {app}, Inno
+; intentaria sobrescribirlo mientras ambos procesos lo tienen abierto, y falla con exit code 5
+; ("DeleteFile: acceso denegado" / Abort en un Abort-Retry-Ignore suprimido, confirmado con el log
+; real de Inno). Se instala en una carpeta propia bajo ProgramData, fuera de {app}, con
+; "onlyifdoesntexist": no es para "ignorar" el error -- evita el intento de escritura por
+; completo. Coherente con el diseño ya documentado en QCC.Updater.csproj ("se instala una vez y se
+; reemplaza solo cuando el propio updater cambia, no en cada release de la app"). El {app}\
+; QCC.Updater.exe viejo de instalaciones previas queda huerfano temporalmente (nadie lo referencia
+; mas) -- limpieza pendiente a proposito, tras validar el E2E completo con esta reubicacion.
+Source: "C:\Users\dcarrasco\Desktop\Proyectos\qualitycontrol_desktop_faret\QCC.Updater\bin\Release\net8.0-windows\win-x64\publish\QCC.Updater.exe"; DestDir: "{commonappdata}\QualityControlCenter\Updater\Host"; Flags: onlyifdoesntexist
+
+; Definicion de la Scheduled Task "QCCUpdaterElevado" (solo se usa durante la instalacion, para
+; registrarla via schtasks /Create /XML desde [Code] mas abajo; no queda instalada en {app}).
+; IMPORTANTE: este archivo debe estar codificado como UTF-16 LE con BOM -- schtasks /Create /XML
+; rechaza UTF-8 (con o sin BOM) aunque la declaracion interna diga encoding="UTF-8" y el XML este
+; bien formado (confirmado con pruebas reales, ver contex.md Paso 59). Si se vuelve a editar este
+; archivo con una herramienta que reescriba su codificacion, reconvertir a UTF-16 LE + BOM antes
+; de recompilar el instalador.
+Source: "C:\Users\dcarrasco\Desktop\Proyectos\qualitycontrol_desktop_faret\installers\QCCUpdaterElevado.task.xml"; DestDir: "{tmp}"; Flags: ignoreversion
+
+; Script que ajusta el SDDL de la tarea ya creada (ver [Code], RegisterUpdaterTask). Separado del
+; .iss para evitar el infierno de escaping de comillas/llaves de un -Command inline, y para poder
+; loguear el resultado real en vez de tragarse errores en silencio (ver contex.md Paso 59, fix del
+; SDDL silencioso).
+Source: "C:\Users\dcarrasco\Desktop\Proyectos\qualitycontrol_desktop_faret\installers\Set-QccUpdaterTaskAcl.ps1"; DestDir: "{tmp}"; Flags: ignoreversion
+
 [Icons]
 Name: "{autoprograms}\Quality Control Center"; Filename: "{app}\QualityControlCenter.exe"
 Name: "{autodesktop}\Quality Control Center"; Filename: "{app}\QualityControlCenter.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\QualityControlCenter.exe"; Description: "{cm:LaunchProgram,Quality Control Center}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// Registra la Scheduled Task "QCCUpdaterElevado" y ajusta su SDDL. Antes esto vivia como dos
+// entradas [Run] declarativas; se movio a [Code] porque la version anterior no tenia forma de
+// verificar el resultado real de cada paso (el ajuste de SDDL corria un "try {} catch {}; exit 0"
+// que descartaba cualquier error en silencio, sin dejar ni un log). Aca cada paso revisa su
+// ResultCode real y, si falla, lo muestra explicitamente (MsgBox) sin abortar el resto de la
+// instalacion -- la app principal debe quedar instalada igual aunque el updater automatico no
+// haya quedado 100% configurado.
+procedure RegisterUpdaterTask();
+var
+  ResultCode: Integer;
+  TaskXmlPath, AclScriptPath: String;
+  ExecOk: Boolean;
+begin
+  TaskXmlPath := ExpandConstant('{tmp}\QCCUpdaterElevado.task.xml');
+  AclScriptPath := ExpandConstant('{tmp}\Set-QccUpdaterTaskAcl.ps1');
+
+  ExecOk := Exec(ExpandConstant('{sys}\schtasks.exe'),
+    '/Create /TN "QCCUpdaterElevado" /XML "' + TaskXmlPath + '" /F',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  if (not ExecOk) or (ResultCode <> 0) then
+  begin
+    MsgBox('No se pudo registrar la tarea programada "QCCUpdaterElevado" (schtasks /Create, codigo ' +
+      IntToStr(ResultCode) + '). El actualizador automatico de Quality Control Center no funcionara ' +
+      'hasta que se registre manualmente. La aplicacion se instalo igual y funciona con normalidad.',
+      mbError, MB_OK);
+    Exit;
+  end;
+
+  ExecOk := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoProfile -ExecutionPolicy Bypass -File "' + AclScriptPath + '"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  if (not ExecOk) or (ResultCode <> 0) then
+  begin
+    MsgBox('La tarea programada "QCCUpdaterElevado" se registro, pero no se pudieron ajustar sus ' +
+      'permisos para que un usuario normal pueda dispararla (codigo ' + IntToStr(ResultCode) + '). ' +
+      'Revisar el log en C:\ProgramData\QualityControlCenter\Logs\Updater\installer-sddl-*.log. ' +
+      'La aplicacion se instalo igual y funciona con normalidad; solo el auto-actualizador podria ' +
+      'requerir un ajuste manual de permisos.',
+      mbError, MB_OK);
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    RegisterUpdaterTask();
+  end;
+end;
 

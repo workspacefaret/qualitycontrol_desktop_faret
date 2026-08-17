@@ -84,6 +84,7 @@ namespace QualityControlCenter.Modules.RegistrosProduccion
         public string BobinaLote { get; set; } = "";
         public string BobinaCodigo { get; set; } = "";
         public string BobinaDescripcion { get; set; } = "";
+        public string BobinaObservacion { get; set; } = "";
 
         public string EstadoValidacion { get; set; } = "";
         public string FechaValidacion { get; set; } = "";

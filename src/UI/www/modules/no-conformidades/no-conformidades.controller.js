@@ -85,8 +85,73 @@ window.NoConformidadesController = class NoConformidadesController {
             this._irPagina(Number(btn.dataset.ncqPage));
         });
 
+        this._attachCatalogosCombos();
+
         this._cargarFiltrosOpciones();
         this._loadLista();
+    }
+
+    // ---------- Catálogos administrables (Cliente/Categoría defecto/Tipo de falla/Supervisor/
+    // Revisado por/Área/Familia de producto/Nivel/Impacto) ----------
+    // Reemplaza el <datalist> nativo (solo sugería, sin persistir) por window.CatalogCombo
+    // (shared/utils.js, ya usado igual en faret-nc): seleccionar existente, buscar, o crear uno
+    // nuevo que queda guardado en cat_nc_* y disponible para todos los usuarios desde el próximo
+    // focus. Máquina y Operador NO están acá — decisión explícita: siguen sugiriendo desde las
+    // tablas reales `maquinas` (con QR) y `usuarios` (login real), sin "crear nuevo", para no
+    // divergir de esos registros reales. Un solo formulario (ncq-f-*, sin split nuevo/registro
+    // como Faret), así que se engancha una sola vez desde init().
+    _catalogosPlanosConfig() {
+        return [
+            { campo: "cliente", cacheKey: "ncq-cat-cliente", listAction: "noConformidades.catalogos.clientes.list", crearAction: "noConformidades.catalogos.clientes.crear" },
+            { campo: "categoria-defecto", cacheKey: "ncq-cat-categoria-defecto", listAction: "noConformidades.catalogos.categoriasDefecto.list", crearAction: "noConformidades.catalogos.categoriasDefecto.crear" },
+            { campo: "tipo-falla", cacheKey: "ncq-cat-tipo-falla", listAction: "noConformidades.catalogos.tiposFalla.list", crearAction: "noConformidades.catalogos.tiposFalla.crear" },
+            { campo: "supervisor", cacheKey: "ncq-cat-supervisor", listAction: "noConformidades.catalogos.supervisores.list", crearAction: "noConformidades.catalogos.supervisores.crear" },
+            { campo: "revisado-por", cacheKey: "ncq-cat-revisado-por", listAction: "noConformidades.catalogos.revisores.list", crearAction: "noConformidades.catalogos.revisores.crear" },
+            { campo: "area", cacheKey: "ncq-cat-area", listAction: "noConformidades.catalogos.areas.list", crearAction: "noConformidades.catalogos.areas.crear" },
+            { campo: "familia-producto", cacheKey: "ncq-cat-familia-producto", listAction: "noConformidades.catalogos.familiasProducto.list", crearAction: "noConformidades.catalogos.familiasProducto.crear" },
+            { campo: "nivel", cacheKey: "ncq-cat-nivel", listAction: "noConformidades.catalogos.niveles.list", crearAction: "noConformidades.catalogos.niveles.crear" },
+            { campo: "impacto", cacheKey: "ncq-cat-impacto", listAction: "noConformidades.catalogos.impactos.list", crearAction: "noConformidades.catalogos.impactos.crear" },
+        ];
+    }
+
+    async _catalogoObtener(action) {
+        const res = await window.PhotinoBridge.send({ action });
+        return res.ok && Array.isArray(res.data) ? res.data : [];
+    }
+
+    async _catalogoCrear(action, nombre) {
+        const res = await window.PhotinoBridge.send({ action, nombre, creadoPor: this._usuarioActual() });
+        if (!res.ok) {
+            this._showMensaje(res.error || "No se pudo crear el valor de catálogo", false);
+            return null;
+        }
+        return res.data;
+    }
+
+    // No busca por posición en el DOM (input.nextElementSibling): CatalogCombo.attach() reparenta
+    // el dropdown a document.body para no quedar cortado por el overflow:auto del modal, así que
+    // ya no es un hermano del input después del primer enganche — se cachea la referencia en el
+    // propio input.
+    _dropdownFor(input) {
+        if (input._catalogComboDropdownEl) return input._catalogComboDropdownEl;
+        const dd = document.createElement("div");
+        dd.className = "ncq-combo-dropdown";
+        dd.style.display = "none";
+        input.insertAdjacentElement("afterend", dd);
+        input._catalogComboDropdownEl = dd;
+        return dd;
+    }
+
+    _attachCatalogosCombos() {
+        this._catalogosPlanosConfig().forEach(cfg => {
+            const input = document.getElementById(`ncq-f-${cfg.campo}`);
+            if (!input) return;
+            window.CatalogCombo.attach(input, this._dropdownFor(input), {
+                cacheKey: cfg.cacheKey,
+                obtenerOpciones: () => this._catalogoObtener(cfg.listAction),
+                crear: nombre => this._catalogoCrear(cfg.crearAction, nombre),
+            });
+        });
     }
 
     destroy() {
@@ -126,17 +191,6 @@ window.NoConformidadesController = class NoConformidadesController {
                 if (valorActual) select.value = valorActual;
             });
 
-            const datalists = {
-                "ncq-dl-cliente": "clientes",
-                "ncq-dl-categoria": "categoriasDefecto",
-                "ncq-dl-area": "areas",
-                "ncq-dl-supervisor": "supervisores",
-                "ncq-dl-revisado": "revisadoPor",
-            };
-            Object.entries(datalists).forEach(([id, campo]) => {
-                const dl = document.getElementById(id);
-                if (dl) dl.innerHTML = (this._filtrosOpciones[campo] || []).map(v => `<option value="${v}"></option>`).join("");
-            });
         } catch { }
 
         // Máquina y Operador no salen de esta tabla (recién creada, vacía al principio) sino de

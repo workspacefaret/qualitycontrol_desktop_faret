@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- net8.0-windows (no net8.0 a secas): usa APIs de Windows (WindowsIdentity/
+         WindowsPrincipal) a propósito — este updater solo tiene sentido en Windows. Declararlo
+         así evita los warnings CA1416 de compatibilidad multiplataforma sin suprimirlos a ciegas. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- IDENTIDAD -->
+    <AssemblyName>QCC.Updater</AssemblyName>
+    <RootNamespace>QCC.Updater</RootNamespace>
+
+    <!-- Versionado propio del updater, independiente de QualityControlCenter.csproj: es un
+         artefacto separado que se instala una vez y se reemplaza solo cuando el propio updater
+         cambia, no en cada release de la app. -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0</AssemblyVersion>
+    <FileVersion>1.0.0</FileVersion>
+  </PropertyGroup>
+
+</Project>

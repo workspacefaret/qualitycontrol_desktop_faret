@@ -22,14 +22,29 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public Task<(bool ok, string body)> GetAreasAsync() =>
             _client.GetAsync("api/catalogos/areas");
 
+        public Task<(bool ok, string body)> CrearAreaAsync(string codigo, string nombre) =>
+            _client.PostJsonAsync("api/catalogos/areas", new { codigo, nombre });
+
         public Task<(bool ok, string body)> GetInspectoresAsync() =>
             _client.GetAsync("api/catalogos/inspectores");
 
-        public Task<(bool ok, string body)> GetOperadoresAsync() =>
-            _client.GetAsync("api/catalogos/operadores");
+        // areaId nulo/0 = sin filtrar (todas las áreas), igual que el comportamiento por defecto
+        // de la API cuando se omite el query param.
+        public Task<(bool ok, string body)> GetOperadoresAsync(int? areaId = null) =>
+            _client.GetAsync(
+                areaId is > 0 ? $"api/catalogos/operadores?areaId={areaId}" : "api/catalogos/operadores"
+            );
 
-        public Task<(bool ok, string body)> GetMaquinasAsync() =>
-            _client.GetAsync("api/catalogos/maquinas");
+        public Task<(bool ok, string body)> CrearOperadorAsync(int areaId, string nombre) =>
+            _client.PostJsonAsync("api/catalogos/operadores", new { areaId, nombre });
+
+        public Task<(bool ok, string body)> GetMaquinasAsync(int? areaId = null) =>
+            _client.GetAsync(
+                areaId is > 0 ? $"api/catalogos/maquinas?areaId={areaId}" : "api/catalogos/maquinas"
+            );
+
+        public Task<(bool ok, string body)> CrearMaquinaAsync(int areaId, string nombre) =>
+            _client.PostJsonAsync("api/catalogos/maquinas", new { areaId, nombre });
 
         public Task<(bool ok, string body)> GetDefectosAsync() =>
             _client.GetAsync("api/catalogos/defectos");

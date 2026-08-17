@@ -154,6 +154,46 @@
     padding: 6px 0;
 }
 
+/* Ítems generados por window.CatalogCombo (shared/utils.js) — clases neutras sin prefijo de
+   módulo, ver el comentario en ese archivo. Mismo look que ya usaba Faret para su combo. */
+.catalog-combo-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #1E293B;
+    cursor: pointer;
+}
+
+.catalog-combo-item:hover {
+    background: #F1F5F9;
+}
+
+.catalog-combo-item-nombre {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.catalog-combo-empty {
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #94A3B8;
+}
+
+.catalog-combo-item-crear {
+    color: #2563EB;
+    font-weight: 600;
+    border-top: 1px solid #E2E8F0;
+}
+
+.catalog-combo-item-crear:hover {
+    background: #EFF6FF;
+}
+
 .ncq-columnas-item {
     display: flex;
     align-items: center;

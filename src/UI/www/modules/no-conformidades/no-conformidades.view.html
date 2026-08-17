@@ -192,10 +192,9 @@
                     <label for="ncq-f-np-nv">NP/NV *</label>
                     <input type="text" id="ncq-f-np-nv">
                 </div>
-                <div class="ncq-campo">
+                <div class="ncq-campo ncq-combo-wrap">
                     <label for="ncq-f-cliente">Cliente *</label>
-                    <input type="text" id="ncq-f-cliente" list="ncq-dl-cliente">
-                    <datalist id="ncq-dl-cliente"></datalist>
+                    <input type="text" id="ncq-f-cliente" autocomplete="off">
                 </div>
                 <div class="ncq-campo">
                     <label for="ncq-f-codigo">Código *</label>
@@ -205,15 +204,9 @@
                     <label for="ncq-f-producto">Producto *</label>
                     <input type="text" id="ncq-f-producto">
                 </div>
-                <div class="ncq-campo">
+                <div class="ncq-campo ncq-combo-wrap">
                     <label for="ncq-f-familia-producto">Familia de producto</label>
-                    <select id="ncq-f-familia-producto">
-                        <option value="">-</option>
-                        <option value="Etiquetas">Etiquetas</option>
-                        <option value="Estuches">Estuches</option>
-                        <option value="Folletos">Folletos</option>
-                        <option value="Preformas">Preformas</option>
-                    </select>
+                    <input type="text" id="ncq-f-familia-producto" autocomplete="off">
                 </div>
             </div>
 
@@ -229,39 +222,21 @@
                         <option value="Interna">Interna</option>
                     </select>
                 </div>
-                <div class="ncq-campo">
+                <div class="ncq-campo ncq-combo-wrap">
                     <label for="ncq-f-nivel">Nivel *</label>
-                    <select id="ncq-f-nivel">
-                        <option value="Crítico">Crítico</option>
-                        <option value="Mayor">Mayor</option>
-                        <option value="Menor">Menor</option>
-                    </select>
+                    <input type="text" id="ncq-f-nivel" autocomplete="off">
                 </div>
-                <div class="ncq-campo" style="min-width:220px;">
+                <div class="ncq-campo ncq-combo-wrap" style="min-width:220px;">
                     <label for="ncq-f-categoria-defecto">Categoría defecto *</label>
-                    <input type="text" id="ncq-f-categoria-defecto" list="ncq-dl-categoria">
-                    <datalist id="ncq-dl-categoria"></datalist>
+                    <input type="text" id="ncq-f-categoria-defecto" autocomplete="off">
                 </div>
-                <div class="ncq-campo">
+                <div class="ncq-campo ncq-combo-wrap">
                     <label for="ncq-f-tipo-falla">Tipo de falla</label>
-                    <select id="ncq-f-tipo-falla">
-                        <option value="">-</option>
-                        <option value="Sin clasificar">Sin clasificar</option>
-                        <option value="Control operacional">Control operacional</option>
-                        <option value="Fallas Ajuste de máquina">Fallas Ajuste de máquina</option>
-                        <option value="Fallas del Proceso de Configuración Inicial">Fallas del Proceso de Configuración Inicial</option>
-                        <option value="Fallas de limpieza/ condición de equipo">Fallas de limpieza/ condición de equipo</option>
-                        <option value="Fallas de Supervisión">Fallas de Supervisión</option>
-                        <option value="Fallas de control de insumos en el proceso">Fallas de control de insumos en el proceso</option>
-                        <option value="Fallas de Comunicación Operativa">Fallas de Comunicación Operativa</option>
-                    </select>
+                    <input type="text" id="ncq-f-tipo-falla" autocomplete="off">
                 </div>
-                <div class="ncq-campo">
+                <div class="ncq-campo ncq-combo-wrap">
                     <label for="ncq-f-impacto">Impacto</label>
-                    <select id="ncq-f-impacto">
-                        <option value="Calidad">Calidad</option>
-                        <option value="Legalidad">Legalidad</option>
-                    </select>
+                    <input type="text" id="ncq-f-impacto" autocomplete="off">
                 </div>
             </div>
 
@@ -309,10 +284,9 @@
             </div>
 
             <div class="ncq-form-row">
-                <div class="ncq-campo">
+                <div class="ncq-campo ncq-combo-wrap">
                     <label for="ncq-f-area">Área</label>
-                    <input type="text" id="ncq-f-area" list="ncq-dl-area">
-                    <datalist id="ncq-dl-area"></datalist>
+                    <input type="text" id="ncq-f-area" autocomplete="off">
                 </div>
                 <div class="ncq-campo">
                     <label for="ncq-f-maquina">Máquina</label>
@@ -324,15 +298,13 @@
                     <input type="text" id="ncq-f-operador" list="ncq-dl-operador">
                     <datalist id="ncq-dl-operador"></datalist>
                 </div>
-                <div class="ncq-campo">
+                <div class="ncq-campo ncq-combo-wrap">
                     <label for="ncq-f-supervisor">Supervisor</label>
-                    <input type="text" id="ncq-f-supervisor" list="ncq-dl-supervisor">
-                    <datalist id="ncq-dl-supervisor"></datalist>
+                    <input type="text" id="ncq-f-supervisor" autocomplete="off">
                 </div>
-                <div class="ncq-campo">
+                <div class="ncq-campo ncq-combo-wrap">
                     <label for="ncq-f-revisado-por">Revisado por</label>
-                    <input type="text" id="ncq-f-revisado-por" list="ncq-dl-revisado">
-                    <datalist id="ncq-dl-revisado"></datalist>
+                    <input type="text" id="ncq-f-revisado-por" autocomplete="off">
                 </div>
             </div>
 

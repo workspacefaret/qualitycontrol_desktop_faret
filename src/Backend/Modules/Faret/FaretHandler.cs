@@ -23,6 +23,7 @@ namespace QualityControlCenter.Modules.Faret
         private readonly FaretInspeccionesPalletApiService _inspeccionesPallet;
         private readonly FaretMaquinasApiService _maquinas;
         private readonly FaretTalleresExternosApiService _talleresExternos;
+        private readonly FaretPncCatalogosApiService _pncCatalogos;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
@@ -49,6 +50,7 @@ namespace QualityControlCenter.Modules.Faret
             _inspeccionesPallet = new FaretInspeccionesPalletApiService(calidadClient);
             _maquinas = new FaretMaquinasApiService(calidadClient);
             _talleresExternos = new FaretTalleresExternosApiService(client);
+            _pncCatalogos = new FaretPncCatalogosApiService(client);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -65,8 +67,11 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.catalogos.inspectores" => await HandleCatalogo(
                     _catalogos.GetInspectoresAsync
                 ),
-                "faret.catalogos.operadores" => await HandleCatalogo(_catalogos.GetOperadoresAsync),
-                "faret.catalogos.maquinas" => await HandleCatalogo(_catalogos.GetMaquinasAsync),
+                "faret.catalogos.operadores" => await HandleCatalogoOperadores(data),
+                "faret.catalogos.operadores.crear" => await HandleCatalogoOperadorCrear(data),
+                "faret.catalogos.maquinas" => await HandleCatalogoMaquinas(data),
+                "faret.catalogos.maquinas.crear" => await HandleCatalogoMaquinaCrear(data),
+                "faret.catalogos.areas.crear" => await HandleCatalogoAreaCrear(data),
                 "faret.catalogos.defectos" => await HandleCatalogo(_catalogos.GetDefectosAsync),
                 "faret.registros.list" => await HandleRegistrosList(),
                 "faret.registros.get" => await HandleRegistrosGet(data),
@@ -119,6 +124,30 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.talleresExternos.update" => await HandleTalleresExternosUpdate(data),
                 "faret.talleresExternos.lote" => await HandleTalleresExternosLote(data),
                 "faret.talleresExternos.eliminar" => await HandleTalleresExternosEliminar(data),
+                "faret.pncCatalogos.clientes.list" => await HandlePncCatalogoList(_pncCatalogos.GetClientesAsync),
+                "faret.pncCatalogos.clientes.crear" => await HandlePncCatalogoCrear(data, _pncCatalogos.CrearClienteAsync),
+                "faret.pncCatalogos.clientes.desactivar" => await HandlePncCatalogoDesactivar(data, _pncCatalogos.DesactivarClienteAsync),
+                "faret.pncCatalogos.categoriasDefecto.list" => await HandlePncCatalogoList(_pncCatalogos.GetCategoriasDefectoAsync),
+                "faret.pncCatalogos.categoriasDefecto.crear" => await HandlePncCatalogoCrear(data, _pncCatalogos.CrearCategoriaDefectoAsync),
+                "faret.pncCatalogos.categoriasDefecto.desactivar" => await HandlePncCatalogoDesactivar(data, _pncCatalogos.DesactivarCategoriaDefectoAsync),
+                "faret.pncCatalogos.tiposFalla.list" => await HandlePncCatalogoList(_pncCatalogos.GetTiposFallaAsync),
+                "faret.pncCatalogos.tiposFalla.crear" => await HandlePncCatalogoCrear(data, _pncCatalogos.CrearTipoFallaAsync),
+                "faret.pncCatalogos.tiposFalla.desactivar" => await HandlePncCatalogoDesactivar(data, _pncCatalogos.DesactivarTipoFallaAsync),
+                "faret.pncCatalogos.supervisores.list" => await HandlePncCatalogoList(_pncCatalogos.GetSupervisoresAsync),
+                "faret.pncCatalogos.supervisores.crear" => await HandlePncCatalogoCrear(data, _pncCatalogos.CrearSupervisorAsync),
+                "faret.pncCatalogos.supervisores.desactivar" => await HandlePncCatalogoDesactivar(data, _pncCatalogos.DesactivarSupervisorAsync),
+                "faret.pncCatalogos.revisores.list" => await HandlePncCatalogoList(_pncCatalogos.GetRevisoresAsync),
+                "faret.pncCatalogos.revisores.crear" => await HandlePncCatalogoCrear(data, _pncCatalogos.CrearRevisorAsync),
+                "faret.pncCatalogos.revisores.desactivar" => await HandlePncCatalogoDesactivar(data, _pncCatalogos.DesactivarRevisorAsync),
+                "faret.pncCatalogos.familiasProducto.list" => await HandlePncCatalogoList(_pncCatalogos.GetFamiliasProductoAsync),
+                "faret.pncCatalogos.familiasProducto.crear" => await HandlePncCatalogoCrear(data, _pncCatalogos.CrearFamiliaProductoAsync),
+                "faret.pncCatalogos.familiasProducto.desactivar" => await HandlePncCatalogoDesactivar(data, _pncCatalogos.DesactivarFamiliaProductoAsync),
+                "faret.pncCatalogos.niveles.list" => await HandlePncCatalogoList(_pncCatalogos.GetNivelesAsync),
+                "faret.pncCatalogos.niveles.crear" => await HandlePncCatalogoCrear(data, _pncCatalogos.CrearNivelAsync),
+                "faret.pncCatalogos.niveles.desactivar" => await HandlePncCatalogoDesactivar(data, _pncCatalogos.DesactivarNivelAsync),
+                "faret.pncCatalogos.impactos.list" => await HandlePncCatalogoList(_pncCatalogos.GetImpactosAsync),
+                "faret.pncCatalogos.impactos.crear" => await HandlePncCatalogoCrear(data, _pncCatalogos.CrearImpactoAsync),
+                "faret.pncCatalogos.impactos.desactivar" => await HandlePncCatalogoDesactivar(data, _pncCatalogos.DesactivarImpactoAsync),
                 _ => Error($"Acción Faret no reconocida: {action}"),
             };
         }
@@ -156,27 +185,173 @@ namespace QualityControlCenter.Modules.Faret
             return Ok(new { status = "conectado", detalle = body });
         }
 
+        // Antes devolvía el body completo (incluido el wrapper {success,message,data,errors}) como
+        // "data" de la respuesta al desktop, en vez de extraer solo el arreglo real — inofensivo
+        // mientras ningún frontend consumía estas 5 acciones (confirmado sin uso real hasta ahora),
+        // pero incorrecto para el uso real que empieza en Área/Operador/Máquina de faret-nc. Corregido
+        // para usar el mismo TryUnwrapApiResponse que ya usa el resto del handler.
         private async Task<string> HandleCatalogo(Func<Task<(bool ok, string body)>> fetch)
         {
             if (!_client.HasToken)
                 return Error("No autenticado en API Faret");
 
             var (ok, body) = await fetch();
-            if (!ok)
-            {
-                string msg = "Error al obtener catálogo";
-                try
-                {
-                    using var errDoc = JsonDocument.Parse(body);
-                    if (errDoc.RootElement.TryGetProperty("error", out var e))
-                        msg = e.GetString() ?? msg;
-                }
-                catch { }
-                return Error(msg);
-            }
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
 
-            var parsed = JsonSerializer.Deserialize<object>(body);
-            return Ok(parsed);
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleCatalogoOperadores(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            int? areaId = TryGetInt(data, "areaId", out var aid) && aid > 0 ? aid : null;
+
+            var (ok, body) = await _catalogos.GetOperadoresAsync(areaId);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleCatalogoMaquinas(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            int? areaId = TryGetInt(data, "areaId", out var aid) && aid > 0 ? aid : null;
+
+            var (ok, body) = await _catalogos.GetMaquinasAsync(areaId);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        // El área se crea con solo el nombre desde faret-nc (el formulario de PNC no pide "código"
+        // — ese campo es interno de cat_areas, obligatorio en la API). Se genera igual que los
+        // códigos ya existentes en la tabla real (confirmado con SELECT: "PRE-PRENSA" →
+        // "PRE_PRENSA", "EDICIÓN" → "EDICI_N"): mayúsculas, cualquier corrida de caracteres que no
+        // sea A-Z/0-9 se colapsa a "_", se recortan guiones bajos en los extremos, máximo 20
+        // caracteres (tamaño real de la columna). Si dos nombres distintos generan el mismo código,
+        // el UNIQUE(codigo) de la tabla actúa como deduplicación real (mismo criterio que las 5
+        // tablas cat_faret_* del Paso 1).
+        private static string GenerarCodigoArea(string nombre)
+        {
+            var codigo = System.Text.RegularExpressions.Regex.Replace(
+                nombre.Trim().ToUpperInvariant(),
+                "[^A-Z0-9]+",
+                "_"
+            ).Trim('_');
+            return codigo.Length > 20 ? codigo[..20].Trim('_') : codigo;
+        }
+
+        private async Task<string> HandleCatalogoAreaCrear(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetString(data, "nombre", out var nombre) || string.IsNullOrWhiteSpace(nombre))
+                return Error("Falta el nombre");
+
+            var codigo = GenerarCodigoArea(nombre!);
+            if (string.IsNullOrEmpty(codigo))
+                return Error("El nombre debe tener al menos una letra o número");
+
+            var (ok, body) = await _catalogos.CrearAreaAsync(codigo, nombre!.Trim());
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleCatalogoOperadorCrear(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "areaId", out var areaId) || areaId <= 0)
+                return Error("Falta el área");
+            if (!TryGetString(data, "nombre", out var nombre) || string.IsNullOrWhiteSpace(nombre))
+                return Error("Falta el nombre");
+
+            var (ok, body) = await _catalogos.CrearOperadorAsync(areaId, nombre!.Trim());
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleCatalogoMaquinaCrear(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "areaId", out var areaId) || areaId <= 0)
+                return Error("Falta el área");
+            if (!TryGetString(data, "nombre", out var nombre) || string.IsNullOrWhiteSpace(nombre))
+                return Error("Falta el nombre");
+
+            var (ok, body) = await _catalogos.CrearMaquinaAsync(areaId, nombre!.Trim());
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        // Los 5 catálogos administrables de faret-nc (Cliente/Categoría defecto/Tipo de
+        // falla/Supervisor/Revisado por) comparten la misma forma de request/response
+        // (ApiResponse<CatalogoItemDto> / ApiResponse<List<CatalogoItemDto>>), así que las 15
+        // acciones del switch de arriba se resuelven con estos 3 helpers genéricos en vez de
+        // repetir el mismo cuerpo 15 veces.
+        private async Task<string> HandlePncCatalogoList(Func<Task<(bool ok, string body)>> fetch)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            var (ok, body) = await fetch();
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandlePncCatalogoCrear(
+            Dictionary<string, object> data,
+            Func<string, Task<(bool ok, string body)>> crear
+        )
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetString(data, "nombre", out var nombre) || string.IsNullOrWhiteSpace(nombre))
+                return Error("Falta el nombre");
+
+            var (ok, body) = await crear(nombre!);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandlePncCatalogoDesactivar(
+            Dictionary<string, object> data,
+            Func<int, Task<(bool ok, string body)>> desactivar
+        )
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id");
+
+            var (ok, body) = await desactivar(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
         }
 
         private async Task<string> HandleRegistrosList()

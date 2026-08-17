@@ -38,6 +38,7 @@ namespace QualityControlCenter.Modules.RegistrosControl
         public string BobinaLote { get; set; } = "";
         public string BobinaCodigo { get; set; } = "";
         public string BobinaDescripcion { get; set; } = "";
+        public string BobinaObservacion { get; set; } = "";
 
         public string FechaRegistro { get; set; } = "";
         public string HoraRegistro { get; set; } = "";

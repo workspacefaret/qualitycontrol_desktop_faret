@@ -153,6 +153,14 @@ namespace QualityControlCenter.Repositories.RegistrosControl
                             FROM registro_control_bobinas rb
                             WHERE rb.registro_id = rc.id
                         ), '') AS bobina_descripcion,
+                        IFNULL((
+                            SELECT GROUP_CONCAT(
+                                COALESCE(rb.observacion, '')
+                                ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
+                            )
+                            FROM registro_control_bobinas rb
+                            WHERE rb.registro_id = rc.id
+                        ), '') AS bobina_observacion,
                         IFNULL(rc.estado_validacion, 'PENDIENTE') AS estado_validacion,
                         IFNULL(DATE_FORMAT(rc.fecha_validacion, '%d-%m-%Y %H:%i'), '') AS fecha_validacion,
                         IFNULL(rc.usuario_validacion, '') AS usuario_validacion,
@@ -215,6 +223,7 @@ namespace QualityControlCenter.Repositories.RegistrosControl
                             BobinaLote = reader.GetString("bobina_lote"),
                             BobinaCodigo = reader.GetString("bobina_codigo"),
                             BobinaDescripcion = reader.GetString("bobina_descripcion"),
+                            BobinaObservacion = reader.GetString("bobina_observacion"),
                             EstadoValidacion = reader.GetString("estado_validacion"),
                             FechaValidacion = reader.GetString("fecha_validacion"),
                             UsuarioValidacion = reader.GetString("usuario_validacion"),

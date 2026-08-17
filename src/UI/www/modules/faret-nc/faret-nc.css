@@ -259,7 +259,11 @@
     z-index: 20;
 }
 
-.fnc-combo-item {
+/* .fnc-combo-item* : combo de Responsable (hecho a mano, con "x" para ocultar sugerencias).
+   .catalog-combo-item* : mismo look, generado por window.CatalogCombo (shared/utils.js), que es
+   genérico entre módulos y por eso usa clases sin prefijo — ver el comentario en ese archivo. */
+.fnc-combo-item,
+.catalog-combo-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -270,11 +274,13 @@
     cursor: pointer;
 }
 
-.fnc-combo-item:hover {
+.fnc-combo-item:hover,
+.catalog-combo-item:hover {
     background: #F1F5F9;
 }
 
-.fnc-combo-item-nombre {
+.fnc-combo-item-nombre,
+.catalog-combo-item-nombre {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -299,10 +305,23 @@
     color: #B91C1C;
 }
 
-.fnc-combo-empty {
+.fnc-combo-empty,
+.catalog-combo-empty {
     padding: 8px 10px;
     font-size: 12px;
     color: #94A3B8;
+}
+
+.fnc-combo-item-crear,
+.catalog-combo-item-crear {
+    color: #2563EB;
+    font-weight: 600;
+    border-top: 1px solid #E2E8F0;
+}
+
+.fnc-combo-item-crear:hover,
+.catalog-combo-item-crear:hover {
+    background: #EFF6FF;
 }
 
 /* ---------- Selector de columnas opcionales (botón "Columnas" del listado) ---------- */

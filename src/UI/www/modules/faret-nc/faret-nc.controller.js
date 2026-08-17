@@ -170,6 +170,13 @@ window.FaretNcController = class FaretNcController {
             { obtenerId: tr => tr.dataset.id }
         );
 
+        // Catálogos administrables (Cliente/Categoría defecto/Tipo de falla/Supervisor/Revisado
+        // por + Área→Máquina/Operador). Se engancha una sola vez: los <input> de ambos
+        // formularios (Nueva NC / Registro completo) son nodos fijos del DOM, no se recrean al
+        // abrir/cerrar los modales.
+        this._attachCatalogosCombos("npnc");
+        this._attachCatalogosCombos("reg");
+
         this._loadLista();
     }
 
@@ -738,6 +745,28 @@ window.FaretNcController = class FaretNcController {
             porFamilia: agruparCategoria("familiaProducto"),
             porArea: agruparCategoria("area"),
             pareto: this._calcularPareto(dataRows),
+            reposicionDestruccion: this._calcularReposicionDestruccion(dataRows),
+        };
+    }
+
+    // A diferencia de "Cuarentenas"/"Rechazos de cliente" de arriba (que suman cantRecuperada/
+    // cantDestruida sin mirar la disposición elegida), esto usa el campo `disposicion` en sí
+    // (Reposición/Destrucción/Reposición y destrucción/No aplica) como la fuente real de verdad
+    // — es el campo que el usuario llena explícitamente al cerrar una NC de tipo Cuarentena o
+    // Rechazo Cliente (ver _esDisposicionAplicable). `cantRepuesta` no se usaba en ningún
+    // indicador hasta ahora.
+    _calcularReposicionDestruccion(dataRows) {
+        const disposicion = d => (d.disposicion || "").trim();
+        const conReposicion = dataRows.filter(d => ["Reposición", "Reposición y destrucción"].includes(disposicion(d)));
+        const conDestruccion = dataRows.filter(d => ["Destrucción", "Reposición y destrucción"].includes(disposicion(d)));
+        const conAmbas = dataRows.filter(d => disposicion(d) === "Reposición y destrucción");
+
+        return {
+            ncConReposicion: conReposicion.length,
+            ncConDestruccion: conDestruccion.length,
+            ncConAmbas: conAmbas.length,
+            cantidadRepuestaTotal: conReposicion.reduce((s, d) => s + (Number(d.cantRepuesta) || 0), 0),
+            cantidadDestruidaTotal: conDestruccion.reduce((s, d) => s + (Number(d.cantDestruida) || 0), 0),
         };
     }
 
@@ -815,6 +844,12 @@ window.FaretNcController = class FaretNcController {
         this._setText("fnc-stat-rechazos-destruidos", ind.rechazosCliente.destruidos);
 
         this._setText("fnc-stat-reclamos-total", ind.totalReclamos);
+
+        this._setText("fnc-stat-repdes-reposicion", ind.reposicionDestruccion.ncConReposicion);
+        this._setText("fnc-stat-repdes-destruccion", ind.reposicionDestruccion.ncConDestruccion);
+        this._setText("fnc-stat-repdes-ambas", ind.reposicionDestruccion.ncConAmbas);
+        this._setText("fnc-stat-repdes-cant-repuesta", ind.reposicionDestruccion.cantidadRepuestaTotal);
+        this._setText("fnc-stat-repdes-cant-destruida", ind.reposicionDestruccion.cantidadDestruidaTotal);
 
         this._renderEvolucionMensual(
             "fnc-chart-cuarentenas", "fnc-nota-cuarentenas",
@@ -1136,6 +1171,11 @@ window.FaretNcController = class FaretNcController {
                 { label: "Rechazos cliente — recuperados", valor: ind.rechazosCliente.recuperados },
                 { label: "Rechazos cliente — a destrucción", valor: ind.rechazosCliente.destruidos },
                 { label: "Total reclamos", valor: ind.totalReclamos },
+                { label: "NC con reposición", valor: ind.reposicionDestruccion.ncConReposicion },
+                { label: "NC con destrucción", valor: ind.reposicionDestruccion.ncConDestruccion },
+                { label: "NC con reposición y destrucción", valor: ind.reposicionDestruccion.ncConAmbas },
+                { label: "Cantidad repuesta total", valor: ind.reposicionDestruccion.cantidadRepuestaTotal },
+                { label: "Cantidad destruida total", valor: ind.reposicionDestruccion.cantidadDestruidaTotal },
             ],
             graficos,
             tablas: [
@@ -1270,7 +1310,7 @@ window.FaretNcController = class FaretNcController {
 
         this._recalcularPctRecupRegistro();
         this._actualizarVisibilidadDisposicion("fnc-reg-tipo-pnc", "fnc-reg-disposicion-row");
-        this._poblarDatalistsNuevoPnc(); // reutiliza los mismos <datalist> del modal "Nueva NC"
+        this._resincronizarAreaJerarquia("reg");
         this._modoEdicionRegistro(false);
         this._ultimoCampoEditadoRegistro = null;
         document.getElementById("fnc-reg-error").style.display = "none";
@@ -1550,34 +1590,140 @@ window.FaretNcController = class FaretNcController {
         return sessionStorage.getItem("faretNombreUsuario") || "";
     }
 
-    // ---------- Nueva No Conformidad (registro completo en Data + vínculo de gestión automático) ----------
+    // ---------- Catálogos administrables (Cliente/Categoría defecto/Tipo de falla/Supervisor/
+    // Revisado por + Área→Máquina/Operador jerárquico) ----------
+    // Reemplaza el <datalist> nativo (solo sugería valores ya escritos, sin persistir nada) por
+    // el combo genérico window.CatalogCombo: seleccionar uno existente, buscar, o crear uno
+    // nuevo que queda guardado en el catálogo real (Paso 2) y disponible para todos los usuarios
+    // desde el próximo focus (misma sesión: al toque; otra sesión: sin caché de por medio).
 
-    // Arma las <datalist> de autocompletar con los valores reales ya cargados en el módulo
-    // (this._dataItems, ya se trae completo en _loadLista) — nada hardcodeado, se actualiza solo.
-    _poblarDatalistsNuevoPnc() {
-        const mapa = {
-            "fnc-dl-cliente": "cliente",
-            "fnc-dl-categoria": "categoriaDefecto",
-            "fnc-dl-area": "area",
-            "fnc-dl-maquina": "maquina",
-            "fnc-dl-operador": "operador",
-            "fnc-dl-supervisor": "supervisor",
-            "fnc-dl-revisado": "revisadoPor",
-        };
+    // Cliente/Categoría defecto/Tipo de falla/Supervisor/Revisado por/Familia de producto/Nivel/
+    // Impacto: catálogos planos propios de PNC Faret (cat_faret_*). Área/Máquina/Operador NO
+    // están acá — son jerárquicos, ver _attachAreaJerarquia. Tipo PNC y Disposición NO se abren
+    // (decisión explícita: Tipo PNC pilota la visibilidad de Disposición y los indicadores de
+    // Cuarentenas/Rechazos/Reclamos comparando el string exacto).
+    _catalogosPlanosConfig() {
+        return [
+            { campo: "cliente", cacheKey: "fnc-cat-cliente", listAction: "faret.pncCatalogos.clientes.list", crearAction: "faret.pncCatalogos.clientes.crear" },
+            { campo: "categoria-defecto", cacheKey: "fnc-cat-categoria-defecto", listAction: "faret.pncCatalogos.categoriasDefecto.list", crearAction: "faret.pncCatalogos.categoriasDefecto.crear" },
+            { campo: "tipo-falla", cacheKey: "fnc-cat-tipo-falla", listAction: "faret.pncCatalogos.tiposFalla.list", crearAction: "faret.pncCatalogos.tiposFalla.crear" },
+            { campo: "supervisor", cacheKey: "fnc-cat-supervisor", listAction: "faret.pncCatalogos.supervisores.list", crearAction: "faret.pncCatalogos.supervisores.crear" },
+            { campo: "revisado-por", cacheKey: "fnc-cat-revisado-por", listAction: "faret.pncCatalogos.revisores.list", crearAction: "faret.pncCatalogos.revisores.crear" },
+            { campo: "familia-producto", cacheKey: "fnc-cat-familia-producto", listAction: "faret.pncCatalogos.familiasProducto.list", crearAction: "faret.pncCatalogos.familiasProducto.crear" },
+            { campo: "nivel", cacheKey: "fnc-cat-nivel", listAction: "faret.pncCatalogos.niveles.list", crearAction: "faret.pncCatalogos.niveles.crear" },
+            { campo: "impacto", cacheKey: "fnc-cat-impacto", listAction: "faret.pncCatalogos.impactos.list", crearAction: "faret.pncCatalogos.impactos.crear" },
+        ];
+    }
 
-        Object.entries(mapa).forEach(([datalistId, campo]) => {
-            const valores = new Set(
-                this._dataItems
-                    .map(d => (d[campo] || "").toString().trim())
-                    .filter(Boolean)
-            );
-            const datalist = document.getElementById(datalistId);
-            if (datalist) {
-                datalist.innerHTML = [...valores].sort()
-                    .map(v => `<option value="${v}"></option>`).join("");
-            }
+    async _catalogoObtener(action, extra) {
+        const res = await window.PhotinoBridge.send({ action, ...(extra || {}) });
+        return res.ok && Array.isArray(res.data) ? res.data : [];
+    }
+
+    async _catalogoCrear(action, nombre, extra) {
+        const res = await window.PhotinoBridge.send({ action, nombre, ...(extra || {}) });
+        if (!res.ok) {
+            this._showMensaje(res.error || "No se pudo crear el valor de catálogo", false);
+            return null;
+        }
+        return res.data;
+    }
+
+    // El <input> no trae un <div> hermano propio para el dropdown en el HTML (a diferencia del
+    // combo de Responsable, que sí lo declara explícito) — se crea una sola vez, en el lugar
+    // correcto para que .fnc-combo-wrap (position:relative en el <div class="fnc-form-campo">
+    // padre) lo posicione bien.
+    // No busca por posición en el DOM (input.nextElementSibling): CatalogCombo.attach() reparenta
+    // el dropdown a document.body para no quedar cortado por el overflow:auto del modal, así que
+    // ya no es un hermano del input después del primer enganche — se cachea la referencia en el
+    // propio input.
+    _dropdownFor(input) {
+        if (input._catalogComboDropdownEl) return input._catalogComboDropdownEl;
+        const dd = document.createElement("div");
+        dd.className = "fnc-combo-dropdown";
+        dd.style.display = "none";
+        input.insertAdjacentElement("afterend", dd);
+        input._catalogComboDropdownEl = dd;
+        return dd;
+    }
+
+    // Engancha los combos de un formulario completo ("npnc" o "reg"). Se llama una sola vez por
+    // prefijo (desde init()) — CatalogCombo.attach ya es idempotente, pero no hace falta
+    // reenganchar en cada apertura del modal: los <input> son los mismos nodos del DOM durante
+    // toda la vida del módulo, solo se muestran/ocultan.
+    _attachCatalogosCombos(prefix) {
+        this._catalogosPlanosConfig().forEach(cfg => {
+            const input = document.getElementById(`fnc-${prefix}-${cfg.campo}`);
+            if (!input) return;
+            window.CatalogCombo.attach(input, this._dropdownFor(input), {
+                cacheKey: cfg.cacheKey,
+                obtenerOpciones: () => this._catalogoObtener(cfg.listAction),
+                crear: nombre => this._catalogoCrear(cfg.crearAction, nombre),
+            });
+        });
+
+        this._attachAreaJerarquia(prefix);
+    }
+
+    // Área es un combo plano contra el catálogo real ya existente cat_areas (api/catalogos,
+    // compartido con otros módulos de planta — decisión explícita de reutilizarlo en vez de crear
+    // un catálogo de área propio de PNC). Al elegir/crear un Área, Máquina y Operador se
+    // re-scopean a esa área (cat_maquinas/cat_operadores, ambas con FK a cat_areas) — no permiten
+    // "+ Crear" hasta que haya un Área resuelta, para no insertar máquinas/operadores huérfanos.
+    _attachAreaJerarquia(prefix) {
+        const areaInput = document.getElementById(`fnc-${prefix}-area`);
+        if (!areaInput) return;
+
+        window.CatalogCombo.attach(areaInput, this._dropdownFor(areaInput), {
+            cacheKey: "fnc-cat-area",
+            obtenerOpciones: () => this._catalogoObtener("faret.catalogos.areas"),
+            crear: nombre => this._catalogoCrear("faret.catalogos.areas.crear", nombre),
+            onSeleccionar: item => this._reescoparHijosDeArea(prefix, item ? item.id : null),
+        });
+
+        this._reescoparHijosDeArea(prefix, areaInput.dataset.catalogId ? Number(areaInput.dataset.catalogId) : null);
+    }
+
+    _reescoparHijosDeArea(prefix, areaId) {
+        [
+            { sufijo: "maquina", listAction: "faret.catalogos.maquinas", crearAction: "faret.catalogos.maquinas.crear" },
+            { sufijo: "operador", listAction: "faret.catalogos.operadores", crearAction: "faret.catalogos.operadores.crear" },
+        ].forEach(({ sufijo, listAction, crearAction }) => {
+            const input = document.getElementById(`fnc-${prefix}-${sufijo}`);
+            if (!input) return;
+
+            window.CatalogCombo.attach(input, this._dropdownFor(input), {
+                cacheKey: `fnc-cat-${sufijo}:${areaId || "sin-area"}`,
+                obtenerOpciones: () => this._catalogoObtener(listAction, areaId ? { areaId } : {}),
+                crear: areaId ? (nombre => this._catalogoCrear(crearAction, nombre, { areaId })) : null,
+                bloqueadoMsg: () => (areaId ? null : "Seleccione un Área para poder crear un valor nuevo"),
+            });
         });
     }
+
+    // Al abrir un formulario con un Área ya guardada como texto libre (dato histórico o recién
+    // cargado desde Data), intenta resolver su id contra el catálogo real por nombre exacto
+    // (case-insensitive) para que Máquina/Operador nazcan ya scoped — si no hay coincidencia,
+    // quedan sin scope (lista completa) hasta que el usuario toque el campo Área.
+    async _resincronizarAreaJerarquia(prefix) {
+        const areaInput = document.getElementById(`fnc-${prefix}-area`);
+        if (!areaInput) return;
+
+        delete areaInput.dataset.catalogId;
+        const nombreActual = areaInput.value.trim().toLowerCase();
+
+        if (!nombreActual) {
+            this._reescoparHijosDeArea(prefix, null);
+            return;
+        }
+
+        const areas = await this._catalogoObtener("faret.catalogos.areas");
+        const match = areas.find(a => (a.nombre || "").trim().toLowerCase() === nombreActual);
+        if (match) areaInput.dataset.catalogId = match.id;
+        this._reescoparHijosDeArea(prefix, match ? match.id : null);
+    }
+
+    // ---------- Nueva No Conformidad (registro completo en Data + vínculo de gestión automático) ----------
 
     _abrirNuevoPnc() {
         document.getElementById("fnc-npnc-error").style.display = "none";
@@ -1603,7 +1749,7 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-npnc-pct-recup").value = "";
         this._actualizarVisibilidadDisposicion("fnc-npnc-tipo-pnc", "fnc-npnc-disposicion-row");
 
-        this._poblarDatalistsNuevoPnc();
+        this._resincronizarAreaJerarquia("npnc");
         document.getElementById("fnc-nuevo-pnc-modal").style.display = "flex";
     }
 

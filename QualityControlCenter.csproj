@@ -11,19 +11,23 @@
     <RootNamespace>QualityControlCenter</RootNamespace>
 
     <!-- VERSIONADO -->
-    <Version>1.8.1</Version>
-    <AssemblyVersion>1.8.1</AssemblyVersion>
-    <FileVersion>1.8.1</FileVersion>
+    <Version>1.8.3</Version>
+    <AssemblyVersion>1.8.3</AssemblyVersion>
+    <FileVersion>1.8.3</FileVersion>
 
     <!-- ICONO -->
     <ApplicationIcon>logo2.ico</ApplicationIcon>
   </PropertyGroup>
 
-  <!-- EXCLUIR PROYECTOS INDEPENDIENTES (ej: tools/) DEL BUILD PRINCIPAL -->
+  <!-- EXCLUIR PROYECTOS INDEPENDIENTES (ej: tools/, QCC.Updater/) DEL BUILD PRINCIPAL -->
   <ItemGroup>
     <Compile Remove="tools/**" />
     <None Remove="tools/**" />
     <EmbeddedResource Remove="tools/**" />
+
+    <Compile Remove="QCC.Updater/**" />
+    <None Remove="QCC.Updater/**" />
+    <EmbeddedResource Remove="QCC.Updater/**" />
   </ItemGroup>
 
   <!-- DEPENDENCIAS -->

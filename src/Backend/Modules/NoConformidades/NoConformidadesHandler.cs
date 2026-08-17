@@ -12,13 +12,13 @@ namespace QualityControlCenter.Modules.NoConformidades
     public class NoConformidadesHandler
     {
         private readonly NoConformidadesRepository _repo;
+        private readonly NoConformidadesCatalogosRepository _catalogos;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        private static readonly string[] NivelesValidos = { "Crítico", "Mayor", "Menor" };
         private static readonly string[] EstadosGestionValidos =
         {
             "PENDIENTE",
@@ -38,6 +38,7 @@ namespace QualityControlCenter.Modules.NoConformidades
         public NoConformidadesHandler(DbService db)
         {
             _repo = new NoConformidadesRepository(db);
+            _catalogos = new NoConformidadesCatalogosRepository(db);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -62,6 +63,33 @@ namespace QualityControlCenter.Modules.NoConformidades
                     "noConformidades.acciones.list" => await HandleAccionesList(data),
                     "noConformidades.acciones.crear" => await HandleAccionesCrear(data),
                     "noConformidades.acciones.actualizar" => await HandleAccionesActualizar(data),
+                    "noConformidades.catalogos.clientes.list" => await HandleCatalogoList(() => _catalogos.GetClientesAsync()),
+                    "noConformidades.catalogos.clientes.crear" => await HandleCatalogoCrear(data, _catalogos.CrearClienteAsync),
+                    "noConformidades.catalogos.clientes.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarClienteAsync),
+                    "noConformidades.catalogos.categoriasDefecto.list" => await HandleCatalogoList(() => _catalogos.GetCategoriasDefectoAsync()),
+                    "noConformidades.catalogos.categoriasDefecto.crear" => await HandleCatalogoCrear(data, _catalogos.CrearCategoriaDefectoAsync),
+                    "noConformidades.catalogos.categoriasDefecto.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarCategoriaDefectoAsync),
+                    "noConformidades.catalogos.tiposFalla.list" => await HandleCatalogoList(() => _catalogos.GetTiposFallaAsync()),
+                    "noConformidades.catalogos.tiposFalla.crear" => await HandleCatalogoCrear(data, _catalogos.CrearTipoFallaAsync),
+                    "noConformidades.catalogos.tiposFalla.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarTipoFallaAsync),
+                    "noConformidades.catalogos.supervisores.list" => await HandleCatalogoList(() => _catalogos.GetSupervisoresAsync()),
+                    "noConformidades.catalogos.supervisores.crear" => await HandleCatalogoCrear(data, _catalogos.CrearSupervisorAsync),
+                    "noConformidades.catalogos.supervisores.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarSupervisorAsync),
+                    "noConformidades.catalogos.revisores.list" => await HandleCatalogoList(() => _catalogos.GetRevisoresAsync()),
+                    "noConformidades.catalogos.revisores.crear" => await HandleCatalogoCrear(data, _catalogos.CrearRevisorAsync),
+                    "noConformidades.catalogos.revisores.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarRevisorAsync),
+                    "noConformidades.catalogos.areas.list" => await HandleCatalogoList(() => _catalogos.GetAreasAsync()),
+                    "noConformidades.catalogos.areas.crear" => await HandleCatalogoCrear(data, _catalogos.CrearAreaAsync),
+                    "noConformidades.catalogos.areas.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarAreaAsync),
+                    "noConformidades.catalogos.familiasProducto.list" => await HandleCatalogoList(() => _catalogos.GetFamiliasProductoAsync()),
+                    "noConformidades.catalogos.familiasProducto.crear" => await HandleCatalogoCrear(data, _catalogos.CrearFamiliaProductoAsync, 50),
+                    "noConformidades.catalogos.familiasProducto.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarFamiliaProductoAsync),
+                    "noConformidades.catalogos.niveles.list" => await HandleCatalogoList(() => _catalogos.GetNivelesAsync()),
+                    "noConformidades.catalogos.niveles.crear" => await HandleCatalogoCrear(data, _catalogos.CrearNivelAsync, 20),
+                    "noConformidades.catalogos.niveles.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarNivelAsync),
+                    "noConformidades.catalogos.impactos.list" => await HandleCatalogoList(() => _catalogos.GetImpactosAsync()),
+                    "noConformidades.catalogos.impactos.crear" => await HandleCatalogoCrear(data, _catalogos.CrearImpactoAsync, 50),
+                    "noConformidades.catalogos.impactos.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarImpactoAsync),
                     _ => Error($"Acción no reconocida en NoConformidades: {action}"),
                 };
             }
@@ -69,6 +97,49 @@ namespace QualityControlCenter.Modules.NoConformidades
             {
                 return Error(ex.Message);
             }
+        }
+
+        // Los 9 catálogos administrables (Cliente/Categoría defecto/Tipo de falla/Supervisor/
+        // Revisado por/Área/Familia de producto/Nivel/Impacto) comparten la misma forma, así que
+        // las 27 acciones del switch de arriba se resuelven con estos 3 helpers genéricos.
+        private async Task<string> HandleCatalogoList(Func<Task<List<CatalogoNcItem>>> fetch)
+        {
+            var items = await fetch();
+            return Ok(items);
+        }
+
+        private async Task<string> HandleCatalogoCrear(
+            Dictionary<string, object> data,
+            Func<string, string?, Task<CatalogoNcItem>> crear,
+            int maxLongitud = 150
+        )
+        {
+            if (!TryGetString(data, "nombre", out var nombreRaw) || string.IsNullOrWhiteSpace(nombreRaw))
+                return Error("Falta el nombre");
+
+            var nombre = System.Text.RegularExpressions.Regex.Replace(nombreRaw!.Trim(), @"\s+", " ");
+            if (nombre.Length > maxLongitud)
+                return Error($"El valor no puede superar los {maxLongitud} caracteres.");
+
+            TryGetString(data, "creadoPor", out var creadoPor);
+
+            var item = await crear(nombre, creadoPor);
+            return Ok(item);
+        }
+
+        private async Task<string> HandleCatalogoDesactivar(
+            Dictionary<string, object> data,
+            Func<int, Task<bool>> desactivar
+        )
+        {
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id");
+
+            var ok = await desactivar(id);
+            if (!ok)
+                return Error("Valor de catálogo no encontrado o ya estaba inactivo.");
+
+            return Ok((object?)null);
         }
 
         private async Task<string> HandleList(Dictionary<string, object> data)
@@ -242,13 +313,6 @@ namespace QualityControlCenter.Modules.NoConformidades
                 return false;
             }
 
-            var nivel = campos["nivel"]!.ToString();
-            if (!NivelesValidos.Contains(nivel))
-            {
-                error = $"Nivel inválido. Valores permitidos: {string.Join(", ", NivelesValidos)}";
-                return false;
-            }
-
             return true;
         }
 
@@ -260,12 +324,6 @@ namespace QualityControlCenter.Modules.NoConformidades
             var campos = LeerCamposEditables(data);
             if (campos.Count == 0)
                 return Error("No se recibió ningún campo para actualizar");
-
-            if (campos.TryGetValue("nivel", out var nivelVal) && nivelVal != null)
-            {
-                if (!NivelesValidos.Contains(nivelVal.ToString()))
-                    return Error($"Nivel inválido. Valores permitidos: {string.Join(", ", NivelesValidos)}");
-            }
 
             TryGetString(data, "actualizadoPor", out var actualizadoPor);
             await _repo.Actualizar(id, campos, actualizadoPor);

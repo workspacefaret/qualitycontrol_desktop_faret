@@ -254,6 +254,19 @@
             </div>
 
             <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">Reposición y Destrucción</div>
+                <div class="fnc-stats-resumen">
+                    <div><span class="home-module-card-value" id="fnc-stat-repdes-reposicion">0</span><div class="fnc-nota">NC con reposición</div></div>
+                    <div><span class="home-module-card-value" id="fnc-stat-repdes-destruccion">0</span><div class="fnc-nota">NC con destrucción</div></div>
+                    <div><span class="home-module-card-value" id="fnc-stat-repdes-ambas">0</span><div class="fnc-nota">NC con ambas</div></div>
+                </div>
+                <div class="fnc-stats-resumen">
+                    <div><span class="home-module-card-value" id="fnc-stat-repdes-cant-repuesta">0</span><div class="fnc-nota">Cantidad repuesta total</div></div>
+                    <div><span class="home-module-card-value" id="fnc-stat-repdes-cant-destruida">0</span><div class="fnc-nota">Cantidad destruida total</div></div>
+                </div>
+            </div>
+
+            <div class="fnc-analisis-seccion">
                 <div class="fnc-analisis-seccion-titulo">PNC por Familia de Producto</div>
                 <canvas id="fnc-chart-familia"></canvas>
             </div>
@@ -347,9 +360,9 @@
                         <label for="fnc-reg-np-nv">NP/NV</label>
                         <input type="text" id="fnc-reg-np-nv" disabled>
                     </div>
-                    <div class="fnc-form-campo">
+                    <div class="fnc-form-campo fnc-combo-wrap">
                         <label for="fnc-reg-cliente">Cliente</label>
-                        <input type="text" id="fnc-reg-cliente" list="fnc-dl-cliente" disabled>
+                        <input type="text" id="fnc-reg-cliente" disabled autocomplete="off">
                     </div>
                     <div class="fnc-form-campo">
                         <label for="fnc-reg-codigo">Código</label>
@@ -359,15 +372,9 @@
                         <label for="fnc-reg-producto">Producto</label>
                         <input type="text" id="fnc-reg-producto" disabled>
                     </div>
-                    <div class="fnc-form-campo">
+                    <div class="fnc-form-campo fnc-combo-wrap">
                         <label for="fnc-reg-familia-producto">Familia de producto</label>
-                        <select id="fnc-reg-familia-producto" disabled>
-                            <option value="">-</option>
-                            <option value="Etiquetas">Etiquetas</option>
-                            <option value="Estuches">Estuches</option>
-                            <option value="Folletos">Folletos</option>
-                            <option value="Preformas">Preformas</option>
-                        </select>
+                        <input type="text" id="fnc-reg-familia-producto" disabled autocomplete="off">
                     </div>
                 </div>
 
@@ -383,38 +390,21 @@
                             <option value="Interna">Interna</option>
                         </select>
                     </div>
-                    <div class="fnc-form-campo">
+                    <div class="fnc-form-campo fnc-combo-wrap">
                         <label for="fnc-reg-nivel">Nivel</label>
-                        <select id="fnc-reg-nivel" disabled>
-                            <option value="Crítico">Crítico</option>
-                            <option value="Mayor">Mayor</option>
-                            <option value="Menor">Menor</option>
-                        </select>
+                        <input type="text" id="fnc-reg-nivel" disabled autocomplete="off">
                     </div>
-                    <div class="fnc-form-campo" style="min-width:220px;">
+                    <div class="fnc-form-campo fnc-combo-wrap" style="min-width:220px;">
                         <label for="fnc-reg-categoria-defecto">Categoría defecto</label>
-                        <input type="text" id="fnc-reg-categoria-defecto" list="fnc-dl-categoria" disabled>
+                        <input type="text" id="fnc-reg-categoria-defecto" disabled autocomplete="off">
                     </div>
-                    <div class="fnc-form-campo">
+                    <div class="fnc-form-campo fnc-combo-wrap">
                         <label for="fnc-reg-tipo-falla">Tipo de falla</label>
-                        <select id="fnc-reg-tipo-falla" disabled>
-                            <option value="">-</option>
-                            <option value="Sin clasificar">Sin clasificar</option>
-                            <option value="Control operacional">Control operacional</option>
-                            <option value="Fallas Ajuste de máquina">Fallas Ajuste de máquina</option>
-                            <option value="Fallas del Proceso de Configuración Inicial">Fallas del Proceso de Configuración Inicial</option>
-                            <option value="Fallas de limpieza/ condición de equipo">Fallas de limpieza/ condición de equipo</option>
-                            <option value="Fallas de Supervisión">Fallas de Supervisión</option>
-                            <option value="Fallas de control de insumos en el proceso">Fallas de control de insumos en el proceso</option>
-                            <option value="Fallas de Comunicación Operativa">Fallas de Comunicación Operativa</option>
-                        </select>
+                        <input type="text" id="fnc-reg-tipo-falla" disabled autocomplete="off">
                     </div>
-                    <div class="fnc-form-campo">
+                    <div class="fnc-form-campo fnc-combo-wrap">
                         <label for="fnc-reg-impacto">Impacto</label>
-                        <select id="fnc-reg-impacto" disabled>
-                            <option value="Calidad">Calidad</option>
-                            <option value="Legalidad">Legalidad</option>
-                        </select>
+                        <input type="text" id="fnc-reg-impacto" disabled autocomplete="off">
                     </div>
                 </div>
 
@@ -462,25 +452,25 @@
                 </div>
 
                 <div class="fnc-form-row">
-                    <div class="fnc-form-campo">
+                    <div class="fnc-form-campo fnc-combo-wrap">
                         <label for="fnc-reg-area">Área</label>
-                        <input type="text" id="fnc-reg-area" list="fnc-dl-area" disabled>
+                        <input type="text" id="fnc-reg-area" disabled autocomplete="off">
                     </div>
-                    <div class="fnc-form-campo">
+                    <div class="fnc-form-campo fnc-combo-wrap">
                         <label for="fnc-reg-maquina">Máquina</label>
-                        <input type="text" id="fnc-reg-maquina" list="fnc-dl-maquina" disabled>
+                        <input type="text" id="fnc-reg-maquina" disabled autocomplete="off">
                     </div>
-                    <div class="fnc-form-campo">
+                    <div class="fnc-form-campo fnc-combo-wrap">
                         <label for="fnc-reg-operador">Operador</label>
-                        <input type="text" id="fnc-reg-operador" list="fnc-dl-operador" disabled>
+                        <input type="text" id="fnc-reg-operador" disabled autocomplete="off">
                     </div>
-                    <div class="fnc-form-campo">
+                    <div class="fnc-form-campo fnc-combo-wrap">
                         <label for="fnc-reg-supervisor">Supervisor</label>
-                        <input type="text" id="fnc-reg-supervisor" list="fnc-dl-supervisor" disabled>
+                        <input type="text" id="fnc-reg-supervisor" disabled autocomplete="off">
                     </div>
-                    <div class="fnc-form-campo">
+                    <div class="fnc-form-campo fnc-combo-wrap">
                         <label for="fnc-reg-revisado-por">Revisado por</label>
-                        <input type="text" id="fnc-reg-revisado-por" list="fnc-dl-revisado" disabled>
+                        <input type="text" id="fnc-reg-revisado-por" disabled autocomplete="off">
                     </div>
                 </div>
 
@@ -541,10 +531,9 @@
                     <label for="fnc-npnc-np-nv">NP/NV *</label>
                     <input type="text" id="fnc-npnc-np-nv">
                 </div>
-                <div class="fnc-form-campo">
+                <div class="fnc-form-campo fnc-combo-wrap">
                     <label for="fnc-npnc-cliente">Cliente *</label>
-                    <input type="text" id="fnc-npnc-cliente" list="fnc-dl-cliente">
-                    <datalist id="fnc-dl-cliente"></datalist>
+                    <input type="text" id="fnc-npnc-cliente" autocomplete="off">
                 </div>
                 <div class="fnc-form-campo">
                     <label for="fnc-npnc-codigo">Código *</label>
@@ -554,15 +543,9 @@
                     <label for="fnc-npnc-producto">Producto *</label>
                     <input type="text" id="fnc-npnc-producto">
                 </div>
-                <div class="fnc-form-campo">
+                <div class="fnc-form-campo fnc-combo-wrap">
                     <label for="fnc-npnc-familia-producto">Familia de producto</label>
-                    <select id="fnc-npnc-familia-producto">
-                        <option value="">-</option>
-                        <option value="Etiquetas">Etiquetas</option>
-                        <option value="Estuches">Estuches</option>
-                        <option value="Folletos">Folletos</option>
-                        <option value="Preformas">Preformas</option>
-                    </select>
+                    <input type="text" id="fnc-npnc-familia-producto" autocomplete="off">
                 </div>
             </div>
 
@@ -578,39 +561,21 @@
                         <option value="Interna">Interna</option>
                     </select>
                 </div>
-                <div class="fnc-form-campo">
+                <div class="fnc-form-campo fnc-combo-wrap">
                     <label for="fnc-npnc-nivel">Nivel *</label>
-                    <select id="fnc-npnc-nivel">
-                        <option value="Crítico">Crítico</option>
-                        <option value="Mayor">Mayor</option>
-                        <option value="Menor">Menor</option>
-                    </select>
+                    <input type="text" id="fnc-npnc-nivel" autocomplete="off">
                 </div>
-                <div class="fnc-form-campo" style="min-width:220px;">
+                <div class="fnc-form-campo fnc-combo-wrap" style="min-width:220px;">
                     <label for="fnc-npnc-categoria-defecto">Categoría defecto *</label>
-                    <input type="text" id="fnc-npnc-categoria-defecto" list="fnc-dl-categoria">
-                    <datalist id="fnc-dl-categoria"></datalist>
+                    <input type="text" id="fnc-npnc-categoria-defecto" autocomplete="off">
                 </div>
-                <div class="fnc-form-campo">
+                <div class="fnc-form-campo fnc-combo-wrap">
                     <label for="fnc-npnc-tipo-falla">Tipo de falla</label>
-                    <select id="fnc-npnc-tipo-falla">
-                        <option value="">-</option>
-                        <option value="Sin clasificar">Sin clasificar</option>
-                        <option value="Control operacional">Control operacional</option>
-                        <option value="Fallas Ajuste de máquina">Fallas Ajuste de máquina</option>
-                        <option value="Fallas del Proceso de Configuración Inicial">Fallas del Proceso de Configuración Inicial</option>
-                        <option value="Fallas de limpieza/ condición de equipo">Fallas de limpieza/ condición de equipo</option>
-                        <option value="Fallas de Supervisión">Fallas de Supervisión</option>
-                        <option value="Fallas de control de insumos en el proceso">Fallas de control de insumos en el proceso</option>
-                        <option value="Fallas de Comunicación Operativa">Fallas de Comunicación Operativa</option>
-                    </select>
+                    <input type="text" id="fnc-npnc-tipo-falla" autocomplete="off">
                 </div>
-                <div class="fnc-form-campo">
+                <div class="fnc-form-campo fnc-combo-wrap">
                     <label for="fnc-npnc-impacto">Impacto</label>
-                    <select id="fnc-npnc-impacto">
-                        <option value="Calidad">Calidad</option>
-                        <option value="Legalidad">Legalidad</option>
-                    </select>
+                    <input type="text" id="fnc-npnc-impacto" autocomplete="off">
                 </div>
             </div>
 
@@ -658,30 +623,25 @@
             </div>
 
             <div class="fnc-form-row">
-                <div class="fnc-form-campo">
+                <div class="fnc-form-campo fnc-combo-wrap">
                     <label for="fnc-npnc-area">Área</label>
-                    <input type="text" id="fnc-npnc-area" list="fnc-dl-area">
-                    <datalist id="fnc-dl-area"></datalist>
+                    <input type="text" id="fnc-npnc-area" autocomplete="off">
                 </div>
-                <div class="fnc-form-campo">
+                <div class="fnc-form-campo fnc-combo-wrap">
                     <label for="fnc-npnc-maquina">Máquina</label>
-                    <input type="text" id="fnc-npnc-maquina" list="fnc-dl-maquina">
-                    <datalist id="fnc-dl-maquina"></datalist>
+                    <input type="text" id="fnc-npnc-maquina" autocomplete="off">
                 </div>
-                <div class="fnc-form-campo">
+                <div class="fnc-form-campo fnc-combo-wrap">
                     <label for="fnc-npnc-operador">Operador</label>
-                    <input type="text" id="fnc-npnc-operador" list="fnc-dl-operador">
-                    <datalist id="fnc-dl-operador"></datalist>
+                    <input type="text" id="fnc-npnc-operador" autocomplete="off">
                 </div>
-                <div class="fnc-form-campo">
+                <div class="fnc-form-campo fnc-combo-wrap">
                     <label for="fnc-npnc-supervisor">Supervisor</label>
-                    <input type="text" id="fnc-npnc-supervisor" list="fnc-dl-supervisor">
-                    <datalist id="fnc-dl-supervisor"></datalist>
+                    <input type="text" id="fnc-npnc-supervisor" autocomplete="off">
                 </div>
-                <div class="fnc-form-campo">
+                <div class="fnc-form-campo fnc-combo-wrap">
                     <label for="fnc-npnc-revisado-por">Revisado por</label>
-                    <input type="text" id="fnc-npnc-revisado-por" list="fnc-dl-revisado">
-                    <datalist id="fnc-dl-revisado"></datalist>
+                    <input type="text" id="fnc-npnc-revisado-por" autocomplete="off">
                 </div>
             </div>
 

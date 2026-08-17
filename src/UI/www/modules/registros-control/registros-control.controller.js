@@ -296,14 +296,14 @@ if (!window.RegistrosControlController) {
       if (!this.data.length) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="21">Sin registros para los filtros seleccionados</td>
+            <td colspan="22">Sin registros para los filtros seleccionados</td>
           </tr>
         `
         return
       }
 
       tbody.innerHTML = this.data.map(r => {
-        const bobinas = window.TableUtils.resumenBobinas(r.bobinaCodigo, r.bobinaDescripcion, r.bobinaLote)
+        const bobinas = window.TableUtils.resumenBobinas(r.bobinaCodigo, r.bobinaDescripcion, r.bobinaLote, r.bobinaObservacion)
 
         return `
         <tr>
@@ -325,6 +325,7 @@ if (!window.RegistrosControlController) {
           <td>${this.escape(r.bobinaLote || "-")}</td>
           <td>${this.celdaBobina(bobinas, "codigo", r.id)}</td>
           <td>${this.celdaBobina(bobinas, "descripcion", r.id)}</td>
+          <td>${this.escape(r.bobinaObservacion || "-")}</td>
 
           <td>
             ${this.renderEstadoValidacion(r.estadoValidacion)}
@@ -706,6 +707,7 @@ if (!window.RegistrosControlController) {
             <th>Lote Bobina utilizada</th>
             <th>Código Bobina utilizada</th>
             <th>Descripción Bobina utilizada</th>
+            <th>Observación Bobina utilizada</th>
             <th>Estado Validación</th>
             <th>Imagen</th>
           </tr>
@@ -731,6 +733,7 @@ if (!window.RegistrosControlController) {
               <td>${this.escape(r.bobinaLote || "-")}</td>
               <td>${this.escape(r.bobinaCodigo || "-")}</td>
               <td>${this.escape(r.bobinaDescripcion || "-")}</td>
+              <td>${this.escape(r.bobinaObservacion || "-")}</td>
               <td>${this.escape(r.estadoValidacion || "PENDIENTE")}</td>
               <td>${this.escape(r.imagenUrl || "-")}</td>
             </tr>
@@ -777,13 +780,14 @@ if (!window.RegistrosControlController) {
       const r = this.data.find(item => String(item.id) === String(rowId))
       if (!r) return
 
-      const bobinas = window.TableUtils.resumenBobinas(r.bobinaCodigo, r.bobinaDescripcion, r.bobinaLote)
+      const bobinas = window.TableUtils.resumenBobinas(r.bobinaCodigo, r.bobinaDescripcion, r.bobinaLote, r.bobinaObservacion)
 
       const filas = bobinas.pares.map(p => `
         <tr>
           <td style="padding:6px 10px; border-bottom:1px solid #F1F5F9;">${this.escape(p.codigo || "-")}</td>
           <td style="padding:6px 10px; border-bottom:1px solid #F1F5F9;">${this.escape(p.descripcion || "-")}</td>
           <td style="padding:6px 10px; border-bottom:1px solid #F1F5F9;">${this.escape(p.lote || "-")}</td>
+          <td style="padding:6px 10px; border-bottom:1px solid #F1F5F9;">${this.escape(p.observacion || "-")}</td>
         </tr>
       `).join("")
 
@@ -798,6 +802,7 @@ if (!window.RegistrosControlController) {
               <th style="text-align:left; padding:6px 10px;">Código</th>
               <th style="text-align:left; padding:6px 10px;">Descripción</th>
               <th style="text-align:left; padding:6px 10px;">Lote</th>
+              <th style="text-align:left; padding:6px 10px;">Observación</th>
             </tr>
           </thead>
           <tbody>${filas}</tbody>

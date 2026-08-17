@@ -157,7 +157,10 @@ namespace QualityControlCenter
                     }
                 );
                 // =========================
-                // 🔄 CHECK UPDATE NATIVO
+                // 🔄 CHECK UPDATE — Etapa 6: QCC ya no ejecuta ningún instalador. Solo prepara
+                // Pending, arranca el relanzador no elevado (que espera el resultado y reabre
+                // QCC) y dispara la Scheduled Task elevada — QCC.Updater/InstallerRunner hacen
+                // el resto. QCC.exe nunca se eleva y nunca corre nada como shell genérico.
                 // =========================
                 try
                 {
@@ -165,24 +168,124 @@ namespace QualityControlCenter
 
                     if (updateService.IsUpdateAvailable(out var updateInfo) && updateInfo != null)
                     {
-                        MessageBoxW(
+                        // Confirmación ANTES de tocar nada (Pending/relanzador/Task todavía no
+                        // existen en este punto) — a diferencia del MessageBoxW que había al
+                        // final del flujo (ver contex.md Paso 59, fallo E2E real: ese cuadro
+                        // bloqueaba el hilo indefinidamente DESPUÉS de disparar la Scheduled
+                        // Task, y mientras nadie lo cerraba, QualityControlCenter.exe seguía
+                        // "en ejecución" para InstallerRunner, que agotaba su timeout de 60s y
+                        // abortaba la instalación). Acá no hay ninguna carrera contra ese
+                        // timeout: si el usuario tarda en responder, no pasa nada todavía.
+                        const uint MB_YESNO = 0x00000004;
+                        const int IDYES = 6;
+
+                        var respuesta = MessageBoxW(
                             IntPtr.Zero,
-                            $"Hemos detectado una actualización disponible.\n\nVersión nueva: {updateInfo.Version}\n\nSe iniciará el instalador para actualizar Quality Control Center.",
+                            $"Hay una actualización disponible (versión {updateInfo.Version}).\n\n¿Actualizar ahora?\n\nSi elige \"Sí\", Quality Control Center se cerrará y se reabrirá automáticamente al finalizar. Si elige \"No\", puede actualizar más tarde la próxima vez que abra el programa.",
                             "Actualización disponible",
-                            0
+                            MB_YESNO
                         );
 
-                        var localInstaller = updateService.PrepareLocalInstaller(updateInfo.Installer);
+                        if (respuesta == IDYES)
+                        {
+                            var preparado = updateService.PrepararActualizacionPendiente(updateInfo);
 
-                        System.Diagnostics.Process.Start(
-                            new System.Diagnostics.ProcessStartInfo
+                            if (!preparado.Exitoso)
                             {
-                                FileName = localInstaller,
-                                UseShellExecute = true,
+                                // Requisito: si falla cualquier paso ANTES de disparar la
+                                // tarea, no se cierra QCC, se muestra el error, y no queda
+                                // ningún flujo a medias (Pending ya se limpió en el propio
+                                // fallo).
+                                MessageBoxW(
+                                    IntPtr.Zero,
+                                    $"Se detectó una actualización disponible, pero no se pudo preparar.\n\n{preparado.Motivo}\n\nQuality Control Center continuará abierto con la versión actual.",
+                                    "Error al preparar la actualización",
+                                    0
+                                );
                             }
-                        );
+                            else
+                            {
+                                // Fix real (ver contex.md Paso 59, "self-update lock"): QCC.Updater.exe
+                                // ya NO vive en {app} — vive en una carpeta propia bajo ProgramData,
+                                // fuera del árbol que reinstala el propio instalador. Antes, este
+                                // proceso (el relanzador) se lanzaba desde AppContext.BaseDirectory
+                                // (={app}), y quedaba corriendo toda la duración de la instalación
+                                // elevada — el mismo archivo que Inno intentaba sobrescribir,
+                                // provocando "acceso denegado" (exit code 5, confirmado con el log
+                                // real de Inno). Ruta fija duplicada a propósito, mismo criterio ya
+                                // usado para PendingDir/StagingDir/ResultsDir/RutaQccInstalada en
+                                // QCC.Updater (sin ensamblado en común entre los dos binarios).
+                                const string RelanzadorPathFija = @"C:\ProgramData\QualityControlCenter\Updater\Host\QCC.Updater.exe";
+                                var relanzadorPath = RelanzadorPathFija;
+                                var relanzadorIniciado = false;
 
-                        Environment.Exit(0);
+                                try
+                                {
+                                    if (File.Exists(relanzadorPath))
+                                    {
+                                        System.Diagnostics.Process.Start(
+                                            new System.Diagnostics.ProcessStartInfo
+                                            {
+                                                FileName = relanzadorPath,
+                                                Arguments = $"--relanzar {preparado.RunId}",
+                                                UseShellExecute = false,
+                                            }
+                                        );
+                                        relanzadorIniciado = true;
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine($"ERROR UPDATE: no se encontró el relanzador en {relanzadorPath}");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"ERROR UPDATE: no se pudo iniciar el relanzador: {ex.Message}");
+                                }
+
+                                if (!relanzadorIniciado)
+                                {
+                                    MessageBoxW(
+                                        IntPtr.Zero,
+                                        "Se detectó una actualización disponible, pero no se pudo iniciar el proceso de actualización.\n\nQuality Control Center continuará abierto con la versión actual.",
+                                        "Error al iniciar la actualización",
+                                        0
+                                    );
+                                }
+                                else
+                                {
+                                    // El relanzador ya arrancó y quedó a la espera del
+                                    // resultado — recién ahora tiene sentido disparar la
+                                    // tarea elevada; nunca antes de que Pending esté
+                                    // completo, y nunca sin que exista alguien esperando el
+                                    // resultado para reabrir QCC.
+                                    var taskDisparada = updateService.DispararScheduledTaskElevada();
+
+                                    if (!taskDisparada)
+                                    {
+                                        Console.WriteLine("ERROR UPDATE: no se pudo disparar la Scheduled Task elevada.");
+                                        MessageBoxW(
+                                            IntPtr.Zero,
+                                            "Se detectó una actualización disponible, pero no se pudo iniciar el proceso de instalación elevado.\n\nQuality Control Center continuará abierto con la versión actual.",
+                                            "Error al iniciar la actualización",
+                                            0
+                                        );
+                                    }
+                                    else
+                                    {
+                                        // Fix real (ver contex.md Paso 59): la Task ya está
+                                        // disparada y corriendo como SYSTEM, que empieza a
+                                        // contar su timeout de 60s esperando que este proceso
+                                        // cierre. A partir de acá, CERO llamadas bloqueantes
+                                        // antes de Exit — ya no hay ningún MessageBoxW.
+                                        Environment.Exit(0);
+                                    }
+                                }
+                            }
+                        }
+                        // Si el usuario eligió "No": no se prepara ni se dispara nada, QCC
+                        // sigue abierto con normalidad. El chequeo se vuelve a evaluar desde
+                        // cero en el próximo arranque.
                     }
                 }
                 catch (Exception ex)

@@ -387,6 +387,14 @@ namespace QualityControlCenter.Modules.Dashboard
                         FROM registro_control_bobinas rb
                         WHERE rb.registro_id = rc.id
                     ), '-') AS bobina_descripcion,
+                    IFNULL((
+                        SELECT GROUP_CONCAT(
+                            COALESCE(rb.observacion, '')
+                            ORDER BY rb.escaneado_en ASC, rb.id ASC SEPARATOR '; '
+                        )
+                        FROM registro_control_bobinas rb
+                        WHERE rb.registro_id = rc.id
+                    ), '-') AS bobina_observacion,
 IFNULL(rc.estado_validacion, 'PENDIENTE') AS estado_validacion,
 IFNULL(DATE_FORMAT(rc.fecha_validacion, '%d-%m-%Y %H:%i'), '') AS fecha_validacion,
 IFNULL(rc.usuario_validacion, '') AS usuario_validacion,
@@ -435,6 +443,7 @@ IFNULL(ra.ruta_archivo, '') AS imagen_url
                         BobinaLote = Text(reader, "bobina_lote"),
                         BobinaCodigo = Text(reader, "bobina_codigo"),
                         BobinaDescripcion = Text(reader, "bobina_descripcion"),
+                        BobinaObservacion = Text(reader, "bobina_observacion"),
                         EstadoValidacion = Text(reader, "estado_validacion"),
                         FechaValidacion = Text(reader, "fecha_validacion"),
                         UsuarioValidacion = Text(reader, "usuario_validacion"),
