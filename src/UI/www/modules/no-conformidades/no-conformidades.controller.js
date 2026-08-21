@@ -293,12 +293,14 @@ window.NoConformidadesController = class NoConformidadesController {
     _calcularIndicadores(items) {
         const porTipo = tipo => items.filter(nc => (nc.tipoPnc || "").trim() === tipo);
 
+        // `cantidadTotalUnidades` usa cantRechazada (la cantidad que efectivamente entró en el
+        // estado del tipo PNC, ej. cuarentena) — distinto de recuperados/destruidos, que ahora
+        // solo se calculan mes a mes para el gráfico de evolución (_agruparPorMes), no como total.
         const resumenTipo = tipo => {
             const rows = porTipo(tipo);
             return {
                 total: rows.length,
-                recuperados: rows.reduce((s, nc) => s + (Number(nc.cantRecuperada) || 0), 0),
-                destruidos: rows.reduce((s, nc) => s + (Number(nc.cantDestruida) || 0), 0),
+                cantidadTotalUnidades: rows.reduce((s, nc) => s + (Number(nc.cantRechazada) || 0), 0),
                 evolucionMensual: this._agruparPorMes(rows),
             };
         };
@@ -315,12 +317,28 @@ window.NoConformidadesController = class NoConformidadesController {
                 .sort((a, b) => b.total - a.total);
         };
 
+        // Conteo de valores DISTINTOS (no de NC) — Set sobre el mismo `items` ya filtrado.
+        const contarDistintos = campo => new Set(
+            items.map(nc => (nc[campo] || "").toString().trim()).filter(Boolean)
+        ).size;
+
         return {
             cuarentenas: resumenTipo("Cuarentena"),
             rechazosCliente: resumenTipo("Rechazo Cliente"),
+            // "Rechazo" (genérico) y "Rechazo Cliente" son valores de catálogo distintos —
+            // "Rechazados totales" combina ambos, a diferencia de "Rechazos cliente — total" de
+            // arriba, que solo cuenta el tipo "Rechazo Cliente".
+            rechazosTotales: porTipo("Rechazo").length + porTipo("Rechazo Cliente").length,
             totalReclamos: porTipo("Reclamo").length,
             porFamilia: agruparCategoria("familiaProducto"),
             porArea: agruparCategoria("area"),
+            porMaquina: agruparCategoria("maquina"),
+            porOperador: agruparCategoria("operador"),
+            porCliente: agruparCategoria("cliente"),
+            porTipoPnc: agruparCategoria("tipoPnc"),
+            maquinasInvolucradas: contarDistintos("maquina"),
+            operadoresInvolucrados: contarDistintos("operador"),
+            clientesInvolucrados: contarDistintos("cliente"),
             pareto: this._calcularPareto(items),
         };
     }
@@ -389,14 +407,16 @@ window.NoConformidadesController = class NoConformidadesController {
         this._destroyStatsCharts();
 
         this._setText("ncq-stat-cuarentenas-total", ind.cuarentenas.total);
-        this._setText("ncq-stat-cuarentenas-recuperados", ind.cuarentenas.recuperados);
-        this._setText("ncq-stat-cuarentenas-destruidos", ind.cuarentenas.destruidos);
+        this._setText("ncq-stat-cuarentenas-cant-unidades", ind.cuarentenas.cantidadTotalUnidades);
 
         this._setText("ncq-stat-rechazos-total", ind.rechazosCliente.total);
-        this._setText("ncq-stat-rechazos-recuperados", ind.rechazosCliente.recuperados);
-        this._setText("ncq-stat-rechazos-destruidos", ind.rechazosCliente.destruidos);
+        this._setText("ncq-stat-rechazos-totales-general", ind.rechazosTotales);
 
         this._setText("ncq-stat-reclamos-total", ind.totalReclamos);
+
+        this._setText("ncq-stat-maquinas-total", ind.maquinasInvolucradas);
+        this._setText("ncq-stat-operadores-total", ind.operadoresInvolucrados);
+        this._setText("ncq-stat-clientes-total", ind.clientesInvolucrados);
 
         this._renderEvolucionMensual(
             "ncq-chart-cuarentenas", "ncq-nota-cuarentenas",
@@ -415,10 +435,39 @@ window.NoConformidadesController = class NoConformidadesController {
             "ncq-chart-area", ind.porArea, "categoria", "total", "Incidentes",
             "Incidentes por área"
         );
+        this._chartBarHorizontalStats(
+            "ncq-chart-maquina", this._aplicarTopN(ind.porMaquina), "categoria", "total", "NC",
+            "Máquinas involucradas"
+        );
+        this._chartBarHorizontalStats(
+            "ncq-chart-operador", this._aplicarTopN(ind.porOperador), "categoria", "total", "NC",
+            "Operadores involucrados"
+        );
+        this._chartBarHorizontalStats(
+            "ncq-chart-cliente", this._aplicarTopN(ind.porCliente), "categoria", "total", "NC",
+            "Clientes involucrados"
+        );
+        this._chartDoughnutStats(
+            "ncq-chart-tipo-pnc", ind.porTipoPnc, "categoria", "total",
+            "Distribución por tipo de PNC"
+        );
         this._chartParetoStats(
             "ncq-chart-pareto", this._aplicarTopNOtros(ind.pareto), "defecto", "frecuencia", "porcentajeAcumulado",
             "Pareto de defectos"
         );
+    }
+
+    // Mismo criterio que _aplicarTopNOtros pero para listas simples {categoria, total} sin %
+    // acumulado (Máquinas/Operadores/Clientes) — evita gráficos ilegibles cuando hay muchos
+    // valores distintos, agrupando el resto en una barra "Otros".
+    _aplicarTopN(rows, topN = 10) {
+        if (rows.length <= topN) return rows;
+
+        const top = rows.slice(0, topN);
+        const resto = rows.slice(topN);
+        const totalOtros = resto.reduce((s, r) => s + r.total, 0);
+
+        return [...top, { categoria: "Otros", total: totalOtros, esOtros: true }];
     }
 
     // Limita el Pareto a las N categorías con mayor frecuencia (por defecto 10) y agrupa el resto
@@ -488,6 +537,32 @@ window.NoConformidadesController = class NoConformidadesController {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: { x: { beginAtZero: true }, y: { ticks: { font: { size: 11 } } } },
+            },
+        });
+
+        this._statsCharts.push({ chart, canvas: ctx, titulo });
+    }
+
+    // Mismo patrón que _chartDoughnutStats en faret-nc.controller.js.
+    _chartDoughnutStats(canvasId, rows, labelKey, valueKey, titulo) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const chart = new Chart(ctx, {
+            type: "doughnut",
+            data: {
+                labels: rows.map(r => r[labelKey] || "-"),
+                datasets: [{
+                    data: rows.map(r => Number(r[valueKey] || 0)),
+                    backgroundColor: ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#6366f1", "#a855f7"],
+                    borderWidth: 0,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: "right", labels: { font: { size: 11 } } } },
+                cutout: "62%",
             },
         });
 
@@ -1516,12 +1591,13 @@ window.NoConformidadesController = class NoConformidadesController {
             totalRegistros: items.length,
             resumen: [
                 { label: "Cuarentenas — total", valor: ind.cuarentenas.total },
-                { label: "Cuarentenas — recuperados", valor: ind.cuarentenas.recuperados },
-                { label: "Cuarentenas — a destrucción", valor: ind.cuarentenas.destruidos },
+                { label: "Cantidad total unidades cuarentenas", valor: ind.cuarentenas.cantidadTotalUnidades },
                 { label: "Rechazos cliente — total", valor: ind.rechazosCliente.total },
-                { label: "Rechazos cliente — recuperados", valor: ind.rechazosCliente.recuperados },
-                { label: "Rechazos cliente — a destrucción", valor: ind.rechazosCliente.destruidos },
+                { label: "Rechazados totales", valor: ind.rechazosTotales },
                 { label: "Total reclamos", valor: ind.totalReclamos },
+                { label: "Máquinas involucradas", valor: ind.maquinasInvolucradas },
+                { label: "Operadores involucrados", valor: ind.operadoresInvolucrados },
+                { label: "Clientes involucrados", valor: ind.clientesInvolucrados },
             ],
             graficos,
             tablas: [
@@ -1534,6 +1610,21 @@ window.NoConformidadesController = class NoConformidadesController {
                     titulo: "Incidentes por área",
                     columnas: ["Área", "Total"],
                     filas: ind.porArea.map(r => [r.categoria, r.total]),
+                },
+                {
+                    titulo: "Máquinas involucradas",
+                    columnas: ["Máquina", "Total"],
+                    filas: ind.porMaquina.map(r => [r.categoria, r.total]),
+                },
+                {
+                    titulo: "Operadores involucrados",
+                    columnas: ["Operador", "Total"],
+                    filas: ind.porOperador.map(r => [r.categoria, r.total]),
+                },
+                {
+                    titulo: "Clientes involucrados",
+                    columnas: ["Cliente", "Total"],
+                    filas: ind.porCliente.map(r => [r.categoria, r.total]),
                 },
                 {
                     titulo: "Pareto de defectos",

@@ -717,12 +717,14 @@ window.FaretNcController = class FaretNcController {
 
         const porTipo = tipo => dataRows.filter(d => (d.tipoPnc || "").trim() === tipo);
 
+        // `cantidadTotalUnidades` usa cantRechazada (la cantidad que efectivamente entró en el
+        // estado del tipo PNC, ej. cuarentena) — distinto de recuperados/destruidos, que ahora
+        // solo se calculan mes a mes para el gráfico de evolución (_agruparPorMes), no como total.
         const resumenTipo = tipo => {
             const rows = porTipo(tipo);
             return {
                 total: rows.length,
-                recuperados: rows.reduce((s, d) => s + (Number(d.cantRecuperada) || 0), 0),
-                destruidos: rows.reduce((s, d) => s + (Number(d.cantDestruida) || 0), 0),
+                cantidadTotalUnidades: rows.reduce((s, d) => s + (Number(d.cantRechazada) || 0), 0),
                 evolucionMensual: this._agruparPorMes(rows),
             };
         };
@@ -739,20 +741,37 @@ window.FaretNcController = class FaretNcController {
                 .sort((a, b) => b.total - a.total);
         };
 
+        // Conteo de valores DISTINTOS (no de NC) — Set sobre el mismo dataRows ya filtrado.
+        const contarDistintos = campo => new Set(
+            dataRows.map(d => (d[campo] || "").toString().trim()).filter(Boolean)
+        ).size;
+
         return {
             cuarentenas: resumenTipo("Cuarentena"),
             rechazosCliente: resumenTipo("Rechazo Cliente"),
+            // "Rechazo" (genérico) y "Rechazo Cliente" son valores de catálogo distintos desde el
+            // Paso 49 — "Rechazados totales" combina ambos, a diferencia de "Rechazos cliente —
+            // total" de arriba, que solo cuenta el tipo "Rechazo Cliente".
+            rechazosTotales: porTipo("Rechazo").length + porTipo("Rechazo Cliente").length,
             totalReclamos: porTipo("Reclamo").length,
             porFamilia: agruparCategoria("familiaProducto"),
             porArea: agruparCategoria("area"),
+            porMaquina: agruparCategoria("maquina"),
+            porOperador: agruparCategoria("operador"),
+            porCliente: agruparCategoria("cliente"),
+            porTipoPnc: agruparCategoria("tipoPnc"),
+            maquinasInvolucradas: contarDistintos("maquina"),
+            operadoresInvolucrados: contarDistintos("operador"),
+            clientesInvolucrados: contarDistintos("cliente"),
             pareto: this._calcularPareto(dataRows),
             reposicionDestruccion: this._calcularReposicionDestruccion(dataRows),
         };
     }
 
-    // A diferencia de "Cuarentenas"/"Rechazos de cliente" de arriba (que suman cantRecuperada/
-    // cantDestruida sin mirar la disposición elegida), esto usa el campo `disposicion` en sí
-    // (Reposición/Destrucción/Reposición y destrucción/No aplica) como la fuente real de verdad
+    // A diferencia de la evolución mensual de Cuarentenas/Rechazos de cliente (que suma
+    // cantRecuperada/cantDestruida mes a mes sin mirar la disposición elegida), esto usa el campo
+    // `disposicion` en sí (Reposición/Destrucción/Reposición y destrucción/No aplica) como la
+    // fuente real de verdad
     // — es el campo que el usuario llena explícitamente al cerrar una NC de tipo Cuarentena o
     // Rechazo Cliente (ver _esDisposicionAplicable). `cantRepuesta` no se usaba en ningún
     // indicador hasta ahora.
@@ -837,12 +856,10 @@ window.FaretNcController = class FaretNcController {
         this._destroyStatsCharts();
 
         this._setText("fnc-stat-cuarentenas-total", ind.cuarentenas.total);
-        this._setText("fnc-stat-cuarentenas-recuperados", ind.cuarentenas.recuperados);
-        this._setText("fnc-stat-cuarentenas-destruidos", ind.cuarentenas.destruidos);
+        this._setText("fnc-stat-cuarentenas-cant-unidades", ind.cuarentenas.cantidadTotalUnidades);
 
         this._setText("fnc-stat-rechazos-total", ind.rechazosCliente.total);
-        this._setText("fnc-stat-rechazos-recuperados", ind.rechazosCliente.recuperados);
-        this._setText("fnc-stat-rechazos-destruidos", ind.rechazosCliente.destruidos);
+        this._setText("fnc-stat-rechazos-totales-general", ind.rechazosTotales);
 
         this._setText("fnc-stat-reclamos-total", ind.totalReclamos);
 
@@ -851,6 +868,10 @@ window.FaretNcController = class FaretNcController {
         this._setText("fnc-stat-repdes-ambas", ind.reposicionDestruccion.ncConAmbas);
         this._setText("fnc-stat-repdes-cant-repuesta", ind.reposicionDestruccion.cantidadRepuestaTotal);
         this._setText("fnc-stat-repdes-cant-destruida", ind.reposicionDestruccion.cantidadDestruidaTotal);
+
+        this._setText("fnc-stat-maquinas-total", ind.maquinasInvolucradas);
+        this._setText("fnc-stat-operadores-total", ind.operadoresInvolucrados);
+        this._setText("fnc-stat-clientes-total", ind.clientesInvolucrados);
 
         this._renderEvolucionMensual(
             "fnc-chart-cuarentenas", "fnc-nota-cuarentenas",
@@ -868,6 +889,22 @@ window.FaretNcController = class FaretNcController {
         this._chartBarHorizontalStats(
             "fnc-chart-area", ind.porArea, "categoria", "total", "Incidentes",
             "Incidentes por área"
+        );
+        this._chartBarHorizontalStats(
+            "fnc-chart-maquina", this._aplicarTopN(ind.porMaquina), "categoria", "total", "NC",
+            "Máquinas involucradas"
+        );
+        this._chartBarHorizontalStats(
+            "fnc-chart-operador", this._aplicarTopN(ind.porOperador), "categoria", "total", "NC",
+            "Operadores involucrados"
+        );
+        this._chartBarHorizontalStats(
+            "fnc-chart-cliente", this._aplicarTopN(ind.porCliente), "categoria", "total", "NC",
+            "Clientes involucrados"
+        );
+        this._chartDoughnutStats(
+            "fnc-chart-tipo-pnc", ind.porTipoPnc, "categoria", "total",
+            "Distribución por tipo de PNC"
         );
         this._chartParetoStats(
             "fnc-chart-pareto", this._aplicarTopNOtros(ind.pareto), "defecto", "frecuencia", "porcentajeAcumulado",
@@ -894,6 +931,19 @@ window.FaretNcController = class FaretNcController {
             porcentajeAcumulado: acumuladoReal,
             esOtros: true,
         }];
+    }
+
+    // Mismo criterio que _aplicarTopNOtros pero para listas simples {categoria, total} sin %
+    // acumulado (Máquinas/Operadores/Clientes) — evita gráficos ilegibles cuando hay muchos
+    // valores distintos, agrupando el resto en una barra "Otros".
+    _aplicarTopN(rows, topN = 10) {
+        if (rows.length <= topN) return rows;
+
+        const top = rows.slice(0, topN);
+        const resto = rows.slice(topN);
+        const totalOtros = resto.reduce((s, r) => s + r.total, 0);
+
+        return [...top, { categoria: "Otros", total: totalOtros, esOtros: true }];
     }
 
     _renderEvolucionMensual(canvasId, notaId, evolucion, titulo) {
@@ -944,6 +994,32 @@ window.FaretNcController = class FaretNcController {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: { x: { beginAtZero: true }, y: { ticks: { font: { size: 11 } } } },
+            },
+        });
+
+        this._statsCharts.push({ chart, canvas: ctx, titulo });
+    }
+
+    // Mismo patrón que _chartDoughnut en faret.controller.js / Inicio Faret.
+    _chartDoughnutStats(canvasId, rows, labelKey, valueKey, titulo) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const chart = new Chart(ctx, {
+            type: "doughnut",
+            data: {
+                labels: rows.map(r => r[labelKey] || "-"),
+                datasets: [{
+                    data: rows.map(r => Number(r[valueKey] || 0)),
+                    backgroundColor: ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#6366f1", "#a855f7"],
+                    borderWidth: 0,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: "right", labels: { font: { size: 11 } } } },
+                cutout: "62%",
             },
         });
 
@@ -1166,17 +1242,18 @@ window.FaretNcController = class FaretNcController {
             totalRegistros: filtrados.length,
             resumen: [
                 { label: "Cuarentenas — total", valor: ind.cuarentenas.total },
-                { label: "Cuarentenas — recuperados", valor: ind.cuarentenas.recuperados },
-                { label: "Cuarentenas — a destrucción", valor: ind.cuarentenas.destruidos },
+                { label: "Cantidad total unidades cuarentenas", valor: ind.cuarentenas.cantidadTotalUnidades },
                 { label: "Rechazos cliente — total", valor: ind.rechazosCliente.total },
-                { label: "Rechazos cliente — recuperados", valor: ind.rechazosCliente.recuperados },
-                { label: "Rechazos cliente — a destrucción", valor: ind.rechazosCliente.destruidos },
+                { label: "Rechazados totales", valor: ind.rechazosTotales },
                 { label: "Total reclamos", valor: ind.totalReclamos },
                 { label: "NC con reposición", valor: ind.reposicionDestruccion.ncConReposicion },
                 { label: "NC con destrucción", valor: ind.reposicionDestruccion.ncConDestruccion },
                 { label: "NC con reposición y destrucción", valor: ind.reposicionDestruccion.ncConAmbas },
-                { label: "Cantidad repuesta total", valor: ind.reposicionDestruccion.cantidadRepuestaTotal },
+                { label: "Cantidad total unidades reposiciones", valor: ind.reposicionDestruccion.cantidadRepuestaTotal },
                 { label: "Cantidad destruida total", valor: ind.reposicionDestruccion.cantidadDestruidaTotal },
+                { label: "Máquinas involucradas", valor: ind.maquinasInvolucradas },
+                { label: "Operadores involucrados", valor: ind.operadoresInvolucrados },
+                { label: "Clientes involucrados", valor: ind.clientesInvolucrados },
             ],
             graficos,
             tablas: [
@@ -1189,6 +1266,21 @@ window.FaretNcController = class FaretNcController {
                     titulo: "Incidentes por área",
                     columnas: ["Área", "Total"],
                     filas: ind.porArea.map(r => [r.categoria, r.total]),
+                },
+                {
+                    titulo: "Máquinas involucradas",
+                    columnas: ["Máquina", "Total"],
+                    filas: ind.porMaquina.map(r => [r.categoria, r.total]),
+                },
+                {
+                    titulo: "Operadores involucrados",
+                    columnas: ["Operador", "Total"],
+                    filas: ind.porOperador.map(r => [r.categoria, r.total]),
+                },
+                {
+                    titulo: "Clientes involucrados",
+                    columnas: ["Cliente", "Total"],
+                    filas: ind.porCliente.map(r => [r.categoria, r.total]),
                 },
                 {
                     titulo: "Pareto de defectos",

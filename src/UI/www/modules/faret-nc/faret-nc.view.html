@@ -230,8 +230,7 @@
                 <div class="fnc-analisis-seccion-titulo">Cuarentenas</div>
                 <div class="fnc-stats-resumen">
                     <div><span class="home-module-card-value" id="fnc-stat-cuarentenas-total">0</span><div class="fnc-nota">Total período</div></div>
-                    <div><span class="home-module-card-value" id="fnc-stat-cuarentenas-recuperados">0</span><div class="fnc-nota">Recuperados</div></div>
-                    <div><span class="home-module-card-value" id="fnc-stat-cuarentenas-destruidos">0</span><div class="fnc-nota">A destrucción</div></div>
+                    <div><span class="home-module-card-value" id="fnc-stat-cuarentenas-cant-unidades">0</span><div class="fnc-nota">Cantidad total unidades cuarentenas</div></div>
                 </div>
                 <canvas id="fnc-chart-cuarentenas"></canvas>
                 <div id="fnc-nota-cuarentenas" class="fnc-nota" style="display:none;"></div>
@@ -241,8 +240,7 @@
                 <div class="fnc-analisis-seccion-titulo">Rechazos de Cliente</div>
                 <div class="fnc-stats-resumen">
                     <div><span class="home-module-card-value" id="fnc-stat-rechazos-total">0</span><div class="fnc-nota">Total período</div></div>
-                    <div><span class="home-module-card-value" id="fnc-stat-rechazos-recuperados">0</span><div class="fnc-nota">Recuperados</div></div>
-                    <div><span class="home-module-card-value" id="fnc-stat-rechazos-destruidos">0</span><div class="fnc-nota">A destrucción</div></div>
+                    <div><span class="home-module-card-value" id="fnc-stat-rechazos-totales-general">0</span><div class="fnc-nota">Rechazados totales</div></div>
                 </div>
                 <canvas id="fnc-chart-rechazos"></canvas>
                 <div id="fnc-nota-rechazos" class="fnc-nota" style="display:none;"></div>
@@ -261,7 +259,7 @@
                     <div><span class="home-module-card-value" id="fnc-stat-repdes-ambas">0</span><div class="fnc-nota">NC con ambas</div></div>
                 </div>
                 <div class="fnc-stats-resumen">
-                    <div><span class="home-module-card-value" id="fnc-stat-repdes-cant-repuesta">0</span><div class="fnc-nota">Cantidad repuesta total</div></div>
+                    <div><span class="home-module-card-value" id="fnc-stat-repdes-cant-repuesta">0</span><div class="fnc-nota">Cantidad total unidades reposiciones</div></div>
                     <div><span class="home-module-card-value" id="fnc-stat-repdes-cant-destruida">0</span><div class="fnc-nota">Cantidad destruida total</div></div>
                 </div>
             </div>
@@ -274,6 +272,29 @@
             <div class="fnc-analisis-seccion">
                 <div class="fnc-analisis-seccion-titulo">Incidentes por Área</div>
                 <canvas id="fnc-chart-area"></canvas>
+            </div>
+
+            <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">Máquinas Involucradas</div>
+                <span class="home-module-card-value" id="fnc-stat-maquinas-total">0</span>
+                <canvas id="fnc-chart-maquina"></canvas>
+            </div>
+
+            <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">Operadores Involucrados</div>
+                <span class="home-module-card-value" id="fnc-stat-operadores-total">0</span>
+                <canvas id="fnc-chart-operador"></canvas>
+            </div>
+
+            <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">Clientes Involucrados</div>
+                <span class="home-module-card-value" id="fnc-stat-clientes-total">0</span>
+                <canvas id="fnc-chart-cliente"></canvas>
+            </div>
+
+            <div class="fnc-analisis-seccion">
+                <div class="fnc-analisis-seccion-titulo">Distribución por Tipo de PNC</div>
+                <canvas id="fnc-chart-tipo-pnc"></canvas>
             </div>
 
             <div class="fnc-analisis-seccion">

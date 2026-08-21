@@ -96,8 +96,7 @@
                 <div class="ncq-seccion-titulo">Cuarentenas</div>
                 <div class="ncq-stats-resumen">
                     <div><span class="kpi-value" id="ncq-stat-cuarentenas-total">0</span><div class="ncq-stats-nota">Total período</div></div>
-                    <div><span class="kpi-value" id="ncq-stat-cuarentenas-recuperados">0</span><div class="ncq-stats-nota">Recuperados</div></div>
-                    <div><span class="kpi-value" id="ncq-stat-cuarentenas-destruidos">0</span><div class="ncq-stats-nota">A destrucción</div></div>
+                    <div><span class="kpi-value" id="ncq-stat-cuarentenas-cant-unidades">0</span><div class="ncq-stats-nota">Cantidad total unidades cuarentenas</div></div>
                 </div>
                 <canvas id="ncq-chart-cuarentenas"></canvas>
                 <div id="ncq-nota-cuarentenas" class="ncq-stats-nota" style="display:none;"></div>
@@ -107,8 +106,7 @@
                 <div class="ncq-seccion-titulo">Rechazos de Cliente</div>
                 <div class="ncq-stats-resumen">
                     <div><span class="kpi-value" id="ncq-stat-rechazos-total">0</span><div class="ncq-stats-nota">Total período</div></div>
-                    <div><span class="kpi-value" id="ncq-stat-rechazos-recuperados">0</span><div class="ncq-stats-nota">Recuperados</div></div>
-                    <div><span class="kpi-value" id="ncq-stat-rechazos-destruidos">0</span><div class="ncq-stats-nota">A destrucción</div></div>
+                    <div><span class="kpi-value" id="ncq-stat-rechazos-totales-general">0</span><div class="ncq-stats-nota">Rechazados totales</div></div>
                 </div>
                 <canvas id="ncq-chart-rechazos"></canvas>
                 <div id="ncq-nota-rechazos" class="ncq-stats-nota" style="display:none;"></div>
@@ -127,6 +125,29 @@
             <div class="ncq-seccion">
                 <div class="ncq-seccion-titulo">Incidentes por Área</div>
                 <canvas id="ncq-chart-area"></canvas>
+            </div>
+
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Máquinas Involucradas</div>
+                <span class="kpi-value" id="ncq-stat-maquinas-total">0</span>
+                <canvas id="ncq-chart-maquina"></canvas>
+            </div>
+
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Operadores Involucrados</div>
+                <span class="kpi-value" id="ncq-stat-operadores-total">0</span>
+                <canvas id="ncq-chart-operador"></canvas>
+            </div>
+
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Clientes Involucrados</div>
+                <span class="kpi-value" id="ncq-stat-clientes-total">0</span>
+                <canvas id="ncq-chart-cliente"></canvas>
+            </div>
+
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Distribución por Tipo de PNC</div>
+                <canvas id="ncq-chart-tipo-pnc"></canvas>
             </div>
 
             <div class="ncq-seccion">
