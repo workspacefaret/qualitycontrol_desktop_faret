@@ -6,6 +6,7 @@
             <div class="subtitle">Control y seguimiento de producción externalizada (INNPACK)</div>
         </div>
         <div style="display:flex; gap:10px;">
+            <button id="te-sincronizar-fps-btn" class="btn-secondary">Sincronizar con FPS</button>
             <button id="te-exportar-btn" class="btn-secondary">Exportar Excel</button>
             <button id="te-nuevo-btn" class="btn-primary">+ Nuevo trabajo</button>
         </div>
@@ -153,12 +154,13 @@
                         <th>Cant. a revisar</th>
                         <th>Cant. revisada/entregada</th>
                         <th>Cant. faltante</th>
+                        <th>Liberaciones FPS</th>
                         <th>Observaciones</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="te-tbody">
-                    <tr><td colspan="17" class="te-empty">Cargando...</td></tr>
+                    <tr><td colspan="18" class="te-empty">Cargando...</td></tr>
                 </tbody>
             </table>
         </div>

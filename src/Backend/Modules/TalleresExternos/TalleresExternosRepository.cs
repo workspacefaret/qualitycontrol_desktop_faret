@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using MySqlConnector;
 using QualityControlCenter.Services;
@@ -11,7 +12,8 @@ namespace QualityControlCenter.Modules.TalleresExternos
     // (esas viven en la BD qualitycontrolfaret de un servidor de API distinto, accedidas solo por REST).
     public class TalleresExternosRepository
     {
-        private const string SelectColumnas = @"
+        private const string SelectColumnas =
+            @"
             t.id, t.nv, t.producto, t.codigo_producto, t.item, t.cliente, t.fecha_asignacion,
             t.taller_externo_id, t.taller_externo_texto, t.proceso_id, t.proceso_texto,
             t.responsable_interno_id, t.responsable_interno_texto,
@@ -21,9 +23,11 @@ namespace QualityControlCenter.Modules.TalleresExternos
             t.version, t.creado_por, uc.nombre_completo AS creado_por_nombre, t.fecha_creacion,
             t.actualizado_por, ua.nombre_completo AS actualizado_por_nombre, t.fecha_actualizacion,
             (t.fecha_compromiso IS NOT NULL AND t.fecha_compromiso < CURDATE()
-                AND t.estado NOT IN ('ENTREGADO','ANULADO')) AS atrasado";
+                AND t.estado NOT IN ('ENTREGADO','ANULADO')) AS atrasado,
+            (SELECT COUNT(*) FROM talleres_externos_liberaciones_fps l WHERE l.trabajo_id = t.id) AS total_liberaciones_fps";
 
-        private const string FromJoin = @"
+        private const string FromJoin =
+            @"
             FROM talleres_externos_trabajos t
             LEFT JOIN usuarios uc ON uc.id = t.creado_por
             LEFT JOIN usuarios ua ON ua.id = t.actualizado_por";
@@ -46,7 +50,8 @@ namespace QualityControlCenter.Modules.TalleresExternos
             using (var countCmd = new MySqlCommand($"SELECT COUNT(*) {FromJoin} {where}", conn))
                 totalCount = Convert.ToInt64(await countCmd.ExecuteScalarAsync());
 
-            var sql = $@"
+            var sql =
+                $@"
                 SELECT {SelectColumnas}
                 {FromJoin}
                 {where}
@@ -62,7 +67,13 @@ namespace QualityControlCenter.Modules.TalleresExternos
             while (await reader.ReadAsync())
                 items.Add(MapTrabajo(reader));
 
-            return new TrabajoListResponse { Items = items, TotalCount = totalCount, Page = page, PageSize = pageSize };
+            return new TrabajoListResponse
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+            };
         }
 
         public async Task<CatalogosTalleresExternosDto> GetCatalogosAsync()
@@ -72,20 +83,42 @@ namespace QualityControlCenter.Modules.TalleresExternos
 
             var dto = new CatalogosTalleresExternosDto();
 
-            using (var cmd = new MySqlCommand(
-                "SELECT id, nombre, activo FROM cat_talleres_externos WHERE activo = 1 ORDER BY nombre", conn))
+            using (
+                var cmd = new MySqlCommand(
+                    "SELECT id, nombre, activo FROM cat_talleres_externos WHERE activo = 1 ORDER BY nombre",
+                    conn
+                )
+            )
             using (var reader = await cmd.ExecuteReaderAsync())
             {
                 while (await reader.ReadAsync())
-                    dto.Talleres.Add(new CatalogoItemDto { Id = reader.GetInt32("id"), Nombre = reader.GetString("nombre"), Activo = reader.GetBoolean("activo") });
+                    dto.Talleres.Add(
+                        new CatalogoItemDto
+                        {
+                            Id = reader.GetInt32("id"),
+                            Nombre = reader.GetString("nombre"),
+                            Activo = reader.GetBoolean("activo"),
+                        }
+                    );
             }
 
-            using (var cmd = new MySqlCommand(
-                "SELECT id, nombre, activo FROM cat_procesos_externos WHERE activo = 1 ORDER BY nombre", conn))
+            using (
+                var cmd = new MySqlCommand(
+                    "SELECT id, nombre, activo FROM cat_procesos_externos WHERE activo = 1 ORDER BY nombre",
+                    conn
+                )
+            )
             using (var reader = await cmd.ExecuteReaderAsync())
             {
                 while (await reader.ReadAsync())
-                    dto.Procesos.Add(new CatalogoItemDto { Id = reader.GetInt32("id"), Nombre = reader.GetString("nombre"), Activo = reader.GetBoolean("activo") });
+                    dto.Procesos.Add(
+                        new CatalogoItemDto
+                        {
+                            Id = reader.GetInt32("id"),
+                            Nombre = reader.GetString("nombre"),
+                            Activo = reader.GetBoolean("activo"),
+                        }
+                    );
             }
 
             return dto;
@@ -94,16 +127,21 @@ namespace QualityControlCenter.Modules.TalleresExternos
         // Desactivación (activo=0), nunca DELETE físico: los trabajos ya guardados conservan su
         // propia copia de texto (taller_externo_texto/proceso_texto), así que desactivar el catálogo
         // no altera nada de lo ya guardado, solo lo saca de las sugerencias hacia adelante.
-        public Task<bool> DesactivarTallerAsync(int id) => DesactivarCatalogoAsync("cat_talleres_externos", id);
+        public Task<bool> DesactivarTallerAsync(int id) =>
+            DesactivarCatalogoAsync("cat_talleres_externos", id);
 
-        public Task<bool> DesactivarProcesoAsync(int id) => DesactivarCatalogoAsync("cat_procesos_externos", id);
+        public Task<bool> DesactivarProcesoAsync(int id) =>
+            DesactivarCatalogoAsync("cat_procesos_externos", id);
 
         private async Task<bool> DesactivarCatalogoAsync(string tabla, int id)
         {
             using var conn = _db.GetCalidadConnection();
             await conn.OpenAsync();
 
-            using var cmd = new MySqlCommand($"UPDATE {tabla} SET activo = 0 WHERE id = @id AND activo = 1", conn);
+            using var cmd = new MySqlCommand(
+                $"UPDATE {tabla} SET activo = 0 WHERE id = @id AND activo = 1",
+                conn
+            );
             cmd.Parameters.AddWithValue("@id", id);
             var filas = await cmd.ExecuteNonQueryAsync();
             return filas > 0;
@@ -119,7 +157,9 @@ namespace QualityControlCenter.Modules.TalleresExternos
                 var id = await InsertarAsync(conn, tx, request, usuarioId);
                 await tx.CommitAsync();
                 return await GetByIdInternoAsync(conn, null, id)
-                    ?? throw new InvalidOperationException("Error interno al leer el registro recién creado.");
+                    ?? throw new InvalidOperationException(
+                        "Error interno al leer el registro recién creado."
+                    );
             }
             catch
             {
@@ -128,18 +168,30 @@ namespace QualityControlCenter.Modules.TalleresExternos
             }
         }
 
-        public async Task<TrabajoActualizarResultado> ActualizarAsync(long id, ActualizarTrabajoRequest request, int? usuarioId)
+        public async Task<TrabajoActualizarResultado> ActualizarAsync(
+            long id,
+            ActualizarTrabajoRequest request,
+            int? usuarioId
+        )
         {
             using var conn = _db.GetCalidadConnection();
             await conn.OpenAsync();
             using var tx = await conn.BeginTransactionAsync();
             try
             {
-                var (versionActual, eliminado, existe) = await LeerVersionParaUpdateAsync(conn, tx, id);
+                var (versionActual, eliminado, existe) = await LeerVersionParaUpdateAsync(
+                    conn,
+                    tx,
+                    id
+                );
                 if (!existe || eliminado)
                 {
                     await tx.RollbackAsync();
-                    return new TrabajoActualizarResultado { NoEncontrado = true, Error = $"No existe un trabajo con id {id}." };
+                    return new TrabajoActualizarResultado
+                    {
+                        NoEncontrado = true,
+                        Error = $"No existe un trabajo con id {id}.",
+                    };
                 }
 
                 if (request.Version != versionActual)
@@ -148,17 +200,36 @@ namespace QualityControlCenter.Modules.TalleresExternos
                     return new TrabajoActualizarResultado
                     {
                         Conflicto = true,
-                        Error = "El registro fue modificado por otro usuario. Vuelve a cargarlo antes de guardar.",
+                        Error =
+                            "El registro fue modificado por otro usuario. Vuelve a cargarlo antes de guardar.",
                     };
                 }
 
-                var (tallerId, tallerTexto) = await ResolverCatalogoAsync(conn, tx, "cat_talleres_externos", request.TallerExternoId, request.TallerExternoNombre);
-                var (procesoId, procesoTexto) = await ResolverCatalogoAsync(conn, tx, "cat_procesos_externos", request.ProcesoId, request.ProcesoNombre);
-                var (respId, respTexto) = await ResolverResponsableAsync(conn, tx, request.ResponsableInternoId, request.ResponsableInternoNombre);
+                var (tallerId, tallerTexto) = await ResolverCatalogoAsync(
+                    conn,
+                    tx,
+                    "cat_talleres_externos",
+                    request.TallerExternoId,
+                    request.TallerExternoNombre
+                );
+                var (procesoId, procesoTexto) = await ResolverCatalogoAsync(
+                    conn,
+                    tx,
+                    "cat_procesos_externos",
+                    request.ProcesoId,
+                    request.ProcesoNombre
+                );
+                var (respId, respTexto) = await ResolverResponsableAsync(
+                    conn,
+                    tx,
+                    request.ResponsableInternoId,
+                    request.ResponsableInternoNombre
+                );
                 var cantidadFaltante = CalcularCantidadFaltante(request);
                 var nuevaVersion = versionActual + 1;
 
-                const string sql = @"
+                const string sql =
+                    @"
                     UPDATE talleres_externos_trabajos SET
                         nv=@nv, producto=@producto, codigo_producto=@codigoProducto, item=@item, cliente=@cliente,
                         fecha_asignacion=@fechaAsignacion,
@@ -175,16 +246,33 @@ namespace QualityControlCenter.Modules.TalleresExternos
 
                 using (var cmd = new MySqlCommand(sql, conn, tx))
                 {
-                    AgregarParametrosComunes(cmd, request, tallerId, tallerTexto, procesoId, procesoTexto, respId, respTexto, cantidadFaltante);
+                    AgregarParametrosComunes(
+                        cmd,
+                        request,
+                        tallerId,
+                        tallerTexto,
+                        procesoId,
+                        procesoTexto,
+                        respId,
+                        respTexto,
+                        cantidadFaltante
+                    );
                     cmd.Parameters.AddWithValue("@nuevaVersion", nuevaVersion);
-                    cmd.Parameters.AddWithValue("@actualizadoPor", (object?)usuarioId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue(
+                        "@actualizadoPor",
+                        (object?)usuarioId ?? DBNull.Value
+                    );
                     cmd.Parameters.AddWithValue("@id", id);
                     cmd.Parameters.AddWithValue("@versionActual", versionActual);
                     var filas = await cmd.ExecuteNonQueryAsync();
                     if (filas == 0)
                     {
                         await tx.RollbackAsync();
-                        return new TrabajoActualizarResultado { Conflicto = true, Error = "El registro fue modificado por otro usuario." };
+                        return new TrabajoActualizarResultado
+                        {
+                            Conflicto = true,
+                            Error = "El registro fue modificado por otro usuario.",
+                        };
                     }
                 }
 
@@ -199,14 +287,22 @@ namespace QualityControlCenter.Modules.TalleresExternos
             }
         }
 
-        public async Task<TrabajoEliminarResultado> EliminarAsync(long id, int version, int? usuarioId)
+        public async Task<TrabajoEliminarResultado> EliminarAsync(
+            long id,
+            int version,
+            int? usuarioId
+        )
         {
             using var conn = _db.GetCalidadConnection();
             await conn.OpenAsync();
             using var tx = await conn.BeginTransactionAsync();
             try
             {
-                var (versionActual, eliminado, existe) = await LeerVersionParaUpdateAsync(conn, tx, id);
+                var (versionActual, eliminado, existe) = await LeerVersionParaUpdateAsync(
+                    conn,
+                    tx,
+                    id
+                );
                 if (!existe || eliminado)
                 {
                     await tx.RollbackAsync();
@@ -216,10 +312,15 @@ namespace QualityControlCenter.Modules.TalleresExternos
                 if (version != versionActual)
                 {
                     await tx.RollbackAsync();
-                    return new TrabajoEliminarResultado { Conflicto = true, Error = "El registro fue modificado por otro usuario." };
+                    return new TrabajoEliminarResultado
+                    {
+                        Conflicto = true,
+                        Error = "El registro fue modificado por otro usuario.",
+                    };
                 }
 
-                const string sql = @"
+                const string sql =
+                    @"
                     UPDATE talleres_externos_trabajos
                     SET eliminado = 1, estado = 'ANULADO', fecha_anulacion = UTC_TIMESTAMP(), anulado_por = @usuarioId,
                         version = @nuevaVersion, actualizado_por = @usuarioId, fecha_actualizacion = UTC_TIMESTAMP()
@@ -234,11 +335,207 @@ namespace QualityControlCenter.Modules.TalleresExternos
                 if (filas == 0)
                 {
                     await tx.RollbackAsync();
-                    return new TrabajoEliminarResultado { Conflicto = true, Error = "El registro fue modificado por otro usuario." };
+                    return new TrabajoEliminarResultado
+                    {
+                        Conflicto = true,
+                        Error = "El registro fue modificado por otro usuario.",
+                    };
                 }
 
                 await tx.CommitAsync();
                 return new TrabajoEliminarResultado { Ok = true };
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        // Trabajos elegibles para cruzar contra FPS: activos y con código de producto (parte de
+        // la llave NV+Ítem+Código). ANULADO se excluye porque ya no debe seguir acumulando
+        // avance; ENTREGADO se incluye (una liberación tardía igual debe quedar registrada).
+        public async Task<List<TrabajoItem>> GetTrabajosSincronizablesAsync()
+        {
+            using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            var sql =
+                $@"
+                SELECT {SelectColumnas}
+                {FromJoin}
+                WHERE t.eliminado = 0 AND t.estado <> 'ANULADO'
+                  AND t.codigo_producto IS NOT NULL AND t.codigo_producto <> ''
+                ORDER BY t.id";
+
+            using var cmd = new MySqlCommand(sql, conn);
+            using var reader = await cmd.ExecuteReaderAsync();
+            var items = new List<TrabajoItem>();
+            while (await reader.ReadAsync())
+                items.Add(MapTrabajo(reader));
+            return items;
+        }
+
+        public async Task<List<LiberacionHistorialItem>> GetHistorialLiberacionesAsync(
+            long trabajoId
+        )
+        {
+            using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            const string sql =
+                @"
+                SELECT id, folio_fps, cantidad, fecha_liberacion, fecha_sincronizacion
+                FROM talleres_externos_liberaciones_fps
+                WHERE trabajo_id = @trabajoId
+                ORDER BY fecha_liberacion DESC";
+
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@trabajoId", trabajoId);
+            using var reader = await cmd.ExecuteReaderAsync();
+            var items = new List<LiberacionHistorialItem>();
+            while (await reader.ReadAsync())
+            {
+                items.Add(
+                    new LiberacionHistorialItem
+                    {
+                        Id = reader.GetInt64("id"),
+                        FolioFps = reader.GetString("folio_fps"),
+                        Cantidad = reader.GetDecimal("cantidad"),
+                        FechaLiberacion = reader.GetDateTime("fecha_liberacion"),
+                        FechaSincronizacion = reader.GetDateTime("fecha_sincronizacion"),
+                    }
+                );
+            }
+            return items;
+        }
+
+        // Aplica las liberaciones de FPS de UN trabajo: inserta cada folio nuevo en el historial
+        // (folio_fps UNIQUE evita duplicarlas si la sincronización se repite), y si hubo al menos
+        // una nueva, suma su cantidad a cantidad_revisada_entregada y alinea cantidad_a_revisar
+        // con lo que reporta FPS (CantidadRequerida de la Orden de Fabricación). Si el trabajo
+        // tiene el ajuste manual de cantidad_faltante activo, ese valor NO se recalcula — se
+        // respeta el override existente (mismo criterio que ActualizarAsync).
+        public async Task<SincronizarTrabajoResultado> SincronizarTrabajoAsync(
+            long trabajoId,
+            IReadOnlyList<LiberacionFpsDto> liberaciones,
+            int? usuarioId
+        )
+        {
+            using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+            using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                var nuevas = new List<LiberacionFpsDto>();
+                foreach (var lib in liberaciones)
+                {
+                    const string insertSql =
+                        @"
+                        INSERT INTO talleres_externos_liberaciones_fps
+                            (trabajo_id, folio_fps, nv, item, codigo_producto, cantidad, fecha_liberacion, fecha_sincronizacion)
+                        VALUES (@trabajoId, @folio, @nv, @item, @codigo, @cantidad, @fecha, UTC_TIMESTAMP())";
+                    using var insertCmd = new MySqlCommand(insertSql, conn, tx);
+                    insertCmd.Parameters.AddWithValue("@trabajoId", trabajoId);
+                    insertCmd.Parameters.AddWithValue("@folio", lib.Folio.ToString());
+                    insertCmd.Parameters.AddWithValue("@nv", lib.Np);
+                    insertCmd.Parameters.AddWithValue("@item", lib.Item);
+                    insertCmd.Parameters.AddWithValue("@codigo", lib.CodigoArticulo);
+                    insertCmd.Parameters.AddWithValue("@cantidad", lib.CantidadLiberacion);
+                    insertCmd.Parameters.AddWithValue("@fecha", lib.FechaLiberacion);
+
+                    try
+                    {
+                        await insertCmd.ExecuteNonQueryAsync();
+                        nuevas.Add(lib);
+                    }
+                    catch (MySqlException ex) when (ex.Number == 1062)
+                    {
+                        // Folio ya sincronizado en una corrida anterior: se ignora (idempotente).
+                    }
+                }
+
+                if (nuevas.Count == 0)
+                {
+                    await tx.CommitAsync();
+                    return new SincronizarTrabajoResultado { LiberacionesNuevas = 0 };
+                }
+
+                const string selectSql =
+                    @"
+                    SELECT version, eliminado, cantidad_revisada_entregada, cantidad_faltante,
+                           cantidad_faltante_ajuste_manual
+                    FROM talleres_externos_trabajos WHERE id = @id FOR UPDATE";
+                int version;
+                bool eliminado;
+                decimal entregadaActual;
+                decimal faltanteActual;
+                bool ajusteManual;
+                using (var selectCmd = new MySqlCommand(selectSql, conn, tx))
+                {
+                    selectCmd.Parameters.AddWithValue("@id", trabajoId);
+                    using var reader = await selectCmd.ExecuteReaderAsync();
+                    if (!await reader.ReadAsync())
+                    {
+                        await tx.RollbackAsync();
+                        return new SincronizarTrabajoResultado
+                        {
+                            Error = "El trabajo ya no existe.",
+                        };
+                    }
+                    version = reader.GetInt32("version");
+                    eliminado = reader.GetBoolean("eliminado");
+                    entregadaActual = reader.GetDecimal("cantidad_revisada_entregada");
+                    faltanteActual = reader.GetDecimal("cantidad_faltante");
+                    ajusteManual = reader.GetBoolean("cantidad_faltante_ajuste_manual");
+                }
+
+                if (eliminado)
+                {
+                    await tx.RollbackAsync();
+                    return new SincronizarTrabajoResultado { Error = "El trabajo fue eliminado." };
+                }
+
+                var nuevaEntregada = entregadaActual + nuevas.Sum(l => l.CantidadLiberacion);
+                var nuevaARevisar = nuevas[0].CantidadRequerida;
+                var nuevaFaltante = ajusteManual ? faltanteActual : nuevaARevisar - nuevaEntregada;
+
+                const string updateSql =
+                    @"
+                    UPDATE talleres_externos_trabajos SET
+                        cantidad_a_revisar = @aRevisar,
+                        cantidad_revisada_entregada = @entregada,
+                        cantidad_faltante = @faltante,
+                        version = @nuevaVersion,
+                        actualizado_por = @usuarioId,
+                        fecha_actualizacion = UTC_TIMESTAMP()
+                    WHERE id = @id AND version = @versionActual";
+                using (var updateCmd = new MySqlCommand(updateSql, conn, tx))
+                {
+                    updateCmd.Parameters.AddWithValue("@aRevisar", nuevaARevisar);
+                    updateCmd.Parameters.AddWithValue("@entregada", nuevaEntregada);
+                    updateCmd.Parameters.AddWithValue("@faltante", nuevaFaltante);
+                    updateCmd.Parameters.AddWithValue("@nuevaVersion", version + 1);
+                    updateCmd.Parameters.AddWithValue(
+                        "@usuarioId",
+                        (object?)usuarioId ?? DBNull.Value
+                    );
+                    updateCmd.Parameters.AddWithValue("@id", trabajoId);
+                    updateCmd.Parameters.AddWithValue("@versionActual", version);
+                    var filas = await updateCmd.ExecuteNonQueryAsync();
+                    if (filas == 0)
+                    {
+                        await tx.RollbackAsync();
+                        return new SincronizarTrabajoResultado
+                        {
+                            Error =
+                                "El trabajo fue modificado por otro usuario justo durante la sincronización.",
+                        };
+                    }
+                }
+
+                await tx.CommitAsync();
+                return new SincronizarTrabajoResultado { LiberacionesNuevas = nuevas.Count };
             }
             catch
             {
@@ -252,14 +549,37 @@ namespace QualityControlCenter.Modules.TalleresExternos
                 ? r.CantidadFaltanteManual.Value
                 : r.CantidadARevisar - r.CantidadRevisadaEntregada;
 
-        private static async Task<long> InsertarAsync(MySqlConnection conn, MySqlTransaction tx, CrearTrabajoRequest r, int? usuarioId)
+        private static async Task<long> InsertarAsync(
+            MySqlConnection conn,
+            MySqlTransaction tx,
+            CrearTrabajoRequest r,
+            int? usuarioId
+        )
         {
-            var (tallerId, tallerTexto) = await ResolverCatalogoAsync(conn, tx, "cat_talleres_externos", r.TallerExternoId, r.TallerExternoNombre);
-            var (procesoId, procesoTexto) = await ResolverCatalogoAsync(conn, tx, "cat_procesos_externos", r.ProcesoId, r.ProcesoNombre);
-            var (respId, respTexto) = await ResolverResponsableAsync(conn, tx, r.ResponsableInternoId, r.ResponsableInternoNombre);
+            var (tallerId, tallerTexto) = await ResolverCatalogoAsync(
+                conn,
+                tx,
+                "cat_talleres_externos",
+                r.TallerExternoId,
+                r.TallerExternoNombre
+            );
+            var (procesoId, procesoTexto) = await ResolverCatalogoAsync(
+                conn,
+                tx,
+                "cat_procesos_externos",
+                r.ProcesoId,
+                r.ProcesoNombre
+            );
+            var (respId, respTexto) = await ResolverResponsableAsync(
+                conn,
+                tx,
+                r.ResponsableInternoId,
+                r.ResponsableInternoNombre
+            );
             var cantidadFaltante = CalcularCantidadFaltante(r);
 
-            const string sql = @"
+            const string sql =
+                @"
                 INSERT INTO talleres_externos_trabajos
                     (nv, producto, codigo_producto, item, cliente, fecha_asignacion,
                      taller_externo_id, taller_externo_texto, proceso_id, proceso_texto,
@@ -278,23 +598,46 @@ namespace QualityControlCenter.Modules.TalleresExternos
                      1, @creadoPor, UTC_TIMESTAMP())";
 
             using var cmd = new MySqlCommand(sql, conn, tx);
-            AgregarParametrosComunes(cmd, r, tallerId, tallerTexto, procesoId, procesoTexto, respId, respTexto, cantidadFaltante);
+            AgregarParametrosComunes(
+                cmd,
+                r,
+                tallerId,
+                tallerTexto,
+                procesoId,
+                procesoTexto,
+                respId,
+                respTexto,
+                cantidadFaltante
+            );
             cmd.Parameters.AddWithValue("@creadoPor", (object?)usuarioId ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync();
             return cmd.LastInsertedId;
         }
 
         private static void AgregarParametrosComunes(
-            MySqlCommand cmd, CrearTrabajoRequest r,
-            int? tallerId, string? tallerTexto, int? procesoId, string? procesoTexto,
-            int? respId, string? respTexto, decimal cantidadFaltante)
+            MySqlCommand cmd,
+            CrearTrabajoRequest r,
+            int? tallerId,
+            string? tallerTexto,
+            int? procesoId,
+            string? procesoTexto,
+            int? respId,
+            string? respTexto,
+            decimal cantidadFaltante
+        )
         {
             cmd.Parameters.AddWithValue("@nv", r.Nv);
             cmd.Parameters.AddWithValue("@producto", r.Producto);
-            cmd.Parameters.AddWithValue("@codigoProducto", (object?)r.CodigoProducto ?? DBNull.Value);
+            cmd.Parameters.AddWithValue(
+                "@codigoProducto",
+                (object?)r.CodigoProducto ?? DBNull.Value
+            );
             cmd.Parameters.AddWithValue("@item", r.Item);
             cmd.Parameters.AddWithValue("@cliente", (object?)r.Cliente ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@fechaAsignacion", (object?)r.FechaAsignacion ?? DBNull.Value);
+            cmd.Parameters.AddWithValue(
+                "@fechaAsignacion",
+                (object?)r.FechaAsignacion ?? DBNull.Value
+            );
             cmd.Parameters.AddWithValue("@tallerId", (object?)tallerId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@tallerTexto", (object?)tallerTexto ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@procesoId", (object?)procesoId ?? DBNull.Value);
@@ -302,20 +645,30 @@ namespace QualityControlCenter.Modules.TalleresExternos
             cmd.Parameters.AddWithValue("@respId", (object?)respId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@respTexto", (object?)respTexto ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@prioridad", r.Prioridad);
-            cmd.Parameters.AddWithValue("@fechaCompromiso", (object?)r.FechaCompromiso ?? DBNull.Value);
+            cmd.Parameters.AddWithValue(
+                "@fechaCompromiso",
+                (object?)r.FechaCompromiso ?? DBNull.Value
+            );
             cmd.Parameters.AddWithValue("@estado", r.Estado);
             cmd.Parameters.AddWithValue("@cantidadARevisar", r.CantidadARevisar);
             cmd.Parameters.AddWithValue("@cantidadRevisadaEntregada", r.CantidadRevisadaEntregada);
             cmd.Parameters.AddWithValue("@cantidadFaltante", cantidadFaltante);
             cmd.Parameters.AddWithValue("@ajusteManual", r.CantidadFaltanteAjusteManual);
-            cmd.Parameters.AddWithValue("@justificacion", (object?)r.CantidadFaltanteJustificacion ?? DBNull.Value);
+            cmd.Parameters.AddWithValue(
+                "@justificacion",
+                (object?)r.CantidadFaltanteJustificacion ?? DBNull.Value
+            );
             cmd.Parameters.AddWithValue("@observaciones", (object?)r.Observaciones ?? DBNull.Value);
         }
 
-        private static async Task<(int Version, bool Eliminado, bool Existe)> LeerVersionParaUpdateAsync(
-            MySqlConnection conn, MySqlTransaction tx, long id)
+        private static async Task<(
+            int Version,
+            bool Eliminado,
+            bool Existe
+        )> LeerVersionParaUpdateAsync(MySqlConnection conn, MySqlTransaction tx, long id)
         {
-            const string sql = "SELECT version, eliminado FROM talleres_externos_trabajos WHERE id = @id FOR UPDATE";
+            const string sql =
+                "SELECT version, eliminado FROM talleres_externos_trabajos WHERE id = @id FOR UPDATE";
             using var cmd = new MySqlCommand(sql, conn, tx);
             cmd.Parameters.AddWithValue("@id", id);
             using var reader = await cmd.ExecuteReaderAsync();
@@ -325,11 +678,20 @@ namespace QualityControlCenter.Modules.TalleresExternos
         }
 
         private static async Task<(int? Id, string? Texto)> ResolverCatalogoAsync(
-            MySqlConnection conn, MySqlTransaction tx, string tabla, int? id, string? nombre)
+            MySqlConnection conn,
+            MySqlTransaction tx,
+            string tabla,
+            int? id,
+            string? nombre
+        )
         {
             if (id.HasValue)
             {
-                using var cmd = new MySqlCommand($"SELECT nombre FROM {tabla} WHERE id = @id", conn, tx);
+                using var cmd = new MySqlCommand(
+                    $"SELECT nombre FROM {tabla} WHERE id = @id",
+                    conn,
+                    tx
+                );
                 cmd.Parameters.AddWithValue("@id", id.Value);
                 var nombreActual = await cmd.ExecuteScalarAsync() as string;
                 return nombreActual != null ? (id, nombreActual) : (null, nombre?.Trim());
@@ -340,7 +702,13 @@ namespace QualityControlCenter.Modules.TalleresExternos
 
             var nombreLimpio = nombre.Trim();
 
-            using (var selectCmd = new MySqlCommand($"SELECT id, nombre FROM {tabla} WHERE nombre = @nombre LIMIT 1", conn, tx))
+            using (
+                var selectCmd = new MySqlCommand(
+                    $"SELECT id, nombre FROM {tabla} WHERE nombre = @nombre LIMIT 1",
+                    conn,
+                    tx
+                )
+            )
             {
                 selectCmd.Parameters.AddWithValue("@nombre", nombreLimpio);
                 using var reader = await selectCmd.ExecuteReaderAsync();
@@ -348,69 +716,128 @@ namespace QualityControlCenter.Modules.TalleresExternos
                     return (reader.GetInt32("id"), reader.GetString("nombre"));
             }
 
-            using var insertCmd = new MySqlCommand($"INSERT INTO {tabla} (nombre) VALUES (@nombre)", conn, tx);
+            using var insertCmd = new MySqlCommand(
+                $"INSERT INTO {tabla} (nombre) VALUES (@nombre)",
+                conn,
+                tx
+            );
             insertCmd.Parameters.AddWithValue("@nombre", nombreLimpio);
             await insertCmd.ExecuteNonQueryAsync();
             return ((int)insertCmd.LastInsertedId, nombreLimpio);
         }
 
         private static async Task<(int? Id, string? Texto)> ResolverResponsableAsync(
-            MySqlConnection conn, MySqlTransaction tx, int? responsableId, string? responsableNombre)
+            MySqlConnection conn,
+            MySqlTransaction tx,
+            int? responsableId,
+            string? responsableNombre
+        )
         {
             if (responsableId.HasValue)
             {
-                using var cmd = new MySqlCommand("SELECT nombre_completo FROM usuarios WHERE id = @id", conn, tx);
+                using var cmd = new MySqlCommand(
+                    "SELECT nombre_completo FROM usuarios WHERE id = @id",
+                    conn,
+                    tx
+                );
                 cmd.Parameters.AddWithValue("@id", responsableId.Value);
                 var nombreActual = await cmd.ExecuteScalarAsync() as string;
-                return nombreActual != null ? (responsableId, nombreActual) : (null, responsableNombre?.Trim());
+                return nombreActual != null
+                    ? (responsableId, nombreActual)
+                    : (null, responsableNombre?.Trim());
             }
 
-            return (null, string.IsNullOrWhiteSpace(responsableNombre) ? null : responsableNombre.Trim());
+            return (
+                null,
+                string.IsNullOrWhiteSpace(responsableNombre) ? null : responsableNombre.Trim()
+            );
         }
 
-        private static async Task<TrabajoItem?> GetByIdInternoAsync(MySqlConnection conn, MySqlTransaction? tx, long id)
+        private static async Task<TrabajoItem?> GetByIdInternoAsync(
+            MySqlConnection conn,
+            MySqlTransaction? tx,
+            long id
+        )
         {
-            var sql = $@"
+            var sql =
+                $@"
                 SELECT {SelectColumnas}
                 {FromJoin}
                 WHERE t.id = @id";
 
-            using var cmd = tx == null ? new MySqlCommand(sql, conn) : new MySqlCommand(sql, conn, tx);
+            using var cmd =
+                tx == null ? new MySqlCommand(sql, conn) : new MySqlCommand(sql, conn, tx);
             cmd.Parameters.AddWithValue("@id", id);
             using var reader = await cmd.ExecuteReaderAsync();
             return await reader.ReadAsync() ? MapTrabajo(reader) : null;
         }
 
-        private static TrabajoItem MapTrabajo(MySqlDataReader reader) => new()
-        {
-            Id = reader.GetInt64("id"),
-            Nv = reader.GetString("nv"),
-            Producto = reader.GetString("producto"),
-            CodigoProducto = reader.IsDBNull(reader.GetOrdinal("codigo_producto")) ? null : reader.GetString("codigo_producto"),
-            Item = reader.GetString("item"),
-            Cliente = reader.IsDBNull(reader.GetOrdinal("cliente")) ? null : reader.GetString("cliente"),
-            FechaAsignacion = reader.IsDBNull(reader.GetOrdinal("fecha_asignacion")) ? null : reader.GetDateTime("fecha_asignacion"),
-            TallerExternoId = reader.IsDBNull(reader.GetOrdinal("taller_externo_id")) ? null : reader.GetInt32("taller_externo_id"),
-            TallerExternoTexto = reader.IsDBNull(reader.GetOrdinal("taller_externo_texto")) ? null : reader.GetString("taller_externo_texto"),
-            ProcesoId = reader.IsDBNull(reader.GetOrdinal("proceso_id")) ? null : reader.GetInt32("proceso_id"),
-            ProcesoTexto = reader.IsDBNull(reader.GetOrdinal("proceso_texto")) ? null : reader.GetString("proceso_texto"),
-            ResponsableInternoId = reader.IsDBNull(reader.GetOrdinal("responsable_interno_id")) ? null : reader.GetInt32("responsable_interno_id"),
-            ResponsableInternoTexto = reader.IsDBNull(reader.GetOrdinal("responsable_interno_texto")) ? null : reader.GetString("responsable_interno_texto"),
-            Prioridad = reader.GetString("prioridad"),
-            FechaCompromiso = reader.IsDBNull(reader.GetOrdinal("fecha_compromiso")) ? null : reader.GetDateTime("fecha_compromiso"),
-            Estado = reader.GetString("estado"),
-            CantidadARevisar = reader.GetDecimal("cantidad_a_revisar"),
-            CantidadRevisadaEntregada = reader.GetDecimal("cantidad_revisada_entregada"),
-            CantidadFaltante = reader.GetDecimal("cantidad_faltante"),
-            CantidadFaltanteAjusteManual = reader.GetBoolean("cantidad_faltante_ajuste_manual"),
-            CantidadFaltanteJustificacion = reader.IsDBNull(reader.GetOrdinal("cantidad_faltante_justificacion")) ? null : reader.GetString("cantidad_faltante_justificacion"),
-            Observaciones = reader.IsDBNull(reader.GetOrdinal("observaciones")) ? null : reader.GetString("observaciones"),
-            Version = reader.GetInt32("version"),
-            CreadoPorNombre = reader.IsDBNull(reader.GetOrdinal("creado_por_nombre")) ? null : reader.GetString("creado_por_nombre"),
-            FechaCreacion = reader.GetDateTime("fecha_creacion"),
-            ActualizadoPorNombre = reader.IsDBNull(reader.GetOrdinal("actualizado_por_nombre")) ? null : reader.GetString("actualizado_por_nombre"),
-            FechaActualizacion = reader.IsDBNull(reader.GetOrdinal("fecha_actualizacion")) ? null : reader.GetDateTime("fecha_actualizacion"),
-            Atrasado = Convert.ToBoolean(reader["atrasado"]),
-        };
+        private static TrabajoItem MapTrabajo(MySqlDataReader reader) =>
+            new()
+            {
+                Id = reader.GetInt64("id"),
+                Nv = reader.GetString("nv"),
+                Producto = reader.GetString("producto"),
+                CodigoProducto = reader.IsDBNull(reader.GetOrdinal("codigo_producto"))
+                    ? null
+                    : reader.GetString("codigo_producto"),
+                Item = reader.GetString("item"),
+                Cliente = reader.IsDBNull(reader.GetOrdinal("cliente"))
+                    ? null
+                    : reader.GetString("cliente"),
+                FechaAsignacion = reader.IsDBNull(reader.GetOrdinal("fecha_asignacion"))
+                    ? null
+                    : reader.GetDateTime("fecha_asignacion"),
+                TallerExternoId = reader.IsDBNull(reader.GetOrdinal("taller_externo_id"))
+                    ? null
+                    : reader.GetInt32("taller_externo_id"),
+                TallerExternoTexto = reader.IsDBNull(reader.GetOrdinal("taller_externo_texto"))
+                    ? null
+                    : reader.GetString("taller_externo_texto"),
+                ProcesoId = reader.IsDBNull(reader.GetOrdinal("proceso_id"))
+                    ? null
+                    : reader.GetInt32("proceso_id"),
+                ProcesoTexto = reader.IsDBNull(reader.GetOrdinal("proceso_texto"))
+                    ? null
+                    : reader.GetString("proceso_texto"),
+                ResponsableInternoId = reader.IsDBNull(reader.GetOrdinal("responsable_interno_id"))
+                    ? null
+                    : reader.GetInt32("responsable_interno_id"),
+                ResponsableInternoTexto = reader.IsDBNull(
+                    reader.GetOrdinal("responsable_interno_texto")
+                )
+                    ? null
+                    : reader.GetString("responsable_interno_texto"),
+                Prioridad = reader.GetString("prioridad"),
+                FechaCompromiso = reader.IsDBNull(reader.GetOrdinal("fecha_compromiso"))
+                    ? null
+                    : reader.GetDateTime("fecha_compromiso"),
+                Estado = reader.GetString("estado"),
+                CantidadARevisar = reader.GetDecimal("cantidad_a_revisar"),
+                CantidadRevisadaEntregada = reader.GetDecimal("cantidad_revisada_entregada"),
+                CantidadFaltante = reader.GetDecimal("cantidad_faltante"),
+                CantidadFaltanteAjusteManual = reader.GetBoolean("cantidad_faltante_ajuste_manual"),
+                CantidadFaltanteJustificacion = reader.IsDBNull(
+                    reader.GetOrdinal("cantidad_faltante_justificacion")
+                )
+                    ? null
+                    : reader.GetString("cantidad_faltante_justificacion"),
+                Observaciones = reader.IsDBNull(reader.GetOrdinal("observaciones"))
+                    ? null
+                    : reader.GetString("observaciones"),
+                Version = reader.GetInt32("version"),
+                CreadoPorNombre = reader.IsDBNull(reader.GetOrdinal("creado_por_nombre"))
+                    ? null
+                    : reader.GetString("creado_por_nombre"),
+                FechaCreacion = reader.GetDateTime("fecha_creacion"),
+                ActualizadoPorNombre = reader.IsDBNull(reader.GetOrdinal("actualizado_por_nombre"))
+                    ? null
+                    : reader.GetString("actualizado_por_nombre"),
+                FechaActualizacion = reader.IsDBNull(reader.GetOrdinal("fecha_actualizacion"))
+                    ? null
+                    : reader.GetDateTime("fecha_actualizacion"),
+                Atrasado = Convert.ToBoolean(reader["atrasado"]),
+                TotalLiberacionesFps = Convert.ToInt32(reader["total_liberaciones_fps"]),
+            };
     }
 }

@@ -33,6 +33,7 @@ namespace QualityControlCenter.Modules.TalleresExternos
         public string? ActualizadoPorNombre { get; set; }
         public DateTime? FechaActualizacion { get; set; }
         public bool Atrasado { get; set; }
+        public int TotalLiberacionesFps { get; set; }
     }
 
     public class TrabajoListResponse
@@ -101,5 +102,45 @@ namespace QualityControlCenter.Modules.TalleresExternos
         public bool NoEncontrado { get; set; }
         public bool Conflicto { get; set; }
         public string? Error { get; set; }
+    }
+
+    // ---- Sincronización con FPS (fps-api → Faret_Control_Calidad) ----
+
+    // Una fila de la respuesta de fps-api GET /liberaciones. Solo los campos que usa el cruce;
+    // fps-api devuelve más columnas (Operador/Inspector/Recurso/etc.) que no se necesitan acá.
+    public class LiberacionFpsDto
+    {
+        public long Folio { get; set; }
+        public string Np { get; set; } = "";
+        public string Item { get; set; } = "";
+        public string CodigoArticulo { get; set; } = "";
+        public decimal CantidadRequerida { get; set; }
+        public decimal CantidadLiberacion { get; set; }
+        public DateTime FechaLiberacion { get; set; }
+    }
+
+    public class LiberacionHistorialItem
+    {
+        public long Id { get; set; }
+        public string FolioFps { get; set; } = "";
+        public decimal Cantidad { get; set; }
+        public DateTime FechaLiberacion { get; set; }
+        public DateTime FechaSincronizacion { get; set; }
+    }
+
+    // Resultado de aplicar las liberaciones de FPS de UN trabajo (repositorio).
+    public class SincronizarTrabajoResultado
+    {
+        public int LiberacionesNuevas { get; set; }
+        public string? Error { get; set; }
+    }
+
+    // Resultado agregado de sincronizar TODOS los trabajos activos (servicio/handler).
+    public class SincronizarFpsResultado
+    {
+        public int TrabajosRevisados { get; set; }
+        public int TrabajosActualizados { get; set; }
+        public int LiberacionesNuevas { get; set; }
+        public List<string> Errores { get; set; } = new();
     }
 }

@@ -37,12 +37,16 @@ namespace QualityControlCenter.Modules.Home
                 "
             );
 
+            // Tarjeta "Laboratorio" de Inicio: apunta al módulo "Laboratorio - Muestras"
+            // (muestra_laboratorio*) desde que se eliminó el módulo viejo (visor de
+            // registro_ensayos de la app móvil). "Pendiente" = muestras sin cerrar; "Críticos" =
+            // ensayos finalizados que no cumplen especificación.
             var laboratorioPendiente = await Count(
                 conn,
                 @"
                 SELECT COUNT(*)
-                FROM registro_ensayos
-                WHERE valor IS NULL;
+                FROM muestra_laboratorio
+                WHERE estado IN ('Pendiente','En analisis');
                 "
             );
 
@@ -50,15 +54,8 @@ namespace QualityControlCenter.Modules.Home
                 conn,
                 @"
                 SELECT COUNT(*)
-                FROM registro_ensayos re
-                INNER JOIN registros_control rc
-                    ON rc.id = re.registro_id
-                INNER JOIN registro_fallas_visuales rfv
-                    ON rfv.registro_id = rc.id
-                INNER JOIN parametros_control_visual pcv
-                    ON pcv.id = rfv.parametro_id
-                WHERE re.valor IS NULL
-                  AND pcv.criticidad = 'critico';
+                FROM muestra_laboratorio_ensayos
+                WHERE estado = 'Finalizado' AND cumplimiento = 'No cumple';
                 "
             );
 

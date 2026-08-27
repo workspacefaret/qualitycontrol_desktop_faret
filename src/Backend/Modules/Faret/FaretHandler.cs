@@ -103,6 +103,10 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.nc.acciones.list" => await HandleNcAccionesList(data),
                 "faret.nc.acciones.crear" => await HandleNcAccionesCrear(data),
                 "faret.nc.acciones.actualizar" => await HandleNcAccionesActualizar(data),
+                "faret.nc.adjuntos.list" => await HandleNcAdjuntosList(data),
+                "faret.nc.adjuntos.subir" => await HandleNcAdjuntosSubir(data),
+                "faret.nc.adjuntos.abrir" => await HandleNcAdjuntosAbrir(data),
+                "faret.nc.adjuntos.eliminar" => await HandleNcAdjuntosEliminar(data),
                 "faret.dashboard.resumen" => await HandleDashboardResumen(),
                 "faret.inspecciones.list" => await HandleInspeccionesList(data),
                 "faret.inspecciones.resumen" => await HandleInspeccionesResumen(data),
@@ -1195,6 +1199,90 @@ namespace QualityControlCenter.Modules.Faret
                 return Error(validationError);
 
             var (ok, body) = await _noConformidades.ActualizarAccionAsync(accionId, request);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcAdjuntosList(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            var (ok, body) = await _noConformidades.GetAdjuntosAsync(id);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcAdjuntosSubir(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            if (!TryGetString(data, "tipo", out var tipo) || string.IsNullOrWhiteSpace(tipo))
+                return Error("Falta el tipo de adjunto");
+            if (!TryGetString(data, "nombreArchivo", out var nombreArchivo) || string.IsNullOrWhiteSpace(nombreArchivo))
+                return Error("Falta el nombre del archivo");
+            if (!TryGetString(data, "tipoMime", out var tipoMime) || string.IsNullOrWhiteSpace(tipoMime))
+                return Error("Falta el tipo MIME del archivo");
+            if (!TryGetString(data, "contenidoBase64", out var contenidoBase64) || string.IsNullOrWhiteSpace(contenidoBase64))
+                return Error("Falta el contenido del archivo");
+
+            TryGetString(data, "subidoPor", out var subidoPor);
+
+            var request = new
+            {
+                tipo,
+                nombreArchivo,
+                tipoMime,
+                contenidoBase64,
+                subidoPor,
+            };
+
+            var (ok, body) = await _noConformidades.SubirAdjuntoAsync(id, request);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcAdjuntosAbrir(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+            if (!TryGetInt(data, "adjuntoId", out var adjuntoId))
+                return Error("Falta el id del adjunto");
+
+            var (ok, body) = await _noConformidades.GetAdjuntoAsync(id, adjuntoId);
+            if (!ok)
+                return Error(ExtractMcErrorMessage(body));
+
+            return Ok(JsonSerializer.Deserialize<object>(body));
+        }
+
+        private async Task<string> HandleNcAdjuntosEliminar(Dictionary<string, object> data)
+        {
+            if (!_mcClient.IsConfigured)
+                return Error("API de Mejora Continua no configurada. Revise config.json");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+            if (!TryGetInt(data, "adjuntoId", out var adjuntoId))
+                return Error("Falta el id del adjunto");
+
+            var (ok, body) = await _noConformidades.EliminarAdjuntoAsync(id, adjuntoId);
             if (!ok)
                 return Error(ExtractMcErrorMessage(body));
 

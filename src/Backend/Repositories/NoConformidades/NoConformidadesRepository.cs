@@ -824,5 +824,168 @@ namespace QualityControlCenter.Repositories.NoConformidades
         }
 
         public static (string Json, string Column, string Tipo)[] GetCamposEditables() => CamposEditables;
+
+        // ---------- Adjuntos: PDF análisis de causa raíz + evidencia fotográfica ----------
+        // Mismo mecanismo ya usado en Control Documental/Recepción-Calidad (LONGBLOB en calidad,
+        // borrado lógico) y replicado en Faret (nc_adjuntos en mejora_continua) — acá va directo
+        // por MySQL, sin API intermedia, igual que el resto de este módulo.
+
+        public async Task<(bool existe, bool cerrada)> ObtenerEstadoAdjuntos(int ncId)
+        {
+            await using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            await using var cmd = new MySqlCommand(
+                "SELECT estado_gestion FROM no_conformidades WHERE id = @id AND eliminado = 0",
+                conn
+            );
+            cmd.Parameters.AddWithValue("@id", ncId);
+
+            var result = await cmd.ExecuteScalarAsync();
+            if (result == null || result == DBNull.Value)
+                return (false, false);
+
+            var estadoGestion = result.ToString() ?? "";
+            return (true, string.Equals(estadoGestion, "CERRADA", StringComparison.OrdinalIgnoreCase));
+        }
+
+        public async Task<List<Dictionary<string, object?>>> ListarAdjuntos(int ncId)
+        {
+            await using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            await using var cmd = new MySqlCommand(
+                @"SELECT id, no_conformidad_id, tipo, nombre_archivo, tipo_mime, tamano_bytes, subido_por, fecha_subida
+                  FROM nc_adjuntos WHERE no_conformidad_id = @id AND eliminado = 0 ORDER BY fecha_subida DESC",
+                conn
+            );
+            cmd.Parameters.AddWithValue("@id", ncId);
+
+            var items = new List<Dictionary<string, object?>>();
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                items.Add(new Dictionary<string, object?>
+                {
+                    ["id"] = reader.GetInt32("id"),
+                    ["noConformidadId"] = reader.GetInt32("no_conformidad_id"),
+                    ["tipo"] = GetVal(reader, "tipo"),
+                    ["nombreArchivo"] = GetVal(reader, "nombre_archivo"),
+                    ["tipoMime"] = GetVal(reader, "tipo_mime"),
+                    ["tamanoBytes"] = GetVal(reader, "tamano_bytes"),
+                    ["subidoPor"] = GetVal(reader, "subido_por"),
+                    ["fechaSubida"] = GetVal(reader, "fecha_subida"),
+                });
+            }
+            return items;
+        }
+
+        public async Task<int> ContarAdjuntosActivosPorTipo(int ncId, string tipo)
+        {
+            await using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            await using var cmd = new MySqlCommand(
+                "SELECT COUNT(1) FROM nc_adjuntos WHERE no_conformidad_id = @id AND tipo = @tipo AND eliminado = 0",
+                conn
+            );
+            cmd.Parameters.AddWithValue("@id", ncId);
+            cmd.Parameters.AddWithValue("@tipo", tipo);
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        // Para CAUSA_RAIZ_PDF: reemplazo controlado — el adjunto activo anterior del mismo tipo se
+        // marca eliminado=1 antes de insertar el nuevo, dentro de la misma transacción.
+        public async Task<int> CrearAdjunto(
+            int ncId,
+            string tipo,
+            string nombreArchivo,
+            string tipoMime,
+            byte[] contenido,
+            string? subidoPor
+        )
+        {
+            await using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                if (tipo == "CAUSA_RAIZ_PDF")
+                {
+                    await using var reemplazarCmd = new MySqlCommand(
+                        "UPDATE nc_adjuntos SET eliminado = 1 WHERE no_conformidad_id = @id AND tipo = @tipo AND eliminado = 0",
+                        conn,
+                        (MySqlTransaction)tx
+                    );
+                    reemplazarCmd.Parameters.AddWithValue("@id", ncId);
+                    reemplazarCmd.Parameters.AddWithValue("@tipo", tipo);
+                    await reemplazarCmd.ExecuteNonQueryAsync();
+                }
+
+                await using var insCmd = new MySqlCommand(
+                    @"INSERT INTO nc_adjuntos
+                        (no_conformidad_id, tipo, nombre_archivo, tipo_mime, tamano_bytes, contenido, subido_por)
+                      VALUES (@id, @tipo, @nombreArchivo, @tipoMime, @tamanoBytes, @contenido, @subidoPor);
+                      SELECT LAST_INSERT_ID();",
+                    conn,
+                    (MySqlTransaction)tx
+                );
+                insCmd.Parameters.AddWithValue("@id", ncId);
+                insCmd.Parameters.AddWithValue("@tipo", tipo);
+                insCmd.Parameters.AddWithValue("@nombreArchivo", nombreArchivo);
+                insCmd.Parameters.AddWithValue("@tipoMime", tipoMime);
+                insCmd.Parameters.AddWithValue("@tamanoBytes", contenido.Length);
+                insCmd.Parameters.AddWithValue("@contenido", contenido);
+                insCmd.Parameters.AddWithValue("@subidoPor", (object?)subidoPor ?? DBNull.Value);
+
+                var id = Convert.ToInt32(await insCmd.ExecuteScalarAsync());
+                await tx.CommitAsync();
+                return id;
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        public async Task<(string NombreArchivo, string TipoMime, byte[] Contenido)?> ObtenerAdjunto(int ncId, int adjuntoId)
+        {
+            await using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            await using var cmd = new MySqlCommand(
+                @"SELECT nombre_archivo, tipo_mime, contenido FROM nc_adjuntos
+                  WHERE id = @adjuntoId AND no_conformidad_id = @id AND eliminado = 0",
+                conn
+            );
+            cmd.Parameters.AddWithValue("@adjuntoId", adjuntoId);
+            cmd.Parameters.AddWithValue("@id", ncId);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (!await reader.ReadAsync())
+                return null;
+
+            return (
+                reader.GetString("nombre_archivo"),
+                reader.GetString("tipo_mime"),
+                (byte[])reader["contenido"]
+            );
+        }
+
+        public async Task<bool> EliminarAdjunto(int ncId, int adjuntoId)
+        {
+            await using var conn = _db.GetCalidadConnection();
+            await conn.OpenAsync();
+
+            await using var cmd = new MySqlCommand(
+                "UPDATE nc_adjuntos SET eliminado = 1 WHERE id = @adjuntoId AND no_conformidad_id = @id AND eliminado = 0",
+                conn
+            );
+            cmd.Parameters.AddWithValue("@adjuntoId", adjuntoId);
+            cmd.Parameters.AddWithValue("@id", ncId);
+            return await cmd.ExecuteNonQueryAsync() > 0;
+        }
     }
 }

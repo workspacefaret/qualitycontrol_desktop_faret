@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
+using QualityControlCenter.Backend.Services.FpsApi;
 using QualityControlCenter.Services;
 
 namespace QualityControlCenter.Modules.TalleresExternos
@@ -16,9 +17,13 @@ namespace QualityControlCenter.Modules.TalleresExternos
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        public TalleresExternosHandler(DbService db, CurrentUserSessionService session)
+        public TalleresExternosHandler(
+            DbService db,
+            CurrentUserSessionService session,
+            FpsLiberacionesApiService? fpsLiberaciones = null
+        )
         {
-            _service = new TalleresExternosService(db);
+            _service = new TalleresExternosService(db, fpsLiberaciones);
             _session = session;
         }
 
@@ -61,12 +66,18 @@ namespace QualityControlCenter.Modules.TalleresExternos
                         CopiarCamposComunes(data, request);
                         request.Version = GetInt(data, "version", 0);
 
-                        var resultado = await _service.ActualizarAsync(id, request, UsuarioIdActual());
+                        var resultado = await _service.ActualizarAsync(
+                            id,
+                            request,
+                            UsuarioIdActual()
+                        );
 
                         if (resultado.NoEncontrado)
                             return Error(resultado.Error ?? $"No existe un trabajo con id {id}.");
                         if (resultado.Conflicto)
-                            return ErrorConflicto(resultado.Error ?? "El registro fue modificado por otro usuario.");
+                            return ErrorConflicto(
+                                resultado.Error ?? "El registro fue modificado por otro usuario."
+                            );
 
                         return Ok(resultado.Trabajo);
                     }
@@ -78,12 +89,18 @@ namespace QualityControlCenter.Modules.TalleresExternos
                         if (id <= 0)
                             return Error("Falta 'id' para eliminar.");
 
-                        var resultado = await _service.EliminarAsync(id, version, UsuarioIdActual());
+                        var resultado = await _service.EliminarAsync(
+                            id,
+                            version,
+                            UsuarioIdActual()
+                        );
 
                         if (resultado.NoEncontrado)
                             return Error($"No existe un trabajo con id {id}.");
                         if (resultado.Conflicto)
-                            return ErrorConflicto(resultado.Error ?? "El registro fue modificado por otro usuario.");
+                            return ErrorConflicto(
+                                resultado.Error ?? "El registro fue modificado por otro usuario."
+                            );
 
                         return Ok((object?)null);
                     }
@@ -100,6 +117,22 @@ namespace QualityControlCenter.Modules.TalleresExternos
                         var id = GetInt(data, "id", 0);
                         await _service.EliminarProcesoAsync(id);
                         return Ok((object?)null);
+                    }
+
+                    case "talleresExternos.historialLiberaciones":
+                    {
+                        var id = GetLong(data, "id", 0);
+                        if (id <= 0)
+                            return Error("Falta 'id' para consultar el historial.");
+
+                        var historial = await _service.ObtenerHistorialLiberacionesAsync(id);
+                        return Ok(historial);
+                    }
+
+                    case "talleresExternos.sincronizarFps":
+                    {
+                        var resultado = await _service.SincronizarFpsAsync(UsuarioIdActual());
+                        return Ok(resultado);
                     }
 
                     default:
@@ -143,7 +176,10 @@ namespace QualityControlCenter.Modules.TalleresExternos
             request.CantidadRevisadaEntregada = GetDecimal(data, "cantidadRevisadaEntregada") ?? 0;
             request.CantidadFaltanteAjusteManual = GetBool(data, "cantidadFaltanteAjusteManual");
             request.CantidadFaltanteManual = GetDecimal(data, "cantidadFaltanteManual");
-            request.CantidadFaltanteJustificacion = GetString(data, "cantidadFaltanteJustificacion");
+            request.CantidadFaltanteJustificacion = GetString(
+                data,
+                "cantidadFaltanteJustificacion"
+            );
             request.Observaciones = GetString(data, "observaciones");
         }
 
@@ -250,7 +286,13 @@ namespace QualityControlCenter.Modules.TalleresExternos
         private static string Ok(object? data)
         {
             return JsonSerializer.Serialize(
-                new { ok = true, data, error = (string?)null, conflict = false },
+                new
+                {
+                    ok = true,
+                    data,
+                    error = (string?)null,
+                    conflict = false,
+                },
                 _jsonOptions
             );
         }
@@ -258,7 +300,13 @@ namespace QualityControlCenter.Modules.TalleresExternos
         private static string Error(string message)
         {
             return JsonSerializer.Serialize(
-                new { ok = false, data = (object?)null, error = message, conflict = false },
+                new
+                {
+                    ok = false,
+                    data = (object?)null,
+                    error = message,
+                    conflict = false,
+                },
                 _jsonOptions
             );
         }
@@ -266,7 +314,13 @@ namespace QualityControlCenter.Modules.TalleresExternos
         private static string ErrorConflicto(string message)
         {
             return JsonSerializer.Serialize(
-                new { ok = false, data = (object?)null, error = message, conflict = true },
+                new
+                {
+                    ok = false,
+                    data = (object?)null,
+                    error = message,
+                    conflict = true,
+                },
                 _jsonOptions
             );
         }

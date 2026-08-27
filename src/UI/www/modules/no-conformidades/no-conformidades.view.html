@@ -130,19 +130,19 @@
             <div class="ncq-seccion">
                 <div class="ncq-seccion-titulo">Máquinas Involucradas</div>
                 <span class="kpi-value" id="ncq-stat-maquinas-total">0</span>
-                <canvas id="ncq-chart-maquina"></canvas>
+                <div class="ncq-chart-scroll"><canvas id="ncq-chart-maquina"></canvas></div>
             </div>
 
             <div class="ncq-seccion">
                 <div class="ncq-seccion-titulo">Operadores Involucrados</div>
                 <span class="kpi-value" id="ncq-stat-operadores-total">0</span>
-                <canvas id="ncq-chart-operador"></canvas>
+                <div class="ncq-chart-scroll"><canvas id="ncq-chart-operador"></canvas></div>
             </div>
 
             <div class="ncq-seccion">
                 <div class="ncq-seccion-titulo">Clientes Involucrados</div>
                 <span class="kpi-value" id="ncq-stat-clientes-total">0</span>
-                <canvas id="ncq-chart-cliente"></canvas>
+                <div class="ncq-chart-scroll"><canvas id="ncq-chart-cliente"></canvas></div>
             </div>
 
             <div class="ncq-seccion">
@@ -361,6 +361,22 @@
                 <textarea id="ncq-f-verificacion-seguimiento" rows="2"></textarea>
             </div>
 
+            <!-- Adjuntos opcionales: solo al crear (se suben recién después, necesitan el id de la NC) -->
+            <div id="ncq-f-adjuntos-bloque">
+                <div class="ncq-stats-nota" style="margin-top:6px; font-weight:600;">Adjuntos (opcional)</div>
+                <div class="ncq-form-row">
+                    <div class="ncq-campo">
+                        <label for="ncq-f-pdf-input">PDF</label>
+                        <input type="file" id="ncq-f-pdf-input" accept="application/pdf">
+                    </div>
+                    <div class="ncq-campo">
+                        <label for="ncq-f-fotos-input">Fotografías</label>
+                        <input type="file" id="ncq-f-fotos-input" accept="image/jpeg,image/png" multiple>
+                    </div>
+                </div>
+                <div id="ncq-f-adjuntos-error" class="ncq-error" style="display:none;"></div>
+            </div>
+
             <div class="ncq-form-acciones">
                 <button id="ncq-f-guardar-btn" class="btn-primary">Guardar</button>
                 <button id="ncq-f-cancelar-btn" class="btn-secondary" style="display:none;">Cancelar edición</button>
@@ -494,6 +510,21 @@
                 <div class="ncq-form-acciones">
                     <button id="ncq-analisis-guardar-btn" class="btn-primary">Guardar análisis</button>
                 </div>
+
+                <!-- PDF del análisis de causa raíz: 1 activo por NC, reemplazable. Solo lectura si la NC está cerrada. -->
+                <div class="ncq-stats-nota" style="margin-top:14px; font-weight:600;">Análisis de causa raíz — PDF adjunto</div>
+                <div id="ncq-adjunto-pdf-error" class="ncq-error" style="display:none;"></div>
+                <div id="ncq-adjunto-pdf-bloque">Cargando...</div>
+                <input type="file" id="ncq-adjunto-pdf-input" accept="application/pdf" style="display:none;">
+            </div>
+
+            <!-- Evidencia fotográfica: varias fotos activas por NC (máx. 10). Solo lectura si la NC está cerrada. -->
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Evidencia fotográfica</div>
+                <div id="ncq-adjunto-fotos-error" class="ncq-error" style="display:none;"></div>
+                <button id="ncq-adjunto-fotos-btn" class="btn-secondary">Adjuntar fotografías</button>
+                <input type="file" id="ncq-adjunto-fotos-input" accept="image/jpeg,image/png" multiple style="display:none;">
+                <div id="ncq-adjunto-fotos-grid" class="ncq-fotos-grid"></div>
             </div>
 
             <div class="ncq-seccion">

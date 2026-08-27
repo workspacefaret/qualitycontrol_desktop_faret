@@ -277,19 +277,19 @@
             <div class="fnc-analisis-seccion">
                 <div class="fnc-analisis-seccion-titulo">Máquinas Involucradas</div>
                 <span class="home-module-card-value" id="fnc-stat-maquinas-total">0</span>
-                <canvas id="fnc-chart-maquina"></canvas>
+                <div class="fnc-chart-scroll"><canvas id="fnc-chart-maquina"></canvas></div>
             </div>
 
             <div class="fnc-analisis-seccion">
                 <div class="fnc-analisis-seccion-titulo">Operadores Involucrados</div>
                 <span class="home-module-card-value" id="fnc-stat-operadores-total">0</span>
-                <canvas id="fnc-chart-operador"></canvas>
+                <div class="fnc-chart-scroll"><canvas id="fnc-chart-operador"></canvas></div>
             </div>
 
             <div class="fnc-analisis-seccion">
                 <div class="fnc-analisis-seccion-titulo">Clientes Involucrados</div>
                 <span class="home-module-card-value" id="fnc-stat-clientes-total">0</span>
-                <canvas id="fnc-chart-cliente"></canvas>
+                <div class="fnc-chart-scroll"><canvas id="fnc-chart-cliente"></canvas></div>
             </div>
 
             <div class="fnc-analisis-seccion">
@@ -698,6 +698,20 @@
                 <textarea id="fnc-npnc-verificacion-seguimiento" rows="2"></textarea>
             </div>
 
+            <!-- Adjuntos opcionales: se suben recién después de crear la NC (necesitan su id) -->
+            <div class="fnc-nota" style="margin-top:6px;">Adjuntos (opcional)</div>
+            <div class="fnc-form-row">
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-pdf-input">PDF</label>
+                    <input type="file" id="fnc-npnc-pdf-input" accept="application/pdf">
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="fnc-npnc-fotos-input">Fotografías</label>
+                    <input type="file" id="fnc-npnc-fotos-input" accept="image/jpeg,image/png" multiple>
+                </div>
+            </div>
+            <div id="fnc-npnc-adjuntos-error" class="fnc-nota" style="display:none; color:#EF4444;"></div>
+
             <div class="fnc-form-acciones">
                 <button id="fnc-npnc-guardar-btn" class="btn-primary">Guardar</button>
                 <button id="fnc-npnc-cancelar-btn" class="btn-secondary">Cancelar</button>
@@ -958,6 +972,21 @@
                     <div class="fnc-form-acciones">
                         <button id="fnc-analisis-guardar-btn" class="btn-primary">Guardar análisis</button>
                     </div>
+
+                    <!-- PDF del análisis de causa raíz: 1 activo por NC, reemplazable. Solo lectura si la NC está cerrada. -->
+                    <div class="fnc-nota" style="margin-top:14px;">Análisis de causa raíz — PDF adjunto</div>
+                    <div id="fnc-adjunto-pdf-error" class="faret-error" style="display:none;"></div>
+                    <div id="fnc-adjunto-pdf-bloque">Cargando...</div>
+                    <input type="file" id="fnc-adjunto-pdf-input" accept="application/pdf" style="display:none;">
+                </div>
+
+                <!-- Evidencia fotográfica: varias fotos activas por NC (máx. 10). Solo lectura si la NC está cerrada. -->
+                <div class="fnc-analisis-seccion">
+                    <div class="fnc-analisis-seccion-titulo">Evidencia fotográfica</div>
+                    <div id="fnc-adjunto-fotos-error" class="faret-error" style="display:none;"></div>
+                    <button id="fnc-adjunto-fotos-btn" class="btn-secondary">Adjuntar fotografías</button>
+                    <input type="file" id="fnc-adjunto-fotos-input" accept="image/jpeg,image/png" multiple style="display:none;">
+                    <div id="fnc-adjunto-fotos-grid" class="fnc-fotos-grid"></div>
                 </div>
 
                 <!-- Sección 4: Planes de acción -->

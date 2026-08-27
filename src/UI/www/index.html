@@ -22,6 +22,8 @@
     <link rel="stylesheet" href="modules/control-documental/control-documental.css">
     <link rel="stylesheet" href="modules/faret-talleres-externos/faret-talleres-externos.css">
     <link rel="stylesheet" href="modules/talleres-externos/talleres-externos.css">
+    <link rel="stylesheet" href="modules/recepcion-calidad/recepcion-calidad.css">
+    <link rel="stylesheet" href="modules/muestra-laboratorio/muestra-laboratorio.css">
     <link rel="stylesheet" href="modules/producto-terminado/producto-terminado.css">
     <link rel="stylesheet" href="modules/faret-producto-terminado/faret-producto-terminado.css">
 
@@ -196,6 +198,22 @@
                     <span>Data</span>
                 </button>
 
+                <button data-module="faret-trazabilidad" data-empresa="FARET">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M11 2a9 9 0 1 0 9 9"></path>
+                            <path d="M11 6v6l4 2"></path>
+                            <path d="M20 4v4h-4"></path>
+                        </svg>
+                    </span>
+                    <span>Trazabilidad</span>
+                </button>
+
+                <!-- Control de Recepción y Laboratorio - Muestras: quitados del sidebar Faret a
+                     pedido del usuario (2026-08-27) — quedan exclusivos de INNPACK. Módulo y
+                     backend intactos (no se borró nada, solo el punto de entrada del menú), por
+                     si ya existen datos reales cargados desde el lado Faret. -->
+
                 <button id="btn-faret-usuarios" data-module="faret-usuarios" data-empresa="FARET" style="display: none;">
                     <span class="menu-icon">
                         <svg viewBox="0 0 24 24">
@@ -257,17 +275,6 @@
                     <span>Control Documental</span>
                 </button>
 
-                <button data-module="laboratorio" data-empresa="INNPACK">
-                    <span class="menu-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M9 3h6"></path>
-                            <path d="M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"></path>
-                            <path d="M8 15h8"></path>
-                        </svg>
-                    </span>
-                    <span>Laboratorio</span>
-                </button>
-
                 <button data-module="maquinas-seguimiento" data-empresa="INNPACK">
                     <span class="menu-icon">
                         <svg viewBox="0 0 24 24">
@@ -314,6 +321,39 @@
                     <span>Producto Terminado</span>
                 </button>
 
+                <button data-module="recepcion-calidad" data-empresa="INNPACK">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M21 8l-9-5-9 5 9 5 9-5Z"></path>
+                            <path d="M3 8v8l9 5 9-5V8"></path>
+                            <path d="M12 13v8"></path>
+                        </svg>
+                    </span>
+                    <span>Control de Recepción</span>
+                </button>
+
+                <button data-module="muestra-laboratorio" data-empresa="INNPACK">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M9 2v6.5L4 18a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3l-5-9.5V2"></path>
+                            <path d="M8.5 2h7"></path>
+                            <path d="M7 14h10"></path>
+                        </svg>
+                    </span>
+                    <span>Laboratorio - Muestras</span>
+                </button>
+
+                <button data-module="trazabilidad" data-empresa="INNPACK">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M11 2a9 9 0 1 0 9 9"></path>
+                            <path d="M11 6v6l4 2"></path>
+                            <path d="M20 4v4h-4"></path>
+                        </svg>
+                    </span>
+                    <span>Trazabilidad</span>
+                </button>
+
                 <button id="btn-usuarios" data-module="usuarios" data-empresa="INNPACK" style="display: none;">
                     <span class="menu-icon">
                         <svg viewBox="0 0 24 24">
@@ -337,7 +377,7 @@
                 </button>
             </div>
 
-            <div class="version">Version 1.7.1</div>
+            <div class="version">Version 1.8.7</div>
         </div>
     </div>
 

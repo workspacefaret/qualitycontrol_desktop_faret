@@ -359,6 +359,17 @@
     height: 260px !important;
 }
 
+/* Máquinas/Operadores/Clientes muestran TODAS las categorías reales (sin agrupar en "Otros",
+   para no ocultar datos), ordenadas de mayor a menor. El alto del canvas se calcula en JS según
+   la cantidad real de filas (_chartBarHorizontalStats, opts.scroll) para que cada barra quede
+   legible; este contenedor limita el alto visible y agrega scroll interno para que el bloque no
+   crezca sin límite cuando hay muchas categorías. */
+.no-conformidades-module .ncq-chart-scroll {
+    max-height: 220px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
 .no-conformidades-module .ncq-ver-btn,
 .no-conformidades-module .ncq-analizar-btn,
 .no-conformidades-module .ncq-gestionar-btn {
@@ -372,4 +383,53 @@
         margin-left: 0;
         width: 100%;
     }
+}
+
+/* ---------- Adjuntos: PDF causa raíz + evidencia fotográfica ---------- */
+
+.no-conformidades-module .ncq-adjunto-pdf-fila {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+
+.no-conformidades-module .ncq-fotos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.no-conformidades-module .ncq-foto-item {
+    position: relative;
+    border: 1px solid #E5E9F0;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #F8FAFC;
+}
+
+.no-conformidades-module .ncq-foto-item img {
+    display: block;
+    width: 100%;
+    height: 90px;
+    object-fit: cover;
+}
+
+.no-conformidades-module .ncq-foto-item .ncq-foto-eliminar {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(15, 23, 42, 0.75);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 0.85rem;
 }

@@ -5,18 +5,24 @@ using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
 using QualityControlCenter.Backend.Services.FaretApi;
+using QualityControlCenter.Backend.Services.FpsApi;
+using QualityControlCenter.Backend.Services.PlanificacionApi;
 using QualityControlCenter.Modules.Auth;
 using QualityControlCenter.Modules.ControlDocumental;
 using QualityControlCenter.Modules.Dashboard;
 using QualityControlCenter.Modules.Faret;
 using QualityControlCenter.Modules.Home;
-using QualityControlCenter.Modules.Laboratorio;
 using QualityControlCenter.Modules.MaquinasSeguimiento;
 using QualityControlCenter.Modules.NoConformidades;
 using QualityControlCenter.Modules.ProductoTerminado;
 using QualityControlCenter.Modules.RegistrosControl;
 using QualityControlCenter.Modules.RegistrosProduccion;
+using QualityControlCenter.Backend.Services.SapRecepcionApi;
+using QualityControlCenter.Modules.MuestraLaboratorio;
+using QualityControlCenter.Modules.FaretLaboratorio;
+using QualityControlCenter.Modules.RecepcionCalidad;
 using QualityControlCenter.Modules.TalleresExternos;
+using QualityControlCenter.Modules.Trazabilidad;
 using QualityControlCenter.Modules.Usuarios;
 
 namespace QualityControlCenter.Services
@@ -29,6 +35,10 @@ namespace QualityControlCenter.Services
         private readonly FaretApiClient _faretClient;
         private readonly FaretApiClient _faretMejoraContinuaClient;
         private readonly FaretApiClient _faretCalidadClient;
+        private readonly FpsLiberacionesApiService _fpsLiberaciones;
+        private readonly FpsMaterialesApiService _fpsMateriales;
+        private readonly PlanificacionApiClient _planificacionClient;
+        private readonly SapRecepcionApiClient _sapRecepcionClient;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
@@ -41,7 +51,11 @@ namespace QualityControlCenter.Services
             CurrentUserSessionService session,
             FaretApiClient faretClient,
             FaretApiClient faretMejoraContinuaClient,
-            FaretApiClient faretCalidadClient
+            FaretApiClient faretCalidadClient,
+            FpsLiberacionesApiService fpsLiberaciones,
+            FpsMaterialesApiService fpsMateriales,
+            PlanificacionApiClient planificacionClient,
+            SapRecepcionApiClient sapRecepcionClient
         )
         {
             _db = db;
@@ -50,6 +64,10 @@ namespace QualityControlCenter.Services
             _faretClient = faretClient;
             _faretMejoraContinuaClient = faretMejoraContinuaClient;
             _faretCalidadClient = faretCalidadClient;
+            _fpsLiberaciones = fpsLiberaciones;
+            _fpsMateriales = fpsMateriales;
+            _planificacionClient = planificacionClient;
+            _sapRecepcionClient = sapRecepcionClient;
         }
 
         public async Task<string> Handle(string payloadJson)
@@ -107,11 +125,6 @@ namespace QualityControlCenter.Services
                     var handler = new RegistrosProduccionHandler(_db);
                     rawResult = await handler.Handle(action, data);
                 }
-                else if (action.StartsWith("laboratorio"))
-                {
-                    var handler = new LaboratorioHandler(_db);
-                    rawResult = await handler.Handle(action, data);
-                }
                 else if (action == "excel.guardar")
                 {
                     rawResult = GuardarExcel(data);
@@ -138,12 +151,34 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("talleresExternos"))
                 {
-                    var handler = new TalleresExternosHandler(_db, _session);
+                    var handler = new TalleresExternosHandler(_db, _session, _fpsLiberaciones);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("productoTerminado"))
                 {
                     var handler = new ProductoTerminadoHandler(_db);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("trazabilidad"))
+                {
+                    var handler = new TrazabilidadHandler(_db, _planificacionClient, _fpsMateriales);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("muestraLab"))
+                {
+                    var handler = new MuestraLaboratorioHandler(_db, _session);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("recepcion"))
+                {
+                    var handler = new RecepcionCalidadHandler(_db, _sapRecepcionClient, _session);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("faretLab"))
+                {
+                    // OJO: esta rama debe ir ANTES que "faret" (más abajo) — action.StartsWith("faret")
+                    // también matchearía "faretLab.xxx" y lo enviaría al FaretHandler equivocado.
+                    var handler = new FaretLaboratorioHandler(_db, _session);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("faret"))

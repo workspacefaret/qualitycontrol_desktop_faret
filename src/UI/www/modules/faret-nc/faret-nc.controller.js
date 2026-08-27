@@ -79,6 +79,15 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-analisis-guardar-btn")
             ?.addEventListener("click", () => this._guardarAnalisis());
 
+        document.getElementById("fnc-adjunto-pdf-input")
+            ?.addEventListener("change", (e) => this._subirPdfSeleccionado(e));
+
+        document.getElementById("fnc-adjunto-fotos-btn")
+            ?.addEventListener("click", () => document.getElementById("fnc-adjunto-fotos-input")?.click());
+
+        document.getElementById("fnc-adjunto-fotos-input")
+            ?.addEventListener("change", (e) => this._subirFotosSeleccionadas(e));
+
         document.getElementById("fnc-accion-agregar-btn")
             ?.addEventListener("click", () => this._agregarAccion());
 
@@ -358,29 +367,35 @@ window.FaretNcController = class FaretNcController {
 
     // Arma las opciones de los <select> de Cliente/Tipo PNC/Área con los valores reales
     // ya presentes en this._combinados (dataset completo en memoria) — nada hardcodeado, salvo
-    // Tipo PNC que además siembra el mismo catálogo fijo del formulario "Nueva NC" (Cuarentena/
-    // Rechazo/Reclamo/Interna) para que esas opciones existan en el filtro aunque todavía no haya
-    // ningún registro real con ese valor.
+    // Tipo PNC que a pedido explícito del usuario (27-08-2026) queda con una lista FIJA y cerrada
+    // (Todos/Cuarentena/Rechazo Cliente/Reclamo), sin mezclar con los valores reales del dataset
+    // (que pueden traer "Rechazo" a secas, "Interna" u otros históricos) — es solo el filtro de
+    // esta vista, no toca el catálogo completo del formulario "Nueva NC" ni el backend.
     _poblarFiltrosSelect() {
-        const TIPO_PNC_BASE = ["Cuarentena", "Rechazo", "Reclamo", "Interna"];
+        const TIPO_PNC_FILTRO = ["Cuarentena", "Rechazo Cliente", "Reclamo"];
         const mapa = {
             "fnc-filtro-cliente": "cliente",
-            "fnc-filtro-tipo-pnc": "tipoPnc",
             "fnc-filtro-area": "area",
         };
+
+        const selectTipoPnc = document.getElementById("fnc-filtro-tipo-pnc");
+        if (selectTipoPnc) {
+            const valorActual = selectTipoPnc.value;
+            selectTipoPnc.innerHTML = `<option value="">Todos</option>` +
+                TIPO_PNC_FILTRO.map(v => `<option value="${v}">${v}</option>`).join("");
+            if (valorActual && TIPO_PNC_FILTRO.includes(valorActual)) selectTipoPnc.value = valorActual;
+        }
 
         Object.entries(mapa).forEach(([selectId, campo]) => {
             const select = document.getElementById(selectId);
             if (!select) return;
 
             const valorActual = select.value;
-            const base = campo === "tipoPnc" ? TIPO_PNC_BASE : [];
-            const valores = new Set([
-                ...base,
-                ...this._combinados
+            const valores = new Set(
+                this._combinados
                     .map(f => (f[campo] || "").toString().trim())
-                    .filter(v => v && v !== "-"),
-            ]);
+                    .filter(v => v && v !== "-")
+            );
 
             select.innerHTML = `<option value="">Todos</option>` +
                 [...valores].sort().map(v => `<option value="${v}">${v}</option>`).join("");
@@ -891,16 +906,16 @@ window.FaretNcController = class FaretNcController {
             "Incidentes por área"
         );
         this._chartBarHorizontalStats(
-            "fnc-chart-maquina", this._aplicarTopN(ind.porMaquina), "categoria", "total", "NC",
-            "Máquinas involucradas"
+            "fnc-chart-maquina", ind.porMaquina, "categoria", "total", "NC",
+            "Máquinas involucradas", { scroll: true }
         );
         this._chartBarHorizontalStats(
-            "fnc-chart-operador", this._aplicarTopN(ind.porOperador), "categoria", "total", "NC",
-            "Operadores involucrados"
+            "fnc-chart-operador", ind.porOperador, "categoria", "total", "NC",
+            "Operadores involucrados", { scroll: true }
         );
         this._chartBarHorizontalStats(
-            "fnc-chart-cliente", this._aplicarTopN(ind.porCliente), "categoria", "total", "NC",
-            "Clientes involucrados"
+            "fnc-chart-cliente", ind.porCliente, "categoria", "total", "NC",
+            "Clientes involucrados", { scroll: true }
         );
         this._chartDoughnutStats(
             "fnc-chart-tipo-pnc", ind.porTipoPnc, "categoria", "total",
@@ -933,19 +948,6 @@ window.FaretNcController = class FaretNcController {
         }];
     }
 
-    // Mismo criterio que _aplicarTopNOtros pero para listas simples {categoria, total} sin %
-    // acumulado (Máquinas/Operadores/Clientes) — evita gráficos ilegibles cuando hay muchos
-    // valores distintos, agrupando el resto en una barra "Otros".
-    _aplicarTopN(rows, topN = 10) {
-        if (rows.length <= topN) return rows;
-
-        const top = rows.slice(0, topN);
-        const resto = rows.slice(topN);
-        const totalOtros = resto.reduce((s, r) => s + r.total, 0);
-
-        return [...top, { categoria: "Otros", total: totalOtros, esOtros: true }];
-    }
-
     _renderEvolucionMensual(canvasId, notaId, evolucion, titulo) {
         const canvas = document.getElementById(canvasId);
         const nota = document.getElementById(notaId);
@@ -973,9 +975,26 @@ window.FaretNcController = class FaretNcController {
 
     // ---------- Charts (mismo patrón visual/técnico que faret.controller.js / Inicio Faret) ----------
 
-    _chartBarHorizontalStats(canvasId, rows, labelKey, valueKey, label, titulo) {
+    // opts.scroll=true: el canvas muestra TODAS las categorías (sin Top-N ni "Otros" — no se
+    // oculta ningún dato real), con un alto calculado según la cantidad de filas para que cada
+    // barra quede legible; el contenedor `.fnc-chart-scroll` (ver CSS) limita el alto visible y
+    // agrega scroll interno para que el bloque no crezca sin límite. Se fija con !important
+    // inline porque la regla general `.fnc-stats-card canvas { height: 200px !important }` sería
+    // más específica que un alto fijo en CSS y necesita un valor dinámico por gráfico.
+    _chartBarHorizontalStats(canvasId, rows, labelKey, valueKey, label, titulo, opts = {}) {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
+
+        if (opts.scroll) {
+            const alto = Math.max(180, rows.length * 26);
+            ctx.style.setProperty("height", `${alto}px`, "important");
+        }
+
+        // Paleta cíclica: antes eran 7 colores fijos y con más de 7 barras (posible desde que
+        // estos gráficos muestran todas las categorías, sin límite Top-N) las barras 8+ quedaban
+        // sin color explícito y Chart.js les aplicaba un azul por defecto, indistinguible del
+        // resto — con el módulo (%) cada barra siempre tiene un color real de la paleta.
+        const paleta = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#16a34a", "#3b82f6", "#6366f1", "#a855f7", "#ec4899", "#14b8a6"];
 
         const chart = new Chart(ctx, {
             type: "bar",
@@ -984,7 +1003,7 @@ window.FaretNcController = class FaretNcController {
                 datasets: [{
                     label,
                     data: rows.map(r => Number(r[valueKey] || 0)),
-                    backgroundColor: ["#ef4444", "#f97316", "#eab308", "#22c55e", "#16a34a", "#3b82f6", "#6366f1"],
+                    backgroundColor: rows.map((_, i) => paleta[i % paleta.length]),
                     borderRadius: 8,
                 }],
             },
@@ -1842,6 +1861,10 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-npnc-pct-recup").value = "";
         this._actualizarVisibilidadDisposicion("fnc-npnc-tipo-pnc", "fnc-npnc-disposicion-row");
 
+        document.getElementById("fnc-npnc-pdf-input").value = "";
+        document.getElementById("fnc-npnc-fotos-input").value = "";
+        document.getElementById("fnc-npnc-adjuntos-error").style.display = "none";
+
         this._resincronizarAreaJerarquia("npnc");
         document.getElementById("fnc-nuevo-pnc-modal").style.display = "flex";
     }
@@ -1940,6 +1963,19 @@ window.FaretNcController = class FaretNcController {
             fechaDeteccion: fechaIngreso,
         };
 
+        const adjuntosErrorEl = document.getElementById("fnc-npnc-adjuntos-error");
+        adjuntosErrorEl.style.display = "none";
+
+        const pdfFile = document.getElementById("fnc-npnc-pdf-input").files?.[0] || null;
+        const fotoFiles = Array.from(document.getElementById("fnc-npnc-fotos-input").files || []);
+
+        const validacionAdjuntos = this._validarAdjuntosNuevaNc(pdfFile, fotoFiles);
+        if (validacionAdjuntos) {
+            adjuntosErrorEl.textContent = validacionAdjuntos;
+            adjuntosErrorEl.style.display = "block";
+            return;
+        }
+
         const btn = document.getElementById("fnc-npnc-guardar-btn");
         btn.disabled = true;
         try {
@@ -1951,8 +1987,16 @@ window.FaretNcController = class FaretNcController {
                 return;
             }
 
+            const ncId = res.data?.nc?.id;
+            const erroresAdjuntos = ncId ? await this._subirAdjuntosNuevaNc(ncId, pdfFile, fotoFiles) : [];
+
             this._cerrarNuevoPnc();
-            this._showMensaje("No conformidad creada y gestionable", true);
+            this._showMensaje(
+                erroresAdjuntos.length
+                    ? `No conformidad creada, pero hubo un problema subiendo adjuntos: ${erroresAdjuntos.join("; ")}`
+                    : "No conformidad creada y gestionable",
+                erroresAdjuntos.length === 0
+            );
             await this._loadLista();
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
@@ -1960,6 +2004,68 @@ window.FaretNcController = class FaretNcController {
         } finally {
             btn.disabled = false;
         }
+    }
+
+    // Mismos límites que el resto del sistema de adjuntos (10MB/PDF, 5MB/foto, máx. 10 fotos).
+    _validarAdjuntosNuevaNc(pdfFile, fotoFiles) {
+        if (pdfFile) {
+            if (pdfFile.type !== "application/pdf") return "Solo se permite un archivo PDF";
+            if (pdfFile.size > 10 * 1024 * 1024) return "El PDF excede el tamaño máximo de 10 MB";
+        }
+        if (fotoFiles.length > 10) return "Máximo 10 fotografías";
+        const tiposValidos = ["image/jpeg", "image/png"];
+        for (const file of fotoFiles) {
+            if (!tiposValidos.includes(file.type)) return `"${file.name}" no es JPG/PNG`;
+            if (file.size > 5 * 1024 * 1024) return `"${file.name}" excede el tamaño máximo de 5 MB`;
+        }
+        return null;
+    }
+
+    // Sube los adjuntos elegidos en el formulario de "Nueva NC" recién después de que la NC ya
+    // existe (necesitan su id). Reutiliza la misma acción/backend que el resto del sistema de
+    // adjuntos (ver sección "Análisis y Plan de Acción"). Devuelve la lista de errores (vacía si
+    // todo salió bien) — nunca revierte la NC ya creada por un adjunto que falle.
+    async _subirAdjuntosNuevaNc(ncId, pdfFile, fotoFiles) {
+        const errores = [];
+        const usuario = this._usuarioActual();
+
+        if (pdfFile) {
+            try {
+                const contenidoBase64 = await this._leerArchivoBase64(pdfFile);
+                const res = await window.PhotinoBridge.send({
+                    action: "faret.nc.adjuntos.subir",
+                    id: Number(ncId),
+                    tipo: "CAUSA_RAIZ_PDF",
+                    nombreArchivo: pdfFile.name,
+                    tipoMime: pdfFile.type,
+                    contenidoBase64,
+                    subidoPor: usuario,
+                });
+                if (!res.ok) errores.push(res.error || "Error al subir el PDF");
+            } catch (err) {
+                errores.push(err.message || "Error al subir el PDF");
+            }
+        }
+
+        for (const file of fotoFiles) {
+            try {
+                const contenidoBase64 = await this._leerArchivoBase64(file);
+                const res = await window.PhotinoBridge.send({
+                    action: "faret.nc.adjuntos.subir",
+                    id: Number(ncId),
+                    tipo: "EVIDENCIA_FOTO",
+                    nombreArchivo: file.name,
+                    tipoMime: file.type,
+                    contenidoBase64,
+                    subidoPor: usuario,
+                });
+                if (!res.ok) errores.push(res.error || `Error al subir "${file.name}"`);
+            } catch (err) {
+                errores.push(err.message || `Error al subir "${file.name}"`);
+            }
+        }
+
+        return errores;
     }
 
     // ---------- Gestionar (crear vínculo Data→NC, o gestionar/cerrar/seguimiento de una NC existente) ----------
@@ -2359,6 +2465,8 @@ window.FaretNcController = class FaretNcController {
         this._ncAnalisisId = item.id;
         this._analisisActual = null;
         this._acciones = [];
+        this._adjuntos = [];
+        this._analisisCerrada = (item.estadoGestion || "").toUpperCase() === "CERRADA";
 
         document.getElementById("fnc-analisis-titulo").textContent =
             `Análisis y Plan de Acción — ${item.codigo ?? ""}`;
@@ -2379,6 +2487,7 @@ window.FaretNcController = class FaretNcController {
 
         await this._cargarAnalisis();
         await this._cargarAcciones();
+        await this._cargarAdjuntos();
 
         document.getElementById("fnc-analisis-loading").style.display = "none";
         document.getElementById("fnc-analisis-contenido").style.display = "block";
@@ -2389,6 +2498,8 @@ window.FaretNcController = class FaretNcController {
         this._ncAnalisisId = null;
         this._analisisActual = null;
         this._acciones = [];
+        this._adjuntos = [];
+        this._analisisCerrada = false;
     }
 
     async _cargarAnalisis() {
@@ -2484,6 +2595,269 @@ window.FaretNcController = class FaretNcController {
         } finally {
             guardarBtn.disabled = false;
         }
+    }
+
+    // ---------- Adjuntos: PDF de análisis de causa raíz + evidencia fotográfica ----------
+
+    async _cargarAdjuntos() {
+        const errorEl = document.getElementById("fnc-adjunto-pdf-error");
+        errorEl.style.display = "none";
+
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.adjuntos.list",
+                id: Number(this._ncAnalisisId),
+            });
+            this._adjuntos = res.ok && Array.isArray(res.data) ? res.data : [];
+        } catch {
+            this._adjuntos = [];
+        }
+
+        this._renderAdjuntoPdf();
+        this._renderAdjuntoFotos();
+    }
+
+    _renderAdjuntoPdf() {
+        const bloque = document.getElementById("fnc-adjunto-pdf-bloque");
+        const pdf = this._adjuntos.find(a => a.tipo === "CAUSA_RAIZ_PDF");
+        const cerrada = this._analisisCerrada;
+
+        if (!pdf) {
+            bloque.innerHTML = cerrada
+                ? `<span class="fnc-nota">Sin PDF adjunto.</span>`
+                : `<button type="button" class="btn-secondary" id="fnc-adjunto-pdf-adjuntar-btn">Adjuntar PDF</button>`;
+        } else {
+            bloque.innerHTML = `
+                <div class="fnc-adjunto-pdf-fila">
+                    <span>${pdf.nombreArchivo}</span>
+                    <button type="button" class="btn-secondary" id="fnc-adjunto-pdf-ver-btn">Ver</button>
+                    ${cerrada ? "" : `<button type="button" class="btn-secondary" id="fnc-adjunto-pdf-reemplazar-btn">Reemplazar</button>`}
+                </div>
+            `;
+        }
+
+        document.getElementById("fnc-adjunto-pdf-adjuntar-btn")
+            ?.addEventListener("click", () => document.getElementById("fnc-adjunto-pdf-input")?.click());
+        document.getElementById("fnc-adjunto-pdf-reemplazar-btn")
+            ?.addEventListener("click", () => document.getElementById("fnc-adjunto-pdf-input")?.click());
+        document.getElementById("fnc-adjunto-pdf-ver-btn")
+            ?.addEventListener("click", () => this._verAdjunto(pdf.id));
+    }
+
+    _renderAdjuntoFotos() {
+        const grid = document.getElementById("fnc-adjunto-fotos-grid");
+        const fotos = this._adjuntos.filter(a => a.tipo === "EVIDENCIA_FOTO");
+        const cerrada = this._analisisCerrada;
+
+        document.getElementById("fnc-adjunto-fotos-btn").style.display = cerrada ? "none" : "inline-block";
+
+        if (fotos.length === 0) {
+            grid.innerHTML = `<span class="fnc-nota">${cerrada ? "Sin fotografías adjuntas." : "Aún no hay fotografías adjuntas."}</span>`;
+            return;
+        }
+
+        grid.innerHTML = fotos.map(f => `
+            <div class="fnc-foto-item" data-adjunto-id="${f.id}" title="${f.nombreArchivo}">
+                ${cerrada ? "" : `<button type="button" class="fnc-foto-eliminar" data-adjunto-id="${f.id}">×</button>`}
+            </div>
+        `).join("");
+
+        fotos.forEach(f => {
+            const el = grid.querySelector(`.fnc-foto-item[data-adjunto-id="${f.id}"]`);
+            if (!el) return;
+
+            el.addEventListener("click", (ev) => {
+                if (ev.target.closest(".fnc-foto-eliminar")) return;
+                this._verAdjunto(f.id);
+            });
+
+            el.querySelector(".fnc-foto-eliminar")
+                ?.addEventListener("click", (ev) => {
+                    ev.stopPropagation();
+                    this._eliminarAdjunto(f.id);
+                });
+
+            // Miniatura cargada de forma diferida (no bloquea el render de la grilla).
+            window.PhotinoBridge.send({
+                action: "faret.nc.adjuntos.abrir",
+                id: Number(this._ncAnalisisId),
+                adjuntoId: f.id,
+            }).then(res => {
+                if (res?.ok && res.data) {
+                    const img = document.createElement("img");
+                    img.src = `data:${res.data.tipoMime};base64,${res.data.contenidoBase64}`;
+                    img.alt = f.nombreArchivo;
+                    el.prepend(img);
+                }
+            }).catch(() => {});
+        });
+    }
+
+    _leerArchivoBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(",")[1] || "");
+            reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async _subirPdfSeleccionado(e) {
+        const input = e.target;
+        const file = input.files?.[0];
+        input.value = "";
+        if (!file) return;
+
+        const errorEl = document.getElementById("fnc-adjunto-pdf-error");
+        errorEl.style.display = "none";
+
+        if (file.type !== "application/pdf") {
+            errorEl.textContent = "Solo se permite un archivo PDF";
+            errorEl.style.display = "block";
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            errorEl.textContent = "El PDF excede el tamaño máximo de 10 MB";
+            errorEl.style.display = "block";
+            return;
+        }
+
+        try {
+            const contenidoBase64 = await this._leerArchivoBase64(file);
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.adjuntos.subir",
+                id: Number(this._ncAnalisisId),
+                tipo: "CAUSA_RAIZ_PDF",
+                nombreArchivo: file.name,
+                tipoMime: file.type,
+                contenidoBase64,
+                subidoPor: this._usuarioActual(),
+            });
+
+            if (!res.ok) {
+                errorEl.textContent = res.error || "Error al subir el PDF";
+                errorEl.style.display = "block";
+                return;
+            }
+
+            await this._cargarAdjuntos();
+        } catch (err) {
+            errorEl.textContent = err.message || "Error al subir el PDF";
+            errorEl.style.display = "block";
+        }
+    }
+
+    async _subirFotosSeleccionadas(e) {
+        const input = e.target;
+        const files = Array.from(input.files || []);
+        input.value = "";
+        if (files.length === 0) return;
+
+        const errorEl = document.getElementById("fnc-adjunto-fotos-error");
+        errorEl.style.display = "none";
+
+        const activas = this._adjuntos.filter(a => a.tipo === "EVIDENCIA_FOTO").length;
+        if (activas + files.length > 10) {
+            errorEl.textContent = `Máximo 10 fotografías por no conformidad (ya hay ${activas})`;
+            errorEl.style.display = "block";
+            return;
+        }
+
+        const tiposValidos = ["image/jpeg", "image/png"];
+        for (const file of files) {
+            if (!tiposValidos.includes(file.type)) {
+                errorEl.textContent = `"${file.name}" no es JPG/PNG`;
+                errorEl.style.display = "block";
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                errorEl.textContent = `"${file.name}" excede el tamaño máximo de 5 MB`;
+                errorEl.style.display = "block";
+                return;
+            }
+        }
+
+        try {
+            for (const file of files) {
+                const contenidoBase64 = await this._leerArchivoBase64(file);
+                const res = await window.PhotinoBridge.send({
+                    action: "faret.nc.adjuntos.subir",
+                    id: Number(this._ncAnalisisId),
+                    tipo: "EVIDENCIA_FOTO",
+                    nombreArchivo: file.name,
+                    tipoMime: file.type,
+                    contenidoBase64,
+                    subidoPor: this._usuarioActual(),
+                });
+                if (!res.ok) {
+                    errorEl.textContent = res.error || `Error al subir "${file.name}"`;
+                    errorEl.style.display = "block";
+                    break;
+                }
+            }
+        } finally {
+            await this._cargarAdjuntos();
+        }
+    }
+
+    async _verAdjunto(adjuntoId) {
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.adjuntos.abrir",
+                id: Number(this._ncAnalisisId),
+                adjuntoId,
+            });
+            if (!res.ok) throw new Error(res.error || "Error al abrir el adjunto");
+
+            this._mostrarAdjuntoVisor(res.data.nombreArchivo, res.data.tipoMime, res.data.contenidoBase64);
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
+    async _eliminarAdjunto(adjuntoId) {
+        if (!confirm("¿Eliminar este adjunto?")) return;
+
+        try {
+            const res = await window.PhotinoBridge.send({
+                action: "faret.nc.adjuntos.eliminar",
+                id: Number(this._ncAnalisisId),
+                adjuntoId,
+            });
+            if (!res.ok) throw new Error(res.error || "Error al eliminar el adjunto");
+
+            await this._cargarAdjuntos();
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
+    // Mismo patrón visual que mostrarFoto (Recepción-Calidad) / _mostrarAdjunto (Control
+    // Documental): overlay oscuro + tarjeta blanca, anclado a document.body. PDF se previsualiza
+    // en un <iframe> (WebView2 lo renderiza nativo), imagen en <img>.
+    _mostrarAdjuntoVisor(nombreArchivo, tipoMime, contenidoBase64) {
+        const existente = document.getElementById("fncModalAdjunto");
+        if (existente) existente.remove();
+
+        const dataUrl = `data:${tipoMime};base64,${contenidoBase64}`;
+        const visor = tipoMime.startsWith("image/")
+            ? `<img src="${dataUrl}" alt="${nombreArchivo}" style="display:block;max-width:100%;max-height:75vh;object-fit:contain;border-radius:8px;">`
+            : `<iframe src="${dataUrl}" style="width:80vw;height:75vh;border:0;"></iframe>`;
+
+        const modal = document.createElement("div");
+        modal.id = "fncModalAdjunto";
+        modal.style.cssText = "position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(15,23,42,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;";
+        modal.innerHTML = `
+            <div style="background:#fff;border-radius:12px;max-width:90%;max-height:90%;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,0.35);position:relative;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;">
+                    <strong>${nombreArchivo}</strong>
+                    <button id="fncBtnCerrarAdjunto" class="btn-secondary" type="button">Cerrar</button>
+                </div>
+                ${visor}
+            </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById("fncBtnCerrarAdjunto").addEventListener("click", () => modal.remove());
     }
 
     async _cargarAcciones() {

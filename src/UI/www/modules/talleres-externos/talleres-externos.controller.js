@@ -52,6 +52,7 @@ window.TalleresExternosController = class {
         document.getElementById("te-form-cancelar-btn")?.addEventListener("click", () => this._cerrarForm());
         document.getElementById("te-form-guardar-btn")?.addEventListener("click", () => this._guardar());
         document.getElementById("te-exportar-btn")?.addEventListener("click", () => this._exportar());
+        document.getElementById("te-sincronizar-fps-btn")?.addEventListener("click", () => this._sincronizarFps());
         document.getElementById("te-actualizar-btn")?.addEventListener("click", () => this._cargarTodo());
         document.getElementById("te-filtrar-btn")?.addEventListener("click", () => { this._page = 1; this._renderTabla(); });
         document.getElementById("te-limpiar-btn")?.addEventListener("click", () => this._limpiarFiltros());
@@ -239,7 +240,7 @@ window.TalleresExternosController = class {
         const tbody = document.getElementById("te-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="17" class="te-empty">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="18" class="te-empty">Sin registros</td></tr>`;
             this._renderPaginacion(filtrados.length);
             return;
         }
@@ -265,6 +266,7 @@ window.TalleresExternosController = class {
                 <td style="text-align:right;">${teFormatNumero(it.cantidadARevisar)}</td>
                 <td style="text-align:right;">${teFormatNumero(it.cantidadRevisadaEntregada)}</td>
                 <td style="text-align:right;">${teFormatNumero(it.cantidadFaltante)}</td>
+                <td><button class="btn-ghost te-historial-fps-btn" data-id="${it.id}">Ver historial (${it.totalLiberacionesFps || 0})</button></td>
                 <td class="te-obs-celda" title="${this._esc(it.observaciones)}">${this._esc(it.observaciones)}</td>
                 <td>
                     <button class="btn-secondary te-editar-btn" data-id="${it.id}">Editar</button>
@@ -277,6 +279,8 @@ window.TalleresExternosController = class {
             btn.addEventListener("click", () => this._abrirEditar(Number(btn.dataset.id))));
         tbody.querySelectorAll(".te-eliminar-btn").forEach((btn) =>
             btn.addEventListener("click", () => this._eliminarFila(Number(btn.dataset.id))));
+        tbody.querySelectorAll(".te-historial-fps-btn").forEach((btn) =>
+            btn.addEventListener("click", () => this._verHistorialFps(btn, Number(btn.dataset.id))));
 
         this._renderPaginacion(filtrados.length);
     }
@@ -456,6 +460,79 @@ window.TalleresExternosController = class {
 
         this._mostrarMensaje(`Trabajo NV ${it.nv} eliminado.`);
         await this._cargarTodo();
+    }
+
+    // ---------- Sincronización FPS ----------
+
+    async _sincronizarFps() {
+        const btn = document.getElementById("te-sincronizar-fps-btn");
+        const textoOriginal = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Sincronizando...";
+
+        try {
+            const res = await this._send("talleresExternos.sincronizarFps", {});
+            if (!res.ok) {
+                alert(res.error || "No se pudo sincronizar con FPS.");
+                return;
+            }
+
+            const r = res.data || {};
+            const errores = r.errores || [];
+            let mensaje = `Sincronización FPS: ${r.trabajosRevisados || 0} trabajo(s) revisado(s), ` +
+                `${r.liberacionesNuevas || 0} liberación(es) nueva(s) aplicada(s) a ${r.trabajosActualizados || 0} trabajo(s).`;
+            if (errores.length) {
+                mensaje += ` ${errores.length} con error (ver consola).`;
+                console.warn("Errores de sincronización FPS:", errores);
+            }
+            this._mostrarMensaje(mensaje);
+
+            if ((r.liberacionesNuevas || 0) > 0) await this._cargarTodo();
+        } catch {
+            alert("Error de comunicación con el backend al sincronizar con FPS.");
+        } finally {
+            btn.disabled = false;
+            btn.textContent = textoOriginal;
+        }
+    }
+
+    async _verHistorialFps(trigger, id) {
+        window.TableUtils.abrirPopover(trigger, `<div style="padding:12px;">Cargando...</div>`);
+
+        const res = await this._send("talleresExternos.historialLiberaciones", { id });
+        const historial = res.ok ? (res.data || []) : [];
+
+        let html;
+        if (!historial.length) {
+            html = `<div style="padding:12px;">Sin liberaciones sincronizadas desde FPS todavía.</div>`;
+        } else {
+            html = `
+                <div style="padding:10px 12px; font-weight:600; border-bottom:1px solid #E2E8F0;">Historial de liberaciones FPS</div>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="text-align:left;">
+                            <th style="padding:6px 12px;">Folio</th>
+                            <th style="padding:6px 12px;">Fecha liberación</th>
+                            <th style="padding:6px 12px; text-align:right;">Cantidad</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${historial.map((h) => `
+                            <tr style="border-top:1px solid #F1F5F9;">
+                                <td style="padding:6px 12px;">${this._esc(h.folioFps)}</td>
+                                <td style="padding:6px 12px;">${h.fechaLiberacion ? new Date(h.fechaLiberacion).toLocaleString("es-CL") : "-"}</td>
+                                <td style="padding:6px 12px; text-align:right;">${teFormatNumero(h.cantidad)}</td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // Puede haber quedado abierto un popover distinto si el usuario hizo clic en otra fila
+        // mientras cargaba; abrirPopover ya cierra cualquier popover previo antes de crear el
+        // nuevo, así que reabrir con el mismo trigger es seguro.
+        window.TableUtils.abrirPopover(trigger, html);
     }
 
     // ---------- Sugerencias con "x" (Taller/Proceso/Responsable/Cliente/Producto/Código) ----------
@@ -672,6 +749,7 @@ window.TalleresExternosController = class {
                     <th>Cant. a revisar</th>
                     <th>Cant. revisada/entregada</th>
                     <th>Cant. faltante</th>
+                    <th>Liberaciones FPS</th>
                     <th>Observaciones</th>
                 </tr>
             </thead>
@@ -693,6 +771,7 @@ window.TalleresExternosController = class {
                         <td>${teFormatNumero(it.cantidadARevisar)}</td>
                         <td>${teFormatNumero(it.cantidadRevisadaEntregada)}</td>
                         <td>${teFormatNumero(it.cantidadFaltante)}</td>
+                        <td>${it.totalLiberacionesFps || 0}</td>
                         <td>${this._esc(it.observaciones)}</td>
                     </tr>
                 `).join("")}

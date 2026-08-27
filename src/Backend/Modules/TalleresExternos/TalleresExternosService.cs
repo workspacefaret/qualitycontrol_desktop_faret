@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using QualityControlCenter.Backend.Services.FpsApi;
 using QualityControlCenter.Services;
 
 namespace QualityControlCenter.Modules.TalleresExternos
@@ -9,16 +10,28 @@ namespace QualityControlCenter.Modules.TalleresExternos
     {
         private static readonly string[] PrioridadesValidas = ["BAJA", "MEDIA", "ALTA"];
         private static readonly string[] EstadosValidos =
-            ["PENDIENTE_ASIGNACION", "ASIGNADO", "EN_PROCESO", "ENTREGADO", "ANULADO"];
+        [
+            "PENDIENTE_ASIGNACION",
+            "ASIGNADO",
+            "EN_PROCESO",
+            "ENTREGADO",
+            "ANULADO",
+        ];
+
+        // Este módulo es exclusivo de INNPACK (ver TalleresExternosRepository) — el filtro de
+        // empresa contra fps-api queda fijo, no viaja desde el frontend.
+        private const string EmpresaFps = "INNPACK SPA";
 
         private const int MaxLargoObservaciones = 2000;
         private const int MaxLargoJustificacion = 500;
 
         private readonly TalleresExternosRepository _repo;
+        private readonly FpsLiberacionesApiService? _fps;
 
-        public TalleresExternosService(DbService db)
+        public TalleresExternosService(DbService db, FpsLiberacionesApiService? fps = null)
         {
             _repo = new TalleresExternosRepository(db);
+            _fps = fps;
         }
 
         public Task<TrabajoListResponse> GetListAsync(int page, int pageSize)
@@ -51,7 +64,11 @@ namespace QualityControlCenter.Modules.TalleresExternos
             return await _repo.CrearAsync(request, usuarioId);
         }
 
-        public async Task<TrabajoActualizarResultado> ActualizarAsync(long id, ActualizarTrabajoRequest request, int? usuarioId)
+        public async Task<TrabajoActualizarResultado> ActualizarAsync(
+            long id,
+            ActualizarTrabajoRequest request,
+            int? usuarioId
+        )
         {
             var errores = ValidarCampos(request);
             if (errores.Count > 0)
@@ -62,6 +79,64 @@ namespace QualityControlCenter.Modules.TalleresExternos
 
         public Task<TrabajoEliminarResultado> EliminarAsync(long id, int version, int? usuarioId) =>
             _repo.EliminarAsync(id, version, usuarioId);
+
+        public Task<List<LiberacionHistorialItem>> ObtenerHistorialLiberacionesAsync(
+            long trabajoId
+        ) => _repo.GetHistorialLiberacionesAsync(trabajoId);
+
+        // Recorre los trabajos activos con código de producto, consulta fps-api por cada uno
+        // (NV+Ítem+Código, empresa fija INNPACK) y aplica las liberaciones nuevas. Un error en un
+        // trabajo puntual (FPS caído, sin match, etc.) no interrumpe el resto — queda registrado
+        // en Errores y se sigue con el siguiente.
+        public async Task<SincronizarFpsResultado> SincronizarFpsAsync(int? usuarioId)
+        {
+            if (_fps is null || !_fps.IsConfigured)
+                throw new System.InvalidOperationException(
+                    "La integración con FPS no está configurada (revisa la sección \"FpsApi\" en config.json)."
+                );
+
+            var trabajos = await _repo.GetTrabajosSincronizablesAsync();
+            var resultado = new SincronizarFpsResultado { TrabajosRevisados = trabajos.Count };
+
+            foreach (var trabajo in trabajos)
+            {
+                var (ok, liberaciones, error) = await _fps.ObtenerLiberacionesAsync(
+                    trabajo.Nv,
+                    trabajo.Item,
+                    trabajo.CodigoProducto!,
+                    EmpresaFps
+                );
+
+                if (!ok)
+                {
+                    resultado.Errores.Add($"NV {trabajo.Nv} ítem {trabajo.Item}: {error}");
+                    continue;
+                }
+
+                if (liberaciones.Count == 0)
+                    continue;
+
+                var syncResultado = await _repo.SincronizarTrabajoAsync(
+                    trabajo.Id,
+                    liberaciones,
+                    usuarioId
+                );
+
+                if (syncResultado.Error != null)
+                {
+                    resultado.Errores.Add(
+                        $"NV {trabajo.Nv} ítem {trabajo.Item}: {syncResultado.Error}"
+                    );
+                    continue;
+                }
+
+                resultado.LiberacionesNuevas += syncResultado.LiberacionesNuevas;
+                if (syncResultado.LiberacionesNuevas > 0)
+                    resultado.TrabajosActualizados++;
+            }
+
+            return resultado;
+        }
 
         private static List<string> ValidarCampos(CrearTrabajoRequest r)
         {
@@ -84,10 +159,14 @@ namespace QualityControlCenter.Modules.TalleresExternos
                 errores.Add("Cantidad revisada y entregada no puede ser negativa.");
 
             if (!PrioridadesValidas.Contains(r.Prioridad))
-                errores.Add($"Prioridad inválida: '{r.Prioridad}'. Valores permitidos: {string.Join(", ", PrioridadesValidas)}.");
+                errores.Add(
+                    $"Prioridad inválida: '{r.Prioridad}'. Valores permitidos: {string.Join(", ", PrioridadesValidas)}."
+                );
 
             if (!EstadosValidos.Contains(r.Estado))
-                errores.Add($"Estado inválido: '{r.Estado}'. Valores permitidos: {string.Join(", ", EstadosValidos)}.");
+                errores.Add(
+                    $"Estado inválido: '{r.Estado}'. Valores permitidos: {string.Join(", ", EstadosValidos)}."
+                );
 
             if (r.CantidadFaltanteAjusteManual)
             {
@@ -97,14 +176,20 @@ namespace QualityControlCenter.Modules.TalleresExternos
                     errores.Add("La cantidad faltante ajustada no puede ser negativa.");
 
                 if (string.IsNullOrWhiteSpace(r.CantidadFaltanteJustificacion))
-                    errores.Add("El ajuste manual de cantidad faltante requiere una justificación.");
+                    errores.Add(
+                        "El ajuste manual de cantidad faltante requiere una justificación."
+                    );
             }
 
             if (r.CantidadFaltanteJustificacion?.Length > MaxLargoJustificacion)
-                errores.Add($"La justificación de cantidad faltante no puede superar {MaxLargoJustificacion} caracteres.");
+                errores.Add(
+                    $"La justificación de cantidad faltante no puede superar {MaxLargoJustificacion} caracteres."
+                );
 
             if (r.Observaciones?.Length > MaxLargoObservaciones)
-                errores.Add($"Las observaciones no pueden superar {MaxLargoObservaciones} caracteres.");
+                errores.Add(
+                    $"Las observaciones no pueden superar {MaxLargoObservaciones} caracteres."
+                );
 
             return errores;
         }

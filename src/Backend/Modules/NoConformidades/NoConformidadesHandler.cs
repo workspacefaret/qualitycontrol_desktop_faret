@@ -27,6 +27,12 @@ namespace QualityControlCenter.Modules.NoConformidades
             "CERRADA",
         };
         private static readonly string[] MetodologiasValidas = { "CINCO_PORQUES", "ISHIKAWA", "MIXTA" };
+        private static readonly string[] TiposAdjuntoValidos = { "CAUSA_RAIZ_PDF", "EVIDENCIA_FOTO" };
+        private static readonly string[] MimesPdfValidos = { "application/pdf" };
+        private static readonly string[] MimesFotoValidos = { "image/jpeg", "image/png" };
+        private const int MaxPdfBytes = 10 * 1024 * 1024;
+        private const int MaxFotoBytes = 5 * 1024 * 1024;
+        private const int MaxFotosPorNc = 10;
         private static readonly string[] EstadosAccionValidos =
         {
             "PENDIENTE",
@@ -63,6 +69,10 @@ namespace QualityControlCenter.Modules.NoConformidades
                     "noConformidades.acciones.list" => await HandleAccionesList(data),
                     "noConformidades.acciones.crear" => await HandleAccionesCrear(data),
                     "noConformidades.acciones.actualizar" => await HandleAccionesActualizar(data),
+                    "noConformidades.adjuntos.list" => await HandleAdjuntosList(data),
+                    "noConformidades.adjuntos.subir" => await HandleAdjuntosSubir(data),
+                    "noConformidades.adjuntos.abrir" => await HandleAdjuntosAbrir(data),
+                    "noConformidades.adjuntos.eliminar" => await HandleAdjuntosEliminar(data),
                     "noConformidades.catalogos.clientes.list" => await HandleCatalogoList(() => _catalogos.GetClientesAsync()),
                     "noConformidades.catalogos.clientes.crear" => await HandleCatalogoCrear(data, _catalogos.CrearClienteAsync),
                     "noConformidades.catalogos.clientes.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarClienteAsync),
@@ -507,6 +517,118 @@ namespace QualityControlCenter.Modules.NoConformidades
                 actualizadoPor
             );
             return Ok((object?)null);
+        }
+
+        // ---------- Adjuntos: PDF análisis de causa raíz + evidencia fotográfica ----------
+
+        private async Task<string> HandleAdjuntosList(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            var (existe, _) = await _repo.ObtenerEstadoAdjuntos(id);
+            if (!existe)
+                return Error("No conformidad no encontrada");
+
+            var items = await _repo.ListarAdjuntos(id);
+            return Ok(items);
+        }
+
+        private async Task<string> HandleAdjuntosSubir(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+
+            var (existe, cerrada) = await _repo.ObtenerEstadoAdjuntos(id);
+            if (!existe)
+                return Error("No conformidad no encontrada");
+            if (cerrada)
+                return Error("La no conformidad está cerrada, no se pueden agregar adjuntos");
+
+            if (!TryGetString(data, "tipo", out var tipo) || string.IsNullOrWhiteSpace(tipo))
+                return Error("Falta el tipo de adjunto");
+            if (!TiposAdjuntoValidos.Contains(tipo))
+                return Error($"Tipo inválido. Valores permitidos: {string.Join(", ", TiposAdjuntoValidos)}");
+
+            if (!TryGetString(data, "nombreArchivo", out var nombreArchivo) || string.IsNullOrWhiteSpace(nombreArchivo))
+                return Error("Falta el nombre del archivo");
+            if (!TryGetString(data, "tipoMime", out var tipoMime) || string.IsNullOrWhiteSpace(tipoMime))
+                return Error("Falta el tipo MIME del archivo");
+            if (!TryGetString(data, "contenidoBase64", out var contenidoBase64) || string.IsNullOrWhiteSpace(contenidoBase64))
+                return Error("Falta el contenido del archivo");
+
+            var mimesPermitidos = tipo == "CAUSA_RAIZ_PDF" ? MimesPdfValidos : MimesFotoValidos;
+            if (!mimesPermitidos.Contains(tipoMime))
+                return Error($"Tipo MIME inválido para {tipo}. Permitidos: {string.Join(", ", mimesPermitidos)}");
+
+            byte[] contenido;
+            try
+            {
+                contenido = Convert.FromBase64String(contenidoBase64!);
+            }
+            catch (FormatException)
+            {
+                return Error("contenidoBase64 no es un base64 válido");
+            }
+
+            if (contenido.Length == 0)
+                return Error("El archivo está vacío");
+
+            var maxBytes = tipo == "CAUSA_RAIZ_PDF" ? MaxPdfBytes : MaxFotoBytes;
+            if (contenido.Length > maxBytes)
+                return Error($"El archivo excede el tamaño máximo de {maxBytes / 1024 / 1024} MB");
+
+            if (tipo == "EVIDENCIA_FOTO")
+            {
+                var activas = await _repo.ContarAdjuntosActivosPorTipo(id, "EVIDENCIA_FOTO");
+                if (activas >= MaxFotosPorNc)
+                    return Error($"Ya existen {MaxFotosPorNc} fotografías para esta no conformidad, el máximo permitido");
+            }
+
+            TryGetString(data, "subidoPor", out var subidoPor);
+
+            var adjuntoId = await _repo.CrearAdjunto(id, tipo!, nombreArchivo!, tipoMime!, contenido, subidoPor);
+            return Ok(new { id = adjuntoId });
+        }
+
+        private async Task<string> HandleAdjuntosAbrir(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+            if (!TryGetInt(data, "adjuntoId", out var adjuntoId))
+                return Error("Falta el id del adjunto");
+
+            var adjunto = await _repo.ObtenerAdjunto(id, adjuntoId);
+            if (adjunto == null)
+                return Error("Adjunto no encontrado");
+
+            return Ok(new
+            {
+                id = adjuntoId,
+                nombreArchivo = adjunto.Value.NombreArchivo,
+                tipoMime = adjunto.Value.TipoMime,
+                contenidoBase64 = Convert.ToBase64String(adjunto.Value.Contenido),
+            });
+        }
+
+        private async Task<string> HandleAdjuntosEliminar(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id de la no conformidad");
+            if (!TryGetInt(data, "adjuntoId", out var adjuntoId))
+                return Error("Falta el id del adjunto");
+
+            var (existe, cerrada) = await _repo.ObtenerEstadoAdjuntos(id);
+            if (!existe)
+                return Error("No conformidad no encontrada");
+            if (cerrada)
+                return Error("La no conformidad está cerrada, no se pueden eliminar adjuntos");
+
+            var eliminado = await _repo.EliminarAdjunto(id, adjuntoId);
+            if (!eliminado)
+                return Error("Adjunto no encontrado");
+
+            return Ok(new { mensaje = "Adjunto eliminado correctamente" });
         }
 
         // ---------- Helpers de payload (mismo patrón que FaretHandler) ----------

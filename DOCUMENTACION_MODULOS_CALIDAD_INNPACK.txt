@@ -1,0 +1,1214 @@
+====================================================================
+ DOCUMENTACION - MODULOS NUEVOS DE CALIDAD (INNPACK)
+ Talleres Externos+FPS / Trazabilidad / Laboratorio - Muestras /
+ Control de Recepcion - Calidad / Vinculo a No Conformidades
+====================================================================
+
+Archivo renombrado el 27-08-2026 (antes: DOCUMENTACION_TALLERES_EXTERNOS_FPS.txt).
+Se renombro porque ya no documenta solo la sincronizacion FPS de Talleres
+Externos, sino todos los bloques de funcionalidad nueva de esta sesion larga
+de trabajo. El contenido de las secciones 1 a 6 es EXCLUSIVO DE INNPACK. A
+partir de la seccion 7 se documentan actualizaciones posteriores, algunas de
+las cuales SI tocan Faret (se indica explicitamente en cada una cual empresa
+aplica).
+
+Ultima actualizacion de contenido: 27-08-2026 (segunda pasada, mismo dia -
+ver notas "(release 1.8.7)" y "(release 1.8.6)" en cada seccion para saber
+que esta realmente en produccion y que no).
+
+Estado general:
+  - Talleres Externos + FPS (sincronizacion): DESPLEGADO EN PRODUCCION
+    (fps-api, SRV-API).
+  - Talleres Externos: correccion Cantidad a Revisar + columna
+    Liberaciones FPS: DESPLEGADO EN PRODUCCION (release 1.8.7, ver
+    seccion 6).
+  - Trazabilidad (NP + Paletizado): DESPLEGADO (consulta en vivo, sin
+    tabla propia que empaquetar en el instalador).
+  - Trazabilidad de Materiales por proceso: DESPLEGADO EN PRODUCCION
+    (release 1.8.6 - ver seccion 12, corregido: este bloque SI se
+    empaqueto, a diferencia de lo que decia una version anterior de
+    este documento).
+  - Laboratorio - Muestras (modulo completo, 13 ensayos + informe +
+    correccion con auditoria): DESPLEGADO EN PRODUCCION (release 1.8.6).
+  - Laboratorio - Muestras: indicadores/graficos propios + eliminacion
+    del modulo viejo "Laboratorio": DESPLEGADO EN PRODUCCION (release
+    1.8.7, ver seccion 8).
+  - Control de Recepcion - Calidad (modulo completo, incl. PVA/Pliego
+    Faret): DESPLEGADO EN PRODUCCION (release 1.8.6).
+  - Vinculo automatico a No Conformidades (Laboratorio/Recepcion):
+    DESPLEGADO EN PRODUCCION (release 1.8.6).
+  - No Conformidades: adjuntos (PDF causa raiz + evidencia fotografica),
+    incl. al crear una NC nueva: DESPLEGADO EN PRODUCCION (release
+    1.8.7, ver seccion 9; ambas empresas).
+  - Auditoria de exportadores Excel: DESPLEGADO EN PRODUCCION (release
+    1.8.7, ver seccion 10; ambas empresas).
+  - Modo Oscuro (toggle Claro/Oscuro): INTENTADO Y REVERTIDO el mismo
+    dia por mal contraste real en la app - NO esta en ningun release,
+    ver seccion 11.
+  - Release 1.8.6 desplegado en produccion hoy (27-08-2026, 11:19) con
+    todo lo marcado arriba como "release 1.8.6". Release 1.8.7
+    desplegado en produccion hoy mismo, mas tarde (16:04), con todo lo
+    marcado como "release 1.8.7" - ver seccion 12 para el detalle de
+    por que son 2 releases separados el mismo dia (hubo una colision de
+    numero de version que se corrigio en el momento).
+
+
+INDICE
+------
+1. Talleres Externos + Sincronizacion FPS (ya en produccion)
+2. Trazabilidad - NP, Planificacion y Paletizado
+2.1  Consulta por NP (base del modulo)
+2.2  Trazabilidad de Materiales por proceso (release 1.8.6)
+3. Laboratorio - Muestras (modulo completo)
+3.1  Como entrar y estructura general
+3.2  Los 13 ensayos, uno por uno
+3.3  Especificaciones (administracion de limites)
+3.4  Generar informe (release 1.8.6)
+3.5  Corregir un ensayo finalizado (release 1.8.6)
+3.6  Que se pidio vs que se implemento
+4. Control de Recepcion - Calidad (modulo completo)
+4.1  Como entrar y flujo general (Bobina via SAP)
+4.2  Formulario PVA (release 1.8.6)
+4.3  Formulario Pliegos Faret (release 1.8.6)
+4.4  Que se pidio vs que se implemento
+5. Vinculo automatico a No Conformidades (release 1.8.6)
+6. Talleres Externos: correccion Cantidad a Revisar + Liberaciones FPS
+   (release 1.8.7)
+7. Recorte del sidebar Faret (Control de Recepcion y Laboratorio -
+   Muestras solo INNPACK)
+8. Laboratorio viejo ELIMINADO + indicadores propios en Laboratorio -
+   Muestras (release 1.8.7)
+9. No Conformidades: Adjuntos - PDF causa raiz + evidencia fotografica
+   (release 1.8.7, ambas empresas)
+10. Auditoria de exportadores Excel (release 1.8.7, ambas empresas)
+11. Modo Oscuro (toggle) - intento y reversion (sin release)
+12. Pendientes generales y empaquetado
+
+
+====================================================================
+ 1. TALLERES EXTERNOS + SINCRONIZACION FPS (ya en produccion)
+====================================================================
+
+Esta seccion (sincronizacion basica con FPS) se deja tal cual estaba
+documentada, integra, mas abajo (bloque "PARTE 1"/"PARTE 2" original).
+Mas tarde, el mismo 27-08-2026, se le hizo una correccion de datos y
+una mejora de export a este mismo modulo - ver seccion 6 (release
+1.8.7) para el detalle completo, no se repite aca.
+
+--------------------------------------------------------------------
+ PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+--------------------------------------------------------------------
+
+QUE PROBLEMA RESUELVE
+----------------------
+Antes, cuando se cargaba un trabajo en el modulo "Talleres Externos"
+(INNPACK), las cantidades "Cant. a revisar" y "Cant. revisada/entregada"
+se escribian a mano, y habia que ir a revisar manualmente en FPS si ya
+habian llegado liberaciones (entregas) del taller para ese NV/Item/Codigo.
+
+Ahora QCC puede consultar FPS automaticamente y sumar solo, sin que el
+usuario tenga que ir a mirar FPS ni escribir cantidades a mano.
+
+COMO USARLO
+-----------
+1. Entrar al modulo "Talleres Externos" (INNPACK).
+2. Arriba a la derecha hay un boton nuevo: "Sincronizar con FPS".
+3. Al hacer clic, QCC revisa TODOS los trabajos activos (los que no
+   estan Anulados) y busca en FPS si hay liberaciones nuevas que
+   coincidan con el NV + Item + Codigo de cada trabajo.
+4. Si encuentra liberaciones nuevas:
+   - Se suman automaticamente a "Cant. revisada/entregada".
+   - "Cant. a revisar" se actualiza con el total real que dice FPS
+     (la Orden de Fabricacion).
+   - "Cant. faltante" se recalcula sola.
+5. Al terminar, aparece un mensaje arriba con el resumen: cuantos
+   trabajos se revisaron, cuantas liberaciones nuevas se aplicaron,
+   y a cuantos trabajos se les sumo algo.
+6. En la tabla, cada fila tiene una columna nueva "Liberaciones FPS"
+   con un boton "Ver historial" que muestra, para ese trabajo, cada
+   liberacion aplicada: folio, fecha y cantidad.
+
+IMPORTANTE:
+- El "Taller externo" NO se usa para el cruce con FPS. El cruce es
+  siempre por NV + Item + Codigo, sin importar que taller aparezca
+  en FPS ("TALLER INNPACK" u otro).
+- Si un trabajo ya tiene el ajuste manual de "Cantidad faltante"
+  activado, ese valor NO se toca por la sincronizacion.
+- Sincronizar es seguro de repetir: cada liberacion se identifica por
+  su folio de FPS (unico), no se suma dos veces.
+- Este boton solo existe en el modulo de INNPACK, no en el de Faret.
+
+--------------------------------------------------------------------
+ PARTE 2 - DOCUMENTACION TECNICA (resumen; detalle completo en
+ contex.md y en memoria del proyecto)
+--------------------------------------------------------------------
+
+  QCC (Photino desktop)
+    -> HTTPS -> https://api.faret.cl/fps/api/produccion/liberaciones
+    -> fps-api (Node/Express, SRV-API, tarea "FpsApi", puerto 3002)
+    -> SQL Server FPS_PRODUCCION (192.168.1.230)
+    -> OPENQUERY(CONEXIONSAP, ...) -> Faret_Control_Calidad
+
+Backend fps-api: src/services/liberaciones.service.js (nuevo),
+src/routes/produccion.routes.js (ruta GET /liberaciones, whitelist
+estricta de parametros porque OPENQUERY no admite parametros nativos).
+
+Backend QCC: sql/2026_talleres_externos_liberaciones_fps.sql (tabla
+historial, folio_fps UNIQUE = idempotente), src/Backend/Services/FpsApi/
+(cliente + servicio), TalleresExternosHandler/Service/Repository
+extendidos (acciones talleresExternos.sincronizarFps y
+talleresExternos.historialLiberaciones), config.json seccion "FpsApi".
+
+Frontend QCC: boton "Sincronizar con FPS" + columna "Liberaciones FPS"
+en talleres-externos.view.html/.controller.js.
+
+Desplegado en SRV-API con procedimiento de 8 fases (auditoria -> plan
+-> staging -> backup -> preflight -> cutover con rollback automatico
+-> validacion -> cierre). Validado en produccion real: health 200 OK,
+caso real NP 3767/Item 1/Codigo 4671005555516 -> 17 liberaciones,
+sincronizacion completa probada por el usuario en dotnet run.
+
+
+====================================================================
+ 2. TRAZABILIDAD - NP, PLANIFICACION Y PALETIZADO
+====================================================================
+
+--------------------------------------------------------------------
+ 2.1 CONSULTA POR NP (base del modulo, sin cambios en esta sesion)
+--------------------------------------------------------------------
+
+QUE PROBLEMA RESUELVE
+----------------------
+Antes no habia forma, desde QCC, de buscar un NP y ver de una vez en
+que estado esta en Planificacion FARET (planificacion.faret.cl) y con
+que codigo de paletizado salio.
+
+COMO USARLO
+-----------
+1. Entrar al modulo "Trazabilidad" (INNPACK, menu lateral).
+2. Escribir el NP y presionar "Consultar" (o Enter).
+3. La pantalla muestra 3 bloques:
+   a. Resumen de la NP (cliente, producto, cantidad, procesos
+      planificados/pendientes).
+   b. Trazabilidad de Planificacion: tabla con cada proceso de esa NP
+      (proceso, seccion, maquina, cantidad, cantidad producida,
+      estado, fecha de entrega, y desde el 27-08-2026 tambien
+      "Materiales" - ver 2.2).
+   c. Terminaciones y Paletizado: pallets/codigos de paletizado
+      asociados a esa NP (sistema de Belinda).
+
+Es un modulo 100% de consulta - no crea, edita ni elimina nada en
+ninguno de los sistemas de origen.
+
+DOCUMENTACION TECNICA (resumen)
+--------------------------------
+  QCC -> HTTPS sin auth -> api.faret.cl/programa-produccion/api/plan/
+  vista-planificacion (repo "programa-produccion", NO se modifico)
+  QCC -> MySQL directo -> 192.168.1.70, base "registro_paletizado",
+  tabla "palets" (misma base que usa LogisticControlCenter, la app de
+  Belinda) - se destrabo a proposito DbService.GetRegistroPaletizado
+  Connection() (antes bloqueada), con aprobacion explicita del usuario.
+
+Archivos: src/Backend/Services/PlanificacionApi/ (nuevo),
+src/Backend/Modules/Trazabilidad/ (nuevo), src/Backend/Repositories/
+Trazabilidad/ (nuevo), src/UI/www/modules/trazabilidad/ (nuevo).
+Validado con NP reales: 22443 (8 procesos), 20004 (106 filas de
+paletizado).
+
+--------------------------------------------------------------------
+ 2.2 TRAZABILIDAD DE MATERIALES POR PROCESO (RELEASE 1.8.6)
+--------------------------------------------------------------------
+Estado: DESPLEGADO EN PRODUCCION (fps-api + instalador QCC 1.8.6,
+27-08-2026). No se probo visualmente en dotnet run desde este entorno
+antes de empaquetar - falta que el usuario lo confirme abriendo la
+version instalada.
+
+PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+---------------------------------------------
+QUE PROBLEMA RESUELVE
+Antes, la tabla de "Trazabilidad de Planificacion" mostraba el proceso
+(Dimensionado, Impresion, Troquelado, etc.) pero no que material se le
+asigno a cada uno - habia que ir a mirar Planificacion FARET aparte
+para saber, por ejemplo, que bobina o que barniz correspondia a un
+proceso puntual.
+
+COMO USARLO
+Al consultar un NP (mismo flujo de siempre, punto 2.1), la tabla de
+"Trazabilidad de Planificacion" ahora tiene una columna nueva
+"Materiales": para cada proceso, muestra el nombre del material real
+asignado (por ejemplo, para un proceso de Dimensionado puede aparecer
+"CART. BOHUI SUPER BULK GC1 1PE 290 GR BOB. 95 CM"; para un proceso de
+Insumos, puede listar varios: planchas, mantillas, barniz acuoso,
+barniz UV, cajas). Si el proceso no tiene material asociado (por
+ejemplo un proceso que solo usa una maquina, sin insumo propio), la
+columna queda en "-".
+
+IMPORTANTE - LIMITACION REAL (leer antes de confiar en este dato para
+decisiones criticas):
+Este material es el que esta ASIGNADO/PLANIFICADO para el proceso (el
+SKU y su nombre completo), NO el numero de lote o de bobina fisica
+especifica que realmente se uso. Hoy no existe en ningun sistema
+conectado a QCC un registro del lote fisico exacto consumido por
+proceso - eso se investigo a fondo (incluida una verificacion real
+contra SAP, que resulto tener datos obsoletos de 2014/2017, sin
+servir para esto) y quedo confirmado que la unica forma de tener esa
+trazabilidad 100% exacta seria que se capturara el dato en el momento
+mismo en que se consume el material (en la app movil o en QCC), algo
+que no esta implementado y que es una iniciativa aparte, mas grande,
+pendiente de decision del usuario.
+
+SI ALGO SALE MAL
+Si no aparecen materiales para ningun proceso de una NP, puede ser
+que esos procesos genuinamente no tengan materiales tipo "INSUMO"
+cargados en el sistema de origen (FPS), no necesariamente un error.
+
+PARTE 2 - DOCUMENTACION TECNICA
+-----------------------------------
+Investigacion previa a implementar: se descarto SAP (Ordenes de
+Produccion via Service Layer, tablas OWOR/WOR1) porque los datos reales
+encontrados alli son de 2014 y 2017 - no reflejan produccion actual.
+La fuente real y vigente es FPS_PRODUCCION, tabla nativa
+dbo.ZZZMateriasPrimasOT, filtrando Tipo='INSUMO' por Id_Proceso - el
+mismo patron ya usado en produccion por el repo "programa-produccion"
+para su feature "Color por Ubicacion" (api/Sql/vista_ubicacion_insumo.sql),
+asi que no es experimental.
+
+  QCC -> HTTPS -> https://api.faret.cl/fps/api/produccion/
+  materiales-por-proceso?ids=<Id_Proceso,...> (fps-api, mismo servicio
+  que ya usa Talleres Externos+FPS, endpoint NUEVO)
+    -> SQL Server FPS_PRODUCCION -> dbo.ZZZMateriasPrimasOT
+       WHERE Tipo='INSUMO' AND Id_Proceso IN (...)
+
+Cambios en fps-api (repo Node, C:\Users\dcarrasco\Desktop\Proyectos\
+fps-api):
+  - src/services/produccion.service.js: funcion nueva
+    obtenerMaterialesPorProcesos(idsProceso) - IN parametrizado (no
+    interpolacion de texto), sin dependencias nuevas.
+  - src/routes/produccion.routes.js: ruta nueva GET
+    /materiales-por-proceso?ids=..., validacion de formato numerico +
+    tope de 200 ids por consulta, misma proteccion apiKeyAuth que el
+    resto de /api/produccion.
+  - Desplegado en produccion: backup con timestamp de los 2 archivos,
+    Stop-ScheduledTask "FpsApi" -> copiar -> Start-ScheduledTask
+    (el DLL/JS queda bloqueado con la tarea corriendo, confirmado en
+    el propio despliegue), validado sin regresion contra
+    /api/produccion/liberaciones y /procesos-por-np, y el endpoint
+    nuevo probado con datos reales de la NP 22443.
+
+Cambios en QCC:
+  - src/Backend/Services/FpsApi/FpsMaterialesApiService.cs (nuevo) -
+    envuelve FpsApiClient (ya existente, reutilizado sin cambios) +
+    parseo de la respuesta.
+  - src/Backend/Modules/Trazabilidad/TrazabilidadModels.cs -
+    ProcesoPlanDto suma una lista Materiales (MaterialInsumoDto:
+    idProceso, itemCode, itemName).
+  - src/Backend/Modules/Trazabilidad/TrazabilidadService.cs -
+    ConsultarNpAsync ahora, despues de traer los procesos, llama a
+    fps-api con TODOS los Id (el mismo campo "Id" que ya devuelve
+    vista-planificacion, que coincide con Id_Proceso de FPS) en una
+    sola consulta, y cruza el resultado por proceso. Falla suave: si
+    fps-api no responde, los procesos igual se muestran, solo sin
+    materiales.
+  - src/Backend/Services/MessageRouter.cs y Program.cs: wiring del
+    servicio nuevo (mismo patron que los clientes ya existentes).
+  - src/UI/www/modules/trazabilidad/trazabilidad.controller.js/.view.html:
+    columna nueva "Materiales" en la tabla de procesos.
+
+Validado con datos reales (NP 22443): proceso "Dimensionado" ->
+bobina real con ancho en el nombre; proceso "Insumos" -> 5 materiales
+reales (plancha, mantilla, barniz acuoso, barniz UV, caja), cada uno
+con su SKU real.
+
+GOTCHA REAL encontrado durante el despliegue (utilidad futura): el
+Service Layer de SAP y el Service Layer de FPS no son el mismo tipo de
+verificacion - la de FPS (SQL Server / mssql) NO tuvo el problema de
+restriccion de red por IP que si tuvo el intento inicial de golpear
+SAP Service Layer directo desde la maquina de desarrollo. Conectar
+directo a 192.168.1.230:1433 desde el entorno de trabajo SI funciono
+(confirmado con Test-NetConnection), lo que permitio verificar la
+tabla real ANTES de tocar produccion.
+
+
+====================================================================
+ 3. LABORATORIO - MUESTRAS (modulo completo)
+====================================================================
+Nombre de accion "muestraLab" y modulo frontend "muestra-laboratorio"
+A PROPOSITO distintos de "laboratorio" (accion "laboratorio", modulo
+"laboratorio") - ese otro modulo era un visor de ensayos cargados por
+la app movil, un concepto totalmente distinto. IMPORTANTE - esto
+cambio: al momento de crear este modulo el modulo viejo "laboratorio"
+no se toco, pero mas tarde (release 1.8.7) se ELIMINO por completo a
+pedido del usuario y sus KPIs/graficos se reemplazaron por unos nuevos,
+propios de este modulo - ver seccion 8. El modulo viejo ya NO EXISTE
+en el codigo ni en el sidebar.
+
+--------------------------------------------------------------------
+ 3.1 COMO ENTRAR Y ESTRUCTURA GENERAL
+--------------------------------------------------------------------
+1. Entrar al modulo "Laboratorio - Muestras" (INNPACK, menu lateral).
+2. Botón "+ Nueva muestra": pide Origen (Control de recepcion,
+   Corrugado, Emplacado, Troquelado, Pegado, Producto terminado,
+   Muestra externa, Pruebas), Tipo de muestra (Papel/bobina, Monotapa,
+   Carton corrugado emplacado, Pliego impreso, Caja pegada, Caja
+   master, Adhesivo PVA, Adhesivo de corrugado, Otro), y datos de
+   identificacion (NP, cliente, codigo, descripcion, maquina, turno,
+   lote, proveedor, observacion). Al guardar, abre directo el detalle
+   de la muestra recien creada.
+3. En el listado principal: filtro por estado y por NP, boton "Ver"
+   por fila abre el detalle.
+4. Dentro del detalle de una muestra: resumen de cabecera + tabla de
+   "Ensayos" ya cargados + una fila de botones "+ <Tipo de ensayo>"
+   para agregar cada uno de los 13 ensayos disponibles (ver 3.2).
+5. Boton "Especificaciones" (arriba del listado principal): abre el
+   maestro de limites min/max por tipo de muestra + tipo de ensayo,
+   ver 3.3.
+
+ESTADO Y EVALUACION DE LA MUESTRA (se calculan solos, no se editan a
+mano):
+  Estado: Pendiente (sin ensayos) / En analisis (con ensayos pero no
+  todos Finalizados) / Finalizada (todos los ensayos Finalizados o
+  Anulados) / Anulada.
+  Evaluacion: Sin especificacion (sin ensayos, o ninguno tiene limite
+  cargado) / Parcialmente evaluada (todavia hay ensayos sin terminar)
+  / No cumple (al menos un ensayo finalizado no cumple su
+  especificacion) / Cumple (todos los finalizados cumplen o no tienen
+  especificacion).
+  Los ensayos Anulados NUNCA cuentan para este calculo.
+
+--------------------------------------------------------------------
+ 3.2 LOS 13 ENSAYOS, UNO POR UNO
+--------------------------------------------------------------------
+Cada boton "+ <Ensayo>" abre un formulario propio. Todos comparten:
+Metodo (texto libre, ej. "TAPPI T 412"), Observacion, y quedan con
+Analista = usuario que esta logueado, Fecha = automatica. El resultado
+y el Cumplimiento (Cumple/No cumple/Sin especificacion, contra la
+especificacion vigente en ese momento - ver 3.3) se calculan solos.
+
+1. HUMEDAD - elegir Higrometro (3 puntos, promedio %), Termobalanza
+   (1 valor %) u Horno (hasta 3 pesadas, % = (peso inicial - peso
+   final) / peso inicial x 100). Si se cargan 2 metodos, se muestra
+   tambien la diferencia entre ambos.
+2. GRAMAJE - Papel/Cartulina/Pliego/Complejo corrugado; 3
+   determinaciones, en peso de probeta 10x10cm (x100) o directo en
+   g/m2, promedio.
+3. COBB - 3 probetas, cada una con bobina de origen, cara (externa/
+   interna), peso inicial/final, tiempo de exposicion; resultado =
+   (peso final - peso inicial) x 100, area 100 cm2. Si el peso final
+   es menor al inicial, no calcula y avisa.
+4. ESPESOR - 3 mediciones (Izquierda/Centro/Derecha o Muestra 1/2/3),
+   mm, promedio.
+5. RCT - Liner u Onda, 3 probetas con Force (lbf) y Strength opcional.
+6. FCT - 3 probetas con Force (lbf) y Strength opcional (sin
+   componente Liner/Onda, a diferencia de RCT).
+7. ECT - 5 probetas de Force (lbf); Strength (lbf/m) se calcula solo
+   (Force/0,1m); el resultado principal es el promedio de Strength,
+   convertido tambien a lb/in para usarlo despues en BCT teorico.
+8. BCT MEDIDO - entre 1 y 3 cajas (si son menos de 3, pide motivo),
+   cada una con largo/ancho/alto/tipo de onda/gramaje y espesor del
+   complejo/resultado en lbf; promedio en lbf.
+9. BCT TEORICO (McKee) - NO es un ensayo fisico: se calcula tomando
+   un ECT y un Espesor YA FINALIZADOS de la misma muestra + largo y
+   ancho interno (mm). Formula: BCT(lbf) = 5,87 x ECT(lb/in) x
+   raiz(espesor(in) x perimetro(in)). Muestra el aviso "Resultado
+   teorico estimado mediante formula de McKee. No reemplaza el ensayo
+   fisico BCT".
+10. VISCOSIDAD (solo PVA) - tipo de adhesivo, temperatura, equipo,
+    husillo, velocidad (rpm), resultado en cP.
+11. pH (solo PVA, tiras indicadoras) - valor o rango leido, color
+    observado (opcional). Sin equipo, sin promedio (a proposito, no es
+    un pHimetro).
+12. SOLIDOS TOTALES (solo PVA) - 3 determinaciones con capsula vacia
+    (M1)/capsula+muestra (M2)/capsula+residuo seco (M3); % solidos =
+    (M3-M1)/(M2-M1) x 100. Valida M2>M1 y M3>=M1; si M3>M2 muestra
+    advertencia.
+13. LUGOL (solo adhesivo de corrugado) - punto/muestra, coloracion,
+    resultado (Positivo/Negativo/No concluyente), interpretacion, y el
+    Cumplimiento lo decide el analista manualmente (es el UNICO ensayo
+    categorico, sin promedio ni comparacion numerica contra una
+    especificacion).
+
+Cada fila de la tabla de ensayos tiene botones "Anular" (siempre
+disponible salvo si ya esta Anulado, pide motivo) y, desde el
+27-08-2026, "Corregir" (solo si esta Finalizado - ver 3.5).
+
+--------------------------------------------------------------------
+ 3.3 ESPECIFICACIONES (administracion de limites)
+--------------------------------------------------------------------
+Boton "Especificaciones" arriba del listado. Permite cargar limite
+minimo/maximo/unidad por combinacion de Tipo de muestra + Tipo de
+ensayo, opcionalmente restringido a un Codigo de producto especifico
+(si no se pone codigo, aplica a todo ese tipo de muestra). Se puede
+activar/desactivar sin borrar el historico. IMPORTANTE: la
+especificacion se "congela" dentro de cada ensayo en el momento en
+que se finaliza - si despues se cambia el limite en el maestro, los
+ensayos ya evaluados NO cambian de resultado retroactivamente.
+
+--------------------------------------------------------------------
+ 3.4 GENERAR INFORME (RELEASE 1.8.6)
+--------------------------------------------------------------------
+Estado: DESPLEGADO EN PRODUCCION (instalador QCC 1.8.6, 27-08-2026).
+
+PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+Dentro del detalle de una muestra, boton nuevo "Generar informe"
+(junto a "Cerrar"). Arma un reporte con los datos de la muestra
+(origen, tipo, NP, cliente, codigo, descripcion, maquina, turno, lote,
+proveedor, fechas, analista, estado, evaluacion) y una tabla con todos
+los ensayos (tipo, metodo, analista, fecha, resultado, especificacion,
+cumplimiento, estado, observacion), y abre el dialogo de impresion de
+Windows - desde ahi se puede imprimir en papel o elegir "Guardar como
+PDF" para generar el archivo. No es un boton que genere un PDF
+automaticamente sin pasar por ese dialogo (ver Parte 2, se explica por
+que se eligio asi).
+
+PARTE 2 - DOCUMENTACION TECNICA
+Se evaluaron 2 caminos: generar el PDF con una libreria .NET nueva
+(mas fiel a la palabra "PDF" del pedido original, pero agrega una
+dependencia nueva al proyecto, que requiere aprobacion explicita segun
+las reglas del repo) o reutilizar el mecanismo que YA usa todo el
+resto del sistema para informes imprimibles
+(window.print() sobre un iframe oculto en WebView2, usado hoy por el
+"Reporte Estadistico" de No Conformidades). Se eligio la segunda
+opcion, consultada explicitamente con el usuario: cero dependencias
+nuevas, mismo comportamiento ya validado en produccion.
+
+Archivos: src/UI/www/modules/muestra-laboratorio/muestra-laboratorio.
+controller.js (metodo nuevo generarInforme(), reutiliza
+window.PrintExporter.printReport() de core/print-exporter.js, sin
+tocar ese archivo), .view.html (boton nuevo). Sin cambios de backend
+(los datos que necesita el informe ya vienen de muestraLab.detalle,
+que ya se cargaba de todas formas al abrir el detalle).
+
+--------------------------------------------------------------------
+ 3.5 CORREGIR UN ENSAYO FINALIZADO (RELEASE 1.8.6)
+--------------------------------------------------------------------
+Estado: DESPLEGADO EN PRODUCCION (instalador QCC 1.8.6, 27-08-2026).
+Migracion SQL ejecutada contra la base de datos real.
+
+PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+Antes, un ensayo Finalizado solo se podia "Anular" (quedaba marcado
+como invalido, sin poder corregir el numero). Ahora cada ensayo
+Finalizado tiene tambien un boton "Corregir" (al lado de "Anular").
+
+Como usarlo: click en "Corregir" sobre el ensayo que tiene el error.
+Se abre el MISMO formulario que se usa para cargar ese tipo de ensayo,
+pero ya viene con todos los valores actuales precargados (no hay que
+volver a tipear todo). Se corrige el valor que estaba mal, se escribe
+obligatoriamente un "Motivo de la correccion", y se guarda con el
+mismo boton de siempre. Al guardar:
+  - El ensayo VIEJO (el que tenia el error) queda automaticamente
+    Anulado, con el motivo "Reemplazado por ensayo #<nuevo>: <tu
+    motivo>" - su fila NO se borra ni se pisa, queda intacta para la
+    auditoria.
+  - Se crea un ensayo NUEVO con los valores corregidos, marcado con
+    un icono de lapiz (pasando el mouse por encima dice a que ensayo
+    corrige y el motivo).
+  - El resultado/evaluacion de la muestra se recalcula solo con el
+    valor corregido.
+
+Esto significa que SIEMPRE queda un rastro completo: valor anterior
+(el ensayo anulado, intacto), valor nuevo (el ensayo creado), motivo,
+quien lo hizo (analista del ensayo nuevo) y cuando (fecha del ensayo
+nuevo) - exactamente lo que pedia el documento original ("no permitir
+modificar un resultado finalizado sin registrar valor anterior, valor
+nuevo, motivo, usuario y fecha").
+
+PARTE 2 - DOCUMENTACION TECNICA
+Decision de diseno: en vez de UPDATE in-place sobre cada una de las 13
+tablas de detalle (Humedad, Gramaje, Cobb, etc. - hubiera significado
+duplicar la logica de calculo/validacion de cada Guardar* existente),
+se reutiliza el mismo Guardar* de siempre para crear un ensayo nuevo,
+y se agrega un vinculo hacia el original. Cero riesgo de romper los 13
+flujos de guardado ya probados.
+
+Migracion: sql/2026_muestra_laboratorio_reemplazo_ensayo.sql - agrega
+ensayo_reemplaza_id (INT NULL, FK a si misma) y motivo_reemplazo
+(VARCHAR) a muestra_laboratorio_ensayos. YA EJECUTADA contra la base
+real (verificada leyendo INFORMATION_SCHEMA despues de aplicarla).
+
+Backend: MuestraLaboratorioRepository.ReemplazarEnsayo(originalId,
+nuevoId, motivo) - valida que el original este Finalizado, lo marca
+Anulado con el motivo, vincula el nuevo, recalcula la evaluacion de la
+muestra. MuestraLaboratorioHandler.FinalizarGuardado(ensayoId,
+jsonData) - metodo unico que revisa si el payload trae
+ensayoOriginalId/motivoReemplazo; si los trae, llama a
+ReemplazarEnsayo; si no, comportamiento identico a como era antes. Los
+12 bloques "if (action == muestraLab.<tipo>.guardar)" del handler
+(RCT y FCT comparten uno) solo cambiaron su ultima linea (de
+"return Ok(new{ensayoId})" a "return await FinalizarGuardado(...)"),
+nada mas.
+
+Frontend: 12 funciones nuevas _precargar<Tipo>() (una por formulario;
+RCT/FCT comparten una con un flag) que leen el detalle ya cargado del
+ensayo y llenan cada campo del modal correspondiente. El campo "Motivo
+de la correccion" NO se agrego a los 13 HTML de los modales - se
+inyecta dinamicamente por JavaScript dentro del modal que corresponda
+en cada momento (un solo elemento reutilizado, se mueve segun haga
+falta), para no tocar los 13 formularios existentes.
+
+--------------------------------------------------------------------
+ 3.6 QUE SE PIDIO VS QUE SE IMPLEMENTO (Laboratorio)
+--------------------------------------------------------------------
+Cubierto integramente segun el pedido original:
+  - Estructura Muestra -> Ensayos -> Mediciones -> Resultado -> Estado
+    final -> Evaluacion de cumplimiento.
+  - Los 13 ensayos con sus formulas exactas.
+  - Maestro de especificaciones con congelamiento historico.
+  - Resultados no conformes: alerta, observacion, "repetir el ensayo"
+    (implementado como Corregir, ver 3.5), historial completo.
+  - Informe imprimible/PDF con todos los datos del ensayo.
+  - Trazabilidad de quien creo/edito cada cosa y cuando (via
+    analista_usuario_id/fecha en cada ensayo + el mecanismo de
+    reemplazo).
+
+Diferencias conscientes respecto al pedido original (no son errores,
+son decisiones tomadas explicitamente, documentadas para que no se
+reporten como bugs si se notan despues):
+  - El informe es "imprimir/guardar como PDF" via el dialogo de
+    Windows, no un boton que genera el archivo PDF automaticamente
+    sin intervencion - decision explicita para no agregar una
+    dependencia .NET nueva sin necesidad (ver 3.4).
+  - "Aprobacion electronica" del informe (mencionada en el pedido
+    original): NO implementada. El informe no tiene firma ni
+    aprobacion digital todavia.
+  - "Fotografia o archivo adjunto" a nivel de identificacion de la
+    muestra (campo generico mencionado en el pedido original): NO
+    implementado en Laboratorio-Muestras. (Si existe en el modulo de
+    Recepcion-Calidad, pero solo para PVA y Pliego Faret y condicional
+    a que haya dano/hallazgo - ver 4.2/4.3).
+  - Vinculo automatico a No Conformidades cuando el resultado es "No
+    cumple": implementado el 27-08-2026, ver seccion 5.
+  - Sentido de fibra del pliego, seleccion Horizontal/Vertical/No
+    identificado: NO se encontro implementado como campo especifico
+    en el codigo revisado - si se necesita, es un campo chico
+    pendiente de agregar.
+
+
+====================================================================
+ 4. CONTROL DE RECEPCION - CALIDAD (modulo completo)
+====================================================================
+
+--------------------------------------------------------------------
+ 4.1 COMO ENTRAR Y FLUJO GENERAL (Bobina via SAP)
+--------------------------------------------------------------------
+1. Entrar al modulo "Control de Recepcion - Calidad" (INNPACK, menu
+   lateral).
+2. Boton "+ Nuevo lote" -> elegir Tipo de materia prima: "Bobina de
+   papel (SAP)", "Adhesivo PVA (manual)" o "Pliego impreso Faret
+   (manual)".
+3. FLUJO BOBINA (el unico que consulta SAP en vivo):
+   a. Indicar un rango de fechas y "Consultar SAP" - trae las
+      recepciones reales (Goods Receipt PO de SAP Business One,
+      OPDN/PDN1) de ese rango, con proveedor/guia/codigo/descripcion/
+      cantidad/ancho/gramaje declarados. Esta consulta es SOLO
+      LECTURA - Calidad nunca vuelve a escribir manualmente lo que
+      Oscar ya escaneo en SAP.
+   b. "Usar" en la linea que corresponde -> QCC busca las bobinas
+      reales de ese codigo/fecha (OBTN de SAP) y las muestra en una
+      lista con checkbox (todas marcadas por defecto, se puede
+      desmarcar las que no correspondan a este lote especifico).
+   c. "Crear Lote" -> queda el lote de inspeccion armado, con las
+      bobinas elegidas.
+   d. Dentro del detalle del lote: "Generar plan" (Nivel de
+      inspeccion + AQL) calcula automaticamente, segun NCh44, la
+      letra codigo y el tamano de muestra que corresponde al numero
+      de bobinas del lote.
+   e. Seleccionar las bobinas efectivamente muestreadas: boton
+      "Seleccion aleatoria segun plan" (el sistema elige al azar la
+      cantidad que pide el plan) o marcar manualmente en la lista. Si
+      la cantidad marcada manualmente no coincide con lo que pide el
+      plan, pide una justificacion antes de guardar.
+   f. Boton "Crear muestra de Laboratorio" - crea una unica muestra
+      en el modulo Laboratorio-Muestras (seccion 3), ya vinculada a
+      este lote, sin tener que volver a escribir ningun dato.
+   g. "Estado final" (manual, al terminar el analisis): Recibida
+      conforme / Recibida con observacion / No conforme.
+
+IMPORTANTE:
+- No se debe considerar automaticamente que todo lo recibido en un
+  dia es un solo lote - si llegan materiales/anchos/gramajes
+  distintos, hay que crear lotes separados (el sistema no lo agrupa
+  solo, es una decision de Calidad al elegir que bobinas usar).
+- El plan de muestreo NCh44 hoy solo tiene cargado Nivel de inspeccion
+  II y AQL 2,5 (los mas usados). Si se necesita otro nivel/AQL, no va
+  a encontrar la tabla y avisa - no inventa un numero.
+
+--------------------------------------------------------------------
+ 4.2 FORMULARIO PVA (RELEASE 1.8.6)
+--------------------------------------------------------------------
+Estado: DESPLEGADO EN PRODUCCION (instalador QCC 1.8.6, 27-08-2026).
+Migracion SQL ejecutada contra la base real.
+
+PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+Antes, elegir "Adhesivo PVA (manual)" al crear un lote solo pedia 5
+campos genericos (proveedor/guia/codigo/lote/descripcion) - los mismos
+que Bobina, sin nada especifico de un adhesivo. Ahora, al elegir PVA
+aparece un bloque adicional con:
+  - Nombre del adhesivo.
+  - Cantidad de bins.
+  - Fecha de fabricacion o vencimiento.
+  - Certificado de calidad: Si / No / Pendiente.
+  - Condicion general de los bins: Conforme / Con observacion / No
+    conforme.
+  - Observacion.
+  - Fotografia - SOLO si hay dano o filtracion (campo opcional, no
+    obligatorio).
+No se pide Viscosidad, pH ni Solidos totales en este formulario - esos
+3 ensayos se cargan en Laboratorio - Muestras (seccion 3, puntos 10 a
+12), tal como pedia el documento original ("estos ensayos deben
+quedar exclusivamente en Laboratorio").
+
+Al ver el detalle de un lote PVA ya creado, aparece un bloque
+"Adhesivo PVA" con todos estos datos, y si se cargo foto, un boton
+"Ver fotografia".
+
+PARTE 2 - DOCUMENTACION TECNICA
+Tabla nueva recepcion_pva (1 fila por lote, FK a
+recepcion_lotes_control) - los campos ya genericos (proveedor, guia,
+codigo, lote proveedor) siguen viviendo en la tabla del lote, no se
+duplicaron. La foto se guarda como LONGBLOB (mismo patron ya usado en
+Control Documental para sus adjuntos, sin libreria nueva), maximo
+razonable de tamano no forzado explicitamente (a diferencia de
+Control Documental que valida 10 MB - pendiente aplicar el mismo tope
+aqui si se ve necesario en el uso real).
+
+Archivos: sql/2026_recepcion_calidad_pva_pliego.sql,
+RecepcionCalidadModels.cs (PvaDto + campos nuevos en CrearLoteRequest),
+RecepcionCalidadRepository.cs (insercion condicional en CrearLote,
+lectura en ObtenerDetalle, metodo ObtenerFoto), RecepcionCalidadHandler.cs
+(payload extendido en recepcion.crear, accion nueva
+recepcion.foto.abrir), recepcion-calidad.view.html/.controller.js
+(bloque de campos + input de archivo + lectura a base64 via
+FileReader + visor de foto reutilizando el mismo overlay ya usado en
+Registros de Control, sin usar window.open porque no es confiable
+dentro de WebView2/Photino).
+
+--------------------------------------------------------------------
+ 4.3 FORMULARIO PLIEGOS FARET (RELEASE 1.8.6)
+--------------------------------------------------------------------
+Estado: DESPLEGADO EN PRODUCCION (instalador QCC 1.8.6, 27-08-2026).
+Migracion SQL ejecutada contra la base real.
+
+PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+Al elegir "Pliego impreso Faret (manual)" aparece un bloque con:
+  - NP, Cliente, Producto.
+  - Cantidad total, Cantidad verde, Cantidad azul, Cantidad roja - el
+    sistema exige que verde + azul + roja sea igual a la cantidad
+    total (si no calza, avisa y no deja guardar).
+  - Estado de la carpeta: Recibida / Incompleta / No recibida.
+  - Condicion visual general (texto libre).
+  - Tipo de hallazgo (lista cerrada): Diferencia de tono, Gotas de
+    barniz, Piojos o suciedad, Reserva o ausencia de barniz, Rayas,
+    Repinte, Dano en bordes, Otro - o dejar en blanco si no hay
+    hallazgo.
+  - Cantidad afectada.
+  - Observacion.
+  - Fotografia - SOLO si hay hallazgo (opcional).
+No se pide Humedad, Gramaje, Espesor ni Cobb aca - esos se cargan en
+Laboratorio - Muestras (tipo de muestra "Pliego impreso").
+
+PARTE 2 - DOCUMENTACION TECNICA
+Tabla nueva recepcion_pliego_faret (mismo patron 1:1 que recepcion_pva).
+La validacion de "verde+azul+roja=total" se hace en 2 lugares: en el
+frontend (antes de enviar, evita el viaje al servidor si esta mal) y
+en el backend (RecepcionCalidadHandler, por si algun cliente futuro
+llama a la accion sin pasar por este formulario). Mismo mecanismo de
+foto condicional que PVA (LONGBLOB, visor reutilizado).
+
+--------------------------------------------------------------------
+ 4.4 QUE SE PIDIO VS QUE SE IMPLEMENTO (Recepcion - Calidad)
+--------------------------------------------------------------------
+Cubierto segun el pedido original:
+  - SAP como unica fuente de bobinas recibidas (Calidad nunca vuelve
+    a escribirlas a mano) - confirmado con proveedores reales
+    (HARTING, PRISA, ENVASES IMPRESOS CORDILLERA, DAVIS GRAPHICS).
+  - Formacion de lote de inspeccion homogeneo (eleccion manual de
+    bobinas, no agrupacion automatica por dia).
+  - Plan de muestreo NCh44 con tamano de lote automatico.
+  - Seleccion de bobinas muestreadas (aleatoria y manual, con
+    justificacion si no calza con el plan).
+  - Creacion de muestra de Laboratorio vinculada, sin reescritura de
+    datos.
+  - Formularios especificos de PVA y Pliegos Faret (ver 4.2/4.3).
+  - Estados de resultado del control (Pendiente de muestreo/
+    Laboratorio/En analisis/Recibida conforme/con observacion/No
+    conforme).
+  - Vinculo automatico a No Conformidades cuando el resultado es "No
+    conforme": implementado el 27-08-2026, ver seccion 5.
+
+Diferencias conscientes / limitaciones reales (no son errores):
+  - NCh44 solo tiene sembrado Nivel de inspeccion II y AQL 2,5 -
+    IMPORTANTE: se recomienda validar esta tabla contra el documento
+    oficial NCh44:2007 antes de usarla para decisiones reales de
+    aceptacion/rechazo de un lote. Otros niveles/AQL no estan
+    cargados todavia.
+  - No hay vinculo directo lote<->documento SAP accesible (limitacion
+    real del Service Layer de SAP, la tabla que lo daria -IBT1- esta
+    bloqueada). Se empareja por Codigo de articulo + fecha, una
+    heuristica aceptada explicitamente, no una relacion garantizada
+    al 100%.
+  - "Certificado de calidad" del PVA es un estado (Si/No/Pendiente),
+    NO la carga del documento/PDF del certificado en si. Si se
+    necesita adjuntar el certificado como archivo, es una extension
+    pendiente (se podria reutilizar el mismo mecanismo de foto ya
+    construido, ampliado a PDF).
+  - "Estado de la carpeta" de Pliegos Faret es tambien un estado, no
+    la carga de la carpeta de trabajo como documento.
+
+
+====================================================================
+ 5. VINCULO AUTOMATICO A NO CONFORMIDADES (RELEASE 1.8.6)
+====================================================================
+Estado: DESPLEGADO EN PRODUCCION (instalador QCC 1.8.6, 27-08-2026).
+Migracion SQL ejecutada contra la base real.
+
+PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+QUE PROBLEMA RESUELVE
+Antes, si una muestra de Laboratorio quedaba "No cumple" o un lote de
+Recepcion quedaba "No conforme", no habia ningun boton para pasar
+directo a crear una No Conformidad - habia que ir manualmente al
+modulo No Conformidades y volver a escribir los datos.
+
+COMO USARLO
+- En Laboratorio - Muestras: cuando la Evaluacion de una muestra es
+  "No cumple", el detalle muestra un aviso con el boton "Crear No
+  Conformidad".
+- En Control de Recepcion - Calidad: cuando el Estado final de un
+  lote es "No conforme", el detalle muestra el mismo tipo de aviso y
+  boton.
+- Al hacer click, pide confirmacion y crea la No Conformidad
+  automaticamente, con el titulo/descripcion/fecha ya completados a
+  partir de los datos de la muestra o el lote (no hay que volver a
+  escribir nada). Aparece un mensaje con el codigo de la NC creada
+  (ej. NC-2026-00123).
+- Una vez creada, el boton desaparece y en su lugar se muestra el
+  codigo de la NC ya vinculada - para investigarla, asignar
+  responsable, hacer seguimiento y cerrarla, hay que ir al modulo No
+  Conformidades como siempre (este boton solo la crea y la vincula,
+  no reemplaza la gestion completa de ese modulo).
+- Cada muestra o lote solo puede tener UNA No Conformidad vinculada
+  por este mecanismo - si ya tiene una, el boton no vuelve a
+  aparecer.
+
+PARTE 2 - DOCUMENTACION TECNICA
+Columnas nuevas nc_id (INT NULL, FK a no_conformidades.id) agregadas a
+muestra_laboratorio y a recepcion_lotes_control - sql/
+2026_vinculo_no_conformidades_laboratorio_recepcion.sql, YA EJECUTADA.
+
+Backend: un metodo nuevo por repositorio -
+MuestraLaboratorioRepository.CrearNoConformidad(muestraId, usuario) y
+RecepcionCalidadRepository.CrearNoConformidad(loteId, usuario) - cada
+uno valida la condicion (evaluacion="No cumple" / estado="NoConforme")
+y que no exista ya un vinculo, arma el texto de titulo/descripcion a
+partir de los datos disponibles, y llama TAL CUAL a
+NoConformidadesRepository.Crear(campos, usuarioNombre) - el mismo
+metodo generico (por diccionario de campos) que ya usa el modulo No
+Conformidades para crear cualquier NC, incluida la generacion del
+codigo NC-AAAA-NNNNN. No se duplico ningun INSERT ni logica de
+codigo. Acciones nuevas: muestraLab.nc.crear y recepcion.nc.crear.
+
+La NC creada por este mecanismo es una NC comun y corriente - no tiene
+ningun campo especial que la distinga de una creada manualmente desde
+el modulo No Conformidades (salvo el texto de su descripcion, que
+menciona el origen). Toda la investigacion, plan de accion y cierre
+se gestionan ahi, sin cambios.
+
+
+====================================================================
+ 6. TALLERES EXTERNOS: CORRECCION DE CANTIDAD A REVISAR + COLUMNA
+    LIBERACIONES FPS (RELEASE 1.8.7)
+====================================================================
+Estado: DESPLEGADO EN PRODUCCION (fps-api + instalador QCC 1.8.7,
+27-08-2026). Solo INNPACK.
+
+PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+--------------------------------------------
+QUE PROBLEMA RESOLVIO
+Se reporto que la columna "Cantidad a Revisar" de un trabajo (ej. NV
+3767) mostraba 58.887, cuando en la Orden de Fabricacion real (FPS)
+la cantidad correcta era 63.893 - un desfase real, no un problema de
+redondeo.
+
+CAUSA REAL
+La sincronizacion con FPS (seccion 1) tomaba la "Cantidad a Revisar"
+desde una tabla de certificados de calidad (CantidadBase), no desde la
+Orden de Fabricacion real de produccion. Ambos numeros normalmente
+coinciden, pero en este caso especifico no.
+
+QUE CAMBIO
+Ahora, al sincronizar con FPS, "Cantidad a Revisar" se toma siempre de
+la cantidad real de la Orden de Fabricacion (Notas de Venta +
+Item/Codigo), la misma fuente que ya usa Produccion. Se corrigio
+tambien el dato ya guardado del trabajo NV 3767 con el valor real
+(63.893), dejando una nota en observaciones que explica el ajuste y
+quien/cuando lo aplico.
+
+Ademas, cada trabajo ahora muestra cuantas liberaciones de FPS tiene
+aplicadas: el boton de la tabla ya no dice solo "Ver historial", dice
+"Ver historial (N)" con el numero real - antes era un boton "ciego"
+que no indicaba si habia algo cargado o no.
+
+PARTE 2 - DOCUMENTACION TECNICA
+---------------------------------
+CAUSA RAIZ (confirmada con consultas de solo lectura contra las 2
+bases de datos reales antes de tocar codigo): el campo
+"CantidadRequerida" que devolvia fps-api salia de
+Faret_Control_Calidad.dbo.MasterNP.CantidadBase (base de certificados
+de calidad), en vez de FPS_PRODUCCION.dbo.ZZZProcesosProductivos.
+CantidadTotal (la Orden de Fabricacion real de produccion). Confirmado
+con el caso real: NV 3767 / OT 22044 / proceso "PEGADO-LATERAL" /
+ItemCode 4671005555516 -> CantidadTotal = 63.893, coincide exacto con
+lo esperado por el usuario.
+
+Fix en fps-api (Node, repo aparte):
+src/services/liberaciones.service.js - funcion nueva
+obtenerCantidadOrdenFabricacion(np, codigo) (consulta parametrizada,
+JOIN ZZZMasterOT -> ZZZProcesosProductivos por NV + ItemCode, MAX(
+CantidadTotal)); obtenerLiberaciones ahora pisa CantidadRequerida con
+este valor real cuando encuentra match, y si no encuentra, cae al
+valor anterior (CantidadBase) para no romper el flujo existente.
+Desplegado en SRV-API (Scheduled Task "FpsApi"), con backup previo.
+
+Cambios en QCC: TalleresExternosRepository.cs - se agrego un subquery
+al SELECT compartido de todas las consultas de listado:
+  (SELECT COUNT(*) FROM talleres_externos_liberaciones_fps l
+   WHERE l.trabajo_id = t.id) AS total_liberaciones_fps
+TalleresExternosModels.cs - campo nuevo TrabajoItem.TotalLiberacionesFps.
+talleres-externos.controller.js - el boton de la tabla ahora muestra
+"Ver historial (${it.totalLiberacionesFps || 0})"; la tabla temporal
+oculta que arma la exportacion sin filtros (_exportarFilasDesdeDatos)
+suma la columna "Liberaciones FPS" que antes faltaba por completo (ver
+tambien seccion 10, esto fue el unico bug real que encontro la
+auditoria de exportadores Excel).
+
+Correccion puntual de datos (solo 1 fila, ejecutada con aprobacion
+explicita del usuario tras una vista previa de solo lectura): trabajo
+id=5 (NV 3767) - cantidad_a_revisar 58.887 -> 63.893, cantidad_faltante
+36.137 -> 41.143, con locking optimista (WHERE id=@id AND version=
+@versionActual) y nota agregada a observaciones. Verificado releyendo
+la fila despues del update.
+
+
+====================================================================
+ 7. RECORTE DEL SIDEBAR FARET (CONTROL DE RECEPCION Y LABORATORIO -
+    MUESTRAS SOLO INNPACK)
+====================================================================
+Estado: DESPLEGADO EN PRODUCCION (instalador QCC 1.8.7, 27-08-2026).
+
+CONTEXTO: en un release anterior el mismo dia (1.8.6, ver seccion 12)
+se habian agregado a Faret sus propias replicas de Trazabilidad,
+Control de Recepcion - Calidad y Laboratorio - Muestras (arquitecturas
+propias, cada una con su fuente de datos - detalle en la memoria del
+proyecto, fuera del alcance de este documento que es especifico de
+INNPACK). El mismo dia, a pedido explicito del usuario, se decidio
+que Control de Recepcion y Laboratorio - Muestras se dejaran
+UNICAMENTE en INNPACK.
+
+QUE CAMBIO
+Se sacaron del sidebar de FARET los botones "Control de Recepcion" y
+"Laboratorio - Muestras". Trazabilidad SI se dejo visible en el
+sidebar de Faret (no fue parte de este pedido). El codigo de los 2
+modulos removidos del sidebar NO se borro - sigue existiendo en el
+proyecto, solo dejo de ser accesible desde el menu de Faret. En
+INNPACK los 3 modulos (Trazabilidad, Recepcion - Calidad, Laboratorio
+- Muestras) siguen visibles y funcionando igual que siempre.
+
+DOCUMENTACION TECNICA
+Cambio de una sola linea por boton en src/UI/www/index.html: se
+eliminaron los 2 <button data-module="faret-recepcion-calidad"> y
+<button data-module="faret-laboratorio"> del sidebar. Sin cambios de
+backend ni de las acciones/handlers de esos modulos.
+
+
+====================================================================
+ 8. LABORATORIO VIEJO ELIMINADO + INDICADORES PROPIOS EN LABORATORIO -
+    MUESTRAS (RELEASE 1.8.7)
+====================================================================
+Estado: DESPLEGADO EN PRODUCCION (instalador QCC 1.8.7, 27-08-2026).
+Solo INNPACK.
+
+PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+--------------------------------------------
+QUE PROBLEMA RESOLVIO
+El sistema tenia 2 modulos con nombres parecidos: "Laboratorio" (el
+viejo, un visor de ensayos cargados por la app movil) y "Laboratorio -
+Muestras" (el nuevo, seccion 3 de este documento, con los 13 ensayos
+completos). A pedido explicito del usuario, el modulo viejo se
+elimino por completo y sus indicadores/graficos se reemplazaron por
+unos nuevos, calculados con la informacion real que va cargando el
+modulo nuevo (no con los datos del modulo viejo, que era una fuente
+distinta y ya no existe).
+
+QUE CAMBIO
+- El modulo "Laboratorio" (el viejo) desaparecio del sidebar y del
+  sistema por completo - ya no se puede entrar a el de ninguna forma.
+- La tarjeta "LABORATORIO" de la pantalla de Inicio ahora lleva
+  directo a "Laboratorio - Muestras".
+- Dentro de "Laboratorio - Muestras" se agrego una seccion nueva
+  "Indicadores" (arriba del listado, antes de los filtros) con 4
+  numeros (Total de muestras, Muestras pendientes, Ensayos
+  finalizados, % de cumplimiento) y 3 graficos (Muestras por tipo de
+  ensayo, Muestras por origen, Distribucion de cumplimiento -
+  Cumple/No cumple/Sin especificacion). Estos indicadores se
+  actualizan solos al crear una muestra nueva.
+- Los 2 numeros del panel de Inicio que hablaban de laboratorio
+  ("Ensayos pendientes"/"Ensayos criticos") ahora se calculan con la
+  informacion real de Laboratorio - Muestras, no con la del modulo
+  eliminado.
+
+PARTE 2 - DOCUMENTACION TECNICA
+---------------------------------
+Decision de arquitectura (a pedido explicito del usuario, corrigiendo
+una primera propuesta que planteaba conservar el modulo viejo y solo
+mover su seccion de KPIs - el usuario pidio la eliminacion completa):
+eliminar el modulo antiguo entero y calcular los indicadores nuevos
+100% desde las tablas propias del modulo nuevo (muestra_laboratorio /
+muestra_laboratorio_ensayos), sin reusar ni un dato de la fuente
+vieja (registro_ensayos).
+
+Eliminado por completo: carpeta src/Backend/Modules/Laboratorio/
+(Handler/Models/Repository/Service), carpeta src/UI/www/modules/
+laboratorio/ (view.html + controller.js), la rama
+"action.StartsWith(laboratorio)" en MessageRouter.cs (con su using),
+el boton del sidebar <button data-module="laboratorio"
+data-empresa="INNPACK">, y ~180 lineas de CSS muerto (.laboratorio-
+module / .lab-badge*) en core/styles.css (confirmado sin uso en
+ningun otro lado antes de borrar).
+
+HomeService.cs (ObtenerKpis, ObtenerMermaPorProceso -> ahora tambien
+los KPIs de laboratorio del Home): las consultas de
+"laboratorioPendiente"/"laboratorioCriticos" se reescribieron contra
+muestra_laboratorio (estado IN (Pendiente, En analisis)) y
+muestra_laboratorio_ensayos (estado=Finalizado AND cumplimiento=No
+cumple), reemplazando las que apuntaban a registro_ensayos.
+
+inicio.view.html: la tarjeta "LABORATORIO" cambio su
+data-module-target de "laboratorio" a "muestra-laboratorio".
+
+Indicadores nuevos: MuestraLaboratorioRepository.ObtenerIndicadores()
+(nuevo) calcula totalMuestras, muestrasPendientes, ensayosFinalizados,
+pctCumplimiento (Cumple/(Cumple+No cumple)*100, redondeado a 1
+decimal, null si no hay datos) y 3 listas categoria/total (por tipo de
+ensayo, por origen, por cumplimiento). Accion nueva
+muestraLab.indicadores. Frontend: seccion "Indicadores" nueva en
+muestra-laboratorio.view.html (4 kpi-card + 3 <canvas>), 3 metodos
+nuevos en el controller (_renderChartBarras reutilizable para tipo de
+ensayo/origen con paleta ciclica de 10 colores y alto dinamico con
+scroll; _renderChartDoughnut con colores fijos por significado -
+verde Cumple, rojo No cumple, gris Sin especificacion), recargados
+tras crear una muestra nueva, con limpieza de charts en destroy().
+
+
+====================================================================
+ 9. NO CONFORMIDADES: ADJUNTOS - PDF CAUSA RAIZ + EVIDENCIA
+    FOTOGRAFICA (RELEASE 1.8.7, AMBAS EMPRESAS)
+====================================================================
+Estado: DESPLEGADO EN PRODUCCION (instalador QCC 1.8.7 + API
+mejora-continua.api ya desplegada previamente, 27-08-2026). Faret e
+INNPACK, con arquitecturas distintas (ver Parte 2).
+
+PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+--------------------------------------------
+QUE PROBLEMA RESOLVIO
+Pedido de Calidad (via Andres Flores): poder adjuntar el PDF del
+analisis de causa raiz y varias fotos de evidencia a una No
+Conformidad, algo que antes no existia.
+
+COMO USARLO
+- Dentro de una No Conformidad ya creada, en el modal "Analisis y Plan
+  de Accion": seccion "Analisis de causa raiz" permite subir/
+  reemplazar UN PDF (maximo 10 MB, se reemplaza completo si se sube
+  uno nuevo); seccion "Evidencia fotografica" permite subir hasta 10
+  fotos (maximo 5 MB cada una).
+- Desde el 27-08-2026, TAMBIEN se pueden cargar ambos (PDF + fotos) al
+  crear una No Conformidad NUEVA, en el mismo formulario "+ Nueva NC" -
+  antes solo se podia agregar despues, editando una NC ya existente.
+  Los archivos elegidos quedan "en espera" hasta que la NC se crea
+  exitosamente; si falla la subida de algun adjunto, la NC de todas
+  formas queda creada (se avisa con un mensaje) y se puede reintentar
+  el adjunto despues desde el modal de Analisis.
+- Aplica igual en el modulo de No Conformidades de Faret y de INNPACK.
+
+PARTE 2 - DOCUMENTACION TECNICA
+---------------------------------
+Arquitecturas distintas a proposito, cada una siguiendo el patron ya
+existente de cada empresa:
+
+FARET (faret-nc): tabla nueva nc_adjuntos en la base mejora_continua
+(FK real a nc_no_conformidades), backend nuevo en el repo externo
+mejoracontinua.api (NcAdjuntoRepository, NcAdjuntosController,
+endpoints GET/POST api/no-conformidades/{id}/adjuntos, GET/DELETE
+.../adjuntos/{adjuntoId}, todo via JSON con base64, sin multipart).
+Desplegado en SRV-API (MejoraContinuaPool). QCC:
+FaretNoConformidadesApiService (4 metodos nuevos), acciones
+faret.nc.adjuntos.list/subir/abrir/eliminar en FaretHandler.
+
+INNPACK (no-conformidades): NO usa la API mejora-continua.api - tiene
+su propio esquema (nc_analisis/nc_seguimiento/nc_acciones_correctivas)
+en la base calidad, gestionado 100% por NoConformidadesRepository.cs/
+NoConformidadesHandler.cs via conexion MySQL directa. Se replico el
+mismo concepto con tabla nc_adjuntos propia (misma base calidad, FK a
+no_conformidades), acciones noConformidades.adjuntos.list/subir/abrir/
+eliminar agregadas directo a los archivos existentes, mismo patron
+exacto que ya usaban ObtenerAnalisis/GuardarAnalisis.
+
+Adjuntos al CREAR una NC (extension del 27-08-2026, mismas 2
+arquitecturas de arriba, sin cambios de backend - reutiliza 100% las
+acciones *.adjuntos.subir ya existentes): cada empresa extrae el id de
+la NC recien creada de forma distinta (probado con harness real contra
+produccion antes de confiar en esto) - Faret (faret.nc.crearRegistro):
+res.data.nc.id; INNPACK (noConformidades.create): res.data.id, directo.
+
+Probado end-to-end en ambas plataformas con harnesses temporales (NC
+de prueba -> adjuntos vacio -> subir PDF -> reemplazar PDF -> subir
+foto -> listar -> tipo invalido rechazado -> NC inexistente rechazada
+-> eliminar -> cerrar NC -> bloqueo de escritura en NC cerrada -> mismo
+harness confirmando la creacion+adjunto en un solo flujo), datos de
+prueba siempre eliminados al terminar.
+
+GOTCHA REAL encontrado en la prueba E2E de INNPACK: no_conformidades.
+origen es un ENUM('AUDITORIA_INTERNA','AUDITORIA_EXTERNA') real de
+MySQL (no solo una validacion de backend como en Faret) - cualquier
+otro valor da error "Data truncated for column origen", confirmado con
+la prueba real antes de asumir el valor correcto.
+
+
+====================================================================
+ 10. AUDITORIA DE EXPORTADORES EXCEL (RELEASE 1.8.7, AMBAS EMPRESAS)
+====================================================================
+Estado: DESPLEGADO EN PRODUCCION (instalador QCC 1.8.7, 27-08-2026).
+
+PARTE 1 - EXPLICACION PARA EL USUARIO FINAL
+--------------------------------------------
+QUE PROBLEMA RESOLVIO
+Se reporto que "los Excel no estan exportando todas las columnas". Se
+revisaron los 11 modulos que tienen algun mecanismo especial de
+exportacion (los que arman una tabla temporal oculta para poder
+exportar el historico completo, no solo lo que se ve en pantalla) en
+ambas empresas.
+
+RESULTADO
+Se encontro un solo bug real: en Talleres Externos (INNPACK), la
+exportacion "sin filtros" (todo el historico) directamente se saltaba
+la columna "Liberaciones FPS" - quedaba afuera del Excel por completo.
+Se corrigio como parte del mismo fix de la seccion 6 (el campo que
+soluciona el conteo tambien soluciono el export - no fue un parche
+aparte). El resto de los 10 modulos revisados (No Conformidades y
+Faret NC, Faret Inspecciones, Faret Data, Faret Inspecciones-Pallet,
+Producto Terminado y Faret Producto Terminado, Registros de Control,
+Maquinas y Procesos, Faret Talleres Externos) exportan exactamente las
+mismas columnas que se ven en pantalla - no tenian el bug.
+
+PARTE 2 - DOCUMENTACION TECNICA
+---------------------------------
+El mecanismo base de exportacion (core/excel-exporter.js,
+ExcelExporter.exportTable) lee genericamente TODAS las celdas de cada
+fila visible del DOM - nunca fue la causa de nada, confirmado. El
+riesgo real esta solo en los modulos que arman una tabla temporal con
+JavaScript para el caso "exportar sin filtros = traer todo el
+historico" - ahi la lista de columnas esta escrita a mano y se puede
+desincronizar de la tabla real cuando se agregan columnas nuevas en
+sesiones posteriores (justo lo que paso con Talleres Externos).
+
+No-conformidades/faret-nc no tienen este riesgo porque la tabla real y
+la temporal comparten la MISMA funcion de columnas opcionales - no
+pueden desincronizarse por diseno. Producto Terminado usa un endpoint
+de backend dedicado con MAS columnas que la pantalla, a proposito (no
+es un bug). Auditoria hecha con 3 procesos en paralelo revisando los
+11 modulos.
+
+
+====================================================================
+ 11. MODO OSCURO (TOGGLE) - INTENTO Y REVERSION (SIN RELEASE)
+====================================================================
+Estado: INTENTADO Y REVERTIDO el mismo dia (27-08-2026). NO forma
+parte de ningun release ni del codigo actual del repo.
+
+Se pidio un boton de Modo Claro/Oscuro para todo el sistema (ambas
+empresas). Se implemento: boton en el sidebar, atributo data-theme en
+<html> persistido en localStorage, y un bloque de reglas CSS agregado
+al final de core/styles.css que sobreescribe colores de fondo/texto en
+modo oscuro sin tocar ninguna regla existente de los 17 CSS de modulo
+(tecnica de especificidad CSS: cada selector nuevo llevaba el prefijo
+:root[data-theme="dark"], que le gana en especificidad a las reglas de
+cada modulo sin necesitar !important).
+
+El build compilo limpio y todas las verificaciones automaticas
+disponibles en este entorno pasaron (sintaxis, balance de llaves/tags),
+pero al probarlo en la aplicacion real el contraste quedo mal - el
+usuario pidio revertirlo por completo y dejarlo para una proxima
+actualizacion, con mas iteracion y validacion visual en el camino en
+vez de un solo cambio grande de una vez. Se revirtio a mano (no habia
+commit de por medio) en index.html, core/app.js y core/styles.css, sin
+afectar ningun otro cambio de la sesion. Pendiente para el futuro, no
+descartado.
+
+
+====================================================================
+ 12. PENDIENTES GENERALES Y EMPAQUETADO
+====================================================================
+
+EMPAQUETADO - HISTORIAL REAL (corrige lo que decia una version anterior
+de este documento, que daba todo por "pendiente de empaquetar"):
+
+  - RELEASE 1.8.6 (desplegado en produccion el 27-08-2026 a las 11:19):
+    Trazabilidad de Materiales por proceso (seccion 2.2), Laboratorio -
+    Informe (3.4) y Correccion de ensayo (3.5), Recepcion - Formularios
+    PVA (4.2) y Pliegos Faret (4.3), Vinculo automatico a No
+    Conformidades (5). Instalador subido al share productivo y
+    latest.json activado desde el propio entorno de trabajo.
+  - RELEASE 1.8.7 (desplegado en produccion el mismo 27-08-2026, mas
+    tarde, a las 16:04): correccion de Cantidad a Revisar + columna
+    Liberaciones FPS en Talleres Externos (seccion 6), eliminacion del
+    modulo Laboratorio viejo + indicadores nuevos (seccion 8), adjuntos
+    en No Conformidades incl. al crear (seccion 9), fix del exportador
+    Excel de Talleres Externos (seccion 10). Tambien instalador +
+    latest.json activados desde el entorno de trabajo.
+  - OJO - colision de version real detectada y corregida en el momento:
+    al ir a publicar lo que iba a ser "1.8.7" se encontro que el numero
+    de version que tenia el proyecto (1.8.6) YA HABIA SIDO usado y
+    publicado en produccion ese mismo dia mas temprano (el release
+    1.8.6 de arriba) con contenido distinto al que se estaba por subir
+    en ese momento. Se corrigio subiendo a 1.8.7 antes de tocar el
+    share, para no romper el rastreo del auto-actualizador en clientes
+    que ya hubieran tomado la 1.8.6. Leccion para futuras sesiones:
+    antes de empaquetar, revisar SIEMPRE que numero de version esta
+    realmente publicado en el share (no solo lo que dice el .csproj en
+    el repo local), porque pueden haber pasado releases intermedios
+    dentro de la misma sesion larga de trabajo sin quedar reflejados
+    todavia en este documento.
+  - Modo Oscuro (seccion 11): intentado y revertido el mismo dia, NO
+    forma parte de ningun release.
+
+QUE FALTA (para una proxima sesion):
+  - Confirmar que un cliente real tomo la actualizacion via el
+    auto-actualizador, tanto para 1.8.6 como para 1.8.7 (no se puede
+    verificar desde este entorno de trabajo).
+  - Probar visualmente en la aplicacion instalada (no solo con
+    `dotnet build` en verde) los bloques que nunca se abrieron en la
+    ventana real de Photino desde este entorno: los 5 de la 1.8.6
+    (Trazabilidad de materiales, Informe/Correccion de Laboratorio,
+    PVA/Pliego Faret) y los indicadores nuevos de Laboratorio -
+    Muestras (seccion 8) de la 1.8.7.
+  - Modo Oscuro: reintentar en una proxima actualizacion, iterando en
+    pasos mas chicos con validacion visual del usuario en el camino
+    (ver seccion 11).
+  - Trazabilidad de materiales por proceso a nivel de LOTE FISICO
+    exacto (no solo SKU planificado): requiere una decision de
+    arquitectura mas grande (capturar el dato en origen en la app
+    movil o en QCC), pendiente de decision del usuario.
+  - Adjuntar el archivo/PDF real del certificado de calidad de PVA
+    (hoy es solo un estado Si/No/Pendiente).
+  - Validar la tabla NCh44 completa (otros niveles/AQL, y confirmar
+    Ac/Re contra el documento oficial NCh44:2007).
+  - Endpoint de diagnostico temporal GET /api/sap/debug/
+    production-orders (agregado en apisapfaret durante la
+    investigacion de SAP, ya en produccion) - se dejo desplegado a
+    proposito, decision explicita del usuario de no gastar un deploy
+    solo para retirarlo. No es un olvido.
+
+COMMITS: ningun cambio documentado en este archivo tiene commit
+todavia en este repo (qualitycontrol_desktop_faret) - no fue
+solicitado durante la sesion. Los cambios en los repos externos
+(fps-api, mejoracontinua.api, apisapfaret, programa-produccion) si
+fueron desplegados en sus respectivos servidores segun se indica en
+cada seccion, con o sin commit propio de esos repos segun cada caso.

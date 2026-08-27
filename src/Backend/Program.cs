@@ -8,6 +8,10 @@ using System.Threading.Tasks;
 using Photino.NET;
 using QualityControlCenter.Backend.Services;
 using QualityControlCenter.Backend.Services.FaretApi;
+using QualityControlCenter.Backend.Services.FpsApi;
+using QualityControlCenter.Backend.Services.InnpackApi;
+using QualityControlCenter.Backend.Services.PlanificacionApi;
+using QualityControlCenter.Backend.Services.SapRecepcionApi;
 using QualityControlCenter.Config;
 using QualityControlCenter.Modules.Auth;
 using QualityControlCenter.Repositories.Auth;
@@ -34,9 +38,13 @@ namespace QualityControlCenter
                 // =========================
                 // 🔐 AUTH + SESSION
                 // =========================
+                // Migrado a QualityControlInnpack.Api (JWT) — ya no valida contra MySQL directo
+                // desde el desktop. AuthRepository queda sin uso, se retira cuando el resto de
+                // los módulos INNPACK también esté migrado (ver contex.md).
                 var session = new CurrentUserSessionService();
-                var authRepository = new AuthRepository(db);
-                var authService = new AuthService(authRepository, session);
+                var innpackApiSettings = InnpackApiSettings.Load();
+                var innpackApiClient = new InnpackApiClient(innpackApiSettings);
+                var authService = new AuthService(innpackApiClient, session);
                 var authHandler = new AuthHandler(authService);
 
                 // =========================
@@ -52,6 +60,26 @@ namespace QualityControlCenter
                 var faretCalidadClient = new FaretApiClient(faretCalidadSettings);
 
                 // =========================
+                // 🏭 API FPS (Talleres Externos INNPACK, ver contex.md)
+                // =========================
+                var fpsApiSettings = FpsApiSettings.Load();
+                var fpsApiClient = new FpsApiClient(fpsApiSettings);
+                var fpsLiberacionesApiService = new FpsLiberacionesApiService(fpsApiClient);
+                var fpsMaterialesApiService = new FpsMaterialesApiService(fpsApiClient);
+
+                // =========================
+                // 🧭 API Planificación FARET (Trazabilidad INNPACK, ver contex.md)
+                // =========================
+                var planificacionApiSettings = PlanificacionApiSettings.Load();
+                var planificacionApiClient = new PlanificacionApiClient(planificacionApiSettings);
+
+                // =========================
+                // 🧪 API SAP Recepción (Control de Recepción - Calidad, apisapfaret, ver contex.md)
+                // =========================
+                var sapRecepcionApiSettings = SapRecepcionApiSettings.Load();
+                var sapRecepcionApiClient = new SapRecepcionApiClient(sapRecepcionApiSettings);
+
+                // =========================
                 // 🧠 ROUTER CENTRAL
                 // =========================
                 var router = new MessageRouter(
@@ -60,7 +88,11 @@ namespace QualityControlCenter
                     session,
                     faretApiClient,
                     faretMejoraContinuaClient,
-                    faretCalidadClient
+                    faretCalidadClient,
+                    fpsLiberacionesApiService,
+                    fpsMaterialesApiService,
+                    planificacionApiClient,
+                    sapRecepcionApiClient
                 );
 
                 // =========================
@@ -188,7 +220,9 @@ namespace QualityControlCenter
 
                         if (respuesta == IDYES)
                         {
-                            var preparado = updateService.PrepararActualizacionPendiente(updateInfo);
+                            var preparado = updateService.PrepararActualizacionPendiente(
+                                updateInfo
+                            );
 
                             if (!preparado.Exitoso)
                             {
@@ -215,7 +249,8 @@ namespace QualityControlCenter
                                 // real de Inno). Ruta fija duplicada a propósito, mismo criterio ya
                                 // usado para PendingDir/StagingDir/ResultsDir/RutaQccInstalada en
                                 // QCC.Updater (sin ensamblado en común entre los dos binarios).
-                                const string RelanzadorPathFija = @"C:\ProgramData\QualityControlCenter\Updater\Host\QCC.Updater.exe";
+                                const string RelanzadorPathFija =
+                                    @"C:\ProgramData\QualityControlCenter\Updater\Host\QCC.Updater.exe";
                                 var relanzadorPath = RelanzadorPathFija;
                                 var relanzadorIniciado = false;
 
@@ -235,12 +270,16 @@ namespace QualityControlCenter
                                     }
                                     else
                                     {
-                                        Console.WriteLine($"ERROR UPDATE: no se encontró el relanzador en {relanzadorPath}");
+                                        Console.WriteLine(
+                                            $"ERROR UPDATE: no se encontró el relanzador en {relanzadorPath}"
+                                        );
                                     }
                                 }
                                 catch (Exception ex)
                                 {
-                                    Console.WriteLine($"ERROR UPDATE: no se pudo iniciar el relanzador: {ex.Message}");
+                                    Console.WriteLine(
+                                        $"ERROR UPDATE: no se pudo iniciar el relanzador: {ex.Message}"
+                                    );
                                 }
 
                                 if (!relanzadorIniciado)
@@ -259,11 +298,14 @@ namespace QualityControlCenter
                                     // tarea elevada; nunca antes de que Pending esté
                                     // completo, y nunca sin que exista alguien esperando el
                                     // resultado para reabrir QCC.
-                                    var taskDisparada = updateService.DispararScheduledTaskElevada();
+                                    var taskDisparada =
+                                        updateService.DispararScheduledTaskElevada();
 
                                     if (!taskDisparada)
                                     {
-                                        Console.WriteLine("ERROR UPDATE: no se pudo disparar la Scheduled Task elevada.");
+                                        Console.WriteLine(
+                                            "ERROR UPDATE: no se pudo disparar la Scheduled Task elevada."
+                                        );
                                         MessageBoxW(
                                             IntPtr.Zero,
                                             "Se detectó una actualización disponible, pero no se pudo iniciar el proceso de instalación elevado.\n\nQuality Control Center continuará abierto con la versión actual.",

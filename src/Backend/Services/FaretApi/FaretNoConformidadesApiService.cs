@@ -122,6 +122,24 @@ namespace QualityControlCenter.Backend.Services.FaretApi
             return result;
         }
 
+        public Task<(bool ok, string body)> GetAdjuntosAsync(int noConformidadId) =>
+            _client.GetAsync($"api/no-conformidades/{noConformidadId}/adjuntos");
+
+        public async Task<(bool ok, string body)> SubirAdjuntoAsync(int noConformidadId, object request)
+        {
+            var path = $"api/no-conformidades/{noConformidadId}/adjuntos";
+            LogPayload($"POST {path}", request);
+            var result = await _client.PostJsonAsync(path, request);
+            LogResult($"POST {path}", result.ok, result.body);
+            return result;
+        }
+
+        public Task<(bool ok, string body)> GetAdjuntoAsync(int noConformidadId, int adjuntoId) =>
+            _client.GetAsync($"api/no-conformidades/{noConformidadId}/adjuntos/{adjuntoId}");
+
+        public Task<(bool ok, string body)> EliminarAdjuntoAsync(int noConformidadId, int adjuntoId) =>
+            _client.DeleteAsync($"api/no-conformidades/{noConformidadId}/adjuntos/{adjuntoId}");
+
         // Logging temporal de diagnóstico (sin datos sensibles: NC no tiene passwords/tokens).
         // Útil mientras la API de Mejora Continua no valide "origen" y responda 500 en vez de 400.
         private static void LogPayload(string label, object request) =>
