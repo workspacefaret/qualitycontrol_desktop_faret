@@ -26,11 +26,17 @@ window.FaretController = class FaretController {
     async _loadDashboard() {
         this._destroyCharts();
 
-        const [dashboard, inspecciones, maquinas, indicadoresCalidad] = await Promise.all([
+        const { desde: mesDesde, hasta: mesHasta } = this._rangoMesActual();
+
+        const [dashboard, inspecciones, maquinas, indicadoresCalidad, productoTerminado, talleresExternos, ncList, dataMes] = await Promise.all([
             this._fetch("faret.dashboard.resumen"),
             this._fetch("faret.inspecciones.resumen"),
             this._fetch("faret.maquinas.resumen"),
             this._fetch("faret.indicadoresCalidad.resumen"),
+            this._fetch("productoTerminado.resumen", { data: { empresa: "FARET", fechaDesde: mesDesde, fechaHasta: mesHasta } }),
+            this._fetch("faret.talleresExternos.resumen"),
+            this._fetch("faret.nc.list"),
+            this._traerDataMes(mesDesde, mesHasta),
         ]);
 
         this._renderKpis(dashboard?.kpis || {}, inspecciones || {}, maquinas || {});
@@ -39,15 +45,58 @@ window.FaretController = class FaretController {
         this._renderMaquinas(maquinas?.maquinas || []);
         this._renderResumen(dashboard?.kpis || {}, inspecciones || {}, maquinas || {}, indicadoresCalidad || {});
         this._renderIndicadoresCalidad(indicadoresCalidad || {});
+        this._renderIndicadoresAdicionales(productoTerminado || {}, talleresExternos || {}, ncList || [], dataMes);
     }
 
-    async _fetch(action) {
+    _rangoMesActual() {
+        const hoy = new Date();
+        const desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+        const fmt = d => d.toISOString().substring(0, 10);
+        return { desde: fmt(desde), hasta: fmt(hoy) };
+    }
+
+    async _fetch(action, extra = {}) {
         try {
-            const res = await window.PhotinoBridge.send({ action });
+            const res = await window.PhotinoBridge.send({ action, ...extra });
             return res.ok ? res.data : null;
         } catch {
             return null;
         }
+    }
+
+    // Trae faret.data.list paginado (mismo patrón que faret-data._traerTodosLosRegistros),
+    // acotado al mes actual, para calcular % recuperación promedio y ranking de clientes.
+    async _traerDataMes(fechaDesde, fechaHasta) {
+        const pageSize = 500;
+        let page = 1;
+        let total = Infinity;
+        const items = [];
+
+        while (items.length < total && page <= 200) {
+            let res;
+            try {
+                res = await window.PhotinoBridge.send({
+                    action: "faret.data.list",
+                    page,
+                    pageSize,
+                    fechaDesde,
+                    fechaHasta,
+                });
+            } catch {
+                break;
+            }
+
+            if (!res.ok) break;
+
+            const lote = Array.isArray(res.data.items) ? res.data.items : [];
+            if (!lote.length) break;
+
+            items.push(...lote);
+            total = res.data.totalCount ?? items.length;
+            page++;
+        }
+
+        return items;
     }
 
     _renderKpis(kpis, inspecciones, maquinas) {
@@ -66,14 +115,8 @@ window.FaretController = class FaretController {
     }
 
     _renderCharts(dashboard, inspecciones) {
-        this._chartBarHorizontal("fh-chart-nc-proceso", dashboard.ncPorProceso || [], "categoria", "total", "NC");
-        this._chartDoughnut("fh-chart-estado-acciones", dashboard.estadoAcciones || [], "categoria", "total");
-        this._chartBarHorizontal("fh-chart-acciones-proceso", dashboard.accionesPorProceso || [], "categoria", "total", "Acciones");
-
-        this._chartDoughnut("fh-chart-inspecciones-defectos", [
-            { nombre: "Con defectos", total: inspecciones.conDefectos || 0 },
-            { nombre: "Sin defectos", total: inspecciones.sinDefectos || 0 },
-        ], "nombre", "total");
+        const ncPorProceso = (dashboard.ncPorProceso || []).filter(r => r.categoria !== "Rechazo");
+        this._chartBarHorizontal("fh-chart-nc-proceso", ncPorProceso, "categoria", "total", "NC");
     }
 
     _renderAlertas(alertas) {
@@ -117,6 +160,7 @@ window.FaretController = class FaretController {
         this._setText("fh-resumen-acciones-pendientes", this._numero(kpis.accionesPendientes));
         this._setText("fh-resumen-acciones-vencidas", this._numero(kpis.accionesVencidas));
         this._setText("fh-resumen-acciones-pct", `${this._numero(kpis.porcentajeAccionesCompletadas)}%`);
+        this._setText("fh-resumen-acciones-atiempo", `${this._numero(kpis.porcentajeAccionesCompletadasATiempo)}%`);
         this._setText("fh-resumen-inspecciones-hoy", this._numero(inspecciones.inspeccionesHoy));
         this._setText("fh-resumen-maquinas", this._numero(maquinas.totalMaquinas));
     }
@@ -227,6 +271,50 @@ window.FaretController = class FaretController {
         this._chartBarHorizontal("fh-chart-incidentes-familia", ind.porFamilia || [], "categoria", "total", "Incidentes");
 
         this._chartPareto("fh-chart-pareto-defectos", ind.paretoDefectos || [], "defecto", "frecuencia", "porcentajeAcumulado");
+    }
+
+    _renderIndicadoresAdicionales(pt, taller, ncList, dataMes) {
+        this._setText("fh-kpi-pt-unidades-nc", this._numero(pt.unidadesNoConformes));
+        this._setText("fh-kpi-pt-pct-nc", `${this._numero(pt.porcentajeNoConformes)}%`);
+        this._chartBarHorizontal("fh-chart-pt-comparacion", pt.comparacionProcesos || [], "proceso", "porcentajeNc", "% No conformes");
+
+        this._setText("fh-kpi-taller-atrasados", this._numero(taller.atrasados));
+
+        const cerradas = (ncList || []).filter(n =>
+            (n.estadoGestion || "").toUpperCase() === "CERRADA" && n.fechaDeteccion && n.fechaCierre
+        );
+        let promedioDias = null;
+        if (cerradas.length) {
+            const totalDias = cerradas.reduce((acc, n) => {
+                const dias = (new Date(n.fechaCierre) - new Date(n.fechaDeteccion)) / 86400000;
+                return acc + Math.max(0, dias);
+            }, 0);
+            promedioDias = totalDias / cerradas.length;
+        }
+        this._setText("fh-kpi-nc-tiempo-cierre", promedioDias !== null ? promedioDias.toFixed(1) : "-");
+
+        const conRecuperacion = (dataMes || []).filter(r => r.pctRecuperacion !== null && r.pctRecuperacion !== undefined && r.pctRecuperacion !== "");
+        let pctPromedio = null;
+        if (conRecuperacion.length) {
+            const suma = conRecuperacion.reduce((acc, r) => acc + Number(r.pctRecuperacion || 0), 0);
+            pctPromedio = (suma / conRecuperacion.length) * 100;
+        }
+        this._setText("fh-kpi-pct-recuperacion", pctPromedio !== null ? `${pctPromedio.toFixed(1)}%` : "-");
+
+        const porCliente = {};
+        (dataMes || []).forEach(r => {
+            const cliente = (r.cliente || "").trim();
+            if (!cliente) return;
+            porCliente[cliente] = (porCliente[cliente] || 0) + 1;
+        });
+        const topClientes = Object.entries(porCliente)
+            .map(([cliente, total]) => ({ cliente, total }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 10);
+        this._chartBarHorizontal("fh-chart-top-clientes", topClientes, "cliente", "total", "PNC");
+
+        this._setText("fh-resumen-pt-unidades-nc", this._numero(pt.unidadesNoConformes));
+        this._setText("fh-resumen-taller-atrasados", this._numero(taller.atrasados));
     }
 
     _chartBarAgrupada(canvasId, rows, labelKey, series) {

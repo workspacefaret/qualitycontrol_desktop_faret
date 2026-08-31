@@ -997,7 +997,7 @@ window.NoConformidadesController = class NoConformidadesController {
         document.getElementById("ncq-form-error").style.display = "none";
 
         Object.entries(this._camposMap()).forEach(([campo, { id }]) => { document.getElementById(id).value = ""; });
-        document.getElementById("ncq-f-fecha-ingreso").value = new Date().toISOString().substring(0, 10);
+        document.getElementById("ncq-f-fecha-ingreso").value = window.DateUtils.hoyISO();
         document.getElementById("ncq-f-nivel").value = "Mayor";
         document.getElementById("ncq-f-impacto").value = "Calidad";
         document.getElementById("ncq-f-disposicion").value = "No aplica";
@@ -1093,7 +1093,7 @@ window.NoConformidadesController = class NoConformidadesController {
             return;
         }
 
-        const hoy = new Date().toISOString().substring(0, 10);
+        const hoy = window.DateUtils.hoyISO();
         const fechaIngreso = campos.fechaIngreso || hoy;
 
         const cabecera = {
@@ -1862,7 +1862,7 @@ window.NoConformidadesController = class NoConformidadesController {
     // ---------- Presentación ----------
 
     _fecha(valor) {
-        return valor ? new Date(valor).toLocaleDateString("es-CL") : "-";
+        return window.DateUtils.formatear(valor);
     }
 
     _badge(texto, color) {

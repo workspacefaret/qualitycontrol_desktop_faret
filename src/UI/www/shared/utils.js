@@ -466,3 +466,29 @@ window.CatalogCombo = (function () {
 
     return { attach, invalidar };
 })();
+
+// Fechas: el backend entrega fechas sin hora como texto plano "yyyy-MM-dd" (sin timezone). El
+// constructor `new Date("yyyy-MM-dd")` las interpreta como UTC medianoche, y toLocaleDateString()
+// las convierte a la hora local del navegador — en timezones negativos (Chile, UTC-3/-4) eso
+// corre la fecha mostrada un día hacia atrás siempre, sin importar la hora del día. Estas
+// funciones nunca pasan una fecha por el parser UTC de Date: formatear() la arma por texto, y
+// hoyISO() lee los componentes locales en vez de toISOString() (que también es UTC).
+window.DateUtils = (function () {
+    function formatear(valor) {
+        if (!valor) return "-";
+        const texto = String(valor);
+        const m = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return texto;
+        const [, anio, mes, dia] = m;
+        return `${dia}-${mes}-${anio}`;
+    }
+
+    function hoyISO() {
+        const d = new Date();
+        const mes = String(d.getMonth() + 1).padStart(2, "0");
+        const dia = String(d.getDate()).padStart(2, "0");
+        return `${d.getFullYear()}-${mes}-${dia}`;
+    }
+
+    return { formatear, hoyISO };
+})();

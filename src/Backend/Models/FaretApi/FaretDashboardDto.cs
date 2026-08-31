@@ -21,6 +21,13 @@ namespace QualityControlCenter.Backend.Models.FaretApi
         public int AccionesPendientes { get; set; }
         public int AccionesVencidas { get; set; }
         public decimal PorcentajeAccionesCompletadas { get; set; }
+
+        // fecha_cierre real (columna agregada en mejora-continua.api, seteada server-side al
+        // transicionar a COMPLETADA/CANCELADA). Solo cuenta acciones COMPLETADA con fechaLimite
+        // y fechaCierre presentes; acciones creadas antes de esa migración sin dato quedan fuera.
+        public int AccionesCompletadasATiempo { get; set; }
+        public int AccionesCompletadasFueraDePlazo { get; set; }
+        public decimal PorcentajeAccionesCompletadasATiempo { get; set; }
     }
 
     public class FaretDashboardCategoriaDto

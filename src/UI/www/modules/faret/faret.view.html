@@ -73,34 +73,10 @@
         <div id="fh-alertas-activas" class="alert-box"></div>
     </div>
 
-    <!-- FILA MEDIA -->
-    <div class="home-middle">
-
-        <div class="card">
-            <div class="module-title">Estado de acciones correctivas</div>
-            <canvas id="fh-chart-estado-acciones"></canvas>
-        </div>
-
-        <div class="card">
-            <div class="module-title">Máquinas con más registros</div>
-            <div id="fh-maquinas-list"></div>
-        </div>
-
-    </div>
-
-    <!-- FILA MEDIA 2 -->
-    <div class="home-middle">
-
-        <div class="card">
-            <div class="module-title">Acciones correctivas por proceso</div>
-            <canvas id="fh-chart-acciones-proceso"></canvas>
-        </div>
-
-        <div class="card">
-            <div class="module-title">Inspecciones: con y sin defectos</div>
-            <canvas id="fh-chart-inspecciones-defectos"></canvas>
-        </div>
-
+    <!-- MÁQUINAS CON MÁS REGISTROS -->
+    <div class="card">
+        <div class="module-title">Máquinas con más registros</div>
+        <div id="fh-maquinas-list"></div>
     </div>
 
     <!-- FILA FINAL -->
@@ -140,6 +116,11 @@
             </div>
 
             <div class="activity-item">
+                <span>% Acciones completadas a tiempo</span>
+                <strong id="fh-resumen-acciones-atiempo">0%</strong>
+            </div>
+
+            <div class="activity-item">
                 <span>Inspecciones hoy</span>
                 <strong id="fh-resumen-inspecciones-hoy">0</strong>
             </div>
@@ -147,6 +128,16 @@
             <div class="activity-item">
                 <span>Máquinas con registros</span>
                 <strong id="fh-resumen-maquinas">0</strong>
+            </div>
+
+            <div class="activity-item">
+                <span>Unidades NC Producto Terminado (mes)</span>
+                <strong id="fh-resumen-pt-unidades-nc">0</strong>
+            </div>
+
+            <div class="activity-item">
+                <span>Talleres externos atrasados</span>
+                <strong id="fh-resumen-taller-atrasados">0</strong>
             </div>
         </div>
 
@@ -216,6 +207,64 @@
     <div class="card">
         <div class="module-title">Pareto de defectos</div>
         <canvas id="fh-chart-pareto-defectos"></canvas>
+    </div>
+
+    <!-- INDICADORES ADICIONALES -->
+    <div class="module-header" style="margin-top:10px;">
+        <div>
+            <div class="module-title">Indicadores adicionales</div>
+            <div class="subtitle">Producto Terminado, Talleres Externos y tiempos de gestión</div>
+        </div>
+    </div>
+
+    <div class="home-modules-grid">
+
+        <div class="home-module-card" data-module-target="faret-producto-terminado">
+            <div>
+                <div class="home-module-card-title">📦 UNIDADES NC PRODUCTO TERMINADO (MES)</div>
+                <div class="home-module-card-value" id="fh-kpi-pt-unidades-nc">0</div>
+                <div class="home-module-card-label">
+                    <span id="fh-kpi-pt-pct-nc">0%</span> no conformes
+                </div>
+            </div>
+        </div>
+
+        <div class="home-module-card" data-module-target="faret-talleres-externos">
+            <div>
+                <div class="home-module-card-title">🔧 TALLERES EXTERNOS ATRASADOS</div>
+                <div class="home-module-card-value" id="fh-kpi-taller-atrasados">0</div>
+            </div>
+        </div>
+
+        <div class="home-module-card" data-module-target="faret-nc">
+            <div>
+                <div class="home-module-card-title">⏱️ TIEMPO PROMEDIO CIERRE NC</div>
+                <div class="home-module-card-value" id="fh-kpi-nc-tiempo-cierre">-</div>
+                <div class="home-module-card-label">días (NC cerradas)</div>
+            </div>
+        </div>
+
+        <div class="home-module-card" data-module-target="faret-data">
+            <div>
+                <div class="home-module-card-title">♻️ % RECUPERACIÓN PROMEDIO (MES)</div>
+                <div class="home-module-card-value" id="fh-kpi-pct-recuperacion">-</div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="home-middle">
+
+        <div class="card">
+            <div class="module-title">Producto Terminado: % no conformes por proceso (mes)</div>
+            <canvas id="fh-chart-pt-comparacion"></canvas>
+        </div>
+
+        <div class="card">
+            <div class="module-title">Top 10 clientes con más PNC (mes)</div>
+            <canvas id="fh-chart-top-clientes"></canvas>
+        </div>
+
     </div>
 
 </div>

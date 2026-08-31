@@ -85,7 +85,17 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         {
             var hoy = DateTime.Today;
 
-            var accionesCompletadas = acciones.Count(a => EsEstado(a.Estado, "COMPLETADA"));
+            var accionesCompletadas = acciones.Where(a => EsEstado(a.Estado, "COMPLETADA")).ToList();
+
+            // fecha_cierre real (seteada server-side por la API al transicionar a
+            // COMPLETADA/CANCELADA) — solo se evalúan las acciones completadas que la tienen.
+            var accionesCompletadasEvaluables = accionesCompletadas
+                .Where(a => a.FechaCierre.HasValue && a.FechaLimite.HasValue)
+                .ToList();
+            var accionesCompletadasATiempo = accionesCompletadasEvaluables.Count(a =>
+                a.FechaCierre!.Value.Date <= a.FechaLimite!.Value.Date
+            );
+            var accionesCompletadasFueraDePlazo = accionesCompletadasEvaluables.Count - accionesCompletadasATiempo;
 
             return new FaretDashboardKpisDto
             {
@@ -100,7 +110,13 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 PorcentajeAccionesCompletadas =
                     acciones.Count == 0
                         ? 0
-                        : Math.Round(100m * accionesCompletadas / acciones.Count, 0),
+                        : Math.Round(100m * accionesCompletadas.Count / acciones.Count, 0),
+                AccionesCompletadasATiempo = accionesCompletadasATiempo,
+                AccionesCompletadasFueraDePlazo = accionesCompletadasFueraDePlazo,
+                PorcentajeAccionesCompletadasATiempo =
+                    accionesCompletadasEvaluables.Count == 0
+                        ? 0
+                        : Math.Round(100m * accionesCompletadasATiempo / accionesCompletadasEvaluables.Count, 0),
             };
         }
 
@@ -267,6 +283,9 @@ namespace QualityControlCenter.Backend.Services.FaretApi
 
             [JsonPropertyName("fechaLimite")]
             public DateTime? FechaLimite { get; set; }
+
+            [JsonPropertyName("fechaCierre")]
+            public DateTime? FechaCierre { get; set; }
         }
     }
 }
