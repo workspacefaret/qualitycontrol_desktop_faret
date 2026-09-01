@@ -146,7 +146,7 @@ if (!window.InicioController) {
                             <div>${this.escape(alerta.descripcion || "-")}</div>
                         </div>
                         ${puedeGestionar
-                        ? `<button class="btn-secondary alerta-gestionar-btn" data-modulo="${this.escape(alerta.modulo)}" data-id="${alerta.registroId}">Gestionar</button>`
+                        ? `<button class="btn-secondary alerta-gestionar-btn" data-modulo="${this.escape(alerta.modulo)}" data-id="${alerta.registroId}" data-proceso-id="${alerta.procesoId ?? ""}" data-parametro-id="${alerta.parametroId ?? ""}" data-proceso="${this.escape(alerta.titulo || "")}" data-defecto="${this.escape(alerta.defecto || "")}" data-estado-filtro="${this.escape(alerta.estadoFiltro || "")}">Gestionar</button>`
                         : ""
                     }
                     </div>
@@ -159,8 +159,16 @@ if (!window.InicioController) {
                 btn.addEventListener("click", () => {
                     const modulo = btn.dataset.modulo
                     const id = Number(btn.dataset.id)
+                    // Si la alerta trae proceso+parametro (agrupación real detrás del conteo "N
+                    // casos"), el deep-link filtra por esos dos campos en vez de un solo registro
+                    // — así "Gestionar" muestra todos los casos que componen la alerta, no 1 solo.
+                    const procesoId = btn.dataset.procesoId ? Number(btn.dataset.procesoId) : null
+                    const parametroId = btn.dataset.parametroId ? Number(btn.dataset.parametroId) : null
+                    const proceso = btn.dataset.proceso || ""
+                    const defecto = btn.dataset.defecto || ""
+                    const estadoFiltro = btn.dataset.estadoFiltro || null
 
-                    sessionStorage.setItem("qccDeepLinkId", JSON.stringify({ modulo, id }))
+                    sessionStorage.setItem("qccDeepLinkId", JSON.stringify({ modulo, id, procesoId, parametroId, proceso, defecto, estadoFiltro }))
 
                     if (window.App?.loadModule) {
                         window.App.loadModule(modulo)

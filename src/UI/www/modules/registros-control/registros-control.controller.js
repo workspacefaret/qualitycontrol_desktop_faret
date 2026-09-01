@@ -9,6 +9,10 @@ if (!window.RegistrosControlController) {
       this.loading = false
       this._clickHandler = null
       this.deepLinkId = null
+      this.deepLinkProcesoId = null
+      this.deepLinkParametroId = null
+      this.deepLinkProceso = ""
+      this.deepLinkDefecto = ""
     }
 
     async init() {
@@ -27,8 +31,17 @@ if (!window.RegistrosControlController) {
 
       try {
         const info = JSON.parse(raw)
-        if (info?.modulo === "registros-control" && info.id) {
-          this.deepLinkId = Number(info.id)
+        if (info?.modulo === "registros-control") {
+          // Alertas de desviación traen proceso+defecto (la agrupación real detrás del conteo
+          // "N casos") — filtra por ambos para mostrar todos los casos, no solo uno.
+          if (info.procesoId && info.parametroId) {
+            this.deepLinkProcesoId = Number(info.procesoId)
+            this.deepLinkParametroId = Number(info.parametroId)
+            this.deepLinkProceso = info.proceso || ""
+            this.deepLinkDefecto = info.defecto || ""
+          } else if (info.id) {
+            this.deepLinkId = Number(info.id)
+          }
         }
       } catch { /* ignorar */ }
 
@@ -37,6 +50,10 @@ if (!window.RegistrosControlController) {
 
     quitarDeepLink() {
       this.deepLinkId = null
+      this.deepLinkProcesoId = null
+      this.deepLinkParametroId = null
+      this.deepLinkProceso = ""
+      this.deepLinkDefecto = ""
       this.page = 1
       this.cargarDatos()
     }
@@ -45,11 +62,16 @@ if (!window.RegistrosControlController) {
       const banner = document.getElementById("registrosControlDeepLinkBanner")
       if (!banner) return
 
-      if (!this.deepLinkId) {
+      const esDesviacion = this.deepLinkProcesoId && this.deepLinkParametroId
+      if (!this.deepLinkId && !esDesviacion) {
         banner.style.display = "none"
         banner.innerHTML = ""
         return
       }
+
+      const mensaje = esDesviacion
+        ? `Mostrando ${this.total} caso(s) de "${this.escape(this.deepLinkDefecto)}" en ${this.escape(this.deepLinkProceso)} desde una alerta de Inicio.`
+        : `Mostrando el registro #${this.deepLinkId} desde una alerta de Inicio.`
 
       banner.style.display = "block"
       banner.innerHTML = `
@@ -62,7 +84,7 @@ if (!window.RegistrosControlController) {
           align-items:center;
           gap:12px;
         ">
-          <span>Mostrando el registro #${this.deepLinkId} desde una alerta de Inicio.</span>
+          <span>${mensaje}</span>
           <button class="btn-secondary" id="btnVerTodosRegistrosControl">Ver todos</button>
         </div>
       `
@@ -248,6 +270,7 @@ if (!window.RegistrosControlController) {
 
       try {
         const idFiltro = this.idFiltroActivo()
+        const esDesviacion = this.deepLinkProcesoId && this.deepLinkParametroId
 
         const payload = {
           page: this.page,
@@ -257,7 +280,8 @@ if (!window.RegistrosControlController) {
           np: this.getVal("filtroNpRegistros"),
           turno: this.getVal("filtroTurnoRegistros"),
           estado: this.getVal("filtroEstadoRegistros"),
-          ...(idFiltro ? { id: idFiltro } : {})
+          ...(idFiltro ? { id: idFiltro } : {}),
+          ...(esDesviacion ? { procesoId: this.deepLinkProcesoId, parametroId: this.deepLinkParametroId } : {})
         }
 
         const res = await this.enviarConTimeout({
@@ -588,6 +612,7 @@ if (!window.RegistrosControlController) {
 
     async exportarRegistrosControl() {
       const idFiltro = this.idFiltroActivo()
+      const esDesviacion = this.deepLinkProcesoId && this.deepLinkParametroId
 
       const res = await window.PhotinoBridge.send({
         action: "registrosControl.obtenerRegistros",
@@ -599,7 +624,8 @@ if (!window.RegistrosControlController) {
           np: this.getVal("filtroNpRegistros"),
           turno: this.getVal("filtroTurnoRegistros"),
           estado: this.getVal("filtroEstadoRegistros"),
-          ...(idFiltro ? { id: idFiltro } : {})
+          ...(idFiltro ? { id: idFiltro } : {}),
+          ...(esDesviacion ? { procesoId: this.deepLinkProcesoId, parametroId: this.deepLinkParametroId } : {})
         }
       })
 
@@ -624,6 +650,7 @@ if (!window.RegistrosControlController) {
 
     async imprimirRegistrosControl() {
       const idFiltro = this.idFiltroActivo()
+      const esDesviacion = this.deepLinkProcesoId && this.deepLinkParametroId
 
       const res = await window.PhotinoBridge.send({
         action: "registrosControl.obtenerRegistros",
@@ -635,7 +662,8 @@ if (!window.RegistrosControlController) {
           np: this.getVal("filtroNpRegistros"),
           turno: this.getVal("filtroTurnoRegistros"),
           estado: this.getVal("filtroEstadoRegistros"),
-          ...(idFiltro ? { id: idFiltro } : {})
+          ...(idFiltro ? { id: idFiltro } : {}),
+          ...(esDesviacion ? { procesoId: this.deepLinkProcesoId, parametroId: this.deepLinkParametroId } : {})
         }
       })
 
@@ -669,6 +697,9 @@ if (!window.RegistrosControlController) {
       const estado = this.getVal("filtroEstadoRegistros")
 
       if (this.deepLinkId) partes.push(`ID: ${this.deepLinkId}`)
+      if (this.deepLinkProcesoId && this.deepLinkParametroId) {
+        partes.push(`Proceso: ${this.deepLinkProceso} · Defecto: ${this.deepLinkDefecto}`)
+      }
       if (id) partes.push(`ID: ${id}`)
       if (np) partes.push(`NP: ${np}`)
       if (turnoSel?.value) partes.push(`Turno: ${turnoSel.options[turnoSel.selectedIndex].text}`)

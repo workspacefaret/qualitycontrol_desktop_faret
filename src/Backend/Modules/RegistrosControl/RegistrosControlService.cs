@@ -20,7 +20,9 @@ namespace QualityControlCenter.Modules.RegistrosControl
             string? np,
             string? turno,
             string? estado,
-            int? id = null
+            int? id = null,
+            int? procesoId = null,
+            int? parametroId = null
         )
         {
             page = page <= 0 ? 1 : page;
@@ -34,12 +36,15 @@ namespace QualityControlCenter.Modules.RegistrosControl
                 np,
                 turno,
                 estado,
-                id
+                id,
+                procesoId,
+                parametroId
             );
 
-            // Cuando hay filtro de NP, el repositorio trae todo sin paginar (ver
-            // RegistrosControlRepository) — la respuesta debe reflejar "todo en una sola página".
-            var sinLimite = !string.IsNullOrWhiteSpace(np);
+            // Cuando hay filtro de NP o de proceso/defecto (deep-link de alerta), el repositorio
+            // trae todo sin paginar (ver RegistrosControlRepository) — la respuesta debe reflejar
+            // "todo en una sola página".
+            var sinLimite = !string.IsNullOrWhiteSpace(np) || procesoId.HasValue || parametroId.HasValue;
             var pages = sinLimite ? 1 : (int)Math.Ceiling(result.Total / (double)limit);
 
             return new

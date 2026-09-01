@@ -200,7 +200,9 @@ namespace QualityControlCenter.Modules.Home
                 var cmd = new MySqlCommand(
                     @"
                 SELECT
+                    p.id AS proceso_id,
                     p.nombre AS proceso,
+                    pcv.id AS parametro_id,
                     pcv.nombre AS defecto,
                     pcv.criticidad AS criticidad,
                     COUNT(*) AS total,
@@ -214,7 +216,7 @@ namespace QualityControlCenter.Modules.Home
                 INNER JOIN procesos p
                     ON p.id = rc.proceso_id
                 WHERE rc.fecha_registro >= CURDATE() - INTERVAL 30 DAY
-                GROUP BY p.nombre, pcv.nombre, pcv.criticidad
+                GROUP BY p.id, p.nombre, pcv.id, pcv.nombre, pcv.criticidad
                 ORDER BY
                     CASE pcv.criticidad
                         WHEN 'critico' THEN 1
@@ -242,11 +244,19 @@ namespace QualityControlCenter.Modules.Home
                             hora = Hora(reader, "hora"),
                             modulo = "registros-control",
                             registroId = Int(reader, "registro_id"),
+                            procesoId = Int(reader, "proceso_id"),
+                            parametroId = Int(reader, "parametro_id"),
+                            defecto = Text(reader, "defecto"),
                         }
                     );
                 }
             }
 
+            // El módulo viejo "Laboratorio" (visor de registro_ensayos de la app móvil) fue
+            // eliminado y reemplazado por "Laboratorio - Muestras" (muestra_laboratorio); esta
+            // alerta apuntaba al módulo/tabla viejos, ya inexistentes. "Pendiente"/"En analisis"
+            // replica la misma definición de "muestras pendientes" que usa el propio módulo
+            // nuevo en su KPI (ver MuestraLaboratorioRepository.ObtenerIndicadores).
             var pendientesLab = 0;
             var pendienteLabId = 0;
 
@@ -254,8 +264,8 @@ namespace QualityControlCenter.Modules.Home
                 var cmdLab = new MySqlCommand(
                     @"
                 SELECT COUNT(*) AS total, MIN(id) AS primer_id
-                FROM registro_ensayos
-                WHERE valor IS NULL;
+                FROM muestra_laboratorio
+                WHERE eliminado = 0 AND estado IN ('Pendiente', 'En analisis');
                 ",
                     conn
                 )
@@ -276,11 +286,12 @@ namespace QualityControlCenter.Modules.Home
                     {
                         tipo = "laboratorio",
                         titulo = "Laboratorio",
-                        descripcion = $"{pendientesLab} análisis pendientes",
+                        descripcion = $"{pendientesLab} muestras pendientes",
                         criticidad = "info",
                         hora = DateTime.Now.ToString("HH:mm"),
-                        modulo = "laboratorio",
+                        modulo = "muestra-laboratorio",
                         registroId = pendienteLabId,
+                        estadoFiltro = "Pendiente,En analisis",
                     }
                 );
             }
@@ -553,12 +564,14 @@ namespace QualityControlCenter.Modules.Home
                 "
             );
 
+            // Mismo reemplazo que en ObtenerKpis/ObtenerAlertasActivas: el módulo viejo
+            // "Laboratorio" (registro_ensayos) fue eliminado, la fuente real es muestra_laboratorio.
             var ensayosPendientes = await Count(
                 conn,
                 @"
                 SELECT COUNT(*)
-                FROM registro_ensayos
-                WHERE valor IS NULL;
+                FROM muestra_laboratorio
+                WHERE eliminado = 0 AND estado IN ('Pendiente', 'En analisis');
                 "
             );
 

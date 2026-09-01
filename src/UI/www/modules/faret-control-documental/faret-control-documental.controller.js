@@ -249,9 +249,7 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
         const fecha = document.getElementById(fechaId).value;
         const proximaEl = document.getElementById(proximaId);
         if (!fecha || proximaEl.value) return;
-        const d = new Date(fecha);
-        d.setDate(d.getDate() + 365);
-        proximaEl.value = d.toISOString().substring(0, 10);
+        proximaEl.value = window.DateUtils.sumarDias(fecha, 365);
     }
 
     _abrirNuevo() {
@@ -265,7 +263,7 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
         document.getElementById("fcd-f-alcance").value = "FARET";
         document.getElementById("fcd-f-estado").value = "VIGENTE";
         document.getElementById("fcd-f-version").value = "";
-        document.getElementById("fcd-f-fecha-actualizacion").value = new Date().toISOString().substring(0, 10);
+        document.getElementById("fcd-f-fecha-actualizacion").value = window.DateUtils.hoyISO();
         document.getElementById("fcd-f-proxima-revision").value = "";
         document.getElementById("fcd-f-adjunto").value = "";
 
@@ -589,7 +587,7 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
     // ---------- Presentación ----------
 
     _fecha(valor) {
-        return valor ? new Date(valor).toLocaleDateString("es-CL") : "-";
+        return window.DateUtils.formatear(valor);
     }
 
     _badge(texto, color) {

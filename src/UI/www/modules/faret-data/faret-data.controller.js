@@ -171,8 +171,8 @@ window.FaretDataController = class FaretDataController {
         tbody.innerHTML = items.map(r => `
             <tr data-id="${r.id}">
                 <td>${r.id ?? "-"}</td>
-                <td>${r.fechaIngreso ? new Date(r.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
-                <td>${r.fechaSalida ? new Date(r.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
+                <td>${window.DateUtils.formatear(r.fechaIngreso)}</td>
+                <td>${window.DateUtils.formatear(r.fechaSalida)}</td>
                 <td>${r.npNv ?? "-"}</td>
                 <td>${r.cliente ?? "-"}</td>
                 <td>${r.codigo ?? "-"}</td>
@@ -319,8 +319,8 @@ window.FaretDataController = class FaretDataController {
                 ${items.map(r => `
                     <tr>
                         <td>${r.id ?? "-"}</td>
-                        <td>${r.fechaIngreso ? new Date(r.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
-                        <td>${r.fechaSalida ? new Date(r.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
+                        <td>${window.DateUtils.formatear(r.fechaIngreso)}</td>
+                        <td>${window.DateUtils.formatear(r.fechaSalida)}</td>
                         <td>${r.npNv ?? "-"}</td>
                         <td>${r.cliente ?? "-"}</td>
                         <td>${r.codigo ?? "-"}</td>

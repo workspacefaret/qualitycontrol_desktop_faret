@@ -49,10 +49,7 @@ window.FaretController = class FaretController {
     }
 
     _rangoMesActual() {
-        const hoy = new Date();
-        const desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-        const fmt = d => d.toISOString().substring(0, 10);
-        return { desde: fmt(desde), hasta: fmt(hoy) };
+        return { desde: window.DateUtils.primerDiaMesActualISO(), hasta: window.DateUtils.hoyISO() };
     }
 
     async _fetch(action, extra = {}) {
@@ -248,7 +245,7 @@ window.FaretController = class FaretController {
     }
 
     _renderIndicadoresCalidad(ind) {
-        const mesActual = new Date().toISOString().substring(0, 7);
+        const mesActual = window.DateUtils.mesActualISO();
         const cuarentenaMes = (ind.cuarentenasPorMes || []).find(m => m.mes === mesActual);
         const rechazoMes = (ind.rechazosClientePorMes || []).find(m => m.mes === mesActual);
 

@@ -577,7 +577,7 @@ window.FaretNcController = class FaretNcController {
     _formatearColumnaOpcional(fila, col) {
         const valor = fila.data ? fila.data[col.key] : null;
         if (valor === null || valor === undefined || valor === "") return "-";
-        if (col.tipo === "fecha") return new Date(valor).toLocaleDateString("es-CL");
+        if (col.tipo === "fecha") return window.DateUtils.formatear(valor);
         if (col.tipo === "porcentaje") return `${(valor * 100).toFixed(2)}%`;
         return valor;
     }
@@ -634,8 +634,8 @@ window.FaretNcController = class FaretNcController {
         tbody.innerHTML = items.map(fila => `
             <tr data-id="${fila.key}">
                 <td>${fila.codigo}</td>
-                <td>${fila.fechaIngreso ? new Date(fila.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
-                <td>${fila.fechaSalida ? new Date(fila.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
+                <td>${window.DateUtils.formatear(fila.fechaIngreso)}</td>
+                <td>${window.DateUtils.formatear(fila.fechaSalida)}</td>
                 <td>${fila.npNv}</td>
                 <td>${fila.cliente}</td>
                 <td>${fila.codigoProducto}</td>
@@ -645,7 +645,7 @@ window.FaretNcController = class FaretNcController {
                 <td>${this._badge(fila.nivelSeveridad, this._colorSeveridad(fila.nivelSeveridad))}</td>
                 <td>${this._badge(this._labelEstadoGestion(fila.estadoGestion), this._colorEstadoGestion(fila.estadoGestion))}</td>
                 <td>${fila.responsable}</td>
-                <td style="display:none;">${fila.fechaCompromiso ? new Date(fila.fechaCompromiso).toLocaleDateString("es-CL") : "-"}</td>
+                <td style="display:none;">${window.DateUtils.formatear(fila.fechaCompromiso)}</td>
                 ${colsOpcionales.map(col => `<td>${this._formatearColumnaOpcional(fila, col)}</td>`).join("")}
                 <td>${this._badge(this._labelFuente(fila.fuente), this._colorFuente(fila.fuente))}</td>
                 <td>
@@ -1839,7 +1839,7 @@ window.FaretNcController = class FaretNcController {
 
     _abrirNuevoPnc() {
         document.getElementById("fnc-npnc-error").style.display = "none";
-        document.getElementById("fnc-npnc-fecha-ingreso").value = new Date().toISOString().substring(0, 10);
+        document.getElementById("fnc-npnc-fecha-ingreso").value = window.DateUtils.hoyISO();
 
         [
             "fnc-npnc-np-nv", "fnc-npnc-cliente", "fnc-npnc-codigo", "fnc-npnc-producto",
@@ -1917,7 +1917,7 @@ window.FaretNcController = class FaretNcController {
 
         const tipoPnc = val("fnc-npnc-tipo-pnc");
         const area = val("fnc-npnc-area");
-        const hoy = new Date().toISOString().substring(0, 10);
+        const hoy = window.DateUtils.hoyISO();
         const fechaIngreso = val("fnc-npnc-fecha-ingreso") || hoy;
 
         const payload = {
@@ -3131,8 +3131,8 @@ window.FaretNcController = class FaretNcController {
                 ${items.map(fila => `
                     <tr>
                         <td>${fila.codigo}</td>
-                        <td>${fila.fechaIngreso ? new Date(fila.fechaIngreso).toLocaleDateString("es-CL") : "-"}</td>
-                        <td>${fila.fechaSalida ? new Date(fila.fechaSalida).toLocaleDateString("es-CL") : "-"}</td>
+                        <td>${window.DateUtils.formatear(fila.fechaIngreso)}</td>
+                        <td>${window.DateUtils.formatear(fila.fechaSalida)}</td>
                         <td>${fila.npNv}</td>
                         <td>${fila.cliente}</td>
                         <td>${fila.codigoProducto}</td>

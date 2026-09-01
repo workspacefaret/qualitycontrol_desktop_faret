@@ -89,7 +89,7 @@ window.FaretMaquinasController = class FaretMaquinasController {
     }
 
     _formatoFecha(fecha) {
-        return fecha ? new Date(fecha).toLocaleDateString("es-CL") : "-";
+        return window.DateUtils.formatear(fecha);
     }
 
     _defectosBadge(presentaDefectos) {

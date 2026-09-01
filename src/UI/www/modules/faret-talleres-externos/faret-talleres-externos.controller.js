@@ -252,15 +252,15 @@ window.FaretTalleresExternosController = class {
                 <td>${this._esc(it.codigoProducto)}</td>
                 <td>${this._esc(it.item)}</td>
                 <td>${this._esc(it.cliente)}</td>
-                <td>${it.fechaAsignacion ? new Date(it.fechaAsignacion).toLocaleDateString("es-CL") : "-"}</td>
+                <td>${window.DateUtils.formatear(it.fechaAsignacion)}</td>
                 <td>${this._esc(it.tallerExternoTexto)}</td>
                 <td>${this._esc(it.procesoTexto)}</td>
                 <td>${this._esc(it.responsableInternoTexto)}</td>
                 <td>${tetBadgePrioridad(it.prioridad)}</td>
                 <td>${it.fechaCompromiso
                     ? (it.atrasado
-                        ? `<span class="tet-fecha-vencida">${new Date(it.fechaCompromiso).toLocaleDateString("es-CL")} ⚠</span>`
-                        : new Date(it.fechaCompromiso).toLocaleDateString("es-CL"))
+                        ? `<span class="tet-fecha-vencida">${window.DateUtils.formatear(it.fechaCompromiso)} ⚠</span>`
+                        : window.DateUtils.formatear(it.fechaCompromiso))
                     : "-"}</td>
                 <td>${tetBadgeEstado(it.estado)}</td>
                 <td style="text-align:right;">${tetFormatNumero(it.cantidadARevisar)}</td>
@@ -697,12 +697,12 @@ window.FaretTalleresExternosController = class {
                         <td>${this._esc(it.codigoProducto)}</td>
                         <td>${this._esc(it.item)}</td>
                         <td>${this._esc(it.cliente)}</td>
-                        <td>${it.fechaAsignacion ? new Date(it.fechaAsignacion).toLocaleDateString("es-CL") : ""}</td>
+                        <td>${window.DateUtils.formatear(it.fechaAsignacion)}</td>
                         <td>${this._esc(it.tallerExternoTexto)}</td>
                         <td>${this._esc(it.procesoTexto)}</td>
                         <td>${this._esc(it.responsableInternoTexto)}</td>
                         <td>${this._esc(it.prioridad)}</td>
-                        <td>${it.fechaCompromiso ? new Date(it.fechaCompromiso).toLocaleDateString("es-CL") : ""}</td>
+                        <td>${window.DateUtils.formatear(it.fechaCompromiso)}</td>
                         <td>${this._esc(TET_ESTADO_LABELS[it.estado] || it.estado)}</td>
                         <td>${tetFormatNumero(it.cantidadARevisar)}</td>
                         <td>${tetFormatNumero(it.cantidadRevisadaEntregada)}</td>

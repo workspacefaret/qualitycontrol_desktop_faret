@@ -34,6 +34,8 @@ namespace QualityControlCenter.Modules.RegistrosControl
                     var estado = GetString(data, "estado");
                     var idStr = GetString(data, "id");
                     int? id = int.TryParse(idStr, out var parsedId) ? parsedId : null;
+                    var procesoId = GetIntOrNull(data, "procesoId");
+                    var parametroId = GetIntOrNull(data, "parametroId");
 
                     var result = await _service.ObtenerRegistros(
                         page,
@@ -43,7 +45,9 @@ namespace QualityControlCenter.Modules.RegistrosControl
                         np,
                         turno,
                         estado,
-                        id
+                        id,
+                        procesoId,
+                        parametroId
                     );
 
                     return Ok(result);
@@ -121,6 +125,23 @@ namespace QualityControlCenter.Modules.RegistrosControl
                 return parsed;
 
             return defaultValue;
+        }
+
+        private static int? GetIntOrNull(JsonElement data, string prop)
+        {
+            if (data.ValueKind != JsonValueKind.Object)
+                return null;
+
+            if (!data.TryGetProperty(prop, out var value))
+                return null;
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+                return number;
+
+            if (value.ValueKind == JsonValueKind.String && int.TryParse(value.GetString(), out var parsed))
+                return parsed;
+
+            return null;
         }
 
         private static int GetIntFromPayload(

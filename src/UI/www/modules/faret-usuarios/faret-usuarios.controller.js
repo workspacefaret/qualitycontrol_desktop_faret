@@ -146,7 +146,7 @@ window.FaretUsuariosController = class FaretUsuariosController {
                     </select>
                 </td>
                 <td>${u.activo ? "Activo" : "Inactivo"}</td>
-                <td>${u.createdAt ? new Date(u.createdAt).toLocaleDateString("es-CL") : "-"}</td>
+                <td>${window.DateUtils.formatear(u.createdAt)}</td>
                 <td>
                     <button class="btn-secondary fu-reset-btn" data-id="${u.id}" data-nombre="${u.nombre ?? ""}">Restablecer clave</button>
                     <button class="btn-secondary fu-toggle-btn" data-id="${u.id}" data-activo="${u.activo ? "1" : "0"}" data-nombre="${u.nombre ?? ""}">

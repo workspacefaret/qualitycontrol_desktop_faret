@@ -65,8 +65,26 @@ namespace QualityControlCenter.Repositories.MuestraLaboratorio
 
             if (!string.IsNullOrWhiteSpace(estado))
             {
-                where.Add("m.estado = @estado");
-                cmd.Parameters.AddWithValue("@estado", estado);
+                // El deep-link "Gestionar" de la alerta de Inicio pide varios estados a la vez
+                // ("Pendiente,En analisis"); el filtro de la UI sigue mandando uno solo.
+                var estados = estado
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                if (estados.Length == 1)
+                {
+                    where.Add("m.estado = @estado0");
+                    cmd.Parameters.AddWithValue("@estado0", estados[0]);
+                }
+                else
+                {
+                    var nombres = new List<string>();
+                    for (var i = 0; i < estados.Length; i++)
+                    {
+                        nombres.Add($"@estado{i}");
+                        cmd.Parameters.AddWithValue($"@estado{i}", estados[i]);
+                    }
+                    where.Add($"m.estado IN ({string.Join(", ", nombres)})");
+                }
             }
             if (!string.IsNullOrWhiteSpace(tipoMuestra))
             {

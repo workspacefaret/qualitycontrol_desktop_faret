@@ -25,7 +25,9 @@ namespace QualityControlCenter.Repositories.RegistrosControl
             string? np,
             string? turno,
             string? estado,
-            int? id = null
+            int? id = null,
+            int? procesoId = null,
+            int? parametroId = null
         )
         {
             var items = new List<RegistroControlItem>();
@@ -77,6 +79,22 @@ namespace QualityControlCenter.Repositories.RegistrosControl
                 parameters.Add(new MySqlParameter("@estado", estado));
             }
 
+            // Usado por el deep-link "Gestionar" de una alerta de Inicio (desviación por
+            // proceso+defecto): muestra todos los registros que componen esa alerta, no solo uno.
+            if (procesoId.HasValue)
+            {
+                where.Add("rc.proceso_id = @procesoId");
+                parameters.Add(new MySqlParameter("@procesoId", procesoId.Value));
+            }
+
+            if (parametroId.HasValue)
+            {
+                where.Add(
+                    "EXISTS (SELECT 1 FROM registro_fallas_visuales rfv3 WHERE rfv3.registro_id = rc.id AND rfv3.parametro_id = @parametroId)"
+                );
+                parameters.Add(new MySqlParameter("@parametroId", parametroId.Value));
+            }
+
             var whereSql = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
 
             var countSql =
@@ -94,7 +112,7 @@ namespace QualityControlCenter.Repositories.RegistrosControl
             // Cuando se filtra por NP, se traen todas las filas de esa NP sin paginar: una NP puede
             // tener varios ítems/registros y quedaban repartidos entre varias páginas, dificultando
             // verlos todos juntos.
-            var sinLimite = !string.IsNullOrWhiteSpace(np);
+            var sinLimite = !string.IsNullOrWhiteSpace(np) || procesoId.HasValue || parametroId.HasValue;
 
             await using (var countCmd = new MySqlCommand(countSql, conn))
             {

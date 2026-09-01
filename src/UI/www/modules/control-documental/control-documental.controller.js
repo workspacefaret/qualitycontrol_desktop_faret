@@ -246,9 +246,7 @@ window.ControlDocumentalController = class ControlDocumentalController {
         const fecha = document.getElementById(fechaId).value;
         const proximaEl = document.getElementById(proximaId);
         if (!fecha || proximaEl.value) return;
-        const d = new Date(fecha);
-        d.setDate(d.getDate() + 365);
-        proximaEl.value = d.toISOString().substring(0, 10);
+        proximaEl.value = window.DateUtils.sumarDias(fecha, 365);
     }
 
     _abrirNuevo() {
@@ -262,7 +260,7 @@ window.ControlDocumentalController = class ControlDocumentalController {
         document.getElementById("cd-f-alcance").value = "INNPACK";
         document.getElementById("cd-f-estado").value = "VIGENTE";
         document.getElementById("cd-f-version").value = "";
-        document.getElementById("cd-f-fecha-actualizacion").value = new Date().toISOString().substring(0, 10);
+        document.getElementById("cd-f-fecha-actualizacion").value = window.DateUtils.hoyISO();
         document.getElementById("cd-f-proxima-revision").value = "";
         document.getElementById("cd-f-adjunto").value = "";
 
@@ -586,7 +584,7 @@ window.ControlDocumentalController = class ControlDocumentalController {
     // ---------- Presentación ----------
 
     _fecha(valor) {
-        return valor ? new Date(valor).toLocaleDateString("es-CL") : "-";
+        return window.DateUtils.formatear(valor);
     }
 
     _badge(texto, color) {

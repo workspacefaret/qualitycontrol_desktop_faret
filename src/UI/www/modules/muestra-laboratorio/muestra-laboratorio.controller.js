@@ -5,13 +5,63 @@ if (!window.MuestraLaboratorioController) {
       this._changeHandler = null
       this._muestraActualId = null
       this._corrigiendoEnsayoId = null
+      this.deepLinkEstado = null
     }
 
     async init() {
       console.log("INIT MUESTRA LABORATORIO")
+      this.consumirDeepLink()
       this.bindEvents()
       await this.cargarLista()
       await this.cargarIndicadores()
+    }
+
+    // Si "Gestionar" de una alerta en Inicio dejó un filtro de estado pendiente para este
+    // módulo, lo toma y lo borra de inmediato (mismo mecanismo que registros-control).
+    consumirDeepLink() {
+      const raw = sessionStorage.getItem("qccDeepLinkId")
+      if (!raw) return
+
+      try {
+        const info = JSON.parse(raw)
+        if (info?.modulo === "muestra-laboratorio" && info.estadoFiltro) {
+          this.deepLinkEstado = info.estadoFiltro
+        }
+      } catch { /* ignorar */ }
+
+      sessionStorage.removeItem("qccDeepLinkId")
+    }
+
+    quitarDeepLink() {
+      this.deepLinkEstado = null
+      this.cargarLista()
+    }
+
+    renderDeepLinkBanner(total) {
+      const banner = document.getElementById("mlbDeepLinkBanner")
+      if (!banner) return
+
+      if (!this.deepLinkEstado) {
+        banner.style.display = "none"
+        banner.innerHTML = ""
+        return
+      }
+
+      banner.style.display = "block"
+      banner.innerHTML = `
+        <div class="card" style="
+          border-left:4px solid #3b82f6;
+          background:#eff6ff;
+          margin-bottom:16px;
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:12px;
+        ">
+          <span>Mostrando ${total} muestra(s) pendiente(s) desde una alerta de Inicio.</span>
+          <button class="btn-secondary" id="mlbBtnVerTodosDeepLink">Ver todas</button>
+        </div>
+      `
     }
 
     bindEvents() {
@@ -36,6 +86,7 @@ if (!window.MuestraLaboratorioController) {
         if (id === "mlbNmGuardar") return this.guardarNuevaMuestra()
 
         if (id === "mlbBtnFiltrar") return this.cargarLista()
+        if (id === "mlbBtnVerTodosDeepLink") return this.quitarDeepLink()
 
         if (e.target.classList?.contains("mlb-ver-btn")) {
           return this.abrirDetalle(parseInt(e.target.dataset.id, 10))
@@ -128,7 +179,7 @@ if (!window.MuestraLaboratorioController) {
       body.innerHTML = '<tr><td colspan="11" style="text-align:center;">Cargando...</td></tr>'
 
       try {
-        const estado = document.getElementById("mlbFiltroEstado")?.value || ""
+        const estado = this.deepLinkEstado || document.getElementById("mlbFiltroEstado")?.value || ""
         const np = document.getElementById("mlbFiltroNp")?.value?.trim() || ""
 
         const res = await window.PhotinoBridge.send({
@@ -139,6 +190,8 @@ if (!window.MuestraLaboratorioController) {
         if (!res || res.ok === false) throw new Error(res?.error || "Error cargando muestras")
 
         const items = res.data || []
+        this.renderDeepLinkBanner(items.length)
+
         if (items.length === 0) {
           body.innerHTML = '<tr><td colspan="11" style="text-align:center;">Sin muestras registradas</td></tr>'
           return

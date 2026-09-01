@@ -490,5 +490,30 @@ window.DateUtils = (function () {
         return `${d.getFullYear()}-${mes}-${dia}`;
     }
 
-    return { formatear, hoyISO };
+    function mesActualISO() {
+        const d = new Date();
+        const mes = String(d.getMonth() + 1).padStart(2, "0");
+        return `${d.getFullYear()}-${mes}`;
+    }
+
+    function primerDiaMesActualISO() {
+        return `${mesActualISO()}-01`;
+    }
+
+    // Suma/resta días de calendario a una fecha "yyyy-MM-dd" sin pasar por conversión de
+    // timezone (aritmética en UTC puro sobre los componentes, nunca en hora local).
+    function sumarDias(fechaISO, dias) {
+        const texto = String(fechaISO);
+        const m = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return texto;
+        const [, anio, mes, dia] = m;
+        const utc = new Date(Date.UTC(Number(anio), Number(mes) - 1, Number(dia)));
+        utc.setUTCDate(utc.getUTCDate() + dias);
+        const y = utc.getUTCFullYear();
+        const mo = String(utc.getUTCMonth() + 1).padStart(2, "0");
+        const d = String(utc.getUTCDate()).padStart(2, "0");
+        return `${y}-${mo}-${d}`;
+    }
+
+    return { formatear, hoyISO, mesActualISO, primerDiaMesActualISO, sumarDias };
 })();
