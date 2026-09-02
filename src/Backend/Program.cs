@@ -14,7 +14,6 @@ using QualityControlCenter.Backend.Services.PlanificacionApi;
 using QualityControlCenter.Backend.Services.SapRecepcionApi;
 using QualityControlCenter.Config;
 using QualityControlCenter.Modules.Auth;
-using QualityControlCenter.Repositories.Auth;
 using QualityControlCenter.Services;
 
 namespace QualityControlCenter
@@ -39,8 +38,8 @@ namespace QualityControlCenter
                 // 🔐 AUTH + SESSION
                 // =========================
                 // Migrado a QualityControlInnpack.Api (JWT) — ya no valida contra MySQL directo
-                // desde el desktop. AuthRepository queda sin uso, se retira cuando el resto de
-                // los módulos INNPACK también esté migrado (ver contex.md).
+                // desde el desktop. AuthRepository.cs se retiró en el Paso 16 de la migración
+                // (ver contex.md).
                 var session = new CurrentUserSessionService();
                 var innpackApiSettings = InnpackApiSettings.Load();
                 var innpackApiClient = new InnpackApiClient(innpackApiSettings);
@@ -86,6 +85,7 @@ namespace QualityControlCenter
                     db,
                     authHandler,
                     session,
+                    innpackApiClient,
                     faretApiClient,
                     faretMejoraContinuaClient,
                     faretCalidadClient,

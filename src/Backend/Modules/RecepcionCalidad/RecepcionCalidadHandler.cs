@@ -3,18 +3,21 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using QualityControlCenter.Backend.Services.InnpackApi;
 using QualityControlCenter.Backend.Services.SapRecepcionApi;
-using QualityControlCenter.Repositories.RecepcionCalidad;
 using QualityControlCenter.Services;
 
 namespace QualityControlCenter.Modules.RecepcionCalidad
 {
-    // Modulo "Control de Recepcion - Calidad" (solo INNPACK). Consulta SAP (via apisapfaret) de
-    // solo lectura, arma lotes de inspeccion propios de QCC + plan de muestreo NCh44, y crea la
-    // muestra vinculada en el modulo Laboratorio (Modules/MuestraLaboratorio) ya existente.
+    // Modulo "Control de Recepcion - Calidad" (solo INNPACK). La parte MySQL migró a
+    // QualityControlInnpack.Api ("api/recepcion-calidad/*", RecepcionCalidadRepository.cs de este
+    // módulo queda sin uso) — la consulta a SAP (via apisapfaret) sigue siendo un passthrough HTTP
+    // de solo lectura acá mismo, sin cambios (mismo criterio que Planificación/FPS Materiales en
+    // Trazabilidad, Paso 4). Módulo híbrido real INNPACK+FARET: "empresa" viaja explícito en cada
+    // acción que lo necesita. Ver contex.md sobre la migración de INNPACK a arquitectura API.
     public class RecepcionCalidadHandler
     {
-        private readonly RecepcionCalidadRepository _repository;
+        private readonly InnpackRecepcionCalidadApiService _api;
         private readonly SapRecepcionApiClient _sapClient;
         private readonly CurrentUserSessionService _session;
 
@@ -23,9 +26,9 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        public RecepcionCalidadHandler(DbService db, SapRecepcionApiClient sapClient, CurrentUserSessionService session)
+        public RecepcionCalidadHandler(InnpackApiClient client, SapRecepcionApiClient sapClient, CurrentUserSessionService session)
         {
-            _repository = new RecepcionCalidadRepository(db);
+            _api = new InnpackRecepcionCalidadApiService(client);
             _sapClient = sapClient;
             _session = session;
         }
@@ -51,7 +54,7 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
                         $"api/recepcion/bobinas?desde={desde}&hasta={hasta}&empresa={empresaSap}"
                     );
                     if (!ok)
-                        return Error(ExtraerMensaje(body));
+                        return Error(ExtraerMensajeSap(body));
 
                     var items = ParseSapItems(body);
                     return Ok(items);
@@ -72,7 +75,7 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
                         $"api/recepcion/bobinas/lotes?itemCode={Uri.EscapeDataString(itemCode)}&fecha={fecha}&empresa={empresaSap}"
                     );
                     if (!ok)
-                        return Error(ExtraerMensaje(body));
+                        return Error(ExtraerMensajeSap(body));
 
                     var items = ParseSapLotes(body);
                     return Ok(items);
@@ -85,11 +88,10 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
                     if (jsonData.TryGetProperty("bobinas", out var bobinasEl) && bobinasEl.ValueKind == JsonValueKind.Array)
                         bobinas = bobinasEl.EnumerateArray().Select(b => b.GetString() ?? "").Where(s => s != "").ToList();
 
-                    var empresaCrear = GetEmpresaOrDefault(jsonData);
-                    var request = new CrearLoteRequest
+                    var request = new
                     {
                         TipoMateriaPrima = GetString(jsonData, "tipoMateriaPrima"),
-                        Empresa = empresaCrear,
+                        Empresa = GetEmpresaOrDefault(jsonData),
                         Proveedor = GetString(jsonData, "proveedor"),
                         Guia = GetString(jsonData, "guia"),
                         ItemCode = GetString(jsonData, "itemCode"),
@@ -118,24 +120,10 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
                         PfCantidadAfectada = GetDecimal(jsonData, "pfCantidadAfectada"),
                         PfObservacion = GetString(jsonData, "pfObservacion"),
                         PfFotoBase64 = GetString(jsonData, "pfFotoBase64"),
+                        UsuarioNombre = usuario?.NombreCompleto,
                     };
 
-                    if (string.IsNullOrWhiteSpace(request.TipoMateriaPrima))
-                        return Error("Falta el tipo de materia prima");
-                    if (request.TipoMateriaPrima == "Bobina" && request.Bobinas.Count == 0)
-                        return Error("Debes seleccionar al menos una bobina desde SAP");
-                    if (empresaCrear == "FARET" && request.TipoMateriaPrima != "Bobina")
-                        return Error("Para Faret, por ahora solo está habilitado el tipo Bobina de papel (SAP)");
-
-                    if (request.TipoMateriaPrima == "PliegoFaret")
-                    {
-                        var suma = (request.PfCantidadVerde ?? 0) + (request.PfCantidadAzul ?? 0) + (request.PfCantidadRoja ?? 0);
-                        if (request.PfCantidadTotal.HasValue && suma != request.PfCantidadTotal.Value)
-                            return Error("Cantidad verde + azul + roja debe ser igual a la cantidad total");
-                    }
-
-                    var id = await _repository.CrearLote(request, usuario?.NombreCompleto);
-                    return Ok(new { id });
+                    return await Forward(_api.CrearLoteAsync(request));
                 }
 
                 if (action == "recepcion.foto.abrir")
@@ -145,11 +133,7 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
                     if (loteId <= 0 || string.IsNullOrWhiteSpace(tipo))
                         return Error("Falta el lote o el tipo de materia prima");
 
-                    var foto = await _repository.ObtenerFoto(loteId, tipo);
-                    if (foto == null)
-                        return Error("Este lote no tiene fotografía cargada");
-
-                    return Ok(new { base64 = Convert.ToBase64String(foto.Value.contenido), mime = foto.Value.mime });
+                    return await Forward(_api.FotoAsync(loteId, tipo));
                 }
 
                 if (action == "recepcion.nc.crear")
@@ -159,15 +143,7 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
                         return Error("Falta indicar el lote");
 
                     var usuario = _session.GetCurrentUser();
-                    try
-                    {
-                        var (ncId, codigo) = await _repository.CrearNoConformidad(loteId, usuario?.NombreCompleto);
-                        return Ok(new { ncId, codigo });
-                    }
-                    catch (InvalidOperationException ex)
-                    {
-                        return Error(ex.Message);
-                    }
+                    return await Forward(_api.CrearNoConformidadAsync(loteId, usuario?.NombreCompleto));
                 }
 
                 if (action == "recepcion.list")
@@ -175,57 +151,44 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
                     var empresaList = GetEmpresaOrDefault(jsonData);
                     var estado = GetString(jsonData, "estado");
                     var tipo = GetString(jsonData, "tipoMateriaPrima");
-                    var items = await _repository.Listar(
-                        string.IsNullOrWhiteSpace(estado) ? null : estado,
-                        string.IsNullOrWhiteSpace(tipo) ? null : tipo,
-                        empresaList
+                    return await Forward(
+                        _api.ListAsync(string.IsNullOrWhiteSpace(estado) ? null : estado, string.IsNullOrWhiteSpace(tipo) ? null : tipo, empresaList)
                     );
-                    return Ok(items);
                 }
 
                 if (action == "recepcion.detalle")
                 {
                     var empresaDetalle = GetEmpresaOrDefault(jsonData);
                     var id = GetInt(jsonData, "id") ?? 0;
-                    var detalle = await _repository.ObtenerDetalle(id, empresaDetalle);
-                    if (detalle == null)
-                        return Error("Lote no encontrado");
-                    return Ok(detalle);
+                    return await Forward(_api.DetalleAsync(id, empresaDetalle));
                 }
 
                 if (action == "recepcion.plan.generar")
                 {
-                    var request = new GenerarPlanRequest
-                    {
-                        LoteId = GetInt(jsonData, "loteId") ?? 0,
-                        NivelInspeccion = string.IsNullOrWhiteSpace(GetString(jsonData, "nivelInspeccion"))
-                            ? "II"
-                            : GetString(jsonData, "nivelInspeccion"),
-                        Aql = GetDecimal(jsonData, "aql") ?? 2.5m,
-                    };
-
-                    if (request.LoteId <= 0)
+                    var loteId = GetInt(jsonData, "loteId") ?? 0;
+                    if (loteId <= 0)
                         return Error("Falta indicar el lote");
 
-                    var plan = await _repository.GenerarPlan(request);
-                    return Ok(plan);
+                    var nivelInspeccion = GetString(jsonData, "nivelInspeccion");
+                    var aql = GetDecimal(jsonData, "aql") ?? 2.5m;
+
+                    return await Forward(_api.GenerarPlanAsync(loteId, string.IsNullOrWhiteSpace(nivelInspeccion) ? "II" : nivelInspeccion, aql));
                 }
 
                 if (action == "recepcion.bobinas.muestrear")
                 {
                     var loteId = GetInt(jsonData, "loteId") ?? 0;
-                    var lista = new List<BobinaMuestreadaRequest>();
+                    var lista = new List<object>();
                     if (jsonData.TryGetProperty("bobinas", out var arr) && arr.ValueKind == JsonValueKind.Array)
                     {
                         foreach (var b in arr.EnumerateArray())
                         {
+                            var seleccionTipo = GetString(b, "seleccionTipo");
                             lista.Add(
-                                new BobinaMuestreadaRequest
+                                new
                                 {
                                     NumeroBobina = GetString(b, "numeroBobina"),
-                                    SeleccionTipo = string.IsNullOrWhiteSpace(GetString(b, "seleccionTipo"))
-                                        ? "Manual"
-                                        : GetString(b, "seleccionTipo"),
+                                    SeleccionTipo = string.IsNullOrWhiteSpace(seleccionTipo) ? "Manual" : seleccionTipo,
                                     CriterioManual = GetString(b, "criterioManual"),
                                 }
                             );
@@ -236,8 +199,8 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
                         return Error("Falta el lote o la lista de bobinas muestreadas");
 
                     var usuario = _session.GetCurrentUser();
-                    await _repository.MuestrearBobinas(loteId, lista, usuario?.NombreCompleto);
-                    return Ok(new { muestreadas = lista.Count });
+                    var request = new { Bobinas = lista, Usuario = usuario?.NombreCompleto };
+                    return await Forward(_api.MuestrearBobinasAsync(loteId, request));
                 }
 
                 if (action == "recepcion.muestra.crear")
@@ -248,8 +211,13 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
                         return Error("Falta indicar el lote");
 
                     var usuario = _session.GetCurrentUser();
-                    var muestraId = await _repository.CrearMuestraLaboratorio(loteId, usuario?.Id, usuario?.NombreCompleto, empresaMuestra);
-                    return Ok(new { muestraLaboratorioId = muestraId });
+                    var request = new
+                    {
+                        Empresa = empresaMuestra,
+                        UsuarioId = usuario?.Id,
+                        UsuarioNombre = usuario?.NombreCompleto,
+                    };
+                    return await Forward(_api.CrearMuestraLaboratorioAsync(loteId, request));
                 }
 
                 if (action == "recepcion.estado.actualizar")
@@ -259,8 +227,7 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
                     if (loteId <= 0 || string.IsNullOrWhiteSpace(estado))
                         return Error("Falta el lote o el estado");
 
-                    await _repository.ActualizarEstado(loteId, estado);
-                    return Ok(new { actualizado = true });
+                    return await Forward(_api.ActualizarEstadoAsync(loteId, estado));
                 }
 
                 return Error($"Acción no reconocida: {action}");
@@ -321,7 +288,7 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
             return lista;
         }
 
-        private static string ExtraerMensaje(string body)
+        private static string ExtraerMensajeSap(string body)
         {
             try
             {
@@ -385,6 +352,54 @@ namespace QualityControlCenter.Modules.RecepcionCalidad
             if (value.ValueKind == JsonValueKind.String && decimal.TryParse(value.GetString(), out var parsed))
                 return parsed;
             return null;
+        }
+
+        private static async Task<string> Forward(Task<(bool ok, string body)> call)
+        {
+            var (ok, body) = await call;
+
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            var responseData = payload.ValueKind == JsonValueKind.Undefined ? null : JsonSerializer.Deserialize<object>(payload.GetRawText());
+            return Ok(responseData);
+        }
+
+        // Desenvuelve el shape ApiResponse<T> {success,message,data,errors} de
+        // QualityControlInnpack.Api — mismo criterio ya usado en UsuariosHandler.cs/TalleresExternosHandler.cs.
+        private static bool TryUnwrapApiResponse(string body, out JsonElement data, out string error)
+        {
+            data = default;
+            error = "Error al comunicarse con la API Innpack";
+
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("success", out var s))
+                {
+                    if (!s.GetBoolean())
+                    {
+                        error = root.TryGetProperty("message", out var m) ? (m.GetString() ?? error) : error;
+                        return false;
+                    }
+
+                    if (root.TryGetProperty("data", out var d))
+                    {
+                        data = d.Clone();
+                        return true;
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static string Ok(object? data)

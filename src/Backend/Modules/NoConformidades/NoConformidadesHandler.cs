@@ -3,48 +3,33 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using QualityControlCenter.Repositories.NoConformidades;
-using QualityControlCenter.Services;
+using QualityControlCenter.Backend.Services.InnpackApi;
 
 namespace QualityControlCenter.Modules.NoConformidades
 {
-    // Módulo "No Conformidades" — INNPACK, standalone (MySQL calidad, sin relación con Faret).
+    // Módulo "No Conformidades" — INNPACK, standalone (sin relación con Faret). Migrado a
+    // QualityControlInnpack.Api (Paso 14 de la migración) — ya no consulta MySQL directo desde el
+    // desktop (NoConformidadesRepository.cs de este módulo queda sin uso). Toda la validación de
+    // negocio (estados válidos, obligatorios, tamaños/mimes de adjuntos) se trasladó a
+    // NoConformidadesService en la API — este Handler solo valida presencia de ids/campos
+    // estructurales (los que van en la URL) y reenvía. create/update reenvían el payload plano tal
+    // cual (mismo patrón "BuildBody" ya usado en ControlDocumentalHandler, Paso 9) para preservar
+    // la semántica de "actualización parcial" (clave ausente = no tocar ese campo). Ver contex.md
+    // sobre la migración de INNPACK a arquitectura API.
     public class NoConformidadesHandler
     {
-        private readonly NoConformidadesRepository _repo;
-        private readonly NoConformidadesCatalogosRepository _catalogos;
+        private readonly InnpackNoConformidadesApiService _api;
+        private readonly InnpackNoConformidadesCatalogosApiService _catalogos;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        private static readonly string[] EstadosGestionValidos =
+        public NoConformidadesHandler(InnpackApiClient innpackClient)
         {
-            "PENDIENTE",
-            "ASIGNADA",
-            "EN_GESTION",
-            "CERRADA",
-        };
-        private static readonly string[] MetodologiasValidas = { "CINCO_PORQUES", "ISHIKAWA", "MIXTA" };
-        private static readonly string[] TiposAdjuntoValidos = { "CAUSA_RAIZ_PDF", "EVIDENCIA_FOTO" };
-        private static readonly string[] MimesPdfValidos = { "application/pdf" };
-        private static readonly string[] MimesFotoValidos = { "image/jpeg", "image/png" };
-        private const int MaxPdfBytes = 10 * 1024 * 1024;
-        private const int MaxFotoBytes = 5 * 1024 * 1024;
-        private const int MaxFotosPorNc = 10;
-        private static readonly string[] EstadosAccionValidos =
-        {
-            "PENDIENTE",
-            "EN_PROCESO",
-            "COMPLETADA",
-            "CANCELADA",
-        };
-
-        public NoConformidadesHandler(DbService db)
-        {
-            _repo = new NoConformidadesRepository(db);
-            _catalogos = new NoConformidadesCatalogosRepository(db);
+            _api = new InnpackNoConformidadesApiService(innpackClient);
+            _catalogos = new InnpackNoConformidadesCatalogosApiService(innpackClient);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -73,33 +58,33 @@ namespace QualityControlCenter.Modules.NoConformidades
                     "noConformidades.adjuntos.subir" => await HandleAdjuntosSubir(data),
                     "noConformidades.adjuntos.abrir" => await HandleAdjuntosAbrir(data),
                     "noConformidades.adjuntos.eliminar" => await HandleAdjuntosEliminar(data),
-                    "noConformidades.catalogos.clientes.list" => await HandleCatalogoList(() => _catalogos.GetClientesAsync()),
-                    "noConformidades.catalogos.clientes.crear" => await HandleCatalogoCrear(data, _catalogos.CrearClienteAsync),
-                    "noConformidades.catalogos.clientes.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarClienteAsync),
-                    "noConformidades.catalogos.categoriasDefecto.list" => await HandleCatalogoList(() => _catalogos.GetCategoriasDefectoAsync()),
-                    "noConformidades.catalogos.categoriasDefecto.crear" => await HandleCatalogoCrear(data, _catalogos.CrearCategoriaDefectoAsync),
-                    "noConformidades.catalogos.categoriasDefecto.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarCategoriaDefectoAsync),
-                    "noConformidades.catalogos.tiposFalla.list" => await HandleCatalogoList(() => _catalogos.GetTiposFallaAsync()),
-                    "noConformidades.catalogos.tiposFalla.crear" => await HandleCatalogoCrear(data, _catalogos.CrearTipoFallaAsync),
-                    "noConformidades.catalogos.tiposFalla.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarTipoFallaAsync),
-                    "noConformidades.catalogos.supervisores.list" => await HandleCatalogoList(() => _catalogos.GetSupervisoresAsync()),
-                    "noConformidades.catalogos.supervisores.crear" => await HandleCatalogoCrear(data, _catalogos.CrearSupervisorAsync),
-                    "noConformidades.catalogos.supervisores.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarSupervisorAsync),
-                    "noConformidades.catalogos.revisores.list" => await HandleCatalogoList(() => _catalogos.GetRevisoresAsync()),
-                    "noConformidades.catalogos.revisores.crear" => await HandleCatalogoCrear(data, _catalogos.CrearRevisorAsync),
-                    "noConformidades.catalogos.revisores.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarRevisorAsync),
-                    "noConformidades.catalogos.areas.list" => await HandleCatalogoList(() => _catalogos.GetAreasAsync()),
-                    "noConformidades.catalogos.areas.crear" => await HandleCatalogoCrear(data, _catalogos.CrearAreaAsync),
-                    "noConformidades.catalogos.areas.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarAreaAsync),
-                    "noConformidades.catalogos.familiasProducto.list" => await HandleCatalogoList(() => _catalogos.GetFamiliasProductoAsync()),
-                    "noConformidades.catalogos.familiasProducto.crear" => await HandleCatalogoCrear(data, _catalogos.CrearFamiliaProductoAsync, 50),
-                    "noConformidades.catalogos.familiasProducto.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarFamiliaProductoAsync),
-                    "noConformidades.catalogos.niveles.list" => await HandleCatalogoList(() => _catalogos.GetNivelesAsync()),
-                    "noConformidades.catalogos.niveles.crear" => await HandleCatalogoCrear(data, _catalogos.CrearNivelAsync, 20),
-                    "noConformidades.catalogos.niveles.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarNivelAsync),
-                    "noConformidades.catalogos.impactos.list" => await HandleCatalogoList(() => _catalogos.GetImpactosAsync()),
-                    "noConformidades.catalogos.impactos.crear" => await HandleCatalogoCrear(data, _catalogos.CrearImpactoAsync, 50),
-                    "noConformidades.catalogos.impactos.desactivar" => await HandleCatalogoDesactivar(data, _catalogos.DesactivarImpactoAsync),
+                    "noConformidades.catalogos.clientes.list" => await HandleCatalogoList("clientes"),
+                    "noConformidades.catalogos.clientes.crear" => await HandleCatalogoCrear("clientes", data),
+                    "noConformidades.catalogos.clientes.desactivar" => await HandleCatalogoDesactivar("clientes", data),
+                    "noConformidades.catalogos.categoriasDefecto.list" => await HandleCatalogoList("categoriasDefecto"),
+                    "noConformidades.catalogos.categoriasDefecto.crear" => await HandleCatalogoCrear("categoriasDefecto", data),
+                    "noConformidades.catalogos.categoriasDefecto.desactivar" => await HandleCatalogoDesactivar("categoriasDefecto", data),
+                    "noConformidades.catalogos.tiposFalla.list" => await HandleCatalogoList("tiposFalla"),
+                    "noConformidades.catalogos.tiposFalla.crear" => await HandleCatalogoCrear("tiposFalla", data),
+                    "noConformidades.catalogos.tiposFalla.desactivar" => await HandleCatalogoDesactivar("tiposFalla", data),
+                    "noConformidades.catalogos.supervisores.list" => await HandleCatalogoList("supervisores"),
+                    "noConformidades.catalogos.supervisores.crear" => await HandleCatalogoCrear("supervisores", data),
+                    "noConformidades.catalogos.supervisores.desactivar" => await HandleCatalogoDesactivar("supervisores", data),
+                    "noConformidades.catalogos.revisores.list" => await HandleCatalogoList("revisores"),
+                    "noConformidades.catalogos.revisores.crear" => await HandleCatalogoCrear("revisores", data),
+                    "noConformidades.catalogos.revisores.desactivar" => await HandleCatalogoDesactivar("revisores", data),
+                    "noConformidades.catalogos.areas.list" => await HandleCatalogoList("areas"),
+                    "noConformidades.catalogos.areas.crear" => await HandleCatalogoCrear("areas", data),
+                    "noConformidades.catalogos.areas.desactivar" => await HandleCatalogoDesactivar("areas", data),
+                    "noConformidades.catalogos.familiasProducto.list" => await HandleCatalogoList("familiasProducto"),
+                    "noConformidades.catalogos.familiasProducto.crear" => await HandleCatalogoCrear("familiasProducto", data),
+                    "noConformidades.catalogos.familiasProducto.desactivar" => await HandleCatalogoDesactivar("familiasProducto", data),
+                    "noConformidades.catalogos.niveles.list" => await HandleCatalogoList("niveles"),
+                    "noConformidades.catalogos.niveles.crear" => await HandleCatalogoCrear("niveles", data),
+                    "noConformidades.catalogos.niveles.desactivar" => await HandleCatalogoDesactivar("niveles", data),
+                    "noConformidades.catalogos.impactos.list" => await HandleCatalogoList("impactos"),
+                    "noConformidades.catalogos.impactos.crear" => await HandleCatalogoCrear("impactos", data),
+                    "noConformidades.catalogos.impactos.desactivar" => await HandleCatalogoDesactivar("impactos", data),
                     _ => Error($"Acción no reconocida en NoConformidades: {action}"),
                 };
             }
@@ -109,115 +94,68 @@ namespace QualityControlCenter.Modules.NoConformidades
             }
         }
 
-        // Los 9 catálogos administrables (Cliente/Categoría defecto/Tipo de falla/Supervisor/
-        // Revisado por/Área/Familia de producto/Nivel/Impacto) comparten la misma forma, así que
-        // las 27 acciones del switch de arriba se resuelven con estos 3 helpers genéricos.
-        private async Task<string> HandleCatalogoList(Func<Task<List<CatalogoNcItem>>> fetch)
+        // ---------- Catálogos (Paso 2, sin cambios) ----------
+
+        private async Task<string> HandleCatalogoList(string catalogo)
         {
-            var items = await fetch();
-            return Ok(items);
+            var (ok, body) = await _catalogos.ListAsync(catalogo);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
         }
 
-        private async Task<string> HandleCatalogoCrear(
-            Dictionary<string, object> data,
-            Func<string, string?, Task<CatalogoNcItem>> crear,
-            int maxLongitud = 150
-        )
+        private async Task<string> HandleCatalogoCrear(string catalogo, Dictionary<string, object> data)
         {
             if (!TryGetString(data, "nombre", out var nombreRaw) || string.IsNullOrWhiteSpace(nombreRaw))
                 return Error("Falta el nombre");
 
-            var nombre = System.Text.RegularExpressions.Regex.Replace(nombreRaw!.Trim(), @"\s+", " ");
-            if (nombre.Length > maxLongitud)
-                return Error($"El valor no puede superar los {maxLongitud} caracteres.");
-
             TryGetString(data, "creadoPor", out var creadoPor);
 
-            var item = await crear(nombre, creadoPor);
-            return Ok(item);
+            var (ok, body) = await _catalogos.CrearAsync(catalogo, nombreRaw!.Trim(), creadoPor);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
         }
 
-        private async Task<string> HandleCatalogoDesactivar(
-            Dictionary<string, object> data,
-            Func<int, Task<bool>> desactivar
-        )
+        private async Task<string> HandleCatalogoDesactivar(string catalogo, Dictionary<string, object> data)
         {
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id");
 
-            var ok = await desactivar(id);
-            if (!ok)
-                return Error("Valor de catálogo no encontrado o ya estaba inactivo.");
+            var (ok, body) = await _catalogos.DesactivarAsync(catalogo, id);
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
 
             return Ok((object?)null);
         }
+
+        // ---------- No Conformidades (Paso 14) ----------
 
         private async Task<string> HandleList(Dictionary<string, object> data)
         {
             var page = TryGetInt(data, "page", out var p) && p > 0 ? p : 1;
             var pageSize = TryGetInt(data, "pageSize", out var ps) && ps > 0 ? ps : 50;
+            var (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta) = LeerFiltros(data);
 
-            var (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta) =
-                LeerFiltros(data);
-
-            var (items, total) = await _repo.Listar(
-                page,
-                pageSize,
-                cliente,
-                tipoPnc,
-                nivel,
-                estadoGestion,
-                area,
-                fechaDesde,
-                fechaHasta
-            );
-
-            var pages = (int)Math.Ceiling(total / (double)pageSize);
-            return Ok(
-                new
-                {
-                    items,
-                    total,
-                    page,
-                    pageSize,
-                    pages,
-                }
-            );
+            return await Forward(_api.ListAsync(page, pageSize, cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta));
         }
 
         private async Task<string> HandleResumen(Dictionary<string, object> data)
         {
-            var (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta) =
-                LeerFiltros(data);
-
-            var resumen = await _repo.ObtenerResumen(
-                cliente,
-                tipoPnc,
-                nivel,
-                estadoGestion,
-                area,
-                fechaDesde,
-                fechaHasta
-            );
-            return Ok(resumen);
+            var (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta) = LeerFiltros(data);
+            return await Forward(_api.ResumenAsync(cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta));
         }
 
-        private async Task<string> HandleFiltrosOpciones()
-        {
-            var opciones = await _repo.ObtenerFiltrosOpciones();
-            return Ok(opciones);
-        }
+        private async Task<string> HandleFiltrosOpciones() => await Forward(_api.FiltrosOpcionesAsync());
 
         private async Task<string> HandleGet(Dictionary<string, object> data)
         {
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            var item = await _repo.ObtenerPorId(id);
-            if (item == null)
-                return Error("No conformidad no encontrada");
-
-            return Ok(item);
+            return await Forward(_api.GetAsync(id));
         }
 
         private static (
@@ -240,90 +178,10 @@ namespace QualityControlCenter.Modules.NoConformidades
             return (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta);
         }
 
-        // Arma el diccionario de campos editables presentes en el payload (create: todos los
-        // provistos; update parcial: solo los que el frontend decidió mandar).
-        private static Dictionary<string, object?> LeerCamposEditables(Dictionary<string, object> data)
-        {
-            var campos = new Dictionary<string, object?>();
-            foreach (var (json, _, tipo) in NoConformidadesRepository.GetCamposEditables())
-            {
-                if (!data.ContainsKey(json))
-                    continue;
-
-                switch (tipo)
-                {
-                    case "decimal":
-                        if (TryGetDecimal(data, json, out var dec))
-                            campos[json] = dec;
-                        else
-                            campos[json] = null;
-                        break;
-                    default:
-                        TryGetString(data, json, out var str);
-                        campos[json] = string.IsNullOrWhiteSpace(str) ? null : str;
-                        break;
-                }
-            }
-            return campos;
-        }
-
         private async Task<string> HandleCreate(Dictionary<string, object> data)
         {
-            var campos = LeerCamposEditables(data);
-            TryGetString(data, "creadoPor", out var creadoPor);
-
-            if (!ValidarObligatoriosCreate(campos, out var validationError))
-                return Error(validationError);
-
-            var (id, codigo) = await _repo.Crear(campos, creadoPor);
-            return Ok(new { id, codigo });
-        }
-
-        private static bool ValidarObligatoriosCreate(
-            Dictionary<string, object?> campos,
-            out string error
-        )
-        {
-            error = "";
-
-            string[] textoObligatorio =
-            {
-                "tipo",
-                "origen",
-                "titulo",
-                "descripcion",
-                "severidad",
-                "proceso",
-                "fechaDeteccion",
-                "npNv",
-                "cliente",
-                "producto",
-                "categoriaDefecto",
-                "nivel",
-                "descripcionDefecto",
-            };
-
-            foreach (var campo in textoObligatorio)
-            {
-                if (!campos.TryGetValue(campo, out var v) || v == null || string.IsNullOrWhiteSpace(v.ToString()))
-                {
-                    error = $"Falta el campo obligatorio: {campo}";
-                    return false;
-                }
-            }
-
-            if (!campos.TryGetValue("cantRequerida", out var cr) || cr == null)
-            {
-                error = "Falta la cantidad requerida";
-                return false;
-            }
-            if (!campos.TryGetValue("cantRechazada", out var cd) || cd == null)
-            {
-                error = "Falta la cantidad rechazada";
-                return false;
-            }
-
-            return true;
+            var body = BuildBody(data, "action");
+            return await Forward(_api.CrearAsync(body));
         }
 
         private async Task<string> HandleUpdate(Dictionary<string, object> data)
@@ -331,13 +189,8 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            var campos = LeerCamposEditables(data);
-            if (campos.Count == 0)
-                return Error("No se recibió ningún campo para actualizar");
-
-            TryGetString(data, "actualizadoPor", out var actualizadoPor);
-            await _repo.Actualizar(id, campos, actualizadoPor);
-            return Ok(new { id });
+            var body = BuildBody(data, "action", "id");
+            return await Forward(_api.ActualizarAsync(id, body));
         }
 
         // Borrado lógico — disponible para cualquier usuario logueado, sin gating de rol (mismo
@@ -348,8 +201,7 @@ namespace QualityControlCenter.Modules.NoConformidades
                 return Error("Falta el id de la no conformidad");
 
             TryGetString(data, "actualizadoPor", out var actualizadoPor);
-            await _repo.Eliminar(id, actualizadoPor);
-            return Ok(new { id });
+            return await Forward(_api.EliminarAsync(id, actualizadoPor));
         }
 
         private async Task<string> HandleGestionActualizar(Dictionary<string, object> data)
@@ -362,13 +214,7 @@ namespace QualityControlCenter.Modules.NoConformidades
             TryGetString(data, "fechaCompromiso", out var fechaCompromiso);
             TryGetString(data, "actualizadoPor", out var actualizadoPor);
 
-            if (!string.IsNullOrWhiteSpace(estadoGestion) && !EstadosGestionValidos.Contains(estadoGestion))
-                return Error(
-                    $"Estado de gestión inválido. Valores permitidos: {string.Join(", ", EstadosGestionValidos)}"
-                );
-
-            await _repo.ActualizarGestion(id, responsable, estadoGestion, fechaCompromiso, actualizadoPor);
-            return Ok(new { id });
+            return await Forward(_api.GestionActualizarAsync(id, new { responsable, estadoGestion, fechaCompromiso, actualizadoPor }));
         }
 
         private async Task<string> HandleCerrar(Dictionary<string, object> data)
@@ -376,13 +222,10 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            if (!TryGetString(data, "cerradoPor", out var cerradoPor) || string.IsNullOrWhiteSpace(cerradoPor))
-                return Error("Falta quién cierra la no conformidad");
-
+            TryGetString(data, "cerradoPor", out var cerradoPor);
             TryGetString(data, "comentarioCierre", out var comentarioCierre);
 
-            await _repo.Cerrar(id, cerradoPor!, comentarioCierre);
-            return Ok(new { id });
+            return await Forward(_api.CerrarAsync(id, new { cerradoPor, comentarioCierre }));
         }
 
         private async Task<string> HandleSeguimientoList(Dictionary<string, object> data)
@@ -390,8 +233,7 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            var items = await _repo.ListarSeguimiento(id);
-            return Ok(items);
+            return await Forward(_api.SeguimientoListAsync(id));
         }
 
         private async Task<string> HandleSeguimientoCrear(Dictionary<string, object> data)
@@ -399,13 +241,10 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            if (!TryGetString(data, "comentario", out var comentario) || string.IsNullOrWhiteSpace(comentario))
-                return Error("Falta el comentario de seguimiento");
-
+            TryGetString(data, "comentario", out var comentario);
             TryGetString(data, "autor", out var autor);
 
-            await _repo.CrearSeguimiento(id, comentario!, autor);
-            return Ok(new { id });
+            return await Forward(_api.SeguimientoCrearAsync(id, new { comentario, autor }));
         }
 
         private async Task<string> HandleAnalisisGet(Dictionary<string, object> data)
@@ -413,8 +252,7 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            var analisis = await _repo.ObtenerAnalisis(id);
-            return Ok(analisis);
+            return await Forward(_api.AnalisisGetAsync(id));
         }
 
         private async Task<string> HandleAnalisisGuardar(Dictionary<string, object> data)
@@ -422,17 +260,8 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            if (!TryGetString(data, "metodologia", out var metodologia) || string.IsNullOrWhiteSpace(metodologia))
-                return Error("Falta la metodología");
-            if (!MetodologiasValidas.Contains(metodologia))
-                return Error($"Metodología inválida. Valores permitidos: {string.Join(", ", MetodologiasValidas)}");
-
-            if (
-                !TryGetString(data, "problemaDetectado", out var problemaDetectado)
-                || string.IsNullOrWhiteSpace(problemaDetectado)
-            )
-                return Error("Falta el problema detectado");
-
+            TryGetString(data, "metodologia", out var metodologia);
+            TryGetString(data, "problemaDetectado", out var problemaDetectado);
             TryGetString(data, "porque1", out var porque1);
             TryGetString(data, "porque2", out var porque2);
             TryGetString(data, "porque3", out var porque3);
@@ -442,21 +271,24 @@ namespace QualityControlCenter.Modules.NoConformidades
             TryGetString(data, "conclusion", out var conclusion);
             TryGetString(data, "usuario", out var usuario);
 
-            var analisisId = await _repo.GuardarAnalisis(
-                id,
-                metodologia!,
-                problemaDetectado!,
-                porque1,
-                porque2,
-                porque3,
-                porque4,
-                porque5,
-                causaRaiz,
-                conclusion,
-                usuario
+            return await Forward(
+                _api.AnalisisGuardarAsync(
+                    id,
+                    new
+                    {
+                        metodologia,
+                        problemaDetectado,
+                        porque1,
+                        porque2,
+                        porque3,
+                        porque4,
+                        porque5,
+                        causaRaiz,
+                        conclusion,
+                        usuario,
+                    }
+                )
             );
-
-            return Ok(new { id = analisisId });
         }
 
         private async Task<string> HandleAccionesList(Dictionary<string, object> data)
@@ -464,8 +296,7 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            var items = await _repo.ListarAcciones(id);
-            return Ok(items);
+            return await Forward(_api.AccionesListAsync(id));
         }
 
         private async Task<string> HandleAccionesCrear(Dictionary<string, object> data)
@@ -473,19 +304,16 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            if (!TryGetString(data, "descripcion", out var descripcion) || string.IsNullOrWhiteSpace(descripcion))
-                return Error("Falta la descripción de la acción");
-            if (!TryGetString(data, "responsable", out var responsable) || string.IsNullOrWhiteSpace(responsable))
-                return Error("Falta el responsable");
-            if (!TryGetString(data, "fechaLimite", out var fechaLimite) || string.IsNullOrWhiteSpace(fechaLimite))
-                return Error("Falta la fecha límite");
-
+            TryGetString(data, "descripcion", out var descripcion);
+            TryGetString(data, "responsable", out var responsable);
+            TryGetString(data, "fechaLimite", out var fechaLimite);
             TryGetString(data, "prioridad", out var prioridad);
             TryGetString(data, "creadoPor", out var creadoPor);
             int? analisisId = TryGetInt(data, "analisisId", out var aid) ? aid : null;
 
-            await _repo.CrearAccion(id, analisisId, descripcion!, responsable!, fechaLimite!, prioridad, creadoPor);
-            return Ok((object?)null);
+            return await Forward(
+                _api.AccionesCrearAsync(id, new { analisisId, descripcion, responsable, fechaLimite, prioridad, creadoPor })
+            );
         }
 
         private async Task<string> HandleAccionesActualizar(Dictionary<string, object> data)
@@ -493,30 +321,16 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "accionId", out var accionId))
                 return Error("Falta el id de la acción correctiva");
 
-            if (!TryGetString(data, "descripcion", out var descripcion) || string.IsNullOrWhiteSpace(descripcion))
-                return Error("Falta la descripción de la acción");
-            if (!TryGetString(data, "responsable", out var responsable) || string.IsNullOrWhiteSpace(responsable))
-                return Error("Falta el responsable");
-            if (!TryGetString(data, "fechaLimite", out var fechaLimite) || string.IsNullOrWhiteSpace(fechaLimite))
-                return Error("Falta la fecha límite");
-            if (!TryGetString(data, "estado", out var estado) || string.IsNullOrWhiteSpace(estado))
-                return Error("Falta el estado");
-            if (!EstadosAccionValidos.Contains(estado))
-                return Error($"Estado inválido. Valores permitidos: {string.Join(", ", EstadosAccionValidos)}");
-
+            TryGetString(data, "descripcion", out var descripcion);
+            TryGetString(data, "responsable", out var responsable);
+            TryGetString(data, "fechaLimite", out var fechaLimite);
+            TryGetString(data, "estado", out var estado);
             TryGetString(data, "prioridad", out var prioridad);
             TryGetString(data, "actualizadoPor", out var actualizadoPor);
 
-            await _repo.ActualizarAccion(
-                accionId,
-                descripcion!,
-                responsable!,
-                fechaLimite!,
-                prioridad,
-                estado!,
-                actualizadoPor
+            return await Forward(
+                _api.AccionesActualizarAsync(accionId, new { descripcion, responsable, fechaLimite, prioridad, estado, actualizadoPor })
             );
-            return Ok((object?)null);
         }
 
         // ---------- Adjuntos: PDF análisis de causa raíz + evidencia fotográfica ----------
@@ -526,12 +340,7 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            var (existe, _) = await _repo.ObtenerEstadoAdjuntos(id);
-            if (!existe)
-                return Error("No conformidad no encontrada");
-
-            var items = await _repo.ListarAdjuntos(id);
-            return Ok(items);
+            return await Forward(_api.AdjuntosListAsync(id));
         }
 
         private async Task<string> HandleAdjuntosSubir(Dictionary<string, object> data)
@@ -539,56 +348,15 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id de la no conformidad");
 
-            var (existe, cerrada) = await _repo.ObtenerEstadoAdjuntos(id);
-            if (!existe)
-                return Error("No conformidad no encontrada");
-            if (cerrada)
-                return Error("La no conformidad está cerrada, no se pueden agregar adjuntos");
-
-            if (!TryGetString(data, "tipo", out var tipo) || string.IsNullOrWhiteSpace(tipo))
-                return Error("Falta el tipo de adjunto");
-            if (!TiposAdjuntoValidos.Contains(tipo))
-                return Error($"Tipo inválido. Valores permitidos: {string.Join(", ", TiposAdjuntoValidos)}");
-
-            if (!TryGetString(data, "nombreArchivo", out var nombreArchivo) || string.IsNullOrWhiteSpace(nombreArchivo))
-                return Error("Falta el nombre del archivo");
-            if (!TryGetString(data, "tipoMime", out var tipoMime) || string.IsNullOrWhiteSpace(tipoMime))
-                return Error("Falta el tipo MIME del archivo");
-            if (!TryGetString(data, "contenidoBase64", out var contenidoBase64) || string.IsNullOrWhiteSpace(contenidoBase64))
-                return Error("Falta el contenido del archivo");
-
-            var mimesPermitidos = tipo == "CAUSA_RAIZ_PDF" ? MimesPdfValidos : MimesFotoValidos;
-            if (!mimesPermitidos.Contains(tipoMime))
-                return Error($"Tipo MIME inválido para {tipo}. Permitidos: {string.Join(", ", mimesPermitidos)}");
-
-            byte[] contenido;
-            try
-            {
-                contenido = Convert.FromBase64String(contenidoBase64!);
-            }
-            catch (FormatException)
-            {
-                return Error("contenidoBase64 no es un base64 válido");
-            }
-
-            if (contenido.Length == 0)
-                return Error("El archivo está vacío");
-
-            var maxBytes = tipo == "CAUSA_RAIZ_PDF" ? MaxPdfBytes : MaxFotoBytes;
-            if (contenido.Length > maxBytes)
-                return Error($"El archivo excede el tamaño máximo de {maxBytes / 1024 / 1024} MB");
-
-            if (tipo == "EVIDENCIA_FOTO")
-            {
-                var activas = await _repo.ContarAdjuntosActivosPorTipo(id, "EVIDENCIA_FOTO");
-                if (activas >= MaxFotosPorNc)
-                    return Error($"Ya existen {MaxFotosPorNc} fotografías para esta no conformidad, el máximo permitido");
-            }
-
+            TryGetString(data, "tipo", out var tipo);
+            TryGetString(data, "nombreArchivo", out var nombreArchivo);
+            TryGetString(data, "tipoMime", out var tipoMime);
+            TryGetString(data, "contenidoBase64", out var contenidoBase64);
             TryGetString(data, "subidoPor", out var subidoPor);
 
-            var adjuntoId = await _repo.CrearAdjunto(id, tipo!, nombreArchivo!, tipoMime!, contenido, subidoPor);
-            return Ok(new { id = adjuntoId });
+            return await Forward(
+                _api.AdjuntosSubirAsync(id, new { tipo, nombreArchivo, tipoMime, contenidoBase64, subidoPor })
+            );
         }
 
         private async Task<string> HandleAdjuntosAbrir(Dictionary<string, object> data)
@@ -598,17 +366,7 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "adjuntoId", out var adjuntoId))
                 return Error("Falta el id del adjunto");
 
-            var adjunto = await _repo.ObtenerAdjunto(id, adjuntoId);
-            if (adjunto == null)
-                return Error("Adjunto no encontrado");
-
-            return Ok(new
-            {
-                id = adjuntoId,
-                nombreArchivo = adjunto.Value.NombreArchivo,
-                tipoMime = adjunto.Value.TipoMime,
-                contenidoBase64 = Convert.ToBase64String(adjunto.Value.Contenido),
-            });
+            return await Forward(_api.AdjuntosAbrirAsync(id, adjuntoId));
         }
 
         private async Task<string> HandleAdjuntosEliminar(Dictionary<string, object> data)
@@ -618,20 +376,67 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (!TryGetInt(data, "adjuntoId", out var adjuntoId))
                 return Error("Falta el id del adjunto");
 
-            var (existe, cerrada) = await _repo.ObtenerEstadoAdjuntos(id);
-            if (!existe)
-                return Error("No conformidad no encontrada");
-            if (cerrada)
-                return Error("La no conformidad está cerrada, no se pueden eliminar adjuntos");
-
-            var eliminado = await _repo.EliminarAdjunto(id, adjuntoId);
-            if (!eliminado)
-                return Error("Adjunto no encontrado");
-
-            return Ok(new { mensaje = "Adjunto eliminado correctamente" });
+            return await Forward(_api.AdjuntosEliminarAsync(id, adjuntoId));
         }
 
-        // ---------- Helpers de payload (mismo patrón que FaretHandler) ----------
+        // ---------- Helpers (mismo patrón que ControlDocumentalHandler) ----------
+
+        // Copia el payload plano quitando las claves indicadas (siempre "action" + los ids que van
+        // en la URL) — preserva exactamente qué claves llegaron del frontend, incluida la
+        // semántica de "actualización parcial" de NoConformidadesService en la API.
+        private static Dictionary<string, object> BuildBody(Dictionary<string, object> data, params string[] excluir)
+        {
+            var excluidas = new HashSet<string>(excluir, StringComparer.OrdinalIgnoreCase);
+            return data.Where(kv => !excluidas.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+        }
+
+        private static async Task<string> Forward(Task<(bool ok, string body)> call)
+        {
+            var (ok, body) = await call;
+
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            var responseData = payload.ValueKind == JsonValueKind.Undefined ? null : JsonSerializer.Deserialize<object>(payload.GetRawText());
+            return Ok(responseData);
+        }
+
+        // Desenvuelve el shape ApiResponse<T> {success,message,data,errors} de
+        // QualityControlInnpack.Api — mismo criterio ya usado en UsuariosHandler.cs.
+        private static bool TryUnwrapApiResponse(string body, out JsonElement data, out string error)
+        {
+            data = default;
+            error = "Error al comunicarse con la API Innpack";
+
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("success", out var s))
+                {
+                    if (!s.GetBoolean())
+                    {
+                        error = root.TryGetProperty("message", out var m) ? (m.GetString() ?? error) : error;
+                        return false;
+                    }
+
+                    if (root.TryGetProperty("data", out var d))
+                    {
+                        data = d.Clone();
+                        return true;
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         private static bool TryGetString(Dictionary<string, object> data, string key, out string? value)
         {
@@ -657,20 +462,6 @@ namespace QualityControlCenter.Modules.NoConformidades
             if (raw is JsonElement el && el.TryGetInt32(out value))
                 return true;
             return int.TryParse(raw?.ToString(), out value);
-        }
-
-        private static bool TryGetDecimal(Dictionary<string, object> data, string key, out decimal value)
-        {
-            value = 0;
-            if (!data.TryGetValue(key, out var raw))
-                return false;
-            if (raw is JsonElement el)
-            {
-                if (el.ValueKind != JsonValueKind.Number || !el.TryGetDecimal(out value))
-                    return false;
-                return true;
-            }
-            return decimal.TryParse(raw?.ToString(), out value);
         }
 
         private static string Ok(object? data) =>

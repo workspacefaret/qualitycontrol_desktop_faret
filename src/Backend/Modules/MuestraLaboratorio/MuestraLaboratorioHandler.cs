@@ -2,19 +2,21 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
-using QualityControlCenter.Repositories.MuestraLaboratorio;
+using QualityControlCenter.Backend.Services.InnpackApi;
 using QualityControlCenter.Services;
 
 namespace QualityControlCenter.Modules.MuestraLaboratorio
 {
-    // Modulo nuevo "Muestra Laboratorio": esqueleto Muestra -> Ensayo -> Detalle + primeros 3
-    // ensayos (Humedad, Gramaje, Cobb). Nombre de accion "muestraLab" (no "laboratorio") a
-    // proposito: ya existe Modules/Laboratorio (visor de ensayos de la app movil, prefijo de
-    // accion "laboratorio") - un prefijo que empezara igual chocaria con ese branch en
-    // MessageRouter. Solo INNPACK.
+    // Migrado a QualityControlInnpack.Api — ya no consulta MySQL directo desde el desktop
+    // (MuestraLaboratorioRepository.cs de este módulo queda sin uso). El parseo de campos del
+    // payload Photino (GetString/GetInt/GetDecimal/GetProbeta/etc.) se mantiene igual que antes —
+    // solo cambia el paso final de cada accion, que ahora arma un request anonimo y lo reenvia a
+    // la API en vez de llamar al repository local. Nombre de accion "muestraLab" (no "laboratorio")
+    // a proposito: ya existe Modules/Laboratorio (visor de ensayos de la app movil), un concepto
+    // distinto. Solo INNPACK. Ver contex.md sobre la migración de INNPACK a arquitectura API.
     public class MuestraLaboratorioHandler
     {
-        private readonly MuestraLaboratorioRepository _repository;
+        private readonly InnpackMuestraLaboratorioApiService _api;
         private readonly CurrentUserSessionService _session;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -22,9 +24,9 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        public MuestraLaboratorioHandler(DbService db, CurrentUserSessionService session)
+        public MuestraLaboratorioHandler(InnpackApiClient client, CurrentUserSessionService session)
         {
-            _repository = new MuestraLaboratorioRepository(db);
+            _api = new InnpackMuestraLaboratorioApiService(client);
             _session = session;
         }
 
@@ -36,7 +38,8 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
 
                 if (action == "muestraLab.crear")
                 {
-                    var request = new CrearMuestraRequest
+                    var usuario = _session.GetCurrentUser();
+                    var request = new
                     {
                         Origen = GetString(jsonData, "origen"),
                         TipoMuestra = GetString(jsonData, "tipoMuestra"),
@@ -50,14 +53,11 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         Proveedor = GetString(jsonData, "proveedor"),
                         Observacion = GetString(jsonData, "observacion"),
                         FechaEnsayo = GetString(jsonData, "fechaEnsayo"),
+                        UsuarioId = usuario?.Id,
+                        UsuarioNombre = usuario?.NombreCompleto,
                     };
 
-                    if (string.IsNullOrWhiteSpace(request.Origen) || string.IsNullOrWhiteSpace(request.TipoMuestra))
-                        return Error("Origen y Tipo de muestra son obligatorios");
-
-                    var usuario = _session.GetCurrentUser();
-                    var id = await _repository.CrearMuestra(request, usuario?.Id, usuario?.NombreCompleto);
-                    return Ok(new { id });
+                    return await Forward(_api.CrearMuestraAsync(request));
                 }
 
                 if (action == "muestraLab.list")
@@ -65,27 +65,19 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     var estado = GetString(jsonData, "estado");
                     var tipoMuestra = GetString(jsonData, "tipoMuestra");
                     var np = GetString(jsonData, "np");
-                    var items = await _repository.Listar(
-                        string.IsNullOrWhiteSpace(estado) ? null : estado,
-                        string.IsNullOrWhiteSpace(tipoMuestra) ? null : tipoMuestra,
-                        string.IsNullOrWhiteSpace(np) ? null : np
-                    );
-                    return Ok(items);
+                    return await Forward(_api.ListAsync(estado, tipoMuestra, np));
                 }
 
                 if (action == "muestraLab.detalle")
                 {
                     var id = GetInt(jsonData, "id") ?? 0;
-                    var detalle = await _repository.ObtenerDetalle(id);
-                    if (detalle == null)
-                        return Error("Muestra no encontrada");
-                    return Ok(detalle);
+                    return await Forward(_api.DetalleAsync(id));
                 }
 
                 if (action == "muestraLab.humedad.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var request = new HumedadGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -103,21 +95,17 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         Horno2PesoFinal = GetDecimal(jsonData, "horno2PesoFinal"),
                         Horno3PesoInicial = GetDecimal(jsonData, "horno3PesoInicial"),
                         Horno3PesoFinal = GetDecimal(jsonData, "horno3PesoFinal"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-                    if (string.IsNullOrWhiteSpace(request.MetodoEquipo))
-                        return Error("Debes indicar el metodo de equipo (Higrometro/Termobalanza/Horno)");
-
-                    var ensayoId = await _repository.GuardarHumedad(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarHumedadAsync(request));
                 }
 
                 if (action == "muestraLab.gramaje.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var request = new GramajeGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -129,21 +117,17 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         Muestra1 = GetDecimal(jsonData, "muestra1"),
                         Muestra2 = GetDecimal(jsonData, "muestra2"),
                         Muestra3 = GetDecimal(jsonData, "muestra3"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-                    if (string.IsNullOrWhiteSpace(request.Modalidad))
-                        return Error("Debes indicar la modalidad (ProbetaPeso/Directo)");
-
-                    var ensayoId = await _repository.GuardarGramaje(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarGramajeAsync(request));
                 }
 
                 if (action == "muestraLab.cobb.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var request = new CobbGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -153,19 +137,17 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         P1 = GetProbeta(jsonData, "p1"),
                         P2 = GetProbeta(jsonData, "p2"),
                         P3 = GetProbeta(jsonData, "p3"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-
-                    var ensayoId = await _repository.GuardarCobb(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarCobbAsync(request));
                 }
 
                 if (action == "muestraLab.espesor.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var request = new EspesorGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -176,49 +158,41 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         Medicion1 = GetDecimal(jsonData, "medicion1"),
                         Medicion2 = GetDecimal(jsonData, "medicion2"),
                         Medicion3 = GetDecimal(jsonData, "medicion3"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-                    if (string.IsNullOrWhiteSpace(request.TipoMedicion))
-                        return Error("Debes indicar el tipo de medición (Ubicacion/Muestra)");
-
-                    var ensayoId = await _repository.GuardarEspesor(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarEspesorAsync(request));
                 }
 
                 if (action == "muestraLab.rct.guardar" || action == "muestraLab.fct.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var tipoEnsayo = action == "muestraLab.rct.guardar" ? "RCT" : "FCT";
+                    var esRct = action == "muestraLab.rct.guardar";
 
-                    var request = new ResistenciaGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
                         AnalistaUsuarioId = usuario?.Id,
                         AnalistaNombre = usuario?.NombreCompleto,
                         Observacion = GetString(jsonData, "observacion"),
-                        Componente = tipoEnsayo == "RCT" ? GetString(jsonData, "componente") : null,
+                        Componente = esRct ? GetString(jsonData, "componente") : null,
                         StrengthUnidad = GetString(jsonData, "strengthUnidad"),
                         P1 = GetResistenciaProbeta(jsonData, "p1"),
                         P2 = GetResistenciaProbeta(jsonData, "p2"),
                         P3 = GetResistenciaProbeta(jsonData, "p3"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-                    if (tipoEnsayo == "RCT" && string.IsNullOrWhiteSpace(request.Componente))
-                        return Error("Debes indicar el componente (Liner/Onda) para RCT");
-
-                    var ensayoId = await _repository.GuardarResistencia(tipoEnsayo, request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(esRct ? _api.GuardarRctAsync(request) : _api.GuardarFctAsync(request));
                 }
 
                 if (action == "muestraLab.ect.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var request = new EctGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -230,27 +204,19 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         P3Force = GetDecimal(jsonData, "p3Force"),
                         P4Force = GetDecimal(jsonData, "p4Force"),
                         P5Force = GetDecimal(jsonData, "p5Force"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-
-                    var ensayoId = await _repository.GuardarEct(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarEctAsync(request));
                 }
 
                 if (action == "muestraLab.bctMedido.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
                     var cajasEnsayadas = GetInt(jsonData, "cajasEnsayadas") ?? 0;
-                    var motivo = GetString(jsonData, "motivoMenos3");
 
-                    if (cajasEnsayadas < 1 || cajasEnsayadas > 3)
-                        return Error("Cajas ensayadas debe ser 1, 2 o 3");
-                    if (cajasEnsayadas < 3 && string.IsNullOrWhiteSpace(motivo))
-                        return Error("Debes indicar el motivo por ensayar menos de 3 cajas");
-
-                    var request = new BctMedidoGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -258,23 +224,21 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         AnalistaNombre = usuario?.NombreCompleto,
                         Observacion = GetString(jsonData, "observacion"),
                         CajasEnsayadas = cajasEnsayadas,
-                        MotivoMenos3 = motivo,
+                        MotivoMenos3 = GetString(jsonData, "motivoMenos3"),
                         C1 = GetBctCaja(jsonData, "c1"),
                         C2 = cajasEnsayadas >= 2 ? GetBctCaja(jsonData, "c2") : null,
                         C3 = cajasEnsayadas >= 3 ? GetBctCaja(jsonData, "c3") : null,
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-
-                    var ensayoId = await _repository.GuardarBctMedido(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarBctMedidoAsync(request));
                 }
 
                 if (action == "muestraLab.bctTeorico.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var request = new BctTeoricoGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -285,21 +249,17 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         EspesorEnsayoId = GetInt(jsonData, "espesorEnsayoId") ?? 0,
                         LargoMm = GetDecimal(jsonData, "largoMm") ?? 0,
                         AnchoMm = GetDecimal(jsonData, "anchoMm") ?? 0,
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-                    if (request.EctEnsayoId <= 0 || request.EspesorEnsayoId <= 0)
-                        return Error("Debes seleccionar un ECT y un Espesor ya finalizados de esta muestra");
-
-                    var ensayoId = await _repository.GuardarBctTeorico(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarBctTeoricoAsync(request));
                 }
 
                 if (action == "muestraLab.viscosidad.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var request = new ViscosidadGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -312,19 +272,17 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         Husillo = GetString(jsonData, "husillo"),
                         VelocidadRpm = GetDecimal(jsonData, "velocidadRpm"),
                         ResultadoCp = GetDecimal(jsonData, "resultadoCp"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-
-                    var ensayoId = await _repository.GuardarViscosidad(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarViscosidadAsync(request));
                 }
 
                 if (action == "muestraLab.ph.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var request = new PhGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -333,21 +291,17 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         Observacion = GetString(jsonData, "observacion"),
                         ValorTexto = GetString(jsonData, "valorTexto"),
                         ColorObservado = GetString(jsonData, "colorObservado"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-                    if (string.IsNullOrWhiteSpace(request.ValorTexto))
-                        return Error("Falta el valor o rango leído en la tira");
-
-                    var ensayoId = await _repository.GuardarPh(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarPhAsync(request));
                 }
 
                 if (action == "muestraLab.solidos.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var request = new SolidosGuardarRequest
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -357,19 +311,18 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         D1 = GetSolidosDeterminacion(jsonData, "d1"),
                         D2 = GetSolidosDeterminacion(jsonData, "d2"),
                         D3 = GetSolidosDeterminacion(jsonData, "d3"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-
-                    var ensayoId = await _repository.GuardarSolidos(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarSolidosAsync(request));
                 }
 
                 if (action == "muestraLab.lugol.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
-                    var request = new LugolGuardarRequest
+                    var cumplimiento = GetString(jsonData, "cumplimiento");
+                    var request = new
                     {
                         MuestraId = GetInt(jsonData, "muestraId") ?? 0,
                         Metodo = GetString(jsonData, "metodo"),
@@ -380,29 +333,20 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         Coloracion = GetString(jsonData, "coloracion"),
                         Resultado = GetString(jsonData, "resultado"),
                         Interpretacion = GetString(jsonData, "interpretacion"),
-                        Cumplimiento = string.IsNullOrWhiteSpace(GetString(jsonData, "cumplimiento"))
-                            ? "Sin especificacion"
-                            : GetString(jsonData, "cumplimiento"),
+                        Cumplimiento = string.IsNullOrWhiteSpace(cumplimiento) ? "Sin especificacion" : cumplimiento,
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
                     };
 
-                    if (request.MuestraId <= 0)
-                        return Error("Falta indicar la muestra");
-                    if (string.IsNullOrWhiteSpace(request.Resultado))
-                        return Error("Falta el resultado (Positivo/Negativo/No concluyente)");
-
-                    var ensayoId = await _repository.GuardarLugol(request);
-                    return await FinalizarGuardado(ensayoId, jsonData);
+                    return await Forward(_api.GuardarLugolAsync(request));
                 }
 
                 if (action == "muestraLab.especificacion.list")
-                {
-                    var items = await _repository.ListarEspecificaciones();
-                    return Ok(items);
-                }
+                    return await Forward(_api.ListarEspecificacionesAsync());
 
                 if (action == "muestraLab.especificacion.guardar")
                 {
-                    var request = new GuardarEspecificacionRequest
+                    var request = new
                     {
                         Id = GetInt(jsonData, "id"),
                         TipoMuestra = GetString(jsonData, "tipoMuestra"),
@@ -413,13 +357,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         Unidad = GetString(jsonData, "unidad"),
                     };
 
-                    if (string.IsNullOrWhiteSpace(request.TipoMuestra) || string.IsNullOrWhiteSpace(request.TipoEnsayo))
-                        return Error("Tipo de muestra y tipo de ensayo son obligatorios");
-                    if (request.LimiteMin == null && request.LimiteMax == null)
-                        return Error("Debes indicar al menos un límite (mínimo o máximo)");
-
-                    var id = await _repository.GuardarEspecificacion(request);
-                    return Ok(new { id });
+                    return await Forward(_api.GuardarEspecificacionAsync(request));
                 }
 
                 if (action == "muestraLab.especificacion.activar")
@@ -432,8 +370,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     if (id <= 0)
                         return Error("Falta indicar la especificación");
 
-                    await _repository.CambiarActivoEspecificacion(id, activo);
-                    return Ok(new { activo });
+                    return await Forward(_api.CambiarActivoEspecificacionAsync(id, activo));
                 }
 
                 if (action == "muestraLab.ensayo.anular")
@@ -443,8 +380,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     if (ensayoId <= 0 || string.IsNullOrWhiteSpace(motivo))
                         return Error("Falta el ensayo o el motivo de anulacion");
 
-                    await _repository.AnularEnsayo(ensayoId, motivo);
-                    return Ok(new { anulado = true });
+                    return await Forward(_api.AnularEnsayoAsync(ensayoId, motivo));
                 }
 
                 if (action == "muestraLab.nc.crear")
@@ -454,22 +390,11 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         return Error("Falta indicar la muestra");
 
                     var usuario = _session.GetCurrentUser();
-                    try
-                    {
-                        var (ncId, codigo) = await _repository.CrearNoConformidad(muestraId, usuario?.NombreCompleto);
-                        return Ok(new { ncId, codigo });
-                    }
-                    catch (InvalidOperationException ex)
-                    {
-                        return Error(ex.Message);
-                    }
+                    return await Forward(_api.CrearNoConformidadAsync(muestraId, usuario?.NombreCompleto));
                 }
 
                 if (action == "muestraLab.indicadores")
-                {
-                    var indicadores = await _repository.ObtenerIndicadores();
-                    return Ok(indicadores);
-                }
+                    return await Forward(_api.IndicadoresAsync());
 
                 return Error($"Accion no reconocida: {action}");
             }
@@ -479,35 +404,14 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             }
         }
 
-        // Cierre comun de cualquier "<tipo>.guardar": si jsonData trae ensayoOriginalId (edicion
-        // con auditoria de un ensayo Finalizado), vincula el ensayo recien creado como su
-        // correccion y anula el original - ver ReemplazarEnsayo. Sin ese campo, comportamiento
-        // identico al de siempre (solo Ok con el ensayoId nuevo).
-        private async Task<string> FinalizarGuardado(int ensayoId, JsonElement jsonData)
-        {
-            var ensayoOriginalId = GetInt(jsonData, "ensayoOriginalId");
-            if (ensayoOriginalId.HasValue && ensayoOriginalId.Value > 0)
-            {
-                var motivo = GetString(jsonData, "motivoReemplazo");
-                if (string.IsNullOrWhiteSpace(motivo))
-                    return Error("Debes indicar el motivo de la corrección");
-
-                var ok = await _repository.ReemplazarEnsayo(ensayoOriginalId.Value, ensayoId, motivo);
-                if (!ok)
-                    return Error("El ensayo original no existe o no está Finalizado");
-            }
-
-            return Ok(new { ensayoId });
-        }
-
-        private static CobbProbetaRequest? GetProbeta(JsonElement parent, string prop)
+        private static object? GetProbeta(JsonElement parent, string prop)
         {
             if (parent.ValueKind != JsonValueKind.Object || !parent.TryGetProperty(prop, out var obj))
                 return null;
             if (obj.ValueKind != JsonValueKind.Object)
                 return null;
 
-            return new CobbProbetaRequest
+            return new
             {
                 Bobina = GetString(obj, "bobina"),
                 Cara = GetString(obj, "cara"),
@@ -517,14 +421,14 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             };
         }
 
-        private static ResistenciaProbetaRequest? GetResistenciaProbeta(JsonElement parent, string prop)
+        private static object? GetResistenciaProbeta(JsonElement parent, string prop)
         {
             if (parent.ValueKind != JsonValueKind.Object || !parent.TryGetProperty(prop, out var obj))
                 return null;
             if (obj.ValueKind != JsonValueKind.Object)
                 return null;
 
-            return new ResistenciaProbetaRequest
+            return new
             {
                 Bobina = GetString(obj, "bobina"),
                 Force = GetDecimal(obj, "force"),
@@ -532,14 +436,14 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             };
         }
 
-        private static BctCajaRequest? GetBctCaja(JsonElement parent, string prop)
+        private static object? GetBctCaja(JsonElement parent, string prop)
         {
             if (parent.ValueKind != JsonValueKind.Object || !parent.TryGetProperty(prop, out var obj))
                 return null;
             if (obj.ValueKind != JsonValueKind.Object)
                 return null;
 
-            return new BctCajaRequest
+            return new
             {
                 Largo = GetDecimal(obj, "largo"),
                 Ancho = GetDecimal(obj, "ancho"),
@@ -551,14 +455,14 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             };
         }
 
-        private static SolidosDeterminacionRequest? GetSolidosDeterminacion(JsonElement parent, string prop)
+        private static object? GetSolidosDeterminacion(JsonElement parent, string prop)
         {
             if (parent.ValueKind != JsonValueKind.Object || !parent.TryGetProperty(prop, out var obj))
                 return null;
             if (obj.ValueKind != JsonValueKind.Object)
                 return null;
 
-            return new SolidosDeterminacionRequest
+            return new
             {
                 M1 = GetDecimal(obj, "m1"),
                 M2 = GetDecimal(obj, "m2"),
@@ -606,6 +510,54 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             if (value.ValueKind == JsonValueKind.String && decimal.TryParse(value.GetString(), out var parsed))
                 return parsed;
             return null;
+        }
+
+        private static async Task<string> Forward(Task<(bool ok, string body)> call)
+        {
+            var (ok, body) = await call;
+
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            var responseData = payload.ValueKind == JsonValueKind.Undefined ? null : JsonSerializer.Deserialize<object>(payload.GetRawText());
+            return Ok(responseData);
+        }
+
+        // Desenvuelve el shape ApiResponse<T> {success,message,data,errors} de
+        // QualityControlInnpack.Api — mismo criterio ya usado en UsuariosHandler.cs/TalleresExternosHandler.cs.
+        private static bool TryUnwrapApiResponse(string body, out JsonElement data, out string error)
+        {
+            data = default;
+            error = "Error al comunicarse con la API Innpack";
+
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("success", out var s))
+                {
+                    if (!s.GetBoolean())
+                    {
+                        error = root.TryGetProperty("message", out var m) ? (m.GetString() ?? error) : error;
+                        return false;
+                    }
+
+                    if (root.TryGetProperty("data", out var d))
+                    {
+                        data = d.Clone();
+                        return true;
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static string Ok(object? data)

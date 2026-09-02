@@ -2,17 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
-using QualityControlCenter.Services;
+using QualityControlCenter.Backend.Services.InnpackApi;
 
 namespace QualityControlCenter.Modules.Home
 {
+    // Migrado a QualityControlInnpack.Api (Paso 15 de la migración, último que agrega de casi
+    // todos los demás módulos) — ya no consulta MySQL directo desde el desktop (HomeService.cs de
+    // este módulo queda sin uso). Ver contex.md sobre la migración de INNPACK a arquitectura API.
     public class HomeHandler
     {
-        private readonly HomeService _service;
+        private readonly InnpackHomeApiService _api;
 
-        public HomeHandler(DbService db)
+        public HomeHandler(InnpackApiClient client)
         {
-            _service = new HomeService(db);
+            _api = new InnpackHomeApiService(client);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object>? data)
@@ -41,47 +44,7 @@ namespace QualityControlCenter.Modules.Home
             }
         }
 
-        private async Task<string> ObtenerDashboard()
-        {
-            var kpis = await _service.ObtenerKpis();
-
-            var desviaciones = await _service.ObtenerDesviacionesPorProceso();
-
-            var topDefectos = await _service.ObtenerTopDefectos();
-
-            var alertas = await _service.ObtenerAlertasActivas();
-
-            var merma = await _service.ObtenerMermaPorProceso();
-
-            var maquinas = await _service.ObtenerMaquinasConMasDesviaciones();
-
-            var cumplimiento = await _service.ObtenerCumplimientoControles();
-
-            var tendencia = await _service.ObtenerTendenciaNoConformes();
-
-            var origen = await _service.ObtenerOrigenProblema();
-
-            var resumen = await _service.ObtenerResumenGeneral();
-
-            var frecuencias = await _service.ObtenerFrecuenciasInspeccion();
-
-            return Ok(
-                new
-                {
-                    kpis,
-                    desviaciones,
-                    topDefectos,
-                    alertas,
-                    merma,
-                    maquinas,
-                    cumplimiento,
-                    tendencia,
-                    origen,
-                    resumen,
-                    frecuencias,
-                }
-            );
-        }
+        private async Task<string> ObtenerDashboard() => await Forward(_api.DashboardAsync());
 
         private async Task<string> ActualizarFrecuencia(Dictionary<string, object>? payload)
         {
@@ -92,9 +55,7 @@ namespace QualityControlCenter.Modules.Home
             if (id <= 0 || minutos <= 0)
                 return Error("Parámetros inválidos para actualizar la frecuencia.");
 
-            await _service.ActualizarFrecuenciaInspeccion(id, minutos);
-
-            return Ok((object?)null);
+            return await Forward(_api.ActualizarFrecuenciaAsync(id, minutos));
         }
 
         private static JsonElement GetData(Dictionary<string, object>? payload)
@@ -119,7 +80,55 @@ namespace QualityControlCenter.Modules.Home
             return int.TryParse(value.ToString(), out var parsed) ? parsed : defaultValue;
         }
 
-        private string Ok(object? data)
+        private static async Task<string> Forward(Task<(bool ok, string body)> call)
+        {
+            var (ok, body) = await call;
+
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            var responseData = payload.ValueKind == JsonValueKind.Undefined ? null : JsonSerializer.Deserialize<object>(payload.GetRawText());
+            return Ok(responseData);
+        }
+
+        // Desenvuelve el shape ApiResponse<T> {success,message,data,errors} de
+        // QualityControlInnpack.Api — mismo criterio ya usado en UsuariosHandler.cs.
+        private static bool TryUnwrapApiResponse(string body, out JsonElement data, out string error)
+        {
+            data = default;
+            error = "Error al comunicarse con la API Innpack";
+
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("success", out var s))
+                {
+                    if (!s.GetBoolean())
+                    {
+                        error = root.TryGetProperty("message", out var m) ? (m.GetString() ?? error) : error;
+                        return false;
+                    }
+
+                    if (root.TryGetProperty("data", out var d))
+                    {
+                        data = d.Clone();
+                        return true;
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string Ok(object? data)
         {
             return JsonSerializer.Serialize(
                 new
@@ -131,7 +140,7 @@ namespace QualityControlCenter.Modules.Home
             );
         }
 
-        private string Error(string message)
+        private static string Error(string message)
         {
             return JsonSerializer.Serialize(
                 new

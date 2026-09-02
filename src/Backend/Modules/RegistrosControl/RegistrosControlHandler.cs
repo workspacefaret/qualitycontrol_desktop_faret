@@ -1,20 +1,25 @@
 using System.Text.Json;
-using QualityControlCenter.Services;
+using QualityControlCenter.Backend.Services.InnpackApi;
 
 namespace QualityControlCenter.Modules.RegistrosControl
 {
+    // Migrado a QualityControlInnpack.Api — ya no consulta MySQL directo desde el desktop
+    // (RegistrosControlService.cs/RegistrosControlRepository.cs/RegistroControlItem.cs de este
+    // mismo módulo quedan sin uso). Sin bug de casing: el Handler viejo ya serializaba en
+    // camelCase (JsonNamingPolicy.CamelCase) y la API nueva también es camelCase por defecto. Ver
+    // contex.md sobre la migración de INNPACK a arquitectura API.
     public class RegistrosControlHandler
     {
-        private readonly RegistrosControlService _service;
+        private readonly InnpackRegistrosControlApiService _api;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        public RegistrosControlHandler(DbService db)
+        public RegistrosControlHandler(InnpackApiClient client)
         {
-            _service = new RegistrosControlService(db);
+            _api = new InnpackRegistrosControlApiService(client);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> payload)
@@ -37,47 +42,38 @@ namespace QualityControlCenter.Modules.RegistrosControl
                     var procesoId = GetIntOrNull(data, "procesoId");
                     var parametroId = GetIntOrNull(data, "parametroId");
 
-                    var result = await _service.ObtenerRegistros(
-                        page,
-                        limit,
-                        fechaDesde,
-                        fechaHasta,
-                        np,
-                        turno,
-                        estado,
-                        id,
-                        procesoId,
-                        parametroId
+                    return await Forward(
+                        _api.ObtenerRegistrosAsync(
+                            page,
+                            limit,
+                            fechaDesde,
+                            fechaHasta,
+                            np,
+                            turno,
+                            estado,
+                            id,
+                            procesoId,
+                            parametroId
+                        )
                     );
-
-                    return Ok(result);
                 }
 
                 if (action == "registrosControl.validarRegistro")
                 {
                     var id = GetIntFromPayload(payload, "id", 0);
-
-                    await _service.ValidarRegistro(id);
-
-                    return Ok((object?)null);
+                    return await Forward(_api.ValidarRegistroAsync(id));
                 }
 
                 if (action == "registrosControl.rechazarRegistro")
                 {
                     var id = GetIntFromPayload(payload, "id", 0);
-
-                    await _service.RechazarRegistro(id);
-
-                    return Ok((object?)null);
+                    return await Forward(_api.RechazarRegistroAsync(id));
                 }
 
                 if (action == "registrosControl.eliminarRegistro")
                 {
                     var id = GetIntFromPayload(payload, "id", 0);
-
-                    await _service.EliminarRegistro(id);
-
-                    return Ok((object?)null);
+                    return await Forward(_api.EliminarRegistroAsync(id));
                 }
 
                 return Error($"Acción no reconocida en RegistrosControl: {action}");
@@ -85,6 +81,58 @@ namespace QualityControlCenter.Modules.RegistrosControl
             catch (Exception ex)
             {
                 return Error(ex.Message);
+            }
+        }
+
+        private static async Task<string> Forward(Task<(bool ok, string body)> call)
+        {
+            var (ok, body) = await call;
+
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            var data =
+                payload.ValueKind == JsonValueKind.Undefined
+                    ? null
+                    : JsonSerializer.Deserialize<object>(payload.GetRawText());
+
+            return Ok(data);
+        }
+
+        // Desenvuelve el shape ApiResponse<T> {success,message,data,errors} de
+        // QualityControlInnpack.Api — mismo criterio ya usado en UsuariosHandler.cs.
+        private static bool TryUnwrapApiResponse(string body, out JsonElement data, out string error)
+        {
+            data = default;
+            error = "Error al comunicarse con la API Innpack";
+
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("success", out var s))
+                {
+                    if (!s.GetBoolean())
+                    {
+                        error = root.TryGetProperty("message", out var m) ? (m.GetString() ?? error) : error;
+                        return false;
+                    }
+
+                    if (root.TryGetProperty("data", out var d))
+                    {
+                        data = d.Clone();
+                        return true;
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -144,21 +192,14 @@ namespace QualityControlCenter.Modules.RegistrosControl
             return null;
         }
 
-        private static int GetIntFromPayload(
-            Dictionary<string, object> payload,
-            string prop,
-            int defaultValue
-        )
+        private static int GetIntFromPayload(Dictionary<string, object> payload, string prop, int defaultValue)
         {
             if (!payload.TryGetValue(prop, out var rawValue))
                 return defaultValue;
 
             if (rawValue is JsonElement jsonValue)
             {
-                if (
-                    jsonValue.ValueKind == JsonValueKind.Number
-                    && jsonValue.TryGetInt32(out var number)
-                )
+                if (jsonValue.ValueKind == JsonValueKind.Number && jsonValue.TryGetInt32(out var number))
                     return number;
 
                 if (int.TryParse(jsonValue.ToString(), out var parsed))

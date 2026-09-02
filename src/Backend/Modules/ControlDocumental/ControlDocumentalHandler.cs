@@ -5,44 +5,33 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using QualityControlCenter.Repositories.ControlDocumental;
-using QualityControlCenter.Services;
+using QualityControlCenter.Backend.Services.InnpackApi;
 
 namespace QualityControlCenter.Modules.ControlDocumental
 {
-    // Módulo "Control Documental" — INNPACK, standalone (MySQL calidad).
-    // Etapa 2: list/get/create/update + cambio de versión. Etapa 3: eliminar (lógico) + adjuntos
-    // reales por versión (ver contex-control-documental.md).
+    // Migrado a QualityControlInnpack.Api — ya no consulta MySQL directo desde el desktop
+    // (ControlDocumentalRepository.cs de este módulo queda sin uso). Dato 100% compartido entre
+    // INNPACK y Faret (ver CLAUDE.md) — ambos frontends siguen llamando las mismas acciones
+    // "controlDocumental.*" sin ningún wiring separado, igual que antes de la migración. El
+    // payload de este módulo viaja plano (sin envoltura "data"), así que se reenvía a la API
+    // quitando solo la clave "action" y los ids que van en la URL — preserva exactamente la
+    // semántica de "actualización parcial" (clave ausente = no tocar ese campo) sin reconstruir
+    // el body campo por campo. La decisión de previsualizar un adjunto vs. escribirlo a disco y
+    // abrirlo con la app del sistema (Process.Start) sigue siendo responsabilidad del desktop —
+    // la API solo entrega el contenido crudo en base64. Ver contex.md sobre la migración de
+    // INNPACK a arquitectura API.
     public class ControlDocumentalHandler
     {
-        private readonly ControlDocumentalRepository _repo;
+        private readonly InnpackControlDocumentalApiService _api;
 
         private static readonly JsonSerializerOptions _jsonOpts = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        private static readonly string[] EstadosValidos = { "VIGENTE", "EN_REVISION", "OBSOLETO" };
-        private static readonly string[] AlcancesValidos = { "INNPACK", "FARET", "AMBAS" };
-
-        private static readonly Dictionary<string, string> MimePorExtension = new(
-            StringComparer.OrdinalIgnoreCase
-        )
+        public ControlDocumentalHandler(InnpackApiClient client)
         {
-            [".pdf"] = "application/pdf",
-            [".doc"] = "application/msword",
-            [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            [".jpg"] = "image/jpeg",
-            [".jpeg"] = "image/jpeg",
-            [".png"] = "image/png",
-            [".webp"] = "image/webp",
-        };
-
-        private const int MaxTamanoBytesAdjunto = 10 * 1024 * 1024; // 10 MB
-
-        public ControlDocumentalHandler(DbService db)
-        {
-            _repo = new ControlDocumentalRepository(db);
+            _api = new InnpackControlDocumentalApiService(client);
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -79,19 +68,7 @@ namespace QualityControlCenter.Modules.ControlDocumental
             TryGetString(data, "estado", out var estado);
             TryGetString(data, "alcanceEmpresa", out var alcanceEmpresa);
 
-            var (items, total) = await _repo.Listar(page, pageSize, texto, tipoDocumento, area, estado, alcanceEmpresa);
-
-            var pages = (int)Math.Ceiling(total / (double)pageSize);
-            return Ok(
-                new
-                {
-                    items,
-                    total,
-                    page,
-                    pageSize,
-                    pages,
-                }
-            );
+            return await Forward(_api.ListAsync(page, pageSize, texto, tipoDocumento, area, estado, alcanceEmpresa));
         }
 
         private async Task<string> HandleGet(Dictionary<string, object> data)
@@ -99,87 +76,13 @@ namespace QualityControlCenter.Modules.ControlDocumental
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id del documento");
 
-            var item = await _repo.ObtenerPorId(id);
-            if (item == null)
-                return Error("Documento no encontrado");
-
-            return Ok(item);
-        }
-
-        private static Dictionary<string, object?> LeerCamposDocumento(Dictionary<string, object> data)
-        {
-            var campos = new Dictionary<string, object?>();
-            foreach (var json in new[]
-            {
-                "codigoBase",
-                "tipoDocumento",
-                "area",
-                "nombre",
-                "alcanceEmpresa",
-                "estado",
-                "responsable",
-                "ubicacion",
-                "observaciones",
-            })
-            {
-                if (!data.ContainsKey(json))
-                    continue;
-                TryGetString(data, json, out var str);
-                campos[json] = string.IsNullOrWhiteSpace(str) ? null : str;
-            }
-            return campos;
+            return await Forward(_api.GetAsync(id));
         }
 
         private async Task<string> HandleCreate(Dictionary<string, object> data)
         {
-            var campos = LeerCamposDocumento(data);
-            TryGetString(data, "creadoPor", out var creadoPor);
-            TryGetString(data, "version", out var version);
-            TryGetString(data, "fechaActualizacion", out var fechaActualizacion);
-            TryGetString(data, "proximaRevision", out var proximaRevision);
-
-            if (!campos.TryGetValue("codigoBase", out var codigoBase) || string.IsNullOrWhiteSpace(codigoBase?.ToString()))
-                return Error("Falta el código base del documento");
-            if (!campos.TryGetValue("tipoDocumento", out var tipoDocumento) || string.IsNullOrWhiteSpace(tipoDocumento?.ToString()))
-                return Error("Falta el tipo de documento");
-            if (!campos.TryGetValue("nombre", out var nombre) || string.IsNullOrWhiteSpace(nombre?.ToString()))
-                return Error("Falta el nombre del documento");
-            if (string.IsNullOrWhiteSpace(version))
-                return Error("Falta la versión inicial");
-            if (string.IsNullOrWhiteSpace(fechaActualizacion))
-                return Error("Falta la fecha de actualización de la versión inicial");
-
-            if (
-                campos.TryGetValue("estado", out var estadoVal)
-                && estadoVal != null
-                && !EstadosValidos.Contains(estadoVal.ToString())
-            )
-                return Error($"Estado inválido. Valores permitidos: {string.Join(", ", EstadosValidos)}");
-
-            if (
-                campos.TryGetValue("alcanceEmpresa", out var alcanceVal)
-                && alcanceVal != null
-                && !AlcancesValidos.Contains(alcanceVal.ToString())
-            )
-                return Error($"Alcance inválido. Valores permitidos: {string.Join(", ", AlcancesValidos)}");
-
-            if (string.IsNullOrWhiteSpace(proximaRevision))
-                proximaRevision = CalcularProximaRevision(fechaActualizacion!);
-
-            if (!TryLeerAdjuntoOpcional(data, out var adjNombre, out var adjTipoMime, out var adjContenido, out var adjError))
-                return Error(adjError);
-
-            var id = await _repo.Crear(
-                campos,
-                version!,
-                fechaActualizacion!,
-                proximaRevision,
-                creadoPor,
-                adjNombre,
-                adjTipoMime,
-                adjContenido
-            );
-            return Ok(new { id });
+            var body = BuildBody(data, "action");
+            return await Forward(_api.CrearAsync(body));
         }
 
         private async Task<string> HandleUpdate(Dictionary<string, object> data)
@@ -187,27 +90,8 @@ namespace QualityControlCenter.Modules.ControlDocumental
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id del documento");
 
-            var campos = LeerCamposDocumento(data);
-            if (campos.Count == 0)
-                return Error("No se recibió ningún campo para actualizar");
-
-            if (
-                campos.TryGetValue("estado", out var estadoVal)
-                && estadoVal != null
-                && !EstadosValidos.Contains(estadoVal.ToString())
-            )
-                return Error($"Estado inválido. Valores permitidos: {string.Join(", ", EstadosValidos)}");
-
-            if (
-                campos.TryGetValue("alcanceEmpresa", out var alcanceVal)
-                && alcanceVal != null
-                && !AlcancesValidos.Contains(alcanceVal.ToString())
-            )
-                return Error($"Alcance inválido. Valores permitidos: {string.Join(", ", AlcancesValidos)}");
-
-            TryGetString(data, "actualizadoPor", out var actualizadoPor);
-            await _repo.Actualizar(id, campos, actualizadoPor);
-            return Ok(new { id });
+            var body = BuildBody(data, "action", "id");
+            return await Forward(_api.ActualizarAsync(id, body));
         }
 
         private async Task<string> HandleVersionCrear(Dictionary<string, object> data)
@@ -215,148 +99,45 @@ namespace QualityControlCenter.Modules.ControlDocumental
             if (!TryGetInt(data, "documentoId", out var documentoId))
                 return Error("Falta el id del documento");
 
-            TryGetString(data, "version", out var version);
-            TryGetString(data, "fechaActualizacion", out var fechaActualizacion);
-            TryGetString(data, "proximaRevision", out var proximaRevision);
-            TryGetString(data, "creadoPor", out var creadoPor);
-
-            if (string.IsNullOrWhiteSpace(version))
-                return Error("Falta la versión");
-            if (string.IsNullOrWhiteSpace(fechaActualizacion))
-                return Error("Falta la fecha de actualización");
-
-            if (string.IsNullOrWhiteSpace(proximaRevision))
-                proximaRevision = CalcularProximaRevision(fechaActualizacion!);
-
-            if (!TryLeerAdjuntoOpcional(data, out var adjNombre, out var adjTipoMime, out var adjContenido, out var adjError))
-                return Error(adjError);
-
-            var versionId = await _repo.CrearVersion(
-                documentoId,
-                version!,
-                fechaActualizacion!,
-                proximaRevision,
-                creadoPor,
-                adjNombre,
-                adjTipoMime,
-                adjContenido
-            );
-            return Ok(new { id = versionId });
+            var body = BuildBody(data, "action", "documentoId");
+            return await Forward(_api.CrearVersionAsync(documentoId, body));
         }
 
-        // Borrado lógico — disponible para cualquier usuario logueado, sin gating de rol (mismo
-        // criterio que el resto del módulo).
         private async Task<string> HandleEliminar(Dictionary<string, object> data)
         {
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id del documento");
 
             TryGetString(data, "actualizadoPor", out var actualizadoPor);
-            await _repo.Eliminar(id, actualizadoPor);
-            return Ok(new { id });
+            return await Forward(_api.EliminarAsync(id, actualizadoPor));
         }
 
         private async Task<string> HandleAdjuntoSubir(Dictionary<string, object> data)
         {
             if (!TryGetInt(data, "documentoVersionId", out var versionId))
                 return Error("Falta el id de la versión");
-            if (!TryGetString(data, "nombreArchivo", out var nombreArchivo) || string.IsNullOrWhiteSpace(nombreArchivo))
-                return Error("Falta el nombre del archivo");
-            if (!TryGetString(data, "contenidoBase64", out var contenidoBase64) || string.IsNullOrWhiteSpace(contenidoBase64))
-                return Error("Falta el contenido del archivo");
 
-            if (!TryValidarAdjunto(nombreArchivo!, contenidoBase64!, out var tipoMime, out var contenido, out var error))
-                return Error(error);
-
-            TryGetString(data, "subidoPor", out var subidoPor);
-            await _repo.SubirAdjunto(versionId, nombreArchivo!, tipoMime, contenido, subidoPor);
-            return Ok(new { documentoVersionId = versionId });
+            var body = BuildBody(data, "action", "documentoVersionId");
+            return await Forward(_api.SubirAdjuntoAsync(versionId, body));
         }
 
-        // Valida extensión/tamaño y decodifica el base64 — usado tanto al subir un adjunto suelto
-        // (adjunto.subir) como al adjuntar en el mismo paso que se crea una versión (create /
-        // version.crear).
-        private static bool TryValidarAdjunto(
-            string nombreArchivo,
-            string contenidoBase64,
-            out string tipoMime,
-            out byte[] contenido,
-            out string error
-        )
-        {
-            contenido = Array.Empty<byte>();
-            error = "";
-
-            var extension = Path.GetExtension(nombreArchivo);
-            if (!MimePorExtension.TryGetValue(extension, out tipoMime!))
-            {
-                error = $"Tipo de archivo no permitido. Formatos válidos: {string.Join(", ", MimePorExtension.Keys)}";
-                return false;
-            }
-
-            try
-            {
-                contenido = Convert.FromBase64String(contenidoBase64);
-            }
-            catch (FormatException)
-            {
-                error = "El contenido del archivo no es válido";
-                return false;
-            }
-
-            if (contenido.Length > MaxTamanoBytesAdjunto)
-            {
-                error = $"El archivo supera el tamaño máximo permitido ({MaxTamanoBytesAdjunto / 1024 / 1024} MB)";
-                return false;
-            }
-
-            return true;
-        }
-
-        // Lee y valida un adjunto opcional del payload (create / version.crear). Devuelve false
-        // solo si el archivo vino y era inválido — si simplemente no se adjuntó nada, no es error.
-        private static bool TryLeerAdjuntoOpcional(
-            Dictionary<string, object> data,
-            out string? nombreArchivo,
-            out string? tipoMime,
-            out byte[]? contenido,
-            out string error
-        )
-        {
-            nombreArchivo = null;
-            tipoMime = null;
-            contenido = null;
-            error = "";
-
-            var tieneNombre = TryGetString(data, "adjuntoNombreArchivo", out var nombre) && !string.IsNullOrWhiteSpace(nombre);
-            var tieneContenido = TryGetString(data, "adjuntoContenidoBase64", out var base64) && !string.IsNullOrWhiteSpace(base64);
-            if (!tieneNombre || !tieneContenido)
-                return true;
-
-            if (!TryValidarAdjunto(nombre!, base64!, out var mime, out var bytes, out error))
-                return false;
-
-            nombreArchivo = nombre;
-            tipoMime = mime;
-            contenido = bytes;
-            return true;
-        }
-
-        // Imágenes/PDF: devuelve el contenido en base64 para previsualizar embebido en el frontend
-        // (WebView2 renderiza PDF nativo vía data: URI). Word u otros no previsualizables: se
-        // escriben a una carpeta temporal y se abren con la app del sistema — mismo patrón que
-        // UpdateService usa para lanzar el instalador del auto-updater — sin mandar esos bytes al
-        // frontend para nada.
+        // Imágenes/PDF: reenvía el base64 al frontend para previsualizar embebido (WebView2
+        // renderiza PDF nativo vía data: URI). Word u otros no previsualizables: se escriben a una
+        // carpeta temporal y se abren con la app del sistema — mismo patrón que UpdateService usa
+        // para lanzar el instalador del auto-updater. Esta decisión no puede vivir en la API
+        // (Process.Start es inherentemente local a la máquina del usuario).
         private async Task<string> HandleAdjuntoAbrir(Dictionary<string, object> data)
         {
             if (!TryGetInt(data, "documentoVersionId", out var versionId))
                 return Error("Falta el id de la versión");
 
-            var adjunto = await _repo.ObtenerAdjunto(versionId);
-            if (adjunto == null)
-                return Error("Esta versión no tiene ningún archivo adjunto");
+            var (ok, body) = await _api.ObtenerAdjuntoAsync(versionId);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
 
-            var (nombreArchivo, tipoMime, contenido) = adjunto.Value;
+            var nombreArchivo = payload.GetProperty("nombreArchivo").GetString() ?? "";
+            var tipoMime = payload.GetProperty("tipoMime").GetString() ?? "";
+            var contenidoBase64 = payload.GetProperty("contenidoBase64").GetString() ?? "";
 
             if (tipoMime.StartsWith("image/") || tipoMime == "application/pdf")
             {
@@ -366,11 +147,12 @@ namespace QualityControlCenter.Modules.ControlDocumental
                         previsualizable = true,
                         nombreArchivo,
                         tipoMime,
-                        contenidoBase64 = Convert.ToBase64String(contenido),
+                        contenidoBase64,
                     }
                 );
             }
 
+            var contenido = Convert.FromBase64String(contenidoBase64);
             var carpetaTemp = Path.Combine(Path.GetTempPath(), "QCC_ControlDocumental");
             Directory.CreateDirectory(carpetaTemp);
             var rutaArchivo = Path.Combine(carpetaTemp, $"{versionId}_{nombreArchivo}");
@@ -381,16 +163,62 @@ namespace QualityControlCenter.Modules.ControlDocumental
             return Ok(new { previsualizable = false, nombreArchivo });
         }
 
-        // Replica la única fórmula viva del Excel original: próxima revisión = fecha última
-        // actualización + 365 días (editable por el usuario si no aplica).
-        private static string CalcularProximaRevision(string fechaActualizacion)
+        // Copia el payload plano quitando las claves indicadas (siempre "action" + los ids que van
+        // en la URL) — preserva exactamente qué claves llegaron del frontend, incluida la
+        // semántica de "actualización parcial" de ControlDocumentalService en la API.
+        private static Dictionary<string, object> BuildBody(Dictionary<string, object> data, params string[] excluir)
         {
-            if (DateTime.TryParse(fechaActualizacion, out var fecha))
-                return fecha.AddDays(365).ToString("yyyy-MM-dd");
-            return fechaActualizacion;
+            var excluidas = new HashSet<string>(excluir, StringComparer.OrdinalIgnoreCase);
+            return data.Where(kv => !excluidas.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
         }
 
-        // ---------- Helpers de payload (mismo patrón que NoConformidadesHandler / FaretHandler) ----------
+        private static async Task<string> Forward(Task<(bool ok, string body)> call)
+        {
+            var (ok, body) = await call;
+
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            var responseData = payload.ValueKind == JsonValueKind.Undefined ? null : JsonSerializer.Deserialize<object>(payload.GetRawText());
+            return Ok(responseData);
+        }
+
+        // Desenvuelve el shape ApiResponse<T> {success,message,data,errors} de
+        // QualityControlInnpack.Api — mismo criterio ya usado en UsuariosHandler.cs.
+        private static bool TryUnwrapApiResponse(string body, out JsonElement data, out string error)
+        {
+            data = default;
+            error = "Error al comunicarse con la API Innpack";
+
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("success", out var s))
+                {
+                    if (!s.GetBoolean())
+                    {
+                        error = root.TryGetProperty("message", out var m) ? (m.GetString() ?? error) : error;
+                        return false;
+                    }
+
+                    if (root.TryGetProperty("data", out var d))
+                    {
+                        data = d.Clone();
+                        return true;
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         private static bool TryGetString(Dictionary<string, object> data, string key, out string? value)
         {

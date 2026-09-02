@@ -6,8 +6,10 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using QualityControlCenter.Backend.Services.FaretApi;
 using QualityControlCenter.Backend.Services.FpsApi;
+using QualityControlCenter.Backend.Services.InnpackApi;
 using QualityControlCenter.Backend.Services.PlanificacionApi;
 using QualityControlCenter.Modules.Auth;
+using QualityControlCenter.Modules.CertificadosLiberacion;
 using QualityControlCenter.Modules.ControlDocumental;
 using QualityControlCenter.Modules.Dashboard;
 using QualityControlCenter.Modules.Faret;
@@ -32,6 +34,7 @@ namespace QualityControlCenter.Services
         private readonly DbService _db;
         private readonly AuthHandler _authHandler;
         private readonly CurrentUserSessionService _session;
+        private readonly InnpackApiClient _innpackClient;
         private readonly FaretApiClient _faretClient;
         private readonly FaretApiClient _faretMejoraContinuaClient;
         private readonly FaretApiClient _faretCalidadClient;
@@ -49,6 +52,7 @@ namespace QualityControlCenter.Services
             DbService db,
             AuthHandler authHandler,
             CurrentUserSessionService session,
+            InnpackApiClient innpackClient,
             FaretApiClient faretClient,
             FaretApiClient faretMejoraContinuaClient,
             FaretApiClient faretCalidadClient,
@@ -61,6 +65,7 @@ namespace QualityControlCenter.Services
             _db = db;
             _authHandler = authHandler;
             _session = session;
+            _innpackClient = innpackClient;
             _faretClient = faretClient;
             _faretMejoraContinuaClient = faretMejoraContinuaClient;
             _faretCalidadClient = faretCalidadClient;
@@ -107,22 +112,22 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("inicio"))
                 {
-                    var handler = new HomeHandler(_db);
+                    var handler = new HomeHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("usuarios"))
                 {
-                    var handler = new UsuariosHandler(_db, _session);
+                    var handler = new UsuariosHandler(_innpackClient, _session);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("registrosControl"))
                 {
-                    var handler = new RegistrosControlHandler(_db);
+                    var handler = new RegistrosControlHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("registrosProduccion"))
                 {
-                    var handler = new RegistrosProduccionHandler(_db);
+                    var handler = new RegistrosProduccionHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action == "excel.guardar")
@@ -131,54 +136,59 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("dashboard"))
                 {
-                    var handler = new DashboardHandler(_db);
+                    var handler = new DashboardHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("maquinasSeguimiento"))
                 {
-                    var handler = new MaquinasSeguimientoHandler(_db);
+                    var handler = new MaquinasSeguimientoHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("noConformidades"))
                 {
-                    var handler = new NoConformidadesHandler(_db);
+                    var handler = new NoConformidadesHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("controlDocumental"))
                 {
-                    var handler = new ControlDocumentalHandler(_db);
+                    var handler = new ControlDocumentalHandler(_innpackClient);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("certificadosLiberacion"))
+                {
+                    var handler = new CertificadosLiberacionHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("talleresExternos"))
                 {
-                    var handler = new TalleresExternosHandler(_db, _session, _fpsLiberaciones);
+                    var handler = new TalleresExternosHandler(_innpackClient, _session);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("productoTerminado"))
                 {
-                    var handler = new ProductoTerminadoHandler(_db);
+                    var handler = new ProductoTerminadoHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("trazabilidad"))
                 {
-                    var handler = new TrazabilidadHandler(_db, _planificacionClient, _fpsMateriales);
+                    var handler = new TrazabilidadHandler(_innpackClient, _planificacionClient, _fpsMateriales);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("muestraLab"))
                 {
-                    var handler = new MuestraLaboratorioHandler(_db, _session);
+                    var handler = new MuestraLaboratorioHandler(_innpackClient, _session);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("recepcion"))
                 {
-                    var handler = new RecepcionCalidadHandler(_db, _sapRecepcionClient, _session);
+                    var handler = new RecepcionCalidadHandler(_innpackClient, _sapRecepcionClient, _session);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("faretLab"))
                 {
                     // OJO: esta rama debe ir ANTES que "faret" (más abajo) — action.StartsWith("faret")
                     // también matchearía "faretLab.xxx" y lo enviaría al FaretHandler equivocado.
-                    var handler = new FaretLaboratorioHandler(_db, _session);
+                    var handler = new FaretLaboratorioHandler(_innpackClient, _session);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("faret"))

@@ -3,16 +3,15 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using QualityControlCenter.Backend.Services.FpsApi;
+using QualityControlCenter.Backend.Services.InnpackApi;
 using QualityControlCenter.Backend.Services.PlanificacionApi;
-using QualityControlCenter.Repositories.Trazabilidad;
-using QualityControlCenter.Services;
 
 namespace QualityControlCenter.Modules.Trazabilidad
 {
     // Módulo de solo consulta (INNPACK): NP en Planificación FARET (programa-produccion, vía API,
     // sin auth) + materiales por proceso (fps-api, Tipo='INSUMO' en FPS_PRODUCCION) + paletizado
-    // en registro_paletizado (LogisticControlCenter, MySQL directo). No inserta ni recalcula nada
-    // — ver contex.md para el detalle de arquitectura.
+    // en registro_paletizado (migrado a QualityControlInnpack.Api, ya no MySQL directo desde el
+    // desktop). No inserta ni recalcula nada — ver contex.md para el detalle de arquitectura.
     public class TrazabilidadHandler
     {
         private readonly TrazabilidadService _service;
@@ -23,7 +22,7 @@ namespace QualityControlCenter.Modules.Trazabilidad
         };
 
         public TrazabilidadHandler(
-            DbService db,
+            InnpackApiClient innpackClient,
             PlanificacionApiClient planificacionClient,
             FpsMaterialesApiService fpsMaterialesClient
         )
@@ -31,7 +30,7 @@ namespace QualityControlCenter.Modules.Trazabilidad
             _service = new TrazabilidadService(
                 planificacionClient,
                 fpsMaterialesClient,
-                new TrazabilidadRepository(db)
+                new InnpackTrazabilidadApiService(innpackClient)
             );
         }
 

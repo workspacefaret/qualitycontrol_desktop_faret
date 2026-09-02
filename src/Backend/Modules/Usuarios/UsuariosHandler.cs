@@ -3,21 +3,26 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using BCrypt.Net;
-using QualityControlCenter.Models;
-using QualityControlCenter.Repositories.Usuarios;
+using QualityControlCenter.Backend.Services.InnpackApi;
 using QualityControlCenter.Services;
 
 namespace QualityControlCenter.Modules.Usuarios
 {
+    // Migrado a QualityControlInnpack.Api — ya no consulta MySQL directo desde el desktop
+    // (UsuariosRepository.cs se retiró en el Paso 16 de la migración). La validación de negocio
+    // (contraseña, rol, duplicados, "no puedes eliminarte a ti mismo") vive ahora en
+    // UsuariosService de la API; este Handler valida solo presencia de campos y reenvía. Ver
+    // contex.md sobre la migración de INNPACK a arquitectura API.
     public class UsuariosHandler
     {
-        private readonly UsuariosRepository _usuariosRepository;
+        private readonly InnpackApiClient _client;
+        private readonly InnpackUsuariosApiService _usuariosApi;
         private readonly CurrentUserSessionService _session;
 
-        public UsuariosHandler(DbService db, CurrentUserSessionService session)
+        public UsuariosHandler(InnpackApiClient client, CurrentUserSessionService session)
         {
-            _usuariosRepository = new UsuariosRepository(db);
+            _client = client;
+            _usuariosApi = new InnpackUsuariosApiService(client);
             _session = session;
         }
 
@@ -27,6 +32,9 @@ namespace QualityControlCenter.Modules.Usuarios
             {
                 if (!IsAdmin())
                     return Error("Acceso no autorizado");
+
+                if (!_client.HasToken)
+                    return Error("No autenticado en API Innpack");
 
                 return action switch
                 {
@@ -53,11 +61,25 @@ namespace QualityControlCenter.Modules.Usuarios
             return user.Rol == "admin" || user.Rol == "admin_ti";
         }
 
+        // La API nueva devuelve camelCase (default de ASP.NET Core), pero el frontend
+        // (usuarios.controller.js) espera PascalCase — así serializaba el código C# viejo por
+        // defecto, sin política de naming. Reproyectar acá (en vez de pasar el JSON crudo)
+        // mantiene el frontend intacto. Bug real encontrado en dotnet run: un passthrough directo
+        // dejaba la tabla con N filas pero todos los campos en blanco (la llamada sí funcionaba,
+        // solo los nombres de propiedad no calzaban). Ver contex.md.
         private async Task<string> ListAsync()
         {
-            var usuarios = await _usuariosRepository.GetAllAsync();
+            var (ok, body) = await _usuariosApi.GetListAsync();
 
-            var data = usuarios.Select(u => new
+            if (!TryUnwrapApiResponse(body, out var data, out var error) || !ok)
+                return Error(error);
+
+            var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var usuarios =
+                JsonSerializer.Deserialize<List<UsuarioApiDto>>(data.GetRawText(), jsonOpts)
+                ?? new List<UsuarioApiDto>();
+
+            var proyectado = usuarios.Select(u => new
             {
                 u.Id,
                 u.CodigoUsuario,
@@ -68,7 +90,18 @@ namespace QualityControlCenter.Modules.Usuarios
                 u.ActualizadoEn,
             });
 
-            return Ok(data);
+            return Ok(proyectado);
+        }
+
+        private class UsuarioApiDto
+        {
+            public int Id { get; set; }
+            public string CodigoUsuario { get; set; } = "";
+            public string NombreCompleto { get; set; } = "";
+            public string Rol { get; set; } = "";
+            public bool Activo { get; set; }
+            public DateTime? CreadoEn { get; set; }
+            public DateTime? ActualizadoEn { get; set; }
         }
 
         private async Task<string> CreateAsync(Dictionary<string, object> payload)
@@ -93,31 +126,26 @@ namespace QualityControlCenter.Modules.Usuarios
             if (string.IsNullOrWhiteSpace(password))
                 return Error("La contraseña es obligatoria");
 
-            if (password.Length < 6)
-                return Error("La contraseña debe tener al menos 6 caracteres");
-
             if (string.IsNullOrWhiteSpace(rol))
                 return Error("El rol es obligatorio");
 
-            if (rol != "admin" && rol != "operador")
-                return Error("Rol inválido");
+            var (ok, body) = await _usuariosApi.CreateAsync(
+                codigoUsuario,
+                nombreCompleto,
+                password,
+                rol,
+                activo
+            );
 
-            var existe = await _usuariosRepository.ExistsByCodigoUsuarioAsync(codigoUsuario);
-            if (existe)
-                return Error("Ya existe un usuario con ese código");
+            if (!TryUnwrapApiResponse(body, out var responseData, out var error) || !ok)
+                return Error(error);
 
-            var passwordHash = BCrypt.Net.BCrypt.HashPassword(password);
-
-            var user = new User
-            {
-                CodigoUsuario = codigoUsuario.Trim(),
-                NombreCompleto = nombreCompleto.Trim(),
-                PasswordHash = passwordHash,
-                Rol = rol.Trim(),
-                Activo = activo,
-            };
-
-            var newId = await _usuariosRepository.CreateAsync(user);
+            var newId =
+                responseData.ValueKind == JsonValueKind.Object
+                && responseData.TryGetProperty("id", out var idProp)
+                && idProp.TryGetInt32(out var idValue)
+                    ? idValue
+                    : (int?)null;
 
             return Ok(new { message = "Usuario creado correctamente", id = newId });
         }
@@ -134,18 +162,10 @@ namespace QualityControlCenter.Modules.Usuarios
             if (id <= 0)
                 return Error("Id inválido");
 
-            var currentUser = _session.GetCurrentUser();
-            if (currentUser != null && currentUser.Id == id)
-                return Error("No puedes eliminar tu propio usuario");
+            var (ok, body) = await _usuariosApi.DeleteAsync(id);
 
-            var existingUser = await _usuariosRepository.GetByIdAsync(id);
-            if (existingUser == null)
-                return Error("Usuario no encontrado");
-
-            var deleted = await _usuariosRepository.DeleteAsync(id);
-
-            if (!deleted)
-                return Error("No se pudo eliminar el usuario");
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
 
             return Ok(new { message = "Usuario eliminado correctamente" });
         }
@@ -166,25 +186,50 @@ namespace QualityControlCenter.Modules.Usuarios
             if (string.IsNullOrWhiteSpace(nuevaPassword))
                 return Error("La nueva contraseña es obligatoria");
 
-            if (nuevaPassword.Length < 6)
-                return Error("La nueva contraseña debe tener al menos 6 caracteres");
+            var (ok, body) = await _usuariosApi.ResetPasswordAsync(id, nuevaPassword);
 
-            var currentUser = _session.GetCurrentUser();
-            if (currentUser != null && currentUser.Id == id)
-                return Error("No puedes cambiar tu propia contraseña desde aquí");
-
-            var existingUser = await _usuariosRepository.GetByIdAsync(id);
-            if (existingUser == null)
-                return Error("Usuario no encontrado");
-
-            var passwordHash = BCrypt.Net.BCrypt.HashPassword(nuevaPassword);
-
-            var updated = await _usuariosRepository.UpdatePasswordAsync(id, passwordHash);
-
-            if (!updated)
-                return Error("No se pudo actualizar la contraseña");
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
 
             return Ok(new { message = "Contraseña actualizada correctamente" });
+        }
+
+        // Desenvuelve el shape ApiResponse<T> {success, message, data, errors} de
+        // QualityControlInnpack.Api — mismo criterio que TryUnwrapApiResponse en FaretHandler.cs
+        // para la API `qualitycontrol` de Faret (mismo shape, misma librería ApiResponse<T>).
+        private static bool TryUnwrapApiResponse(string body, out JsonElement data, out string error)
+        {
+            data = default;
+            error = "Error al comunicarse con la API Innpack";
+
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("success", out var s))
+                {
+                    if (!s.GetBoolean())
+                    {
+                        error = root.TryGetProperty("message", out var m) ? (m.GetString() ?? error) : error;
+                        return false;
+                    }
+
+                    if (root.TryGetProperty("data", out var d))
+                    {
+                        data = d.Clone();
+                        return true;
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private JsonElement ExtractData(Dictionary<string, object> payload)
@@ -230,10 +275,7 @@ namespace QualityControlCenter.Modules.Usuarios
             if (prop.ValueKind == JsonValueKind.False)
                 return false;
 
-            if (
-                prop.ValueKind == JsonValueKind.String
-                && bool.TryParse(prop.GetString(), out var value)
-            )
+            if (prop.ValueKind == JsonValueKind.String && bool.TryParse(prop.GetString(), out var value))
                 return value;
 
             return defaultValue;

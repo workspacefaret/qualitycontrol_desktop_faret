@@ -4,21 +4,24 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using QualityControlCenter.Backend.Services.FpsApi;
+using QualityControlCenter.Backend.Services.InnpackApi;
 using QualityControlCenter.Backend.Services.PlanificacionApi;
-using QualityControlCenter.Repositories.Trazabilidad;
 
 namespace QualityControlCenter.Modules.Trazabilidad
 {
+    // La parte de Planificación FARET/FPS Materiales sigue igual (ya eran APIs externas); solo
+    // ObtenerPaletizadoPorNp migró de MySQL directo a QualityControlInnpack.Api. Ver contex.md
+    // sobre la migración de INNPACK a arquitectura API.
     public class TrazabilidadService
     {
         private readonly PlanificacionApiClient _planificacion;
         private readonly FpsMaterialesApiService _fpsMateriales;
-        private readonly TrazabilidadRepository _repository;
+        private readonly InnpackTrazabilidadApiService _repository;
 
         public TrazabilidadService(
             PlanificacionApiClient planificacion,
             FpsMaterialesApiService fpsMateriales,
-            TrazabilidadRepository repository
+            InnpackTrazabilidadApiService repository
         )
         {
             _planificacion = planificacion;

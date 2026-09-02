@@ -2,14 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
-using QualityControlCenter.Backend.Services.FpsApi;
+using QualityControlCenter.Backend.Services.InnpackApi;
 using QualityControlCenter.Services;
 
 namespace QualityControlCenter.Modules.TalleresExternos
 {
+    // Migrado a QualityControlInnpack.Api — ya no consulta MySQL directo desde el desktop
+    // (TalleresExternosService.cs/TalleresExternosRepository.cs/TalleresExternosModels.cs de este
+    // mismo módulo quedan sin uso, junto con FpsLiberacionesApiService que ahora vive server-side
+    // en la API). Conflicto de concurrencia optimista (409) y "no encontrado" (404) se distinguen
+    // por status HTTP real, no por texto de mensaje — ver InnpackApiClient.PutJsonWithStatusAsync/
+    // DeleteWithStatusAsync. Ver contex.md sobre la migración de INNPACK a arquitectura API.
     public class TalleresExternosHandler
     {
-        private readonly TalleresExternosService _service;
+        private readonly InnpackTalleresExternosApiService _api;
         private readonly CurrentUserSessionService _session;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -17,13 +23,9 @@ namespace QualityControlCenter.Modules.TalleresExternos
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        public TalleresExternosHandler(
-            DbService db,
-            CurrentUserSessionService session,
-            FpsLiberacionesApiService? fpsLiberaciones = null
-        )
+        public TalleresExternosHandler(InnpackApiClient client, CurrentUserSessionService session)
         {
-            _service = new TalleresExternosService(db, fpsLiberaciones);
+            _api = new InnpackTalleresExternosApiService(client);
             _session = session;
         }
 
@@ -39,21 +41,16 @@ namespace QualityControlCenter.Modules.TalleresExternos
                     {
                         var page = GetInt(data, "page", 1);
                         var pageSize = GetInt(data, "pageSize", 50);
-                        var result = await _service.GetListAsync(page, pageSize);
-                        return Ok(result);
+                        return await Forward(_api.ListAsync(page, pageSize));
                     }
 
                     case "talleresExternos.catalogos":
-                    {
-                        var result = await _service.GetCatalogosAsync();
-                        return Ok(result);
-                    }
+                        return await Forward(_api.CatalogosAsync());
 
                     case "talleresExternos.create":
                     {
-                        var request = BuildCrearRequest(data);
-                        var trabajo = await _service.CrearAsync(request, UsuarioIdActual());
-                        return Ok(trabajo);
+                        var request = BuildRequestPayload(data, UsuarioIdActual());
+                        return await Forward(_api.CrearAsync(request));
                     }
 
                     case "talleresExternos.update":
@@ -62,24 +59,11 @@ namespace QualityControlCenter.Modules.TalleresExternos
                         if (id <= 0)
                             return Error("Falta 'id' para actualizar.");
 
-                        var request = new ActualizarTrabajoRequest();
-                        CopiarCamposComunes(data, request);
-                        request.Version = GetInt(data, "version", 0);
+                        var version = GetInt(data, "version", 0);
+                        var request = BuildRequestPayload(data, UsuarioIdActual(), version);
 
-                        var resultado = await _service.ActualizarAsync(
-                            id,
-                            request,
-                            UsuarioIdActual()
-                        );
-
-                        if (resultado.NoEncontrado)
-                            return Error(resultado.Error ?? $"No existe un trabajo con id {id}.");
-                        if (resultado.Conflicto)
-                            return ErrorConflicto(
-                                resultado.Error ?? "El registro fue modificado por otro usuario."
-                            );
-
-                        return Ok(resultado.Trabajo);
+                        var (status, body) = await _api.ActualizarAsync(id, request);
+                        return ForwardWithStatus(status, body);
                     }
 
                     case "talleresExternos.eliminar":
@@ -89,34 +73,20 @@ namespace QualityControlCenter.Modules.TalleresExternos
                         if (id <= 0)
                             return Error("Falta 'id' para eliminar.");
 
-                        var resultado = await _service.EliminarAsync(
-                            id,
-                            version,
-                            UsuarioIdActual()
-                        );
-
-                        if (resultado.NoEncontrado)
-                            return Error($"No existe un trabajo con id {id}.");
-                        if (resultado.Conflicto)
-                            return ErrorConflicto(
-                                resultado.Error ?? "El registro fue modificado por otro usuario."
-                            );
-
-                        return Ok((object?)null);
+                        var (status, body) = await _api.EliminarAsync(id, version, UsuarioIdActual());
+                        return ForwardWithStatus(status, body);
                     }
 
                     case "talleresExternos.catalogos.eliminarTaller":
                     {
                         var id = GetInt(data, "id", 0);
-                        await _service.EliminarTallerAsync(id);
-                        return Ok((object?)null);
+                        return await Forward(_api.EliminarTallerAsync(id));
                     }
 
                     case "talleresExternos.catalogos.eliminarProceso":
                     {
                         var id = GetInt(data, "id", 0);
-                        await _service.EliminarProcesoAsync(id);
-                        return Ok((object?)null);
+                        return await Forward(_api.EliminarProcesoAsync(id));
                     }
 
                     case "talleresExternos.historialLiberaciones":
@@ -125,15 +95,11 @@ namespace QualityControlCenter.Modules.TalleresExternos
                         if (id <= 0)
                             return Error("Falta 'id' para consultar el historial.");
 
-                        var historial = await _service.ObtenerHistorialLiberacionesAsync(id);
-                        return Ok(historial);
+                        return await Forward(_api.HistorialLiberacionesAsync(id));
                     }
 
                     case "talleresExternos.sincronizarFps":
-                    {
-                        var resultado = await _service.SincronizarFpsAsync(UsuarioIdActual());
-                        return Ok(resultado);
-                    }
+                        return await Forward(_api.SincronizarFpsAsync(UsuarioIdActual()));
 
                     default:
                         return Error($"Acción no reconocida en TalleresExternos: {action}");
@@ -151,36 +117,94 @@ namespace QualityControlCenter.Modules.TalleresExternos
         // actualizado_por/anulado_por son columnas nullable justamente para este caso.
         private int? UsuarioIdActual() => _session.GetCurrentUser()?.Id;
 
-        private static CrearTrabajoRequest BuildCrearRequest(JsonElement data)
+        private static object BuildRequestPayload(JsonElement data, int? usuarioId, int? version = null)
         {
-            var request = new CrearTrabajoRequest();
-            CopiarCamposComunes(data, request);
-            return request;
+            return new
+            {
+                Nv = GetString(data, "nv") ?? "",
+                Producto = GetString(data, "producto") ?? "",
+                CodigoProducto = GetString(data, "codigoProducto"),
+                Item = GetString(data, "item") ?? "",
+                Cliente = GetString(data, "cliente"),
+                FechaAsignacion = GetDate(data, "fechaAsignacion"),
+                TallerExternoNombre = GetString(data, "tallerExternoNombre"),
+                ProcesoNombre = GetString(data, "procesoNombre"),
+                ResponsableInternoNombre = GetString(data, "responsableInternoNombre"),
+                Prioridad = GetString(data, "prioridad") ?? "MEDIA",
+                FechaCompromiso = GetDate(data, "fechaCompromiso"),
+                Estado = GetString(data, "estado") ?? "PENDIENTE_ASIGNACION",
+                CantidadARevisar = GetDecimal(data, "cantidadARevisar") ?? 0,
+                CantidadRevisadaEntregada = GetDecimal(data, "cantidadRevisadaEntregada") ?? 0,
+                CantidadFaltanteAjusteManual = GetBool(data, "cantidadFaltanteAjusteManual"),
+                CantidadFaltanteManual = GetDecimal(data, "cantidadFaltanteManual"),
+                CantidadFaltanteJustificacion = GetString(data, "cantidadFaltanteJustificacion"),
+                Observaciones = GetString(data, "observaciones"),
+                UsuarioId = usuarioId,
+                Version = version ?? 0,
+            };
         }
 
-        private static void CopiarCamposComunes(JsonElement data, CrearTrabajoRequest request)
+        private static async Task<string> Forward(Task<(bool ok, string body)> call)
         {
-            request.Nv = GetString(data, "nv") ?? "";
-            request.Producto = GetString(data, "producto") ?? "";
-            request.CodigoProducto = GetString(data, "codigoProducto");
-            request.Item = GetString(data, "item") ?? "";
-            request.Cliente = GetString(data, "cliente");
-            request.FechaAsignacion = GetDate(data, "fechaAsignacion");
-            request.TallerExternoNombre = GetString(data, "tallerExternoNombre");
-            request.ProcesoNombre = GetString(data, "procesoNombre");
-            request.ResponsableInternoNombre = GetString(data, "responsableInternoNombre");
-            request.Prioridad = GetString(data, "prioridad") ?? "MEDIA";
-            request.FechaCompromiso = GetDate(data, "fechaCompromiso");
-            request.Estado = GetString(data, "estado") ?? "PENDIENTE_ASIGNACION";
-            request.CantidadARevisar = GetDecimal(data, "cantidadARevisar") ?? 0;
-            request.CantidadRevisadaEntregada = GetDecimal(data, "cantidadRevisadaEntregada") ?? 0;
-            request.CantidadFaltanteAjusteManual = GetBool(data, "cantidadFaltanteAjusteManual");
-            request.CantidadFaltanteManual = GetDecimal(data, "cantidadFaltanteManual");
-            request.CantidadFaltanteJustificacion = GetString(
-                data,
-                "cantidadFaltanteJustificacion"
-            );
-            request.Observaciones = GetString(data, "observaciones");
+            var (ok, body) = await call;
+
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            var data = payload.ValueKind == JsonValueKind.Undefined ? null : JsonSerializer.Deserialize<object>(payload.GetRawText());
+            return Ok(data);
+        }
+
+        private static string ForwardWithStatus(int status, string body)
+        {
+            if (status == 409)
+            {
+                TryUnwrapApiResponse(body, out _, out var conflictError);
+                return ErrorConflicto(conflictError);
+            }
+
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || status < 200 || status >= 300)
+                return Error(error);
+
+            var data = payload.ValueKind == JsonValueKind.Undefined ? null : JsonSerializer.Deserialize<object>(payload.GetRawText());
+            return Ok(data);
+        }
+
+        // Desenvuelve el shape ApiResponse<T> {success,message,data,errors} de
+        // QualityControlInnpack.Api — mismo criterio ya usado en UsuariosHandler.cs.
+        private static bool TryUnwrapApiResponse(string body, out JsonElement data, out string error)
+        {
+            data = default;
+            error = "Error al comunicarse con la API Innpack";
+
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("success", out var s))
+                {
+                    if (!s.GetBoolean())
+                    {
+                        error = root.TryGetProperty("message", out var m) ? (m.GetString() ?? error) : error;
+                        return false;
+                    }
+
+                    if (root.TryGetProperty("data", out var d))
+                    {
+                        data = d.Clone();
+                        return true;
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static JsonElement GetData(Dictionary<string, object> payload)
