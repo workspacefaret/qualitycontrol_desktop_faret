@@ -5,6 +5,12 @@ if (!window.CertificadosLiberacionController) {
             this.loading = false
             this.descargando = false
             this._clickHandler = null
+            // Acumula los nombres reales vistos en esta sesión (no solo los de la última
+            // búsqueda) para que el desplegable no pierda opciones al ir filtrando — no hay
+            // endpoint de "valores distintos" en el backend, se arma con lo que el usuario ya
+            // fue viendo.
+            this._operadoresVistos = new Set()
+            this._inspectoresVistos = new Set()
         }
 
         async init() {
@@ -47,6 +53,7 @@ if (!window.CertificadosLiberacionController) {
             this.setVal("clFiltroNp", "")
             this.setVal("clFiltroCliente", "")
             this.setVal("clFiltroOperador", "")
+            this.setVal("clFiltroInspector", "")
             this.setVal("clFiltroEmpresa", "")
             this.setVal("clFiltroFechaDesde", "")
             this.setVal("clFiltroFechaHasta", "")
@@ -65,6 +72,7 @@ if (!window.CertificadosLiberacionController) {
                     np: this.getVal("clFiltroNp"),
                     cliente: this.getVal("clFiltroCliente"),
                     operador: this.getVal("clFiltroOperador"),
+                    inspector: this.getVal("clFiltroInspector"),
                     empresa: this.getVal("clFiltroEmpresa"),
                     fechaDesde: this.getVal("clFiltroFechaDesde"),
                     fechaHasta: this.getVal("clFiltroFechaHasta")
@@ -82,6 +90,7 @@ if (!window.CertificadosLiberacionController) {
                 }
 
                 this.items = res.data || []
+                this.actualizarFiltrosSelect()
                 this.renderTitulo(hayFiltros)
                 this.renderTabla()
             } catch (err) {
@@ -117,6 +126,31 @@ if (!window.CertificadosLiberacionController) {
                 btn.disabled = false
                 this.descargando = false
             }
+        }
+
+        // Puebla los <select> de Operador/Inspector con los nombres reales vistos hasta ahora
+        // (no hay endpoint de "valores distintos" en el backend). Acumula entre búsquedas para no
+        // perder opciones ya vistas, y conserva la selección actual si sigue siendo válida.
+        actualizarFiltrosSelect() {
+            this.items.forEach((item) => {
+                if (item.operador) this._operadoresVistos.add(item.operador)
+                if (item.inspector) this._inspectoresVistos.add(item.inspector)
+            })
+
+            this.poblarSelect("clFiltroOperador", this._operadoresVistos)
+            this.poblarSelect("clFiltroInspector", this._inspectoresVistos)
+        }
+
+        poblarSelect(id, valores) {
+            const el = document.getElementById(id)
+            if (!el) return
+
+            const actual = el.value
+            const opciones = Array.from(valores).sort((a, b) => a.localeCompare(b))
+
+            el.innerHTML = `<option value="">Todos</option>` + opciones.map((v) => `<option value="${this.esc(v)}">${this.esc(v)}</option>`).join("")
+
+            if (actual && opciones.includes(actual)) el.value = actual
         }
 
         renderTitulo(hayFiltros) {

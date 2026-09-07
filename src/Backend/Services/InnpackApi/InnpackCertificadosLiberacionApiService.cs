@@ -22,6 +22,7 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             string? cliente,
             string? empresa,
             string? operador,
+            string? inspector,
             string? fechaDesde,
             string? fechaHasta
         )
@@ -37,6 +38,8 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
                 query += $"empresa={Uri.EscapeDataString(empresa)}&";
             if (!string.IsNullOrWhiteSpace(operador))
                 query += $"operador={Uri.EscapeDataString(operador)}&";
+            if (!string.IsNullOrWhiteSpace(inspector))
+                query += $"inspector={Uri.EscapeDataString(inspector)}&";
             if (!string.IsNullOrWhiteSpace(fechaDesde))
                 query += $"fechaDesde={Uri.EscapeDataString(fechaDesde)}&";
             if (!string.IsNullOrWhiteSpace(fechaHasta))

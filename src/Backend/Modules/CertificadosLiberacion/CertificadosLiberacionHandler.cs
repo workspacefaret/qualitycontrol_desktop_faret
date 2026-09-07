@@ -39,10 +39,11 @@ namespace QualityControlCenter.Modules.CertificadosLiberacion
                     var cliente = GetString(jsonData, "cliente");
                     var empresa = GetString(jsonData, "empresa");
                     var operador = GetString(jsonData, "operador");
+                    var inspector = GetString(jsonData, "inspector");
                     var fechaDesde = GetString(jsonData, "fechaDesde");
                     var fechaHasta = GetString(jsonData, "fechaHasta");
 
-                    return await Forward(_api.BuscarAsync(folio, np, cliente, empresa, operador, fechaDesde, fechaHasta));
+                    return await Forward(_api.BuscarAsync(folio, np, cliente, empresa, operador, inspector, fechaDesde, fechaHasta));
                 }
 
                 if (action == "certificadosLiberacion.pdf.descargar")

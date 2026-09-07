@@ -67,6 +67,7 @@
 
 .muestra-laboratorio-module .mlb-form-acciones {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     justify-content: flex-end;
     margin-top: 10px;

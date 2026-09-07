@@ -257,6 +257,24 @@ body {
     background: #EFF6FF;
 }
 
+.filters select {
+    height: 35px;
+    padding: 0 8px;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    background: white;
+    font-family: inherit;
+    font-size: 13px;
+    color: #0F172A;
+    transition: 0.2s;
+}
+
+.filters select:focus {
+    border-color: #3B82F6;
+    outline: none;
+    background: #EFF6FF;
+}
+
 /* BUTTONS */
 
 .btn-primary {
@@ -321,6 +339,14 @@ button:disabled {
 
 .table-container {
     white-space: nowrap;
+}
+
+/* Tablas dentro de cualquier modal: el min-width de .table (pensado para tablas de
+   página completa) no debe forzar overflow del modal contenedor. .table-container ya
+   tiene overflow-x:auto, así que si la tabla igual necesita scroll horizontal, queda
+   contenido ahí sin desbordar el modal. */
+[class$="-modal-overlay"] .table {
+    min-width: 0;
 }
 
 .table thead {

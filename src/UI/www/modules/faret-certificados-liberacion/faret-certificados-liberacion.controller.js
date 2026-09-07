@@ -5,6 +5,8 @@ if (!window.FaretCertificadosLiberacionController) {
             this.loading = false
             this.descargando = false
             this._clickHandler = null
+            this._operadoresVistos = new Set()
+            this._inspectoresVistos = new Set()
         }
 
         async init() {
@@ -47,6 +49,7 @@ if (!window.FaretCertificadosLiberacionController) {
             this.setVal("fclFiltroNp", "")
             this.setVal("fclFiltroCliente", "")
             this.setVal("fclFiltroOperador", "")
+            this.setVal("fclFiltroInspector", "")
             this.setVal("fclFiltroEmpresa", "")
             this.setVal("fclFiltroFechaDesde", "")
             this.setVal("fclFiltroFechaHasta", "")
@@ -65,6 +68,7 @@ if (!window.FaretCertificadosLiberacionController) {
                     np: this.getVal("fclFiltroNp"),
                     cliente: this.getVal("fclFiltroCliente"),
                     operador: this.getVal("fclFiltroOperador"),
+                    inspector: this.getVal("fclFiltroInspector"),
                     empresa: this.getVal("fclFiltroEmpresa"),
                     fechaDesde: this.getVal("fclFiltroFechaDesde"),
                     fechaHasta: this.getVal("fclFiltroFechaHasta")
@@ -82,6 +86,7 @@ if (!window.FaretCertificadosLiberacionController) {
                 }
 
                 this.items = res.data || []
+                this.actualizarFiltrosSelect()
                 this.renderTitulo(hayFiltros)
                 this.renderTabla()
             } catch (err) {
@@ -117,6 +122,28 @@ if (!window.FaretCertificadosLiberacionController) {
                 btn.disabled = false
                 this.descargando = false
             }
+        }
+
+        actualizarFiltrosSelect() {
+            this.items.forEach((item) => {
+                if (item.operador) this._operadoresVistos.add(item.operador)
+                if (item.inspector) this._inspectoresVistos.add(item.inspector)
+            })
+
+            this.poblarSelect("fclFiltroOperador", this._operadoresVistos)
+            this.poblarSelect("fclFiltroInspector", this._inspectoresVistos)
+        }
+
+        poblarSelect(id, valores) {
+            const el = document.getElementById(id)
+            if (!el) return
+
+            const actual = el.value
+            const opciones = Array.from(valores).sort((a, b) => a.localeCompare(b))
+
+            el.innerHTML = `<option value="">Todos</option>` + opciones.map((v) => `<option value="${this.esc(v)}">${this.esc(v)}</option>`).join("")
+
+            if (actual && opciones.includes(actual)) el.value = actual
         }
 
         renderTitulo(hayFiltros) {
