@@ -482,8 +482,9 @@ window.TalleresExternosController = class {
             let mensaje = `Sincronización FPS: ${r.trabajosRevisados || 0} trabajo(s) revisado(s), ` +
                 `${r.liberacionesNuevas || 0} liberación(es) nueva(s) aplicada(s) a ${r.trabajosActualizados || 0} trabajo(s).`;
             if (errores.length) {
-                mensaje += ` ${errores.length} con error (ver consola).`;
+                mensaje += ` ${errores.length} con error.`;
                 console.warn("Errores de sincronización FPS:", errores);
+                this._mostrarErroresFps(btn, errores);
             }
             this._mostrarMensaje(mensaje);
 
@@ -494,6 +495,22 @@ window.TalleresExternosController = class {
             btn.disabled = false;
             btn.textContent = textoOriginal;
         }
+    }
+
+    // Antes estos errores solo quedaban en console.warn (nadie los veía en el uso real) — ahora
+    // se muestran en un popover, mismo mecanismo que _verHistorialFps, para que el usuario sepa
+    // de inmediato por qué un trabajo puntual no sincronizó (ítem/código inválido para FPS, NV
+    // sin datos todavía, etc.) sin tener que abrir la consola del navegador.
+    _mostrarErroresFps(trigger, errores) {
+        const html = `
+            <div style="padding:10px 12px; font-weight:600; border-bottom:1px solid #E2E8F0; color:#B91C1C;">
+                Trabajos con error al sincronizar (${errores.length})
+            </div>
+            <ul style="margin:0; padding:10px 12px 12px 28px;">
+                ${errores.map((e) => `<li style="margin-bottom:6px;">${this._esc(e)}</li>`).join("")}
+            </ul>
+        `;
+        window.TableUtils.abrirPopover(trigger, html);
     }
 
     async _verHistorialFps(trigger, id) {
