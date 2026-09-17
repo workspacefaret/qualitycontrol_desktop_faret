@@ -1972,6 +1972,9 @@ namespace QualityControlCenter.Modules.Faret
             TryGetBool(data, "cantidadFaltanteAjusteManual", out var ajusteManual);
             TryGetDecimal(data, "cantidadFaltanteManual", out var cantidadFaltanteManual);
             TryGetString(data, "cantidadFaltanteJustificacion", out var justificacion);
+            // null conserva el precio al actualizar desde clientes anteriores; "" lo limpia.
+            TryGetString(data, "precioCotizacion", out var precioCotizacion);
+            TryGetString(data, "precioTaller", out var precioTaller);
             TryGetString(data, "observaciones", out var observaciones);
 
             request = new
@@ -1996,6 +1999,8 @@ namespace QualityControlCenter.Modules.Faret
                 cantidadFaltanteAjusteManual = ajusteManual,
                 cantidadFaltanteManual,
                 cantidadFaltanteJustificacion = justificacion,
+                precioCotizacion,
+                precioTaller,
                 observaciones,
                 version,
             };

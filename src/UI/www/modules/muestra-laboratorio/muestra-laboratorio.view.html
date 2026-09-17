@@ -7,6 +7,7 @@
     </div>
     <div class="module-actions">
       <button class="btn-secondary" id="mlbBtnEspecificaciones">Especificaciones</button>
+      <button class="btn-secondary" id="mlbBtnMetodos">Métodos de ensayo</button>
       <button class="btn-primary" id="mlbBtnNuevaMuestra">+ Nueva Muestra</button>
     </div>
   </div>
@@ -61,15 +62,65 @@
         <select id="mlbFiltroEstado">
           <option value="">Todos</option>
           <option value="Pendiente">Pendiente</option>
-          <option value="En analisis">En análisis</option>
-          <option value="Finalizada">Finalizada</option>
+          <option value="En analisis">En ensayo</option>
+          <option value="Finalizada">Finalizado</option>
+          <option value="Anulado">Anulado</option>
         </select>
       </div>
       <div class="form-group">
         <label for="mlbFiltroNp">NP</label>
         <input type="text" id="mlbFiltroNp" placeholder="Ej: 22443">
       </div>
+      <div class="form-group">
+        <label for="mlbFiltroFechaDesde">Fecha desde</label>
+        <input type="date" id="mlbFiltroFechaDesde">
+      </div>
+      <div class="form-group">
+        <label for="mlbFiltroFechaHasta">Fecha hasta</label>
+        <input type="date" id="mlbFiltroFechaHasta">
+      </div>
+      <div class="form-group">
+        <label for="mlbFiltroCliente">Cliente</label>
+        <input type="text" id="mlbFiltroCliente">
+      </div>
+      <div class="form-group">
+        <label for="mlbFiltroCodigo">Código</label>
+        <input type="text" id="mlbFiltroCodigo">
+      </div>
+      <div class="form-group">
+        <label for="mlbFiltroDescripcion">Descripción</label>
+        <input type="text" id="mlbFiltroDescripcion">
+      </div>
+      <div class="form-group">
+        <label for="mlbFiltroOrigen">Etapa</label>
+        <select id="mlbFiltroOrigen">
+          <option value="">Todas</option>
+          <option value="ControlRecepcion">Control de recepción</option>
+          <option value="Corrugado">Corrugado</option>
+          <option value="Monotapa">Monotapa</option>
+          <option value="Emplacado">Emplacado</option>
+          <option value="Troquelado">Troquelado</option>
+          <option value="Pegado">Pegado</option>
+          <option value="ProductoTerminado">Producto terminado</option>
+          <option value="MuestraExterna">Muestra externa</option>
+          <option value="Pruebas">Pruebas</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="mlbFiltroMaquina">Máquina</label>
+        <select id="mlbFiltroMaquina"><option value="">Todas</option></select>
+      </div>
+      <div class="form-group">
+        <label for="mlbFiltroAnalista">Analista</label>
+        <input type="text" id="mlbFiltroAnalista">
+      </div>
+      <div class="form-group">
+        <label for="mlbFiltroBobina">N.º de bobina</label>
+        <input type="text" id="mlbFiltroBobina">
+      </div>
       <button class="btn-secondary" id="mlbBtnFiltrar">Filtrar</button>
+      <button class="btn-secondary" id="mlbBtnLimpiarFiltros">Limpiar filtros</button>
     </div>
   </div>
 
@@ -108,12 +159,14 @@
           <select id="mlbNmOrigen">
             <option value="ControlRecepcion">Control de recepción</option>
             <option value="Corrugado">Corrugado</option>
+            <option value="Monotapa">Monotapa</option>
             <option value="Emplacado">Emplacado</option>
             <option value="Troquelado">Troquelado</option>
             <option value="Pegado">Pegado</option>
             <option value="ProductoTerminado">Producto terminado</option>
             <option value="MuestraExterna">Muestra externa</option>
             <option value="Pruebas">Pruebas</option>
+            <option value="Otro">Otro</option>
           </select>
         </div>
         <div class="mlb-form-campo">
@@ -132,7 +185,33 @@
         </div>
       </div>
       <div class="mlb-form-row">
-        <div class="mlb-form-campo"><label>NP</label><input type="text" id="mlbNmNp"></div>
+        <div class="mlb-form-campo">
+          <label>NP</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="mlbNmNp" style="flex:1;">
+            <button type="button" class="btn-secondary" id="mlbNmBtnConsultarNp">Consultar NP</button>
+          </div>
+        </div>
+        <div class="mlb-form-campo" id="mlbNmProcesoWrap" style="display:none;">
+          <label>Proceso (FPS)</label>
+          <select id="mlbNmProceso"></select>
+        </div>
+        <div class="mlb-form-campo" style="align-self:flex-end;">
+          <button type="button" class="btn-secondary" id="mlbNmBtnConsultarProduccion" disabled>Consultar producción</button>
+        </div>
+      </div>
+      <div class="mlb-form-row" id="mlbNmRegistroWrap" style="display:none;">
+        <div class="mlb-form-campo mlb-form-campo-full">
+          <label>Registro de producción (FPS)</label>
+          <select id="mlbNmRegistroProduccion"></select>
+        </div>
+      </div>
+      <div class="mlb-form-row" id="mlbNmFpsInfo" style="display:none;">
+        <div class="mlb-form-campo mlb-form-campo-full">
+          <small>Operador (FPS): <b id="mlbNmOperadorTexto"></b> &nbsp;|&nbsp; Fecha producción: <b id="mlbNmFechaProduccionTexto"></b></small>
+        </div>
+      </div>
+      <div class="mlb-form-row">
         <div class="mlb-form-campo"><label>Cliente</label><input type="text" id="mlbNmCliente"></div>
         <div class="mlb-form-campo"><label>Código producto</label><input type="text" id="mlbNmCodigo"></div>
       </div>
@@ -140,11 +219,75 @@
         <label>Descripción</label><input type="text" id="mlbNmDescripcion">
       </div>
       <div class="mlb-form-row">
-        <div class="mlb-form-campo"><label>Máquina</label><input type="text" id="mlbNmMaquina"></div>
-        <div class="mlb-form-campo"><label>Turno</label><input type="text" id="mlbNmTurno"></div>
-        <div class="mlb-form-campo"><label>Lote</label><input type="text" id="mlbNmLote"></div>
+        <div class="mlb-form-campo">
+          <label>Máquina</label>
+          <select id="mlbNmMaquina"><option value="">-- Seleccionar --</option></select>
+        </div>
+        <div class="mlb-form-campo">
+          <label>Tipo de onda</label>
+          <select id="mlbNmTipoOnda"><option value="">-- Seleccionar --</option></select>
+        </div>
+        <div class="mlb-form-campo"><label>Turno</label><input type="text" id="mlbNmTurno" placeholder="A / B / C"></div>
+        <div class="mlb-form-campo"><label>N.º de registro de producción</label><input type="text" id="mlbNmLote" placeholder="Manual, si no usaste Consultar producción"></div>
         <div class="mlb-form-campo"><label>Proveedor</label><input type="text" id="mlbNmProveedor"></div>
       </div>
+      <!-- Punto 24 REG-LAB-04: solo relevante cuando Origen="Pruebas" (Prueba solicitada) -->
+      <div id="mlbNmPruebaSolicitadaBloque" style="display:none;">
+        <div class="module-title" style="font-size:13px; margin-top:10px;">Prueba solicitada</div>
+        <div class="mlb-form-row">
+          <div class="mlb-form-campo"><label>Solicitante</label><input type="text" id="mlbNmSolicitante"></div>
+          <div class="mlb-form-campo"><label>Etapa de origen</label>
+            <select id="mlbNmEtapaOrigen">
+              <option value="">-- Seleccionar --</option>
+              <option value="ControlRecepcion">Control de recepción</option>
+              <option value="Corrugado">Corrugado</option>
+              <option value="Monotapa">Monotapa</option>
+              <option value="Emplacado">Emplacado</option>
+              <option value="Troquelado">Troquelado</option>
+              <option value="Pegado">Pegado</option>
+              <option value="ProductoTerminado">Producto terminado</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+        </div>
+        <div class="mlb-form-campo mlb-form-campo-full">
+          <label>Motivo de la prueba</label><input type="text" id="mlbNmMotivoSolicitud">
+        </div>
+        <div class="mlb-form-campo mlb-form-campo-full">
+          <label>Ensayos requeridos</label><input type="text" id="mlbNmEnsayosRequeridos" placeholder="Ej: Humedad, Gramaje, ECT">
+        </div>
+      </div>
+
+      <!-- Punto 19 REG-LAB-04: solo relevante cuando Origen="Monotapa" -->
+      <div id="mlbNmMonotapaBloque" style="display:none;">
+        <div class="module-title" style="font-size:13px; margin-top:10px;">Control de Monotapa</div>
+        <div class="mlb-form-row">
+          <div class="mlb-form-campo"><label>Peso onda extendida (g)</label><input type="number" step="0.0001" id="mlbNmPesoOndaExtendida"></div>
+          <div class="mlb-form-campo"><label>Peso recorte 10×10 cm (g)</label><input type="number" step="0.0001" id="mlbNmPesoRecorte10x10"></div>
+        </div>
+        <div class="mlb-form-row">
+          <div class="mlb-form-campo"><label>Longitud onda extendida (mm)</label><input type="number" step="0.0001" id="mlbNmLongitudOndaExtendida"></div>
+          <div class="mlb-form-campo"><label>Altura de onda (mm)</label><input type="number" step="0.0001" id="mlbNmAlturaOnda"></div>
+        </div>
+        <small class="mlb-bobina-info">El gramaje del recorte (peso × 100) se calcula automáticamente al guardar.</small>
+      </div>
+
+      <!-- Punto 20 REG-LAB-04: solo relevante cuando Origen="Emplacado" -->
+      <div id="mlbNmEmplacadoBloque" style="display:none;">
+        <div class="module-title" style="font-size:13px; margin-top:10px;">Control de Emplacado</div>
+        <div class="mlb-form-row">
+          <div class="mlb-form-campo">
+            <label>Monotapa relacionada (ID de muestra)</label>
+            <div style="display:flex; gap:6px;">
+              <input type="number" id="mlbNmMonotapaRelacionadaId" style="flex:1;">
+              <button type="button" class="btn-secondary" id="mlbNmBtnBuscarMonotapa">Buscar</button>
+            </div>
+            <small id="mlbNmMonotapaRelacionadaInfo" class="mlb-bobina-info"></small>
+          </div>
+          <div class="mlb-form-campo"><label>Pliego relacionado</label><input type="text" id="mlbNmPliegoRelacionado"></div>
+        </div>
+      </div>
+
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Observación</label><textarea id="mlbNmObservacion" rows="2"></textarea>
       </div>
@@ -160,7 +303,39 @@
     <div class="card mlb-modal mlb-modal-ancho">
       <div class="module-title" style="font-size:16px;">Muestra #<span id="mlbDetId"></span></div>
       <div class="mlb-detalle-resumen" id="mlbDetResumen"></div>
+      <div id="mlbDetAnuladoBanner" style="display:none; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; border-radius:6px; margin-top:8px;"></div>
+      <div id="mlbDetAuditoriaFecha" style="display:none;"></div>
+      <div id="mlbDetAccionesRegistro">
+        <button class="btn-secondary" id="mlbDetBtnEditarFecha" style="margin-top:8px;">Editar fecha efectiva</button>
+        <button class="btn-secondary" id="mlbDetBtnAnularRegistro" style="margin-top:8px;">Anular registro</button>
+        <button class="btn-secondary" id="mlbDetBtnVerRegistroProduccion" style="margin-top:8px; display:none;">Ver todos los controles de esta producción</button>
+        <button class="btn-secondary" id="mlbDetBtnMaterialesFps" style="margin-top:8px; display:none;">Ver materiales utilizados (FPS)</button>
+      </div>
+
+      <!-- Punto 5 REG-LAB-04: materiales/insumos de FPS usados en el proceso de esta producción -->
+      <div id="mlbDetMaterialesFps" style="display:none; margin-top:8px;"></div>
+
+      <!-- Punto 20 REG-LAB-04: solo cuando la muestra es Emplacado y tiene monotapa/pliego relacionados -->
+      <div id="mlbDetEmplacadoInfo" style="display:none; margin-top:8px;"></div>
+      <!-- Punto 19 REG-LAB-04: solo cuando la muestra es Monotapa -->
+      <div id="mlbDetMonotapaInfo" style="display:none; margin-top:8px;"></div>
+
+      <div id="mlbEditarFechaBloque" class="mlb-form-row" style="display:none; margin-top:10px;">
+        <div class="mlb-form-campo">
+          <label>Nueva fecha/hora efectiva</label>
+          <input type="datetime-local" id="mlbEditarFechaInput">
+        </div>
+        <div class="mlb-form-campo" style="align-self:flex-end;">
+          <button class="btn-secondary" id="mlbEditarFechaCancelar">Cancelar</button>
+          <button class="btn-primary" id="mlbEditarFechaGuardar">Guardar fecha</button>
+        </div>
+      </div>
+
       <div id="mlbDetNc"></div>
+
+      <div class="module-title" style="font-size:14px; margin-top:16px;">Adjuntos</div>
+      <div id="mlbDetAdjuntos"></div>
+      <button class="btn-secondary" id="mlbBtnAdjuntar" style="margin-top:6px;">+ Adjuntar archivo</button>
 
       <div class="module-title" style="font-size:14px; margin-top:16px;">Ensayos</div>
       <div class="table-container">
@@ -184,7 +359,7 @@
         </table>
       </div>
 
-      <div class="mlb-form-acciones" style="justify-content:flex-start; margin-top:14px;">
+      <div id="mlbDetAccionesEnsayo" class="mlb-form-acciones" style="justify-content:flex-start; margin-top:14px;">
         <button class="btn-secondary" id="mlbBtnNuevoHumedad">+ Humedad</button>
         <button class="btn-secondary" id="mlbBtnNuevoGramaje">+ Gramaje</button>
         <button class="btn-secondary" id="mlbBtnNuevoCobb">+ Cobb</button>
@@ -220,6 +395,16 @@
         </select>
       </div>
 
+      <!-- Punto 8/9 REG-LAB-04: "Origen de la muestra" del formulario físico (Hoja 1 - Sustratos) -->
+      <div class="mlb-form-campo">
+        <label>Origen de la muestra</label>
+        <select id="mlbHumOrigenMuestra">
+          <option value="">-- No aplica / no informado --</option>
+          <option value="Bobinas">Bobinas</option>
+          <option value="SeparacionPapeles">Separación de papeles o descape</option>
+        </select>
+      </div>
+
       <div id="mlbHumHigrometroCampos" class="mlb-form-row">
         <div class="mlb-form-campo"><label>Punto izquierdo (%)</label><input type="number" step="0.01" id="mlbHumIzq"></div>
         <div class="mlb-form-campo"><label>Punto centro (%)</label><input type="number" step="0.01" id="mlbHumCentro"></div>
@@ -245,8 +430,28 @@
         </div>
       </div>
 
+      <div class="mlb-form-row">
+        <div class="mlb-form-campo"><label>Bobina Onda</label>
+          <div style="display:flex; gap:6px;"><input type="text" id="mlbHumBobinaOnda" style="flex:1;"><button type="button" class="btn-secondary mlb-btn-resolver-bobina" data-input="mlbHumBobinaOnda" data-info="mlbHumBobinaOndaInfo">Resolver</button></div>
+          <small id="mlbHumBobinaOndaInfo" class="mlb-bobina-info"></small>
+        </div>
+        <div class="mlb-form-campo"><label>Bobina Liner</label>
+          <div style="display:flex; gap:6px;"><input type="text" id="mlbHumBobinaLiner" style="flex:1;"><button type="button" class="btn-secondary mlb-btn-resolver-bobina" data-input="mlbHumBobinaLiner" data-info="mlbHumBobinaLinerInfo">Resolver</button></div>
+          <small id="mlbHumBobinaLinerInfo" class="mlb-bobina-info"></small>
+        </div>
+        <div class="mlb-form-campo"><label>Bobina Cartulina</label>
+          <div style="display:flex; gap:6px;"><input type="text" id="mlbHumBobinaCartulina" style="flex:1;"><button type="button" class="btn-secondary mlb-btn-resolver-bobina" data-input="mlbHumBobinaCartulina" data-info="mlbHumBobinaCartulinaInfo">Resolver</button></div>
+          <small id="mlbHumBobinaCartulinaInfo" class="mlb-bobina-info"></small>
+        </div>
+      </div>
+
+      <!-- Punto 11 REG-LAB-04: muestreo de 3+ bobinas del mismo sustrato (opcional) -->
+      <div class="module-title" style="font-size:13px; margin-top:10px;">Muestreo de bobinas (opcional, Corrugado)</div>
+      <div id="mlbHumBobinasFilas"></div>
+      <button type="button" class="btn-secondary mlb-bob-agregar" data-container="mlbHumBobinasFilas" data-labels="Punto izquierdo,Centro,Punto derecho" style="margin-bottom:8px;">+ Agregar bobina</button>
+
       <div class="mlb-form-campo mlb-form-campo-full">
-        <label>Método (texto)</label><input type="text" id="mlbHumMetodo" placeholder="Ej: TAPPI T 412">
+        <label>Método (automático)</label><input type="text" id="mlbHumMetodo" disabled placeholder="Se completa solo al elegir el equipo">
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Observación</label><textarea id="mlbHumObservacion" rows="2"></textarea>
@@ -276,8 +481,16 @@
         <div class="mlb-form-campo">
           <label>Modalidad *</label>
           <select id="mlbGraModalidad">
-            <option value="ProbetaPeso">Peso de probeta 10x10 cm</option>
+            <option value="ProbetaPeso">Peso de probeta</option>
             <option value="Directo">Resultado directo en g/m²</option>
+          </select>
+        </div>
+        <div class="mlb-form-campo">
+          <label>Tamaño de probeta *</label>
+          <select id="mlbGraTamanoProbeta">
+            <option value="10x10">10 × 10 cm</option>
+            <option value="5x5">5 × 5 cm</option>
+            <option value="10x5">10 × 5 cm</option>
           </select>
         </div>
       </div>
@@ -286,8 +499,27 @@
         <div class="mlb-form-campo"><label>Muestra 2</label><input type="number" step="0.0001" id="mlbGra2"></div>
         <div class="mlb-form-campo"><label>Muestra 3</label><input type="number" step="0.0001" id="mlbGra3"></div>
       </div>
+      <div class="mlb-form-row">
+        <div class="mlb-form-campo"><label>Bobina Onda</label>
+          <div style="display:flex; gap:6px;"><input type="text" id="mlbGraBobinaOnda" style="flex:1;"><button type="button" class="btn-secondary mlb-btn-resolver-bobina" data-input="mlbGraBobinaOnda" data-info="mlbGraBobinaOndaInfo">Resolver</button></div>
+          <small id="mlbGraBobinaOndaInfo" class="mlb-bobina-info"></small>
+        </div>
+        <div class="mlb-form-campo"><label>Bobina Liner</label>
+          <div style="display:flex; gap:6px;"><input type="text" id="mlbGraBobinaLiner" style="flex:1;"><button type="button" class="btn-secondary mlb-btn-resolver-bobina" data-input="mlbGraBobinaLiner" data-info="mlbGraBobinaLinerInfo">Resolver</button></div>
+          <small id="mlbGraBobinaLinerInfo" class="mlb-bobina-info"></small>
+        </div>
+        <div class="mlb-form-campo"><label>Bobina Cartulina</label>
+          <div style="display:flex; gap:6px;"><input type="text" id="mlbGraBobinaCartulina" style="flex:1;"><button type="button" class="btn-secondary mlb-btn-resolver-bobina" data-input="mlbGraBobinaCartulina" data-info="mlbGraBobinaCartulinaInfo">Resolver</button></div>
+          <small id="mlbGraBobinaCartulinaInfo" class="mlb-bobina-info"></small>
+        </div>
+      </div>
+
+      <div class="module-title" style="font-size:13px; margin-top:10px;">Muestreo de bobinas (opcional, Corrugado)</div>
+      <div id="mlbGraBobinasFilas"></div>
+      <button type="button" class="btn-secondary mlb-bob-agregar" data-container="mlbGraBobinasFilas" data-labels="Muestra 1,Muestra 2,Muestra 3" style="margin-bottom:8px;">+ Agregar bobina</button>
+
       <div class="mlb-form-campo mlb-form-campo-full">
-        <label>Método (texto)</label><input type="text" id="mlbGraMetodo" placeholder="Ej: TAPPI T 410">
+        <label>Método (automático)</label><input type="text" id="mlbGraMetodo" disabled>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Observación</label><textarea id="mlbGraObservacion" rows="2"></textarea>
@@ -336,7 +568,7 @@
       </div>
 
       <div class="mlb-form-campo mlb-form-campo-full">
-        <label>Método (texto)</label><input type="text" id="mlbCobbMetodo" placeholder="Ej: TAPPI T 441">
+        <label>Método (automático)</label><input type="text" id="mlbCobbMetodo" disabled>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Observación</label><textarea id="mlbCobbObservacion" rows="2"></textarea>
@@ -364,8 +596,27 @@
         <div class="mlb-form-campo"><label>Medición 2 (mm)</label><input type="number" step="0.0001" id="mlbEsp2"></div>
         <div class="mlb-form-campo"><label>Medición 3 (mm)</label><input type="number" step="0.0001" id="mlbEsp3"></div>
       </div>
+      <div class="mlb-form-row">
+        <div class="mlb-form-campo"><label>Bobina Onda</label>
+          <div style="display:flex; gap:6px;"><input type="text" id="mlbEspBobinaOnda" style="flex:1;"><button type="button" class="btn-secondary mlb-btn-resolver-bobina" data-input="mlbEspBobinaOnda" data-info="mlbEspBobinaOndaInfo">Resolver</button></div>
+          <small id="mlbEspBobinaOndaInfo" class="mlb-bobina-info"></small>
+        </div>
+        <div class="mlb-form-campo"><label>Bobina Liner</label>
+          <div style="display:flex; gap:6px;"><input type="text" id="mlbEspBobinaLiner" style="flex:1;"><button type="button" class="btn-secondary mlb-btn-resolver-bobina" data-input="mlbEspBobinaLiner" data-info="mlbEspBobinaLinerInfo">Resolver</button></div>
+          <small id="mlbEspBobinaLinerInfo" class="mlb-bobina-info"></small>
+        </div>
+        <div class="mlb-form-campo"><label>Bobina Cartulina</label>
+          <div style="display:flex; gap:6px;"><input type="text" id="mlbEspBobinaCartulina" style="flex:1;"><button type="button" class="btn-secondary mlb-btn-resolver-bobina" data-input="mlbEspBobinaCartulina" data-info="mlbEspBobinaCartulinaInfo">Resolver</button></div>
+          <small id="mlbEspBobinaCartulinaInfo" class="mlb-bobina-info"></small>
+        </div>
+      </div>
+
+      <div class="module-title" style="font-size:13px; margin-top:10px;">Muestreo de bobinas (opcional, Corrugado)</div>
+      <div id="mlbEspBobinasFilas"></div>
+      <button type="button" class="btn-secondary mlb-bob-agregar" data-container="mlbEspBobinasFilas" data-labels="Punto izquierdo,Centro,Punto derecho" style="margin-bottom:8px;">+ Agregar bobina</button>
+
       <div class="mlb-form-campo mlb-form-campo-full">
-        <label>Método (texto)</label><input type="text" id="mlbEspMetodo" placeholder="Ej: TAPPI T 411">
+        <label>Método (automático)</label><input type="text" id="mlbEspMetodo" disabled>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Observación</label><textarea id="mlbEspObservacion" rows="2"></textarea>
@@ -404,7 +655,7 @@
         <div class="mlb-form-campo"><label>Unidad del Strength (si aplica)</label><input type="text" id="mlbRctStrengthUnidad" placeholder="Ej: lbf/in"></div>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
-        <label>Método (texto)</label><input type="text" id="mlbRctMetodo" placeholder="Ej: TAPPI T 818">
+        <label>Método (automático)</label><input type="text" id="mlbRctMetodo" disabled>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Observación</label><textarea id="mlbRctObservacion" rows="2"></textarea>
@@ -436,7 +687,7 @@
         <div class="mlb-form-campo"><label>Unidad del Strength (si aplica)</label><input type="text" id="mlbFctStrengthUnidad" placeholder="Ej: lbf/in"></div>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
-        <label>Método (texto)</label><input type="text" id="mlbFctMetodo" placeholder="Ej: TAPPI T 825">
+        <label>Método (automático)</label><input type="text" id="mlbFctMetodo" disabled>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Observación</label><textarea id="mlbFctObservacion" rows="2"></textarea>
@@ -461,7 +712,7 @@
         <div class="mlb-form-campo"><label>P5 - Force (lbf)</label><input type="number" step="0.0001" id="mlbEct5"></div>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
-        <label>Método (texto)</label><input type="text" id="mlbEctMetodo" placeholder="Ej: TAPPI T 811 / T 839">
+        <label>Método (automático)</label><input type="text" id="mlbEctMetodo" disabled>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Observación</label><textarea id="mlbEctObservacion" rows="2"></textarea>
@@ -495,7 +746,7 @@
       <div id="mlbBctMedCajasBloque"></div>
 
       <div class="mlb-form-campo mlb-form-campo-full">
-        <label>Método (texto)</label><input type="text" id="mlbBctMedMetodo" placeholder="Ej: TAPPI T 804">
+        <label>Método (automático)</label><input type="text" id="mlbBctMedMetodo" disabled>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Observación</label><textarea id="mlbBctMedObservacion" rows="2"></textarea>
@@ -717,6 +968,103 @@
 
       <div class="mlb-form-acciones">
         <button class="btn-secondary" id="mlbEspecCerrar">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Métodos de ensayo (Punto 32 REG-LAB-04) -->
+  <div id="mlbModalMetodos" class="mlb-modal-overlay" style="display:none;">
+    <div class="card mlb-modal mlb-modal-ancho">
+      <div class="module-title" style="font-size:16px;">Métodos de ensayo</div>
+      <div class="subtitle">El analista ya no escribe el método a mano — se aplica automáticamente el vigente de acá al guardar cada ensayo. Cambiar un método acá no altera los ensayos ya guardados (quedan con el método/versión que se usó en su momento).</div>
+
+      <div class="table-container">
+        <table class="table" id="mlbMetodoTabla">
+          <thead>
+            <tr><th>Ensayo</th><th>Variante</th><th>Nombre</th><th>Código</th><th>Versión</th><th>Unidad</th><th>Activo</th><th></th></tr>
+          </thead>
+          <tbody id="mlbMetodoBody">
+            <tr><td colspan="8" style="text-align:center;">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="module-title" style="font-size:14px; margin-top:14px;" id="mlbMetodoFormTitulo">Nuevo método</div>
+      <input type="hidden" id="mlbMetodoId">
+      <div class="mlb-form-row">
+        <div class="mlb-form-campo">
+          <label>Tipo de ensayo *</label>
+          <select id="mlbMetodoTipoEnsayo">
+            <option value="HUMEDAD">Humedad</option>
+            <option value="GRAMAJE">Gramaje</option>
+            <option value="ESPESOR">Espesor</option>
+            <option value="COBB">Cobb</option>
+            <option value="RCT">RCT</option>
+            <option value="FCT">FCT</option>
+            <option value="ECT">ECT</option>
+            <option value="BCT_MEDIDO">BCT medido</option>
+            <option value="BCT_TEORICO">BCT teórico (McKee)</option>
+          </select>
+        </div>
+        <div class="mlb-form-campo">
+          <label>Variante (solo Humedad)</label>
+          <select id="mlbMetodoVariante">
+            <option value="">(no aplica)</option>
+            <option value="Horno">Horno</option>
+            <option value="Higrometro">Higrómetro</option>
+            <option value="Termobalanza">Termobalanza</option>
+          </select>
+        </div>
+      </div>
+      <div class="mlb-form-campo mlb-form-campo-full">
+        <label>Nombre del método *</label><input type="text" id="mlbMetodoNombre" placeholder="Ej: TAPPI T 412">
+      </div>
+      <div class="mlb-form-row">
+        <div class="mlb-form-campo"><label>Código</label><input type="text" id="mlbMetodoCodigo"></div>
+        <div class="mlb-form-campo"><label>Versión</label><input type="text" id="mlbMetodoVersion"></div>
+        <div class="mlb-form-campo"><label>Unidad</label><input type="text" id="mlbMetodoUnidad"></div>
+      </div>
+      <div class="mlb-form-acciones" style="justify-content:flex-start;">
+        <button class="btn-secondary" id="mlbMetodoLimpiar">Limpiar formulario</button>
+        <button class="btn-primary" id="mlbMetodoGuardar">Guardar método</button>
+      </div>
+
+      <div class="mlb-form-acciones">
+        <button class="btn-secondary" id="mlbMetodoCerrar">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Registro de producción agrupado (Puntos 1/8/9/10/38 REG-LAB-04) -->
+  <div id="mlbModalRegistroProduccion" class="mlb-modal-overlay" style="display:none;">
+    <div class="card mlb-modal mlb-modal-ancho">
+      <div class="module-title" style="font-size:16px;">Controles de esta producción</div>
+      <div class="subtitle" id="mlbRegProdSubtitulo"></div>
+      <div class="table-container">
+        <table class="table" id="mlbRegProdTabla">
+          <thead>
+            <tr><th>Etapa</th><th>Tipo</th><th>Fecha</th><th>Máquina</th><th>Turno</th><th>Estado</th><th>Evaluación</th><th>Ensayos</th><th></th></tr>
+          </thead>
+          <tbody id="mlbRegProdBody">
+            <tr><td colspan="9" style="text-align:center;">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="mlb-form-acciones">
+        <button class="btn-secondary" id="mlbRegProdCerrar">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="mlbAdjuntoInput" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" style="display:none;">
+
+  <!-- MODAL: Ver Adjunto -->
+  <div id="mlbModalAdjunto" class="mlb-modal-overlay" style="display:none;">
+    <div class="card mlb-modal">
+      <div class="module-title" id="mlbAdjuntoTitulo" style="font-size:16px;">Adjunto</div>
+      <div id="mlbAdjuntoContenido" style="max-height:65vh; overflow:auto; text-align:center; margin-top:10px;"></div>
+      <div class="mlb-form-acciones">
+        <button class="btn-secondary" id="mlbAdjuntoCerrar">Cerrar</button>
       </div>
     </div>
   </div>

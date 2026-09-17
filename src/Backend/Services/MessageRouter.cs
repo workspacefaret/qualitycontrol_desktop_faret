@@ -42,6 +42,7 @@ namespace QualityControlCenter.Services
         private readonly FpsMaterialesApiService _fpsMateriales;
         private readonly PlanificacionApiClient _planificacionClient;
         private readonly SapRecepcionApiClient _sapRecepcionClient;
+        private readonly FpsRegistroProduccionApiService _fpsRegistroProduccion;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
@@ -59,7 +60,8 @@ namespace QualityControlCenter.Services
             FpsLiberacionesApiService fpsLiberaciones,
             FpsMaterialesApiService fpsMateriales,
             PlanificacionApiClient planificacionClient,
-            SapRecepcionApiClient sapRecepcionClient
+            SapRecepcionApiClient sapRecepcionClient,
+            FpsRegistroProduccionApiService fpsRegistroProduccion
         )
         {
             _db = db;
@@ -73,6 +75,7 @@ namespace QualityControlCenter.Services
             _fpsMateriales = fpsMateriales;
             _planificacionClient = planificacionClient;
             _sapRecepcionClient = sapRecepcionClient;
+            _fpsRegistroProduccion = fpsRegistroProduccion;
         }
 
         public async Task<string> Handle(string payloadJson)
@@ -176,7 +179,14 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("muestraLab"))
                 {
-                    var handler = new MuestraLaboratorioHandler(_innpackClient, _session);
+                    var handler = new MuestraLaboratorioHandler(
+                        _innpackClient,
+                        _session,
+                        _planificacionClient,
+                        _fpsRegistroProduccion,
+                        _sapRecepcionClient,
+                        _fpsMateriales
+                    );
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("recepcion"))

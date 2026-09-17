@@ -69,6 +69,25 @@ namespace QualityControlCenter.Modules.ProductoTerminado
                     return await Forward(_api.EliminarAsync(id, empresa));
                 }
 
+                // Punto 7 del REG-LAB-04: solo corrige fecha/hora de registro con auditoría — el
+                // resto de la inspección sigue siendo exclusivo de la app móvil/API que la crea.
+                if (action == "productoTerminado.actualizarFecha")
+                {
+                    var id = GetInt(jsonDataRaiz, "id") ?? 0;
+                    if (id <= 0)
+                        return Error("Falta el id de la inspección");
+
+                    var request = new
+                    {
+                        Empresa = empresa,
+                        FechaRegistro = GetString(jsonDataRaiz, "fechaRegistro"),
+                        HoraRegistro = GetString(jsonDataRaiz, "horaRegistro"),
+                        UsuarioNombre = GetString(jsonDataRaiz, "usuarioNombre"),
+                    };
+
+                    return await Forward(_api.ActualizarFechaAsync(id, request));
+                }
+
                 return Error($"Acción productoTerminado no reconocida: {action}");
             }
             catch (Exception ex)

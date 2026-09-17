@@ -111,3 +111,4 @@ updates/
 config.json
 *.env
 .env
+.mcp.json

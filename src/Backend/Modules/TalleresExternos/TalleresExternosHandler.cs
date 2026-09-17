@@ -138,6 +138,9 @@ namespace QualityControlCenter.Modules.TalleresExternos
                 CantidadFaltanteAjusteManual = GetBool(data, "cantidadFaltanteAjusteManual"),
                 CantidadFaltanteManual = GetDecimal(data, "cantidadFaltanteManual"),
                 CantidadFaltanteJustificacion = GetString(data, "cantidadFaltanteJustificacion"),
+                // null conserva el precio al actualizar desde clientes anteriores; "" lo limpia.
+                PrecioCotizacion = GetString(data, "precioCotizacion"),
+                PrecioTaller = GetString(data, "precioTaller"),
                 Observaciones = GetString(data, "observaciones"),
                 UsuarioId = usuarioId,
                 Version = version ?? 0,

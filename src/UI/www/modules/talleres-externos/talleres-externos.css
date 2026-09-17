@@ -229,6 +229,16 @@
     padding: 16px;
 }
 
+.talleres-externos-module .te-precio-celda {
+    min-width: 180px;
+    max-width: 260px;
+    padding-left: 16px;
+    padding-right: 16px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+
 .talleres-externos-module .te-obs-celda {
     max-width: 220px;
     overflow: hidden;

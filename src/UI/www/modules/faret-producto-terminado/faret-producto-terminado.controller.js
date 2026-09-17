@@ -113,6 +113,19 @@ if (!window.FaretProductoTerminadoController) {
           this.cerrarImagen()
           return
         }
+
+        if (e.target.id === "btnEditarFechaFpt") {
+          this._abrirEditarFechaFpt()
+          return
+        }
+        if (e.target.id === "btnCancelarFechaFpt") {
+          this._cerrarEditarFechaFpt()
+          return
+        }
+        if (e.target.id === "btnGuardarFechaFpt") {
+          this._guardarFechaFpt()
+          return
+        }
       }
 
       document.addEventListener("click", this._clickHandler)
@@ -482,6 +495,7 @@ if (!window.FaretProductoTerminadoController) {
 
     renderDetalleModal(d) {
       this.cerrarDetalle()
+      this._detalleActual = d
 
       const modal = document.createElement("div")
       modal.id = "modalDetalleFaretProductoTerminado"
@@ -532,7 +546,11 @@ if (!window.FaretProductoTerminadoController) {
 
           <div style="font-weight:700; margin-bottom:8px;">Información del lote</div>
           <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px 20px; margin-bottom:16px; font-size:13px;">
-            <div><strong>Fecha/Hora:</strong> ${this.escape(d.fechaRegistro)} ${this.escape(d.horaRegistro)}</div>
+            <div>
+              <strong>Fecha/Hora:</strong> ${this.escape(d.fechaRegistro)} ${this.escape(d.horaRegistro)}
+              <button type="button" id="btnEditarFechaFpt" class="btn-secondary" style="margin-left:8px; padding:2px 8px;">Editar fecha</button>
+              ${d.fechaRegistroModificadaPor ? `<div style="color:#64748b; font-size:11px;">Modificada por ${this.escape(d.fechaRegistroModificadaPor)} el ${this.escape(d.fechaRegistroFechaModificacion)}</div>` : ""}
+            </div>
             <div><strong>Inspector:</strong> ${this.escape(d.inspector)}</div>
             <div><strong>NP:</strong> ${this.escape(d.np)}</div>
             <div><strong>Cliente:</strong> ${this.escape(d.cliente)}</div>
@@ -569,6 +587,14 @@ if (!window.FaretProductoTerminadoController) {
 
           <div style="font-weight:700; margin-bottom:8px;">Hallazgos</div>
           ${hallazgosHtml}
+
+          <div id="bloqueEditarFechaFpt" style="display:none; margin-top:16px; padding:12px; border:1px solid #e2e8f0; border-radius:8px;">
+            <label style="display:block; margin-bottom:6px;">Nueva fecha</label>
+            <input type="date" id="inputEditarFechaFpt" style="margin-right:8px;">
+            <input type="time" id="inputEditarHoraFpt" style="margin-right:12px;">
+            <button type="button" id="btnCancelarFechaFpt" class="btn-secondary">Cancelar</button>
+            <button type="button" id="btnGuardarFechaFpt" class="btn-primary">Guardar fecha</button>
+          </div>
         </div>
       `
 
@@ -578,6 +604,43 @@ if (!window.FaretProductoTerminadoController) {
     cerrarDetalle() {
       const modal = document.getElementById("modalDetalleFaretProductoTerminado")
       if (modal) modal.remove()
+    }
+
+    // Punto 7 del REG-LAB-04: solo corrige fecha_registro/hora_registro con auditoría — el resto
+    // de la inspección (mediciones, plan de muestreo, hallazgos) sigue siendo de solo lectura.
+    _abrirEditarFechaFpt() {
+      const d = this._detalleActual
+      if (!d) return
+      const [dia, mes, anio] = (d.fechaRegistro || "").split("-")
+      document.getElementById("inputEditarFechaFpt").value = anio ? `${anio}-${mes}-${dia}` : ""
+      document.getElementById("inputEditarHoraFpt").value = d.horaRegistro || ""
+      document.getElementById("bloqueEditarFechaFpt").style.display = "block"
+    }
+
+    _cerrarEditarFechaFpt() {
+      const bloque = document.getElementById("bloqueEditarFechaFpt")
+      if (bloque) bloque.style.display = "none"
+    }
+
+    async _guardarFechaFpt() {
+      const fechaRegistro = document.getElementById("inputEditarFechaFpt").value
+      const horaRegistro = document.getElementById("inputEditarHoraFpt").value
+      if (!fechaRegistro) return alert("Ingresa la nueva fecha")
+
+      const usuarioNombre = sessionStorage.getItem("faretNombreUsuario") || sessionStorage.getItem("nombreUsuario") || null
+
+      try {
+        const res = await window.PhotinoBridge.send({
+          action: "productoTerminado.actualizarFecha",
+          data: { id: this._detalleActual.id, empresa: "FARET", fechaRegistro, horaRegistro, usuarioNombre }
+        })
+        if (!res || res.ok === false) throw new Error(res?.error || "Error actualizando la fecha")
+
+        await this.abrirDetalle(this._detalleActual.id)
+        await this.cargarDatos()
+      } catch (err) {
+        alert(err.message)
+      }
     }
 
     mostrarImagen(url) {

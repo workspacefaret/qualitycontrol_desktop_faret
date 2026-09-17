@@ -240,7 +240,7 @@ window.FaretTalleresExternosController = class {
         const tbody = document.getElementById("tet-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="17" class="faret-empty">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="19" class="faret-empty">Sin registros</td></tr>`;
             this._renderPaginacion(filtrados.length);
             return;
         }
@@ -266,6 +266,8 @@ window.FaretTalleresExternosController = class {
                 <td style="text-align:right;">${tetFormatNumero(it.cantidadARevisar)}</td>
                 <td style="text-align:right;">${tetFormatNumero(it.cantidadRevisadaEntregada)}</td>
                 <td style="text-align:right;">${tetFormatNumero(it.cantidadFaltante)}</td>
+                <td class="tet-precio-celda">${this._esc(it.precioCotizacion)}</td>
+                <td class="tet-precio-celda">${this._esc(it.precioTaller)}</td>
                 <td class="tet-obs-celda" title="${this._esc(it.observaciones)}">${this._esc(it.observaciones)}</td>
                 <td>
                     <button class="btn-secondary tet-editar-btn" data-id="${it.id}">Editar</button>
@@ -333,6 +335,8 @@ window.FaretTalleresExternosController = class {
         document.getElementById("tet-form-cant-revisar").value = "";
         document.getElementById("tet-form-cant-entregada").value = "";
         document.getElementById("tet-form-cant-faltante").value = "";
+        document.getElementById("tet-form-precio-cotizacion").value = "";
+        document.getElementById("tet-form-precio-taller").value = "";
         document.getElementById("tet-form-observaciones").value = "";
 
         document.getElementById("tet-form-modal").style.display = "flex";
@@ -362,6 +366,8 @@ window.FaretTalleresExternosController = class {
         document.getElementById("tet-form-cant-revisar").value = it.cantidadARevisar ?? "";
         document.getElementById("tet-form-cant-entregada").value = it.cantidadRevisadaEntregada ?? "";
         this._recalcularCantidadFaltante();
+        document.getElementById("tet-form-precio-cotizacion").value = it.precioCotizacion ?? "";
+        document.getElementById("tet-form-precio-taller").value = it.precioTaller ?? "";
         document.getElementById("tet-form-observaciones").value = it.observaciones || "";
 
         document.getElementById("tet-form-modal").style.display = "flex";
@@ -398,6 +404,14 @@ window.FaretTalleresExternosController = class {
             return;
         }
 
+        const precioCotizacion = val("tet-form-precio-cotizacion");
+        const precioTaller = val("tet-form-precio-taller");
+        if (precioCotizacion.length > 200 || precioTaller.length > 200) {
+            errorEl.textContent = "El precio no puede superar 200 caracteres.";
+            errorEl.style.display = "block";
+            return;
+        }
+
         const payload = {
             nv,
             producto,
@@ -418,6 +432,8 @@ window.FaretTalleresExternosController = class {
             // Cantidad faltante siempre auto-calculada por el backend (revisar - entregada); no se
             // expone el ajuste manual en este formulario simplificado.
             cantidadFaltanteAjusteManual: false,
+            precioCotizacion,
+            precioTaller,
             observaciones: val("tet-form-observaciones"),
         };
 
@@ -686,6 +702,8 @@ window.FaretTalleresExternosController = class {
                     <th>Cant. a revisar</th>
                     <th>Cant. revisada/entregada</th>
                     <th>Cant. faltante</th>
+                    <th>Precio Cotización</th>
+                    <th>Precio Taller</th>
                     <th>Observaciones</th>
                 </tr>
             </thead>
@@ -707,6 +725,8 @@ window.FaretTalleresExternosController = class {
                         <td>${tetFormatNumero(it.cantidadARevisar)}</td>
                         <td>${tetFormatNumero(it.cantidadRevisadaEntregada)}</td>
                         <td>${tetFormatNumero(it.cantidadFaltante)}</td>
+                        <td>${this._esc(it.precioCotizacion)}</td>
+                        <td>${this._esc(it.precioTaller)}</td>
                         <td>${this._esc(it.observaciones)}</td>
                     </tr>
                 `).join("")}

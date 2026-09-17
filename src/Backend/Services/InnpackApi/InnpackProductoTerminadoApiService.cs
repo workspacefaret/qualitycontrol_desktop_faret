@@ -34,6 +34,9 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
         public Task<(bool ok, string body)> EliminarAsync(int id, string empresa) =>
             _client.DeleteAsync($"api/producto-terminado/{id}?empresa={Uri.EscapeDataString(empresa)}");
 
+        public Task<(bool ok, string body)> ActualizarFechaAsync(int id, object request) =>
+            _client.PutJsonAsync($"api/producto-terminado/{id}/fecha", request);
+
         private static string BuildQuery(string empresa, FiltroQueryParts f)
         {
             var sb = new StringBuilder();

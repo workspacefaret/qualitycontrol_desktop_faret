@@ -65,6 +65,7 @@ namespace QualityControlCenter
                 var fpsApiClient = new FpsApiClient(fpsApiSettings);
                 var fpsLiberacionesApiService = new FpsLiberacionesApiService(fpsApiClient);
                 var fpsMaterialesApiService = new FpsMaterialesApiService(fpsApiClient);
+                var fpsRegistroProduccionApiService = new FpsRegistroProduccionApiService(fpsApiClient);
 
                 // =========================
                 // 🧭 API Planificación FARET (Trazabilidad INNPACK, ver contex.md)
@@ -92,7 +93,8 @@ namespace QualityControlCenter
                     fpsLiberacionesApiService,
                     fpsMaterialesApiService,
                     planificacionApiClient,
-                    sapRecepcionApiClient
+                    sapRecepcionApiClient,
+                    fpsRegistroProduccionApiService
                 );
 
                 // =========================

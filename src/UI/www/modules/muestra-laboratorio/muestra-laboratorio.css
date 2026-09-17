@@ -125,3 +125,15 @@
     overflow-y: auto;
     overflow-x: hidden;
 }
+
+/* Resultado de "Resolver bobina" (SAP) junto al campo de bobina — mismo criterio visual que el
+   resto de mensajes secundarios del módulo. */
+.muestra-laboratorio-module .mlb-bobina-info {
+    display: block;
+    margin-top: 4px;
+    color: #607d8b;
+}
+
+.muestra-laboratorio-module .mlb-bobina-info.mlb-bobina-info-error {
+    color: #c62828;
+}

@@ -155,12 +155,14 @@
                         <th>Cant. revisada/entregada</th>
                         <th>Cant. faltante</th>
                         <th>Liberaciones FPS</th>
+                        <th class="te-precio-celda">Precio Cotización</th>
+                        <th class="te-precio-celda">Precio Taller</th>
                         <th>Observaciones</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="te-tbody">
-                    <tr><td colspan="18" class="te-empty">Cargando...</td></tr>
+                    <tr><td colspan="20" class="te-empty">Cargando...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -268,6 +270,17 @@
                 <div class="te-form-campo">
                     <label for="te-form-cant-faltante">Cant. faltante</label>
                     <input type="text" id="te-form-cant-faltante" disabled placeholder="Se calcula automáticamente">
+                </div>
+            </div>
+
+            <div class="te-form-row">
+                <div class="te-form-campo">
+                    <label for="te-form-precio-cotizacion">Precio Cotización</label>
+                    <input type="text" id="te-form-precio-cotizacion" maxlength="200" placeholder="Ej: $150 por unidad, 120.000 + IVA">
+                </div>
+                <div class="te-form-campo">
+                    <label for="te-form-precio-taller">Precio Taller</label>
+                    <input type="text" id="te-form-precio-taller" maxlength="200" placeholder="Ej: $150 por unidad, 120.000 + IVA">
                 </div>
             </div>
 

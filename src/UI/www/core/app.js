@@ -220,6 +220,18 @@ console.log("🔥 APP INICIO");
             btn.style.display = empresaOk && esFaretAdminFull ? "" : "none";
         });
 
+        // 🔹 gating por rol (CONSULTA de FARET: solo Inicio y Talleres Externos)
+        const esFaretConsulta = faretRolActual === "CONSULTA";
+        if (esFaretConsulta) {
+            const modulosPermitidos = ["faret", "faret-talleres-externos"];
+            document.querySelectorAll('[data-module^="faret"]').forEach(btn => {
+                const empresaOk = btn.getAttribute("data-empresa") === empresa;
+                if (empresaOk && !modulosPermitidos.includes(btn.getAttribute("data-module"))) {
+                    btn.style.display = "none";
+                }
+            });
+        }
+
         // 🔹 título del header según empresa
         const headerTitle = document.querySelector(".header .title");
         if (headerTitle) {

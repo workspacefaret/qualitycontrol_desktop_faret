@@ -15,6 +15,8 @@ namespace QualityControlCenter.Backend.Services.SapRecepcionApi
         {
             _settings = settings;
             _http = new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
+            if (!string.IsNullOrEmpty(settings.ApiKey))
+                _http.DefaultRequestHeaders.Add("x-api-key", settings.ApiKey);
         }
 
         public bool IsConfigured => _settings.UseApi && !string.IsNullOrEmpty(_settings.BaseUrl);

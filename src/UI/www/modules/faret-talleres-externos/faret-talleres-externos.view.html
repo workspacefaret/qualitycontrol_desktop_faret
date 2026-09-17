@@ -153,12 +153,14 @@
                         <th>Cant. a revisar</th>
                         <th>Cant. revisada/entregada</th>
                         <th>Cant. faltante</th>
+                        <th class="tet-precio-celda">Precio Cotización</th>
+                        <th class="tet-precio-celda">Precio Taller</th>
                         <th>Observaciones</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="tet-tbody">
-                    <tr><td colspan="17" class="faret-empty">Cargando...</td></tr>
+                    <tr><td colspan="19" class="faret-empty">Cargando...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -265,6 +267,17 @@
                 <div class="fnc-form-campo">
                     <label for="tet-form-cant-faltante">Cant. faltante</label>
                     <input type="text" id="tet-form-cant-faltante" disabled placeholder="Se calcula automáticamente">
+                </div>
+            </div>
+
+            <div class="fnc-form-row">
+                <div class="fnc-form-campo">
+                    <label for="tet-form-precio-cotizacion">Precio Cotización</label>
+                    <input type="text" id="tet-form-precio-cotizacion" maxlength="200" placeholder="Ej: $150 por unidad, 120.000 + IVA">
+                </div>
+                <div class="fnc-form-campo">
+                    <label for="tet-form-precio-taller">Precio Taller</label>
+                    <input type="text" id="tet-form-precio-taller" maxlength="200" placeholder="Ej: $150 por unidad, 120.000 + IVA">
                 </div>
             </div>
 
