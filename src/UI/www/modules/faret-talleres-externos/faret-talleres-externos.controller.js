@@ -23,6 +23,56 @@ function tetNumeroOCero(v) {
     return Number.isNaN(numero) ? 0 : numero;
 }
 
+// "Precio Taller" es texto libre (ej: "$150 por unidad", "120.000 + IVA") — no un número limpio.
+// Extrae el primer número del texto con convención es-CL (punto=miles, coma=decimales) para poder
+// calcular "Total Taller"; si el texto no trae un número reconocible, retorna null (la columna
+// muestra "-" en vez de arriesgar un cálculo incorrecto).
+function tetParsePrecioNumero(texto) {
+    if (texto === null || texto === undefined) return null;
+    const match = String(texto).match(/[\d.,]+/);
+    if (!match) return null;
+
+    let token = match[0].replace(/^[.,]+|[.,]+$/g, "");
+    if (!token) return null;
+
+    if (token.includes(".") && token.includes(",")) {
+        token = token.replace(/\./g, "").replace(",", ".");
+    } else if (token.includes(".")) {
+        const grupos = token.split(".");
+        const esMiles = grupos.length > 1 && grupos.slice(1).every((g) => g.length === 3);
+        token = esMiles ? grupos.join("") : token;
+    } else if (token.includes(",")) {
+        token = token.replace(",", ".");
+    }
+
+    const numero = Number(token);
+    return Number.isNaN(numero) ? null : numero;
+}
+
+// Cant. revisada/entregada × Precio Taller (interpretado como precio por unidad). null si el
+// precio no se pudo interpretar como número. Esta es la columna "Precio Total Final Trabajo Realizado".
+function tetCalcularTotalTaller(it) {
+    const precio = tetParsePrecioNumero(it.precioTaller);
+    if (precio === null) return null;
+    return tetNumeroOCero(it.cantidadRevisadaEntregada) * precio;
+}
+
+// Precio Cotización × Cant. a revisar (cantidad programada) — columna "Precio Total Cotizado".
+// Distinto de tetCalcularTotalTaller: ese usa la cantidad realmente revisada/entregada.
+function tetCalcularTotalCotizado(it) {
+    const precio = tetParsePrecioNumero(it.precioCotizacion);
+    if (precio === null) return null;
+    return tetNumeroOCero(it.cantidadARevisar) * precio;
+}
+
+// Antepone "$" al texto libre de Precio Cotización/Precio Taller para que se lea como valor
+// monetario en la tabla, sin duplicar el símbolo si el usuario ya lo escribió.
+function tetFormatoMoneda(texto) {
+    const valor = (texto ?? "").toString().trim();
+    if (!valor) return "";
+    return valor.startsWith("$") ? valor : `$${valor}`;
+}
+
 function tetBadge(texto, claseColor) {
     if (!texto) return "";
     return `<span class="tet-badge ${claseColor}">${texto}</span>`;
@@ -240,7 +290,7 @@ window.FaretTalleresExternosController = class {
         const tbody = document.getElementById("tet-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="19" class="faret-empty">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="21" class="faret-empty">Sin registros</td></tr>`;
             this._renderPaginacion(filtrados.length);
             return;
         }
@@ -266,8 +316,16 @@ window.FaretTalleresExternosController = class {
                 <td style="text-align:right;">${tetFormatNumero(it.cantidadARevisar)}</td>
                 <td style="text-align:right;">${tetFormatNumero(it.cantidadRevisadaEntregada)}</td>
                 <td style="text-align:right;">${tetFormatNumero(it.cantidadFaltante)}</td>
-                <td class="tet-precio-celda">${this._esc(it.precioCotizacion)}</td>
-                <td class="tet-precio-celda">${this._esc(it.precioTaller)}</td>
+                <td class="tet-precio-celda">${this._esc(tetFormatoMoneda(it.precioCotizacion))}</td>
+                <td class="tet-precio-celda">${this._esc(tetFormatoMoneda(it.precioTaller))}</td>
+                <td class="tet-precio-celda">${(() => {
+                    const total = tetCalcularTotalCotizado(it);
+                    return total === null ? "-" : `$${tetFormatNumero(total)}`;
+                })()}</td>
+                <td class="tet-precio-celda">${(() => {
+                    const total = tetCalcularTotalTaller(it);
+                    return total === null ? "-" : `$${tetFormatNumero(total)}`;
+                })()}</td>
                 <td class="tet-obs-celda" title="${this._esc(it.observaciones)}">${this._esc(it.observaciones)}</td>
                 <td>
                     <button class="btn-secondary tet-editar-btn" data-id="${it.id}">Editar</button>
@@ -704,6 +762,8 @@ window.FaretTalleresExternosController = class {
                     <th>Cant. faltante</th>
                     <th>Precio Cotización</th>
                     <th>Precio Taller</th>
+                    <th>Precio Total Cotizado</th>
+                    <th>Precio Total Final Trabajo Realizado</th>
                     <th>Observaciones</th>
                 </tr>
             </thead>
@@ -727,6 +787,14 @@ window.FaretTalleresExternosController = class {
                         <td>${tetFormatNumero(it.cantidadFaltante)}</td>
                         <td>${this._esc(it.precioCotizacion)}</td>
                         <td>${this._esc(it.precioTaller)}</td>
+                        <td>${(() => {
+                            const total = tetCalcularTotalCotizado(it);
+                            return total === null ? "-" : tetFormatNumero(total);
+                        })()}</td>
+                        <td>${(() => {
+                            const total = tetCalcularTotalTaller(it);
+                            return total === null ? "-" : tetFormatNumero(total);
+                        })()}</td>
                         <td>${this._esc(it.observaciones)}</td>
                     </tr>
                 `).join("")}

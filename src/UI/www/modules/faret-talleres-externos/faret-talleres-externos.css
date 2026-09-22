@@ -220,6 +220,7 @@
     white-space: normal;
     overflow-wrap: anywhere;
     line-height: 1.5;
+    text-align: right;
 }
 
 .faret-talleres-externos-module .tet-obs-celda {

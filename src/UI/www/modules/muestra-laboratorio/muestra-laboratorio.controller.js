@@ -1486,7 +1486,9 @@ if (!window.MuestraLaboratorioController) {
 
       const ensayos = this._ensayosActuales || []
       const tablas = []
-      const porTipo = tipo => ensayos.filter(e => e.tipoEnsayo === tipo)
+      // Solo ensayos vigentes (Finalizado) — un ensayo Anulado (ej. una corrección histórica)
+      // no debe aparecer en el informe impreso junto al que lo reemplazó.
+      const porTipo = tipo => ensayos.filter(e => e.tipoEnsayo === tipo && e.estado === "Finalizado")
 
       // Hoja 1 del REG-LAB-04 (papel/sustrato): Control Recepción, Corrugado, Monotapa.
       // Hoja 2 (complejo): Emplacado, Troquelado, Pegado, Producto terminado.

@@ -11,9 +11,9 @@
     <RootNamespace>QualityControlCenter</RootNamespace>
 
     <!-- VERSIONADO -->
-    <Version>1.8.11</Version>
-    <AssemblyVersion>1.8.11</AssemblyVersion>
-    <FileVersion>1.8.11</FileVersion>
+    <Version>1.8.12</Version>
+    <AssemblyVersion>1.8.12</AssemblyVersion>
+    <FileVersion>1.8.12</FileVersion>
 
     <!-- ICONO -->
     <ApplicationIcon>logo2.ico</ApplicationIcon>
