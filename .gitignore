@@ -112,3 +112,5 @@ config.json
 *.env
 .env
 .mcp.json
+.codex
+config.toml

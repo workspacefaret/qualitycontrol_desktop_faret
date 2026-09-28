@@ -20,47 +20,62 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
         public Task<(bool ok, string body)> ListAsync(
             int page,
             int pageSize,
+            string? ambito,
+            string? empresa,
             string? cliente,
             string? tipoPnc,
             string? nivel,
             string? estadoGestion,
             string? area,
+            string? categoriaDefecto,
             string? fechaDesde,
             string? fechaHasta
         )
         {
-            var query = $"api/no-conformidades?page={page}&pageSize={pageSize}{FiltrosQuery(cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta)}";
+            var query = $"api/no-conformidades?page={page}&pageSize={pageSize}{FiltrosQuery(ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta)}";
             return _client.GetAsync(query);
         }
 
         public Task<(bool ok, string body)> ResumenAsync(
+            string? ambito,
+            string? empresa,
             string? cliente,
             string? tipoPnc,
             string? nivel,
             string? estadoGestion,
             string? area,
+            string? categoriaDefecto,
             string? fechaDesde,
             string? fechaHasta
         )
         {
             var query = "api/no-conformidades/resumen";
-            var filtros = FiltrosQuery(cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta);
+            var filtros = FiltrosQuery(ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta);
             if (!string.IsNullOrEmpty(filtros))
                 query += "?" + filtros.TrimStart('&');
             return _client.GetAsync(query);
         }
 
         private static string FiltrosQuery(
+            string? ambito,
+            string? empresa,
             string? cliente,
             string? tipoPnc,
             string? nivel,
             string? estadoGestion,
             string? area,
+            string? categoriaDefecto,
             string? fechaDesde,
             string? fechaHasta
         )
         {
             var q = "";
+            // ambito/empresa: sin ellos la API asume PNC (ambito PRODUCTO) — el módulo No
+            // Conformidades INNPACK no los envía y sigue igual; los usa el módulo NC Internas.
+            if (!string.IsNullOrWhiteSpace(ambito))
+                q += $"&ambito={System.Uri.EscapeDataString(ambito)}";
+            if (!string.IsNullOrWhiteSpace(empresa))
+                q += $"&empresa={System.Uri.EscapeDataString(empresa)}";
             if (!string.IsNullOrWhiteSpace(cliente))
                 q += $"&cliente={System.Uri.EscapeDataString(cliente)}";
             if (!string.IsNullOrWhiteSpace(tipoPnc))
@@ -71,6 +86,8 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
                 q += $"&estadoGestion={System.Uri.EscapeDataString(estadoGestion)}";
             if (!string.IsNullOrWhiteSpace(area))
                 q += $"&area={System.Uri.EscapeDataString(area)}";
+            if (!string.IsNullOrWhiteSpace(categoriaDefecto))
+                q += $"&categoriaDefecto={System.Uri.EscapeDataString(categoriaDefecto)}";
             if (!string.IsNullOrWhiteSpace(fechaDesde))
                 q += $"&fechaDesde={System.Uri.EscapeDataString(fechaDesde)}";
             if (!string.IsNullOrWhiteSpace(fechaHasta))
@@ -78,7 +95,14 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             return q;
         }
 
-        public Task<(bool ok, string body)> FiltrosOpcionesAsync() => _client.GetAsync("api/no-conformidades/filtros-opciones");
+        public Task<(bool ok, string body)> FiltrosOpcionesAsync(string? ambito, string? empresa)
+        {
+            var filtros = FiltrosQuery(ambito, empresa, null, null, null, null, null, null, null, null);
+            var query = "api/no-conformidades/filtros-opciones";
+            if (!string.IsNullOrEmpty(filtros))
+                query += "?" + filtros.TrimStart('&');
+            return _client.GetAsync(query);
+        }
 
         public Task<(bool ok, string body)> GetAsync(int id) => _client.GetAsync($"api/no-conformidades/{id}");
 

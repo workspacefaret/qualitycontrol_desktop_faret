@@ -1,0 +1,26 @@
+[mcp_servers.ia-codigo]
+command = "ssh"
+args = [
+    "-o",
+    "BatchMode=yes",
+    "diego@192.168.1.76",
+    "/srv/ia/servicios/indexador/run-mcp.sh codigo",
+]
+
+[mcp_servers.ia-ejecutar]
+command = "ssh"
+args = [
+    "-o",
+    "BatchMode=yes",
+    "diego@192.168.1.76",
+    "/srv/ia/servicios/indexador/run-mcp.sh ejecutar",
+]
+
+[mcp_servers.ia-sqlserver]
+command = "ssh"
+args = [
+    "-o",
+    "BatchMode=yes",
+    "diego@192.168.1.76",
+    "/srv/ia/servicios/indexador/run-mcp.sh sqlserver",
+]

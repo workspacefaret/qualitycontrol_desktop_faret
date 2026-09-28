@@ -40,7 +40,7 @@ namespace QualityControlCenter.Modules.NoConformidades
                 {
                     "noConformidades.list" => await HandleList(data),
                     "noConformidades.resumen" => await HandleResumen(data),
-                    "noConformidades.filtrosOpciones" => await HandleFiltrosOpciones(),
+                    "noConformidades.filtrosOpciones" => await HandleFiltrosOpciones(data),
                     "noConformidades.get" => await HandleGet(data),
                     "noConformidades.create" => await HandleCreate(data),
                     "noConformidades.update" => await HandleUpdate(data),
@@ -85,6 +85,13 @@ namespace QualityControlCenter.Modules.NoConformidades
                     "noConformidades.catalogos.impactos.list" => await HandleCatalogoList("impactos"),
                     "noConformidades.catalogos.impactos.crear" => await HandleCatalogoCrear("impactos", data),
                     "noConformidades.catalogos.impactos.desactivar" => await HandleCatalogoDesactivar("impactos", data),
+                    // NC Internas (pre-prensa): catálogos propios, separados de los de PNC.
+                    "noConformidades.catalogos.nciAreas.list" => await HandleCatalogoList("nciAreas"),
+                    "noConformidades.catalogos.nciAreas.crear" => await HandleCatalogoCrear("nciAreas", data),
+                    "noConformidades.catalogos.nciAreas.desactivar" => await HandleCatalogoDesactivar("nciAreas", data),
+                    "noConformidades.catalogos.nciTiposDesviacion.list" => await HandleCatalogoList("nciTiposDesviacion"),
+                    "noConformidades.catalogos.nciTiposDesviacion.crear" => await HandleCatalogoCrear("nciTiposDesviacion", data),
+                    "noConformidades.catalogos.nciTiposDesviacion.desactivar" => await HandleCatalogoDesactivar("nciTiposDesviacion", data),
                     _ => Error($"Acción no reconocida en NoConformidades: {action}"),
                 };
             }
@@ -137,18 +144,27 @@ namespace QualityControlCenter.Modules.NoConformidades
         {
             var page = TryGetInt(data, "page", out var p) && p > 0 ? p : 1;
             var pageSize = TryGetInt(data, "pageSize", out var ps) && ps > 0 ? ps : 50;
-            var (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta) = LeerFiltros(data);
+            var (ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta) = LeerFiltros(data);
 
-            return await Forward(_api.ListAsync(page, pageSize, cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta));
+            return await Forward(
+                _api.ListAsync(page, pageSize, ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta)
+            );
         }
 
         private async Task<string> HandleResumen(Dictionary<string, object> data)
         {
-            var (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta) = LeerFiltros(data);
-            return await Forward(_api.ResumenAsync(cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta));
+            var (ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta) = LeerFiltros(data);
+            return await Forward(
+                _api.ResumenAsync(ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta)
+            );
         }
 
-        private async Task<string> HandleFiltrosOpciones() => await Forward(_api.FiltrosOpcionesAsync());
+        private async Task<string> HandleFiltrosOpciones(Dictionary<string, object> data)
+        {
+            TryGetString(data, "ambito", out var ambito);
+            TryGetString(data, "empresa", out var empresa);
+            return await Forward(_api.FiltrosOpcionesAsync(ambito, empresa));
+        }
 
         private async Task<string> HandleGet(Dictionary<string, object> data)
         {
@@ -159,23 +175,29 @@ namespace QualityControlCenter.Modules.NoConformidades
         }
 
         private static (
+            string? Ambito,
+            string? Empresa,
             string? Cliente,
             string? TipoPnc,
             string? Nivel,
             string? EstadoGestion,
             string? Area,
+            string? CategoriaDefecto,
             string? FechaDesde,
             string? FechaHasta
         ) LeerFiltros(Dictionary<string, object> data)
         {
+            TryGetString(data, "ambito", out var ambito);
+            TryGetString(data, "empresa", out var empresa);
             TryGetString(data, "cliente", out var cliente);
             TryGetString(data, "tipoPnc", out var tipoPnc);
             TryGetString(data, "nivel", out var nivel);
             TryGetString(data, "estadoGestion", out var estadoGestion);
             TryGetString(data, "area", out var area);
+            TryGetString(data, "categoriaDefecto", out var categoriaDefecto);
             TryGetString(data, "fechaDesde", out var fechaDesde);
             TryGetString(data, "fechaHasta", out var fechaHasta);
-            return (cliente, tipoPnc, nivel, estadoGestion, area, fechaDesde, fechaHasta);
+            return (ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta);
         }
 
         private async Task<string> HandleCreate(Dictionary<string, object> data)

@@ -19,11 +19,11 @@ body {
     flex-shrink: 0;
     background: #0F172A;
     color: white;
-    padding: 26px 20px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.35);
+    padding: 22px 18px;
     position: fixed;
     left: 0;
     top: 0;
@@ -43,8 +43,22 @@ body {
     margin-top: 4px;
 }
 
+/* Bloque superior (logo + menú): ocupa el alto disponible y el menú hace scroll interno si
+   los módulos no alcanzan a caber, para que ninguno quede oculto. */
+.sidebar > div:first-child {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
 .menu {
-    margin-top: 30px;
+    margin-top: 24px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
 }
 
 .section-title {
@@ -57,8 +71,8 @@ body {
 
 .menu button {
     width: 100%;
-    margin-bottom: 10px;
-    padding: 12px;
+    margin-bottom: 7px;
+    padding: 10px 12px;
     background: #1E293B;
     color: white;
     border: none;
@@ -82,7 +96,7 @@ body {
 .version {
     font-size: 11px;
     color: #64748B;
-    margin-top: 20px;
+    margin-top: 6px;
 }
 
 /* MAIN */
@@ -996,12 +1010,13 @@ body {
 .sidebar-bottom {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
+    margin-top: 12px;
 }
 
 .sidebar-session-box {
     background: rgba(255, 255, 255, 0.05);
-    padding: 14px;
+    padding: 12px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -1018,12 +1033,12 @@ body {
     font-size: 14px;
     font-weight: 600;
     color: #F1F5F9;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 
 .sidebar-logout-btn {
     width: 100%;
-    padding: 9px;
+    padding: 8px;
     border-radius: 8px;
     border: none;
     background: linear-gradient(135deg, #ef4444, #dc2626);
@@ -1081,9 +1096,9 @@ body {
 }
 
 .menu-icon {
-    width: 22px;
-    height: 22px;
-    min-width: 22px;
+    width: 21px;
+    height: 21px;
+    min-width: 21px;
     display: inline-flex;
     align-items: center;
     justify-content: center;

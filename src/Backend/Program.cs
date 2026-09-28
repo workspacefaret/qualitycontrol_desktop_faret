@@ -130,6 +130,9 @@ namespace QualityControlCenter
                     .SetUseOsDefaultSize(true)
                     .Center()
                     .SetChromeless(false)
+                    // Zoom nativo del WebView (equivale a Ctrl -): muestra más información por
+                    // pantalla sin tocar el CSS de cada módulo.
+                    .SetZoom(90)
                     .Load(indexPath);
 
                 // =========================
