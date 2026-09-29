@@ -49,16 +49,17 @@ function tetParsePrecioNumero(texto) {
     return Number.isNaN(numero) ? null : numero;
 }
 
-// Cant. revisada/entregada × Precio Taller (interpretado como precio por unidad). null si el
-// precio no se pudo interpretar como número. Esta es la columna "Precio Total Final Trabajo Realizado".
+// Cant. a revisar (cantidad programada) × Precio Taller (interpretado como precio por unidad).
+// null si el precio no se pudo interpretar como número. Esta es la columna "Precio Total Final
+// Trabajo Realizado".
 function tetCalcularTotalTaller(it) {
     const precio = tetParsePrecioNumero(it.precioTaller);
     if (precio === null) return null;
-    return tetNumeroOCero(it.cantidadRevisadaEntregada) * precio;
+    return tetNumeroOCero(it.cantidadARevisar) * precio;
 }
 
 // Precio Cotización × Cant. a revisar (cantidad programada) — columna "Precio Total Cotizado".
-// Distinto de tetCalcularTotalTaller: ese usa la cantidad realmente revisada/entregada.
+// Misma cantidad que tetCalcularTotalTaller; difieren solo en el precio usado (Cotización vs. Taller).
 function tetCalcularTotalCotizado(it) {
     const precio = tetParsePrecioNumero(it.precioCotizacion);
     if (precio === null) return null;
