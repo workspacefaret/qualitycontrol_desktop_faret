@@ -41,6 +41,8 @@
 }
 
 .faret-usuarios-module .fu-reset-btn,
+.faret-usuarios-module .fu-permisos-btn,
+.faret-usuarios-module .fu-eliminar-btn,
 .faret-usuarios-module .fu-toggle-btn {
     font-size: 12px;
     padding: 6px 10px;

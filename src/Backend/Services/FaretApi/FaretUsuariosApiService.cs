@@ -41,5 +41,19 @@ namespace QualityControlCenter.Backend.Services.FaretApi
             _client.PutJsonAsync($"api/usuarios/{id}/activar", new { });
 
         public Task<(bool ok, string body)> DesactivarAsync(int id) => _client.DeleteAsync($"api/usuarios/{id}");
+
+        // Borrado físico: la API solo lo permite si el usuario no tiene historial.
+        public Task<(bool ok, string body)> EliminarDefinitivoAsync(int id) =>
+            _client.DeleteAsync($"api/usuarios/{id}/definitivo");
+
+        // Permisos por módulo (solo ADMIN_TI, la API lo exige).
+        public Task<(bool ok, string body)> GetPermisosAsync(int id) =>
+            _client.GetAsync($"api/usuarios/{id}/permisos");
+
+        public Task<(bool ok, string body)> GuardarPermisosAsync(int id, object permisos) =>
+            _client.PutJsonAsync($"api/usuarios/{id}/permisos", new { permisos });
+
+        public Task<(bool ok, string body)> RestablecerPermisosAsync(int id) =>
+            _client.DeleteAsync($"api/usuarios/{id}/permisos");
     }
 }

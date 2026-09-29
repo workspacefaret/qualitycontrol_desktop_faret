@@ -21,14 +21,90 @@ console.log("🔥 APP INICIO");
     // ==============================
     // APP ROUTER
     // ==============================
+    // Pantallas previas al login: no dependen de permisos.
+    const MODULOS_PUBLICOS = ["auth", "empresa-selector", "faret-login"];
+
+    // Botones de escritura que se ocultan en modo "Solo vista" (texto del botón, sin mayúsculas).
+    // Es solo UX: el bloqueo real está en el backend (PermisosService), que rechaza cualquier
+    // escritura de un módulo en VER aunque el botón quede visible.
+    const REGEX_ESCRITURA = /^(\+|✔|✎|nuev|crear|guardar|eliminar|editar|corregir|gestionar|reemplazar|analizar|agregar|adjuntar|validar|rechazar|anular|cerrar no conformidad|cerrar nc|actualizar estado|generar plan|sincronizar|confirmar|restablecer clave|desactivar|activar|permisos)/i;
+
+    let observadorSoloVista = null;
+
+    function aplicarSoloVista(raiz) {
+        raiz.querySelectorAll("button, [role=button], input[type=button], input[type=submit]").forEach(el => {
+            if (el.closest("#sidebar") || el.dataset.soloVistaOculto === "1") return;
+            // El title manda sobre el texto: botones de solo ícono ("✕" = Eliminar, "✎" = Ver historial).
+            const texto = (el.getAttribute("title") || el.textContent || el.value || "").trim();
+            if (el.hasAttribute("data-requiere-editar") || REGEX_ESCRITURA.test(texto)) {
+                el.dataset.soloVistaOculto = "1";
+                el.style.display = "none";
+            }
+        });
+    }
+
+    function desactivarSoloVista() {
+        if (observadorSoloVista) {
+            observadorSoloVista.disconnect();
+            observadorSoloVista = null;
+        }
+    }
+
+    function activarSoloVista(container) {
+        const banner = document.createElement("div");
+        banner.className = "card";
+        banner.style.cssText = "margin-bottom:12px; padding:10px 14px; background:#EFF6FF; color:#1E3A8A; font-size:13px; font-weight:600;";
+        banner.textContent = "Solo vista: puedes consultar este módulo, pero no crear, modificar ni eliminar datos.";
+        container.prepend(banner);
+
+        aplicarSoloVista(document.body);
+        // Filas, modales y formularios que el módulo dibuja después (también los que cuelgan de body).
+        observadorSoloVista = new MutationObserver(() => aplicarSoloVista(document.body));
+        observadorSoloVista.observe(document.body, { childList: true, subtree: true });
+    }
+
     const App = {
 
         currentModule: null,
         currentController: null,
 
+        // Niveles efectivos por módulo de la sesión ({ "dashboard": "EDITAR", ... }), del
+        // backend (permisos.mios). null = aún no cargados → se usa la regla por rol de siempre.
+        permisos: null,
+
+        async cargarPermisos() {
+            try {
+                const res = await window.PhotinoBridge.send({ action: "permisos.mios" });
+                App.permisos = res && res.ok && res.data ? res.data : null;
+            } catch {
+                App.permisos = null;
+            }
+            return App.permisos;
+        },
+
+        limpiarPermisos() {
+            App.permisos = null;
+        },
+
+        nivelModulo(moduleName) {
+            if (!App.permisos) return "EDITAR";
+            return App.permisos[moduleName] || "SIN_ACCESO";
+        },
+
         loadModule(moduleName) {
             try {
                 console.log("📦 Cargando módulo:", moduleName);
+
+                // SIN_ACCESO: no se abre (menú, tarjetas de Inicio o cualquier otro acceso).
+                if (!MODULOS_PUBLICOS.includes(moduleName) && App.nivelModulo(moduleName) === "SIN_ACCESO") {
+                    const inicio = (sessionStorage.getItem("empresa") || "INNPACK") === "FARET" ? "faret" : "inicio";
+                    console.warn("⛔ Sin acceso al módulo:", moduleName);
+                    if (window.showToast) window.showToast("No tienes acceso a este módulo", "error");
+                    if (moduleName !== inicio) App.loadModule(inicio);
+                    return;
+                }
+
+                desactivarSoloVista();
 
                 const container = document.getElementById("app-content");
                 // 🔥 DESTRUIR CONTROLLER ANTES DE CAMBIAR EL DOM
@@ -141,8 +217,15 @@ console.log("🔥 APP INICIO");
                         .join("") + "Controller";
 
                     if (window[controllerName]) {
+                        // Antes de init(): las llamadas del init ya viajan con el módulo correcto
+                        // (el backend valida permisos por módulo de origen).
+                        this.currentModule = moduleName;
                         App.currentController = new window[controllerName]();
                         App.currentController.init();
+
+                        if (!MODULOS_PUBLICOS.includes(moduleName) && App.nivelModulo(moduleName) === "VER") {
+                            activarSoloVista(container);
+                        }
 
                         if (moduleName === "inicio" || moduleName === "auth" || moduleName === "empresa-selector" || moduleName === "faret-login" || moduleName === "faret") {
                             setTimeout(() => hideSplash(), 300);
@@ -193,17 +276,39 @@ console.log("🔥 APP INICIO");
             btn.style.display = btn.getAttribute("data-empresa") === empresa ? "" : "none";
         });
 
+        // 🔹 permisos efectivos (rol + personalizados, ver PermisosService): si ya se cargaron,
+        // mandan sobre la regla por rol de abajo.
+        if (App.permisos) {
+            empresaButtons.forEach(btn => {
+                if (btn.getAttribute("data-empresa") !== empresa || !btn.hasAttribute("data-module")) return;
+                const nivel = App.permisos[btn.getAttribute("data-module")] || "SIN_ACCESO";
+                btn.style.display = nivel === "SIN_ACCESO" ? "none" : "";
+            });
+        }
+
         // 🔹 gating por rol (solo aplica al botón de usuarios y dentro de su empresa)
-        if (usuariosBtn) {
-            const esAdmin = rolUsuario === "admin" || rolUsuario === "admin_ti";
+        else if (usuariosBtn) {
+            const esAdmin = rolUsuario === "admin_ti";
             const empresaOk = usuariosBtn.getAttribute("data-empresa") === empresa;
             usuariosBtn.style.display = empresaOk && esAdmin ? "" : "none";
         }
 
-        // 🔹 gating por rol (Gestión de Usuarios de FARET: ADMIN / ADMIN_TI / INSPECTOR)
+        // 🔹 gating por rol (Gestión de Usuarios de FARET, solo sin permisos cargados)
+        if (!App.permisos) aplicarReglaRolFaret(empresa);
+
+        // 🔹 título del header según empresa
+        const headerTitle = document.querySelector(".header .title");
+        if (headerTitle) {
+            headerTitle.innerText = empresa === "FARET" ? "Panel Faret" : "Panel de Calidad";
+        }
+    }
+
+    // Regla por rol previa a los permisos por módulo. Queda como respaldo si permisos.mios no
+    // respondió (el backend igual bloquea lo que corresponda).
+    function aplicarReglaRolFaret(empresa) {
         const faretRolActual = (sessionStorage.getItem("faretRol") || "").toUpperCase();
         const esFaretAdminFull = faretRolActual === "ADMIN" || faretRolActual === "ADMIN_TI";
-        const esFaretUsuariosOk = esFaretAdminFull || faretRolActual === "INSPECTOR";
+        const esFaretUsuariosOk = faretRolActual === "ADMIN_TI";
 
         const faretUsuariosBtn = document.getElementById("btn-faret-usuarios");
         if (faretUsuariosBtn) {
@@ -231,12 +336,6 @@ console.log("🔥 APP INICIO");
                     btn.style.display = "none";
                 }
             });
-        }
-
-        // 🔹 título del header según empresa
-        const headerTitle = document.querySelector(".header .title");
-        if (headerTitle) {
-            headerTitle.innerText = empresa === "FARET" ? "Panel Faret" : "Panel de Calidad";
         }
     }
     function initSidebar() {
@@ -274,6 +373,8 @@ console.log("🔥 APP INICIO");
                 console.log("🔓 Cerrando sesión...");
 
                 const empresa = sessionStorage.getItem("empresa") || "INNPACK";
+                App.limpiarPermisos();
+                desactivarSoloVista();
 
                 // 🔹 mensaje visual simple
                 const message = document.createElement("div");
@@ -300,6 +401,7 @@ console.log("🔥 APP INICIO");
                     localStorage.removeItem("lcc_faret_rol");
                     // No borramos lcc_faret_identificador ni lcc_faret_password para que el login quede autollenado
                 } else {
+                    window.PhotinoBridge.send({ action: "auth.logout", data: {} }).catch(() => {});
                     sessionStorage.removeItem("isLoggedIn");
                     sessionStorage.removeItem("codigoUsuario");
                     sessionStorage.removeItem("nombreUsuario");

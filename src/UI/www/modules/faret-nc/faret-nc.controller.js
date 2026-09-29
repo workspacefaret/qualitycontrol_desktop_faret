@@ -232,6 +232,7 @@ window.FaretNcController = class FaretNcController {
             this._poblarFiltrosSelect();
             this._actualizarResponsablesBase();
             this._renderTabla();
+            this._cargarLiberaciones();
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
             errorEl.style.display = "block";
@@ -516,7 +517,9 @@ window.FaretNcController = class FaretNcController {
             if (f.cliente && !fila.cliente.toLowerCase().includes(f.cliente)) return false;
             if (f.tipoPnc && !fila.tipoPnc.toLowerCase().includes(f.tipoPnc)) return false;
             if (f.nivel && fila.nivelSeveridad !== f.nivel) return false;
-            if (f.estadoGestion && fila.estadoGestion !== f.estadoGestion) return false;
+            // "Pendiente" = todo lo no cerrado (incluye filas de Data sin gestión todavía).
+            if (f.estadoGestion === "CERRADA" && fila.estadoGestion !== "CERRADA") return false;
+            if (f.estadoGestion === "PENDIENTE" && fila.estadoGestion === "CERRADA") return false;
             if (f.area && !fila.area.toLowerCase().includes(f.area)) return false;
             if (f.fuente && fila.fuente !== f.fuente) return false;
 
@@ -599,10 +602,21 @@ window.FaretNcController = class FaretNcController {
         });
     }
 
-    // Total de columnas del thead (14 base visibles + 1 "Fecha compromiso" oculta + opcionales
+    // Total de columnas del thead (15 base visibles + 1 "Fecha compromiso" oculta + opcionales
     // activas), usado para el colspan de las filas de estado (Cargando/Sin registros/Error).
     _totalColumnasTabla() {
-        return 15 + this._columnasOpcionalesVisibles().length;
+        return 16 + this._columnasOpcionalesVisibles().length;
+    }
+
+    // Columna "Liberación Calidad": inspectores del certificado de liberación (fps-api) por NP +
+    // código de producto. Se consulta después de pintar la tabla y se completan las celdas en su
+    // lugar (sin volver a renderizar: no se pierde página ni scroll).
+    async _cargarLiberaciones() {
+        await window.LiberacionCalidad.cargar(this._combinados.map(f => f.npNv), "FARET");
+        document.querySelectorAll("#fnc-tbody .fnc-liberacion").forEach(td => {
+            const fila = this._combinados.find(f => f.key === td.dataset.key);
+            if (fila) td.innerHTML = window.LiberacionCalidad.celda(fila.npNv, fila.codigoProducto, "FARET");
+        });
     }
 
     // ---------- Tabla ----------
@@ -640,6 +654,7 @@ window.FaretNcController = class FaretNcController {
                 <td>${fila.cliente}</td>
                 <td>${fila.codigoProducto}</td>
                 <td>${fila.producto}</td>
+                <td class="fnc-liberacion" data-key="${fila.key}">${window.LiberacionCalidad.celda(fila.npNv, fila.codigoProducto, "FARET")}</td>
                 <td>${fila.tipoPnc}</td>
                 <td>${fila.categoriaDefecto}</td>
                 <td>${this._badge(fila.nivelSeveridad, this._colorSeveridad(fila.nivelSeveridad))}</td>
@@ -3060,8 +3075,9 @@ window.FaretNcController = class FaretNcController {
 
     // Exporta siempre el conjunto ya filtrado completo (todas las páginas), no solo la página
     // visible: con filtros activos exporta lo filtrado; sin filtros, exporta todo lo combinado.
-    _exportar() {
+    async _exportar() {
         const items = this._filtrarItems();
+        await window.LiberacionCalidad.cargar(items.map(f => f.npNv), "FARET");
         const tabla = this._construirTablaTemp(items);
         window.ExcelExporter.exportTable({
             tableSelector: "#fnc-tabla-export-temp",
@@ -3072,8 +3088,9 @@ window.FaretNcController = class FaretNcController {
         tabla.remove();
     }
 
-    _imprimir() {
+    async _imprimir() {
         const items = this._filtrarItems();
+        await window.LiberacionCalidad.cargar(items.map(f => f.npNv), "FARET");
         const tabla = this._construirTablaTemp(items);
         window.PrintExporter.printTable({
             tableSelector: "#fnc-tabla-export-temp",
@@ -3118,6 +3135,7 @@ window.FaretNcController = class FaretNcController {
                     <th>Cliente</th>
                     <th>Código producto</th>
                     <th>Producto</th>
+                    <th>Liberación Calidad</th>
                     <th>Tipo PNC</th>
                     <th>Categoría defecto</th>
                     <th>Nivel / Severidad</th>
@@ -3137,6 +3155,7 @@ window.FaretNcController = class FaretNcController {
                         <td>${fila.cliente}</td>
                         <td>${fila.codigoProducto}</td>
                         <td>${fila.producto}</td>
+                        <td>${window.LiberacionCalidad.texto(fila.npNv, fila.codigoProducto, "FARET")}</td>
                         <td>${fila.tipoPnc}</td>
                         <td>${fila.categoriaDefecto}</td>
                         <td>${fila.nivelSeveridad}</td>

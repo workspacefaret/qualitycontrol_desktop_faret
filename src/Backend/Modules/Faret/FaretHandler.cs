@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using QualityControlCenter.Backend.Services.FaretApi;
+using QualityControlCenter.Services;
 
 namespace QualityControlCenter.Modules.Faret
 {
@@ -87,6 +88,10 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.usuarios.resetPassword" => await HandleUsuariosResetPassword(data),
                 "faret.usuarios.activar" => await HandleUsuariosActivar(data),
                 "faret.usuarios.desactivar" => await HandleUsuariosDesactivar(data),
+                "faret.usuarios.eliminarDefinitivo" => await HandleUsuariosEliminarDefinitivo(data),
+                "faret.usuarios.permisos.get" => await HandleUsuariosPermisosGet(data),
+                "faret.usuarios.permisos.guardar" => await HandleUsuariosPermisosGuardar(data),
+                "faret.usuarios.permisos.restablecer" => await HandleUsuariosPermisosRestablecer(data),
                 "faret.nc.list" => await HandleNcList(),
                 "faret.nc.get" => await HandleNcGet(data),
                 "faret.nc.create" => await HandleNcCreate(data),
@@ -730,6 +735,84 @@ namespace QualityControlCenter.Modules.Faret
                 return Error(error);
 
             return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
+        }
+
+        private async Task<string> HandleUsuariosEliminarDefinitivo(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id del usuario");
+
+            var (ok, body) = await _usuarios.EliminarDefinitivoAsync(id);
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
+
+            return Ok(new { message = "Usuario eliminado definitivamente" });
+        }
+
+        // Matriz de permisos: nivel por rol + personalizado de cada módulo Faret.
+        private async Task<string> HandleUsuariosPermisosGet(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id del usuario");
+
+            TryGetString(data, "rol", out var rol);
+
+            var (ok, body) = await _usuarios.GetPermisosAsync(id);
+            if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
+                return Error(error);
+
+            return Ok(PermisosService.ArmarMatriz("FARET", rol ?? "", payload));
+        }
+
+        private async Task<string> HandleUsuariosPermisosGuardar(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id del usuario");
+
+            if (
+                !data.TryGetValue("permisos", out var raw)
+                || raw is not JsonElement arr
+                || arr.ValueKind != JsonValueKind.Array
+            )
+                return Error("No se recibieron permisos");
+
+            var permisos = arr.EnumerateArray()
+                .Select(p => new
+                {
+                    modulo = p.TryGetProperty("modulo", out var m) ? m.GetString() : null,
+                    nivel = p.TryGetProperty("nivel", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null,
+                })
+                .ToList();
+
+            var (ok, body) = await _usuarios.GuardarPermisosAsync(id, permisos);
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
+
+            return Ok(new { message = "Permisos guardados correctamente" });
+        }
+
+        private async Task<string> HandleUsuariosPermisosRestablecer(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetInt(data, "id", out var id))
+                return Error("Falta el id del usuario");
+
+            var (ok, body) = await _usuarios.RestablecerPermisosAsync(id);
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
+
+            return Ok(new { message = "Permisos restablecidos al comportamiento por rol" });
         }
 
         private async Task<string> HandleUsuariosCambiarRol(Dictionary<string, object> data)

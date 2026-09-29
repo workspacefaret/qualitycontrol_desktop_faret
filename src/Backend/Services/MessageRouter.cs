@@ -14,6 +14,7 @@ using QualityControlCenter.Modules.ControlDocumental;
 using QualityControlCenter.Modules.Dashboard;
 using QualityControlCenter.Modules.Faret;
 using QualityControlCenter.Modules.Home;
+using QualityControlCenter.Modules.LiberacionCalidad;
 using QualityControlCenter.Modules.MaquinasSeguimiento;
 using QualityControlCenter.Modules.NoConformidades;
 using QualityControlCenter.Modules.ProductoTerminado;
@@ -43,6 +44,7 @@ namespace QualityControlCenter.Services
         private readonly PlanificacionApiClient _planificacionClient;
         private readonly SapRecepcionApiClient _sapRecepcionClient;
         private readonly FpsRegistroProduccionApiService _fpsRegistroProduccion;
+        private readonly PermisosService _permisos;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
@@ -61,7 +63,8 @@ namespace QualityControlCenter.Services
             FpsMaterialesApiService fpsMateriales,
             PlanificacionApiClient planificacionClient,
             SapRecepcionApiClient sapRecepcionClient,
-            FpsRegistroProduccionApiService fpsRegistroProduccion
+            FpsRegistroProduccionApiService fpsRegistroProduccion,
+            PermisosService permisos
         )
         {
             _db = db;
@@ -76,6 +79,7 @@ namespace QualityControlCenter.Services
             _planificacionClient = planificacionClient;
             _sapRecepcionClient = sapRecepcionClient;
             _fpsRegistroProduccion = fpsRegistroProduccion;
+            _permisos = permisos;
         }
 
         public async Task<string> Handle(string payloadJson)
@@ -101,6 +105,20 @@ namespace QualityControlCenter.Services
 
                 Log("INFO", $"🎯 ACTION: {action}");
 
+                // Permisos por módulo: el bridge JS agrega "_modulo" (módulo abierto) a cada
+                // mensaje. Bloqueo server-side, no solo botones ocultos (ver PermisosService).
+                var modulo =
+                    data.TryGetValue("_modulo", out var moduloRaw) && moduloRaw is JsonElement moduloEl
+                    && moduloEl.ValueKind == JsonValueKind.String
+                        ? moduloEl.GetString()
+                        : null;
+                var rechazo = _permisos.ValidarAccion(action, modulo);
+                if (rechazo != null)
+                {
+                    Log("ERROR", $"⛔ {action} (módulo {modulo ?? "-"}): {rechazo}");
+                    return Error(rechazo);
+                }
+
                 string rawResult;
 
                 if (action.StartsWith("auth"))
@@ -112,6 +130,20 @@ namespace QualityControlCenter.Services
                         return Error("Formato inválido en 'data'");
 
                     rawResult = await _authHandler.Handle(action, authDataElement);
+
+                    if (action == "auth.login" && EsRespuestaOk(rawResult))
+                    {
+                        var error = await CargarPermisosInnpackAsync();
+                        if (error != null)
+                        {
+                            await _authHandler.Handle("auth.logout", authDataElement);
+                            return Error(error);
+                        }
+                    }
+                    else if (action == "auth.logout")
+                    {
+                        _permisos.Limpiar();
+                    }
                 }
                 else if (action.StartsWith("inicio"))
                 {
@@ -136,6 +168,12 @@ namespace QualityControlCenter.Services
                 else if (action == "excel.guardar")
                 {
                     rawResult = GuardarExcel(data);
+                }
+                else if (action == "permisos.mios")
+                {
+                    rawResult = JsonSerializer.Serialize(
+                        new { ok = true, data = _permisos.NivelesEfectivos() }
+                    );
                 }
                 else if (action.StartsWith("dashboard"))
                 {
@@ -170,6 +208,11 @@ namespace QualityControlCenter.Services
                 else if (action.StartsWith("productoTerminado"))
                 {
                     var handler = new ProductoTerminadoHandler(_innpackClient);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("liberacionCalidad"))
+                {
+                    var handler = new LiberacionCalidadHandler(_fpsLiberaciones);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("trazabilidad"))
@@ -209,6 +252,20 @@ namespace QualityControlCenter.Services
                         _faretCalidadClient
                     );
                     rawResult = await handler.Handle(action, data);
+
+                    if (action == "faret.login" && EsRespuestaOk(rawResult))
+                    {
+                        var error = await CargarPermisosFaretAsync(rawResult);
+                        if (error != null)
+                        {
+                            await handler.Handle("faret.logout", data);
+                            return Error(error);
+                        }
+                    }
+                    else if (action == "faret.logout")
+                    {
+                        _permisos.Limpiar();
+                    }
                 }
                 else
                 {
@@ -227,6 +284,62 @@ namespace QualityControlCenter.Services
                 Log("ERROR", $"❌ ROUTER ERROR: {ex.Message}");
                 return Error(ex.Message);
             }
+        }
+
+        private static bool EsRespuestaOk(string raw)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(raw);
+                return doc.RootElement.TryGetProperty("ok", out var ok)
+                    && ok.ValueKind == JsonValueKind.True;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Tras un login INNPACK correcto: rol de la sesión + permisos personalizados del usuario.
+        // Si no se pueden cargar, el login se anula (no se entra con permisos desconocidos).
+        private async Task<string?> CargarPermisosInnpackAsync()
+        {
+            var user = _session.GetCurrentUser();
+            if (user == null)
+                return "No se pudo leer la sesión del usuario.";
+
+            var (ok, body) = await _innpackClient.GetAsync("api/auth/mis-permisos");
+            if (!ok || !PermisosService.TryParsearPermisos(body, out var personalizados))
+                return "No se pudieron cargar los permisos del usuario. Intenta nuevamente.";
+
+            _permisos.Establecer("INNPACK", user.Rol, personalizados);
+            return null;
+        }
+
+        private async Task<string?> CargarPermisosFaretAsync(string loginResult)
+        {
+            string rol;
+            try
+            {
+                using var doc = JsonDocument.Parse(loginResult);
+                rol =
+                    doc.RootElement.TryGetProperty("data", out var d)
+                    && d.TryGetProperty("role", out var r)
+                    && r.ValueKind == JsonValueKind.String
+                        ? r.GetString() ?? ""
+                        : "";
+            }
+            catch
+            {
+                rol = "";
+            }
+
+            var (ok, body) = await _faretClient.GetAsync("api/auth/mis-permisos");
+            if (!ok || !PermisosService.TryParsearPermisos(body, out var personalizados))
+                return "No se pudieron cargar los permisos del usuario. Intenta nuevamente.";
+
+            _permisos.Establecer("FARET", rol, personalizados);
+            return null;
         }
 
         private string GuardarExcel(Dictionary<string, object> data)

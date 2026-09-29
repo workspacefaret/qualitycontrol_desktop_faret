@@ -27,6 +27,7 @@ window.FaretUsuariosController = class FaretUsuariosController {
     }
 
     destroy() {
+        window.PermisosMatriz?.cerrar();
         console.log("FaretUsuariosController destruido");
     }
 
@@ -149,9 +150,11 @@ window.FaretUsuariosController = class FaretUsuariosController {
                 <td>${window.DateUtils.formatear(u.createdAt)}</td>
                 <td>
                     <button class="btn-secondary fu-reset-btn" data-id="${u.id}" data-nombre="${u.nombre ?? ""}">Restablecer clave</button>
+                    <button class="btn-secondary fu-permisos-btn" data-id="${u.id}" data-nombre="${u.nombre ?? ""}" data-rol="${u.rol ?? ""}">Permisos</button>
                     <button class="btn-secondary fu-toggle-btn" data-id="${u.id}" data-activo="${u.activo ? "1" : "0"}" data-nombre="${u.nombre ?? ""}">
                         ${u.activo ? "Desactivar" : "Activar"}
                     </button>
+                    <button class="btn-secondary fu-eliminar-btn" title="Eliminar definitivamente" data-id="${u.id}" data-nombre="${u.nombre ?? ""}" data-codigo="${u.username ?? u.correo ?? ""}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#B91C1C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg></button>
                 </td>
             </tr>
         `).join("");
@@ -163,6 +166,12 @@ window.FaretUsuariosController = class FaretUsuariosController {
 
         tbody.querySelectorAll(".fu-reset-btn").forEach(btn =>
             btn.addEventListener("click", () => this._resetPassword(btn.dataset.id, btn.dataset.nombre)));
+
+        tbody.querySelectorAll(".fu-eliminar-btn").forEach(btn =>
+            btn.addEventListener("click", () => this._eliminarDefinitivo(btn.dataset.id, btn.dataset.codigo, btn.dataset.nombre)));
+
+        tbody.querySelectorAll(".fu-permisos-btn").forEach(btn =>
+            btn.addEventListener("click", () => this._abrirPermisos(btn.dataset.id, btn.dataset.nombre, btn.dataset.rol)));
 
         tbody.querySelectorAll(".fu-toggle-btn").forEach(btn =>
             btn.addEventListener("click", () => this._toggleActivo(btn.dataset.id, btn.dataset.activo === "1", btn.dataset.nombre)));
@@ -196,6 +205,8 @@ window.FaretUsuariosController = class FaretUsuariosController {
             }
 
             selectEl.dataset.rolActual = nuevoRol;
+            const permisosBtn = selectEl.closest("tr")?.querySelector(".fu-permisos-btn");
+            if (permisosBtn) permisosBtn.dataset.rol = nuevoRol;
             this._showMensaje(`Rol actualizado a "${nuevoRol}"`, true);
         } catch {
             this._showMensaje("Error de comunicación con el backend", false);
@@ -238,6 +249,49 @@ window.FaretUsuariosController = class FaretUsuariosController {
         } catch {
             this._showMensaje("Error de comunicación con el backend", false);
         }
+    }
+
+    // Borrado físico: la API solo lo permite si el usuario no tiene historial (si lo tiene, avisa
+    // que hay que desactivarlo). Doble confirmación: aviso + escribir el RUT/usuario.
+    async _eliminarDefinitivo(id, codigo, nombre) {
+        const confirmado = window.confirm(
+            `¿Eliminar DEFINITIVAMENTE a "${nombre}"?\n\n` +
+            "Esta acción no se puede deshacer. Solo es posible si el usuario no tiene registros asociados; " +
+            "si los tiene, desactívalo."
+        );
+        if (!confirmado) return;
+
+        const escrito = window.prompt(`Para confirmar, escribe el RUT / usuario: ${codigo}`);
+        if (escrito === null) return;
+        if (escrito.trim() !== codigo) {
+            this._showMensaje("El RUT / usuario no coincide: no se eliminó el usuario", false);
+            return;
+        }
+
+        try {
+            const res = await window.PhotinoBridge.send({ action: "faret.usuarios.eliminarDefinitivo", id: Number(id) });
+            if (!res.ok) {
+                this._showMensaje(res.error || "Error al eliminar el usuario", false);
+                return;
+            }
+            this._showMensaje(`Usuario "${nombre}" eliminado definitivamente`, true);
+            this._loadLista();
+        } catch {
+            this._showMensaje("Error de comunicación con el backend", false);
+        }
+    }
+
+    _abrirPermisos(id, nombre, rol) {
+        const usuarioId = Number(id);
+
+        window.PermisosMatriz.abrir({
+            nombre,
+            rol,
+            empresa: "FARET",
+            cargar: () => window.PhotinoBridge.send({ action: "faret.usuarios.permisos.get", id: usuarioId, rol }),
+            guardar: permisos => window.PhotinoBridge.send({ action: "faret.usuarios.permisos.guardar", id: usuarioId, permisos }),
+            restablecer: () => window.PhotinoBridge.send({ action: "faret.usuarios.permisos.restablecer", id: usuarioId }),
+        });
     }
 
     _exportar() {

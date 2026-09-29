@@ -19,6 +19,12 @@ namespace QualityControlCenter.Backend.Services.FpsApi
 
         public bool IsConfigured => _client.IsConfigured;
 
+        // GET liberaciones/inspectores?nps=... (columna "Liberación Calidad" de No Conformidades).
+        // Devuelve el body crudo {ok, total, data:[{Np, Empresa, CodigoArticulo, Inspector,
+        // UltimaLiberacion, UltimoFolio, Liberaciones}]}; máximo 300 NP por llamada.
+        public Task<(bool ok, string body)> ObtenerInspectoresAsync(IEnumerable<string> nps) =>
+            _client.GetAsync("liberaciones/inspectores?nps=" + Uri.EscapeDataString(string.Join(",", nps)));
+
         public async Task<(
             bool ok,
             List<LiberacionFpsDto> liberaciones,

@@ -42,6 +42,12 @@ namespace QualityControlCenter.Modules.Usuarios
                     "usuarios.create" => await CreateAsync(payload),
                     "usuarios.delete" => await DeleteAsync(payload),
                     "usuarios.resetPassword" => await ResetPasswordAsync(payload),
+                    "usuarios.activo" => await SetActivoAsync(payload),
+                    "usuarios.eliminarDefinitivo" => await EliminarDefinitivoAsync(payload),
+                    "usuarios.cambiarRol" => await CambiarRolAsync(payload),
+                    "usuarios.permisos.get" => await GetPermisosAsync(payload),
+                    "usuarios.permisos.guardar" => await GuardarPermisosAsync(payload),
+                    "usuarios.permisos.restablecer" => await RestablecerPermisosAsync(payload),
                     _ => Error($"Acción no soportada: {action}"),
                 };
             }
@@ -58,7 +64,8 @@ namespace QualityControlCenter.Modules.Usuarios
             if (user == null)
                 return false;
 
-            return user.Rol == "admin" || user.Rol == "admin_ti";
+            // Gestión de Usuarios: solo admin_ti (la API también lo exige).
+            return user.Rol == "admin_ti";
         }
 
         // La API nueva devuelve camelCase (default de ASP.NET Core), pero el frontend
@@ -167,7 +174,8 @@ namespace QualityControlCenter.Modules.Usuarios
             if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
                 return Error(error);
 
-            return Ok(new { message = "Usuario eliminado correctamente" });
+            // La API ya no borra físicamente (el usuario tiene historial asociado): desactiva.
+            return Ok(new { message = "Usuario desactivado correctamente" });
         }
 
         private async Task<string> ResetPasswordAsync(Dictionary<string, object> payload)
@@ -192,6 +200,106 @@ namespace QualityControlCenter.Modules.Usuarios
                 return Error(error);
 
             return Ok(new { message = "Contraseña actualizada correctamente" });
+        }
+
+        private async Task<string> EliminarDefinitivoAsync(Dictionary<string, object> payload)
+        {
+            var data = ExtractData(payload);
+            var id = GetInt(data, "id");
+            if (id <= 0)
+                return Error("Id inválido");
+
+            var (ok, body) = await _usuariosApi.EliminarDefinitivoAsync(id);
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
+
+            return Ok(new { message = "Usuario eliminado definitivamente" });
+        }
+
+        private async Task<string> SetActivoAsync(Dictionary<string, object> payload)
+        {
+            var data = ExtractData(payload);
+            var id = GetInt(data, "id");
+            if (id <= 0)
+                return Error("Id inválido");
+
+            var activo = GetBool(data, "activo", true);
+            var (ok, body) = await _usuariosApi.SetActivoAsync(id, activo);
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
+
+            return Ok(new { message = activo ? "Usuario activado correctamente" : "Usuario desactivado correctamente" });
+        }
+
+        private async Task<string> CambiarRolAsync(Dictionary<string, object> payload)
+        {
+            var data = ExtractData(payload);
+            var id = GetInt(data, "id");
+            var rol = GetString(data, "rol");
+            if (id <= 0)
+                return Error("Id inválido");
+            if (string.IsNullOrWhiteSpace(rol))
+                return Error("El rol es obligatorio");
+
+            var (ok, body) = await _usuariosApi.CambiarRolAsync(id, rol);
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
+
+            return Ok(new { message = "Rol actualizado correctamente" });
+        }
+
+        // Matriz de permisos: nivel por rol + personalizado de cada módulo INNPACK.
+        private async Task<string> GetPermisosAsync(Dictionary<string, object> payload)
+        {
+            var data = ExtractData(payload);
+            var id = GetInt(data, "id");
+            if (id <= 0)
+                return Error("Id inválido");
+
+            var (ok, body) = await _usuariosApi.GetPermisosAsync(id);
+            if (!TryUnwrapApiResponse(body, out var permisos, out var error) || !ok)
+                return Error(error);
+
+            return Ok(PermisosService.ArmarMatriz("INNPACK", GetString(data, "rol"), permisos));
+        }
+
+        private async Task<string> GuardarPermisosAsync(Dictionary<string, object> payload)
+        {
+            var data = ExtractData(payload);
+            var id = GetInt(data, "id");
+            if (id <= 0)
+                return Error("Id inválido");
+
+            if (!data.TryGetProperty("permisos", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                return Error("No se recibieron permisos");
+
+            var permisos = arr.EnumerateArray()
+                .Select(p => new
+                {
+                    modulo = p.TryGetProperty("modulo", out var m) ? m.GetString() : null,
+                    nivel = p.TryGetProperty("nivel", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null,
+                })
+                .ToList();
+
+            var (ok, body) = await _usuariosApi.GuardarPermisosAsync(id, permisos);
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
+
+            return Ok(new { message = "Permisos guardados correctamente" });
+        }
+
+        private async Task<string> RestablecerPermisosAsync(Dictionary<string, object> payload)
+        {
+            var data = ExtractData(payload);
+            var id = GetInt(data, "id");
+            if (id <= 0)
+                return Error("Id inválido");
+
+            var (ok, body) = await _usuariosApi.RestablecerPermisosAsync(id);
+            if (!TryUnwrapApiResponse(body, out _, out var error) || !ok)
+                return Error(error);
+
+            return Ok(new { message = "Permisos restablecidos al comportamiento por rol" });
         }
 
         // Desenvuelve el shape ApiResponse<T> {success, message, data, errors} de

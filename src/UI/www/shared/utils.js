@@ -517,3 +517,280 @@ window.DateUtils = (function () {
 
     return { formatear, hoyISO, mesActualISO, primerDiaMesActualISO, sumarDias };
 })();
+
+// Matriz de permisos por módulo (Gestión de Usuarios INNPACK y Faret, solo ADMIN_TI).
+// Filas = botones del sidebar de la empresa (mismo orden y nombre que ve el usuario).
+// Un permiso personalizado solo se guarda si difiere del nivel que da el rol; volver al nivel
+// del rol lo quita. El bloqueo real vive en el backend (PermisosService + API).
+window.PermisosMatriz = (function () {
+    const NIVELES = [
+        { valor: "SIN_ACCESO", texto: "Sin acceso" },
+        { valor: "VER", texto: "Solo vista" },
+        { valor: "EDITAR", texto: "Editar" },
+    ];
+
+    function esc(t) {
+        return String(t ?? "")
+            .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+
+    function modulosSidebar(empresa) {
+        return Array.from(document.querySelectorAll(`#sidebar [data-module][data-empresa="${empresa}"]`))
+            .map(b => ({ modulo: b.getAttribute("data-module"), nombre: (b.textContent || "").trim() }));
+    }
+
+    // opts: { nombre, rol, empresa, cargar(), guardar(permisos), restablecer() } — cada función
+    // devuelve la respuesta del PhotinoBridge ({ ok, data, error }).
+    function abrir(opts) {
+        cerrar();
+
+        const overlay = document.createElement("div");
+        overlay.id = "permisos-matriz-overlay";
+        overlay.style.cssText = "position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:9000; display:flex; align-items:center; justify-content:center;";
+        overlay.innerHTML = `
+            <div style="background:#fff; border-radius:12px; width:min(760px, 94vw); max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,0.3);">
+                <div style="padding:18px 22px; border-bottom:1px solid #E2E8F0;">
+                    <div style="font-size:17px; font-weight:700; color:#0F172A;">Permisos de ${esc(opts.nombre)}</div>
+                    <div style="font-size:13px; color:#475569; margin-top:4px;">
+                        Rol: <strong>${esc(opts.rol || "-")}</strong> — define el valor inicial de cada módulo.
+                        Un permiso personalizado manda sobre el rol.
+                    </div>
+                </div>
+                <div id="pm-mensaje" style="display:none; margin:12px 22px 0; padding:8px 12px; border-radius:8px; font-size:13px; font-weight:600;"></div>
+                <div id="pm-cuerpo" style="padding:12px 22px; overflow-y:auto;">Cargando...</div>
+                <div style="padding:14px 22px; border-top:1px solid #E2E8F0; display:flex; gap:10px; justify-content:flex-end;">
+                    <button id="pm-restablecer" class="btn-secondary" type="button">Restablecer permisos</button>
+                    <button id="pm-cerrar" class="btn-secondary" type="button">Cerrar</button>
+                    <button id="pm-guardar" class="btn-primary" type="button">Guardar</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const estado = { filas: [] };
+        const $ = sel => overlay.querySelector(sel);
+
+        function mensaje(texto, ok) {
+            const el = $("#pm-mensaje");
+            el.textContent = texto;
+            el.style.display = "block";
+            el.style.background = ok ? "#ECFDF5" : "#FEF2F2";
+            el.style.color = ok ? "#065F46" : "#991B1B";
+        }
+
+        async function cargar() {
+            $("#pm-cuerpo").textContent = "Cargando...";
+            let res;
+            try {
+                res = await opts.cargar();
+            } catch {
+                res = { ok: false, error: "Error de comunicación con el backend" };
+            }
+            if (!res || !res.ok) {
+                $("#pm-cuerpo").textContent = "";
+                mensaje(res?.error || "No se pudieron cargar los permisos", false);
+                return;
+            }
+            render(res.data || {});
+        }
+
+        function render(data) {
+            const porModulo = {};
+            (data.modulos || []).forEach(m => { porModulo[m.modulo] = m; });
+            estado.filas = modulosSidebar(opts.empresa)
+                .filter(s => porModulo[s.modulo])
+                .map(s => ({ ...porModulo[s.modulo], nombre: s.nombre }));
+            const bloqueado = data.esAdminTi === true;
+
+            $("#pm-guardar").disabled = bloqueado;
+            $("#pm-restablecer").disabled = bloqueado;
+
+            const aviso = bloqueado
+                ? `<div style="padding:10px 12px; background:#EFF6FF; color:#1E3A8A; border-radius:8px; font-size:13px; margin-bottom:10px;">
+                       ADMIN_TI tiene acceso total a todos los módulos: sus permisos no se personalizan.
+                   </div>`
+                : "";
+
+            $("#pm-cuerpo").innerHTML = aviso + `
+                <table class="table" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th>Módulo</th>
+                            ${NIVELES.map(n => `<th style="text-align:center;">${n.texto}</th>`).join("")}
+                            <th>Origen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${estado.filas.map(f => {
+                            const actual = bloqueado ? "EDITAR" : (f.personalizado || f.porRol);
+                            const detalle = f.modificadoPor
+                                ? ` (${esc(f.modificadoPor)}${f.fechaModificacion ? ", " + esc(window.DateUtils.formatear(f.fechaModificacion)) : ""})`
+                                : "";
+                            const origen = f.personalizado ? `Personalizado${detalle}` : "Por rol";
+                            return `
+                                <tr data-modulo="${esc(f.modulo)}">
+                                    <td>${esc(f.nombre)}</td>
+                                    ${NIVELES.map(n => `
+                                        <td style="text-align:center;">
+                                            <input type="radio" name="pm-${esc(f.modulo)}" value="${n.valor}"
+                                                ${actual === n.valor ? "checked" : ""}
+                                                ${bloqueado || (f.minimoVer && n.valor === "SIN_ACCESO") ? "disabled" : ""}>
+                                        </td>`).join("")}
+                                    <td style="font-size:12px; color:#475569;">${origen}</td>
+                                </tr>`;
+                        }).join("")}
+                    </tbody>
+                </table>`;
+
+            $("#pm-cuerpo").querySelectorAll("input[type=radio]").forEach(r =>
+                r.addEventListener("change", () => {
+                    r.closest("tr").style.background = "#FEF9C3";
+                }));
+        }
+
+        function cambios() {
+            const lista = [];
+            estado.filas.forEach(f => {
+                const elegido = $(`input[name="pm-${CSS.escape(f.modulo)}"]:checked`)?.value;
+                if (!elegido) return;
+                const deseado = elegido === f.porRol ? null : elegido;
+                if (deseado !== (f.personalizado || null)) {
+                    lista.push({ modulo: f.modulo, nivel: deseado });
+                }
+            });
+            return lista;
+        }
+
+        $("#pm-cerrar").addEventListener("click", cerrar);
+
+        $("#pm-guardar").addEventListener("click", async () => {
+            const lista = cambios();
+            if (!lista.length) {
+                mensaje("Sin cambios", true);
+                return;
+            }
+            $("#pm-guardar").disabled = true;
+            try {
+                const res = await opts.guardar(lista);
+                if (!res || !res.ok) {
+                    mensaje(res?.error || "No se pudieron guardar los permisos", false);
+                    return;
+                }
+                await cargar();
+                mensaje("Permisos guardados correctamente", true);
+            } catch {
+                mensaje("Error de comunicación con el backend", false);
+            } finally {
+                $("#pm-guardar").disabled = false;
+            }
+        });
+
+        $("#pm-restablecer").addEventListener("click", async () => {
+            if (!window.confirm(`¿Restablecer los permisos de "${opts.nombre}" a los de su rol?`)) return;
+            try {
+                const res = await opts.restablecer();
+                if (!res || !res.ok) {
+                    mensaje(res?.error || "No se pudieron restablecer los permisos", false);
+                    return;
+                }
+                await cargar();
+                mensaje("Permisos restablecidos al comportamiento por rol", true);
+            } catch {
+                mensaje("Error de comunicación con el backend", false);
+            }
+        });
+
+        cargar();
+    }
+
+    function cerrar() {
+        document.getElementById("permisos-matriz-overlay")?.remove();
+    }
+
+    return { abrir, cerrar };
+})();
+
+// Columna "Liberación Calidad" de No Conformidades (INNPACK: no-conformidades, Faret: faret-nc):
+// inspectores que liberaron la NP + código de producto según los certificados de liberación de
+// fps-api. Varios inspectores distintos → todos, el más reciente primero, separados por " / ".
+// Caché por empresa: cada NP se consulta una sola vez por sesión del módulo.
+window.LiberacionCalidad = (function () {
+    const cache = {};   // empresa -> { "np|codigo": [{ inspector, fecha, folio, liberaciones }] }
+    const consultadas = {}; // empresa -> Set de NP ya consultadas
+    let error = false;
+
+    function clave(np, codigo) {
+        return `${String(np ?? "").trim()}|${String(codigo ?? "").trim()}`;
+    }
+
+    function esc(t) {
+        return String(t ?? "")
+            .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+
+    // Carga las NP que falten (solo numéricas). empresa: "INNPACK" | "FARET".
+    async function cargar(nps, empresa) {
+        cache[empresa] = cache[empresa] || {};
+        consultadas[empresa] = consultadas[empresa] || new Set();
+
+        const faltan = [...new Set((nps || []).map(n => String(n ?? "").trim()))]
+            .filter(n => /^\d{1,15}$/.test(n) && !consultadas[empresa].has(n));
+        if (!faltan.length) return;
+
+        try {
+            const res = await window.PhotinoBridge.send({ action: "liberacionCalidad.inspectores", data: { nps: faltan } });
+            if (!res || !res.ok) {
+                error = true;
+                return;
+            }
+            error = false;
+            faltan.forEach(n => consultadas[empresa].add(n));
+
+            (res.data || [])
+                .filter(r => String(r.Empresa || "").toUpperCase().includes(empresa))
+                .forEach(r => {
+                    const k = clave(r.Np, r.CodigoArticulo);
+                    (cache[empresa][k] = cache[empresa][k] || []).push({
+                        inspector: r.Inspector || "-",
+                        // fps-api manda la fecha de BD con "Z" (useUTC): se usa la parte de fecha tal
+                        // cual, sin convertir a hora local (ver FpsFechas en la API INNPACK).
+                        fecha: String(r.UltimaLiberacion || "").slice(0, 10),
+                        folio: Number(r.UltimoFolio) || 0,
+                        liberaciones: Number(r.Liberaciones) || 0,
+                    });
+                });
+            Object.values(cache[empresa]).forEach(lista => lista.sort((a, b) => b.folio - a.folio));
+        } catch {
+            error = true;
+        }
+    }
+
+    // Estado de una fila: null = aún sin consultar; [] = sin liberación.
+    function lista(np, codigo, empresa) {
+        const n = String(np ?? "").trim();
+        if (!/^\d{1,15}$/.test(n)) return [];
+        if (!consultadas[empresa]?.has(n)) return null;
+        return cache[empresa]?.[clave(n, codigo)] || [];
+    }
+
+    // Texto plano (Excel / impresión).
+    function texto(np, codigo, empresa) {
+        const l = lista(np, codigo, empresa);
+        if (l === null) return error ? "No disponible" : "";
+        return l.length ? l.map(x => x.inspector).join(" / ") : "-";
+    }
+
+    // HTML de la celda (con detalle de folio/fecha al pasar el mouse).
+    function celda(np, codigo, empresa) {
+        const l = lista(np, codigo, empresa);
+        if (l === null) return error ? "No disponible" : `<span style="opacity:0.5;">…</span>`;
+        if (!l.length) return "-";
+        const detalle = l
+            .map(x => `${x.inspector}: ${x.liberaciones} liberación(es), última folio ${x.folio} (${x.fecha})`)
+            .join("\n");
+        return `<span title="${esc(detalle)}">${esc(l.map(x => x.inspector).join(" / "))}</span>`;
+    }
+
+    return { cargar, texto, celda };
+})();

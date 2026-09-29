@@ -275,6 +275,7 @@ window.NoConformidadesController = class NoConformidadesController {
             this._renderIndicadores(this._calcularIndicadores(this._itemsCompletos));
             this._renderTabla();
             this._renderPaginacion();
+            this._cargarLiberaciones();
         } catch {
             tbody.innerHTML = `<tr><td colspan="${this._totalColumnasTabla()}">Error de comunicación con el backend</td></tr>`;
         }
@@ -827,10 +828,22 @@ window.NoConformidadesController = class NoConformidadesController {
         });
     }
 
-    // Total de columnas del thead (14 base + opcionales activas), usado para el colspan de las
+    // Total de columnas del thead (15 base + opcionales activas), usado para el colspan de las
     // filas de estado (Cargando/Sin registros/Error).
     _totalColumnasTabla() {
-        return 14 + this._columnasOpcionalesVisibles().length;
+        return 15 + this._columnasOpcionalesVisibles().length;
+    }
+
+    // Columna "Liberación Calidad": inspectores del certificado de liberación (fps-api) por NP +
+    // código de producto. Una sola consulta con las NP de todo el listado filtrado; las celdas se
+    // completan en su lugar cuando llega la respuesta.
+    async _cargarLiberaciones() {
+        const nps = [...this._itemsCompletos, ...this._items].map(nc => nc.npNv);
+        await window.LiberacionCalidad.cargar(nps, "INNPACK");
+        document.querySelectorAll("#ncq-tbody .ncq-liberacion").forEach(td => {
+            const nc = this._items.find(x => String(x.id) === td.dataset.id);
+            if (nc) td.innerHTML = window.LiberacionCalidad.celda(nc.npNv, nc.codigoProducto, "INNPACK");
+        });
     }
 
     _renderTabla() {
@@ -853,6 +866,7 @@ window.NoConformidadesController = class NoConformidadesController {
                 <td>${nc.cliente ?? "-"}</td>
                 <td>${nc.codigoProducto ?? "-"}</td>
                 <td>${nc.producto ?? "-"}</td>
+                <td class="ncq-liberacion" data-id="${nc.id}">${window.LiberacionCalidad.celda(nc.npNv, nc.codigoProducto, "INNPACK")}</td>
                 <td>${nc.tipoPnc ?? "-"}</td>
                 <td>${nc.categoriaDefecto ?? "-"}</td>
                 <td>${this._badge(nc.nivel, this._colorSeveridad(nc.severidad || nc.nivel))}</td>
@@ -1915,6 +1929,7 @@ window.NoConformidadesController = class NoConformidadesController {
     async _exportar() {
         try {
             const items = await this._obtenerItemsFiltrados();
+            await window.LiberacionCalidad.cargar(items.map(nc => nc.npNv), "INNPACK");
             const tabla = this._construirTablaTemp(items);
             window.ExcelExporter.exportTable({
                 tableSelector: "#ncq-tabla-export-temp",
@@ -1931,6 +1946,7 @@ window.NoConformidadesController = class NoConformidadesController {
     async _imprimir() {
         try {
             const items = await this._obtenerItemsFiltrados();
+            await window.LiberacionCalidad.cargar(items.map(nc => nc.npNv), "INNPACK");
             const tabla = this._construirTablaTemp(items);
             window.PrintExporter.printTable({
                 tableSelector: "#ncq-tabla-export-temp",
@@ -2019,7 +2035,7 @@ window.NoConformidadesController = class NoConformidadesController {
             <thead>
                 <tr>
                     <th>Código</th><th>Fecha ingreso</th><th>Fecha salida</th><th>NP/NV</th><th>Cliente</th>
-                    <th>Código producto</th><th>Producto</th><th>Tipo PNC</th><th>Categoría defecto</th><th>Nivel</th>
+                    <th>Código producto</th><th>Producto</th><th>Liberación Calidad</th><th>Tipo PNC</th><th>Categoría defecto</th><th>Nivel</th>
                     <th>Estado gestión</th><th>Responsable</th><th>Fecha compromiso</th>
                     ${colsOpcionales.map(col => `<th>${col.label}</th>`).join("")}
                 </tr>
@@ -2034,6 +2050,7 @@ window.NoConformidadesController = class NoConformidadesController {
                         <td>${nc.cliente ?? "-"}</td>
                         <td>${nc.codigoProducto ?? "-"}</td>
                         <td>${nc.producto ?? "-"}</td>
+                        <td>${window.LiberacionCalidad.texto(nc.npNv, nc.codigoProducto, "INNPACK")}</td>
                         <td>${nc.tipoPnc ?? "-"}</td>
                         <td>${nc.categoriaDefecto ?? "-"}</td>
                         <td>${nc.nivel ?? "-"}</td>

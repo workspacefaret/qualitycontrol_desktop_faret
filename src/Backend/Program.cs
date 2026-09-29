@@ -94,7 +94,8 @@ namespace QualityControlCenter
                     fpsMaterialesApiService,
                     planificacionApiClient,
                     sapRecepcionApiClient,
-                    fpsRegistroProduccionApiService
+                    fpsRegistroProduccionApiService,
+                    new PermisosService()
                 );
 
                 // =========================

@@ -106,6 +106,8 @@ window.AuthController = class AuthController {
 
                     this.showMessage("Ingreso correcto", true);
 
+                    await window.App.cargarPermisos();
+
                     setTimeout(() => {
                         window.App.loadModule("inicio");
                     }, 500);

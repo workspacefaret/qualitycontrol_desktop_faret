@@ -44,6 +44,7 @@ window.EmpresaSelectorController = class EmpresaSelectorController {
                     sessionStorage.setItem("faretLoggedIn", "true");
                     sessionStorage.setItem("faretNombreUsuario", res.data?.username || identificador);
                     sessionStorage.setItem("faretRol", res.data?.role || "");
+                    await window.App.cargarPermisos();
                     window.App.loadModule("faret");
                     return;
                 }
@@ -55,20 +56,40 @@ window.EmpresaSelectorController = class EmpresaSelectorController {
         window.App.loadModule("faret-login");
     }
 
-    _entrarInnpack() {
+    // Sesión recordada: se reenvía auth.login (igual que Faret) para que el backend cargue el
+    // usuario real, su rol vigente y sus permisos. Si el usuario fue desactivado o cambió su
+    // contraseña, cae al login manual.
+    async _entrarInnpack() {
         const isRemembered = localStorage.getItem("lcc_remember_login") === "true";
         const codigoUsuario = localStorage.getItem("lcc_codigoUsuario");
+        const password = localStorage.getItem("lcc_password");
 
-        if (isRemembered && codigoUsuario) {
-            // Restaurar sesión recordada y entrar directo
-            sessionStorage.setItem("isLoggedIn", "true");
-            sessionStorage.setItem("codigoUsuario", codigoUsuario);
-            sessionStorage.setItem("nombreUsuario", localStorage.getItem("lcc_nombreUsuario") || codigoUsuario);
-            sessionStorage.setItem("rolUsuario", localStorage.getItem("lcc_rolUsuario") || "");
-            window.App.loadModule("inicio");
-        } else {
-            window.App.loadModule("auth");
+        if (isRemembered && codigoUsuario && password) {
+            try {
+                const res = await window.PhotinoBridge.send({
+                    action: "auth.login",
+                    data: { CodigoUsuario: codigoUsuario, Password: password }
+                });
+
+                if (res.ok) {
+                    const rol = res.data?.Rol || "";
+                    const nombre = res.data?.NombreCompleto || codigoUsuario;
+                    sessionStorage.setItem("isLoggedIn", "true");
+                    sessionStorage.setItem("codigoUsuario", res.data?.CodigoUsuario || codigoUsuario);
+                    sessionStorage.setItem("nombreUsuario", nombre);
+                    sessionStorage.setItem("rolUsuario", rol);
+                    localStorage.setItem("lcc_nombreUsuario", nombre);
+                    localStorage.setItem("lcc_rolUsuario", rol);
+                    await window.App.cargarPermisos();
+                    window.App.loadModule("inicio");
+                    return;
+                }
+            } catch {
+                // sin conexión o credencial inválida: se cae al login manual
+            }
         }
+
+        window.App.loadModule("auth");
     }
 
     destroy() {

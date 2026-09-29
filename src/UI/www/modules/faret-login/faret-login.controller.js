@@ -80,6 +80,7 @@ window.FaretLoginController = class FaretLoginController {
                 }
 
                 this._showMsg("Ingreso correcto", true);
+                await window.App.cargarPermisos();
                 setTimeout(() => window.App.loadModule("faret"), 400);
             } else {
                 this._showMsg(res.error || "Credenciales incorrectas", false);

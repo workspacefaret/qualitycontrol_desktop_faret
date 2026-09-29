@@ -133,7 +133,11 @@ window.UsuariosController = class UsuariosController {
                 </td>
 
                 <td>
-                    ${this.escapeHtml(usuario.Rol || "-")}
+                    <select class="usuarios-rol-select" data-id="${usuario.Id}" data-rol-actual="${this.escapeHtml(usuario.Rol || "")}">
+                        ${["operador", "admin", "admin_ti"].map(r =>
+                            `<option value="${r}" ${usuario.Rol === r ? "selected" : ""}>${r}</option>`
+                        ).join("")}
+                    </select>
                 </td>
 
                 <td>
@@ -155,15 +159,42 @@ window.UsuariosController = class UsuariosController {
                         </button>
 
                         <button
-                            class="btn-secondary btn-eliminar-usuario"
+                            class="btn-secondary btn-permisos-usuario"
                             data-id="${usuario.Id}"
+                            data-rol="${this.escapeHtml(usuario.Rol || "")}"
                             data-nombre="${this.escapeHtml(
                                 usuario.NombreCompleto ||
                                 usuario.CodigoUsuario ||
                                 ""
                             )}"
                         >
-                            Eliminar
+                            Permisos
+                        </button>
+
+                        <button
+                            class="btn-secondary btn-activo-usuario"
+                            data-id="${usuario.Id}"
+                            data-activo="${usuario.Activo ? "1" : "0"}"
+                            data-nombre="${this.escapeHtml(
+                                usuario.NombreCompleto ||
+                                usuario.CodigoUsuario ||
+                                ""
+                            )}"
+                        >
+                            ${usuario.Activo ? "Desactivar" : "Activar"}
+                        </button>
+                        <button
+                            class="btn-secondary btn-eliminar-definitivo"
+                            title="Eliminar definitivamente"
+                            data-id="${usuario.Id}"
+                            data-codigo="${this.escapeHtml(usuario.CodigoUsuario || "")}"
+                            data-nombre="${this.escapeHtml(
+                                usuario.NombreCompleto ||
+                                usuario.CodigoUsuario ||
+                                ""
+                            )}"
+                        >
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#B91C1C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
                         </button>
                     </div>
                 </td>
@@ -177,8 +208,17 @@ window.UsuariosController = class UsuariosController {
         const resetButtons =
             this.tableBody.querySelectorAll(".btn-reset-password");
 
-        const deleteButtons =
-            this.tableBody.querySelectorAll(".btn-eliminar-usuario");
+        const activoButtons =
+            this.tableBody.querySelectorAll(".btn-activo-usuario");
+
+        const permisosButtons =
+            this.tableBody.querySelectorAll(".btn-permisos-usuario");
+
+        const rolSelects =
+            this.tableBody.querySelectorAll(".usuarios-rol-select");
+
+        const eliminarButtons =
+            this.tableBody.querySelectorAll(".btn-eliminar-definitivo");
 
         resetButtons.forEach(btn => {
             btn.addEventListener("click", async () => {
@@ -191,14 +231,41 @@ window.UsuariosController = class UsuariosController {
             });
         });
 
-        deleteButtons.forEach(btn => {
+        activoButtons.forEach(btn => {
             btn.addEventListener("click", async () => {
                 const id = btn.getAttribute("data-id");
+                const activo = btn.getAttribute("data-activo") === "1";
 
                 const nombre =
                     btn.getAttribute("data-nombre") || "este usuario";
 
-                await this.deleteUsuario(id, nombre);
+                await this.toggleActivo(id, activo, nombre);
+            });
+        });
+
+        permisosButtons.forEach(btn => {
+            btn.addEventListener("click", () => {
+                this.abrirPermisos(
+                    btn.getAttribute("data-id"),
+                    btn.getAttribute("data-nombre") || "este usuario",
+                    btn.getAttribute("data-rol") || ""
+                );
+            });
+        });
+
+        eliminarButtons.forEach(btn => {
+            btn.addEventListener("click", async () => {
+                await this.eliminarDefinitivo(
+                    btn.getAttribute("data-id"),
+                    btn.getAttribute("data-codigo") || "",
+                    btn.getAttribute("data-nombre") || "este usuario"
+                );
+            });
+        });
+
+        rolSelects.forEach(sel => {
+            sel.addEventListener("change", async () => {
+                await this.cambiarRol(sel);
             });
         });
     }
@@ -288,46 +355,147 @@ window.UsuariosController = class UsuariosController {
         }
     }
 
-    async deleteUsuario(id, nombre) {
+    // Desactivar reemplaza a "Eliminar": los usuarios tienen historial asociado y la API ya no
+    // los borra físicamente.
+    async toggleActivo(id, activo, nombre) {
         if (!id) return;
 
+        const accion = activo ? "desactivar" : "activar";
         const confirmado =
-            window.confirm(`¿Eliminar al usuario "${nombre}"?`);
+            window.confirm(`¿Seguro que deseas ${accion} al usuario "${nombre}"?`);
 
         if (!confirmado) return;
 
         try {
             const response = await window.PhotinoBridge.send({
-                action: "usuarios.delete",
+                action: "usuarios.activo",
                 data: {
-                    id: Number(id)
+                    id: Number(id),
+                    activo: !activo
                 }
             });
 
-            console.log("👥 usuarios.delete response:", response);
-
             if (!response || response.ok !== true) {
                 this.showMessage(
-                    response?.error || "No se pudo eliminar el usuario",
+                    response?.error || `No se pudo ${accion} el usuario`,
                     false
                 );
                 return;
             }
 
             this.showMessage(
-                "Usuario eliminado correctamente",
+                `Usuario ${activo ? "desactivado" : "activado"} correctamente`,
                 true
             );
 
             await this.loadUsuarios();
         } catch (error) {
-            console.error("❌ Error eliminando usuario:", error);
+            console.error("❌ Error cambiando estado del usuario:", error);
 
             this.showMessage(
-                "Error de conexión al eliminar usuario",
+                "Error de conexión al cambiar el estado del usuario",
                 false
             );
         }
+    }
+
+    // Borrado físico: la API solo lo permite si el usuario no tiene historial (si lo tiene, avisa
+    // que hay que desactivarlo). Doble confirmación: aviso + escribir el código del usuario.
+    async eliminarDefinitivo(id, codigo, nombre) {
+        if (!id) return;
+
+        const confirmado = window.confirm(
+            `¿Eliminar DEFINITIVAMENTE al usuario "${nombre}"?\n\n` +
+            "Esta acción no se puede deshacer. Solo es posible si el usuario no tiene registros asociados; " +
+            "si los tiene, desactívalo."
+        );
+        if (!confirmado) return;
+
+        const escrito = window.prompt(`Para confirmar, escribe el código del usuario: ${codigo}`);
+        if (escrito === null) return;
+        if (escrito.trim() !== codigo) {
+            this.showMessage("El código no coincide: no se eliminó el usuario", false);
+            return;
+        }
+
+        try {
+            const response = await window.PhotinoBridge.send({
+                action: "usuarios.eliminarDefinitivo",
+                data: { id: Number(id) }
+            });
+
+            if (!response || response.ok !== true) {
+                this.showMessage(response?.error || "No se pudo eliminar el usuario", false);
+                return;
+            }
+
+            this.showMessage(`Usuario "${nombre}" eliminado definitivamente`, true);
+            await this.loadUsuarios();
+        } catch (error) {
+            console.error("❌ Error eliminando usuario:", error);
+            this.showMessage("Error de conexión al eliminar el usuario", false);
+        }
+    }
+
+    async cambiarRol(selectEl) {
+        const id = selectEl.getAttribute("data-id");
+        const rolAnterior = selectEl.getAttribute("data-rol-actual");
+        const nuevoRol = selectEl.value;
+
+        if (nuevoRol === rolAnterior) return;
+
+        if (!window.confirm(`¿Cambiar el rol a "${nuevoRol}"?`)) {
+            selectEl.value = rolAnterior;
+            return;
+        }
+
+        selectEl.disabled = true;
+        try {
+            const response = await window.PhotinoBridge.send({
+                action: "usuarios.cambiarRol",
+                data: {
+                    id: Number(id),
+                    rol: nuevoRol
+                }
+            });
+
+            if (!response || response.ok !== true) {
+                this.showMessage(response?.error || "No se pudo cambiar el rol", false);
+                selectEl.value = rolAnterior;
+                return;
+            }
+
+            this.showMessage(`Rol actualizado a "${nuevoRol}"`, true);
+            await this.loadUsuarios();
+        } catch (error) {
+            console.error("❌ Error cambiando rol:", error);
+            this.showMessage("Error de conexión al cambiar el rol", false);
+            selectEl.value = rolAnterior;
+        } finally {
+            selectEl.disabled = false;
+        }
+    }
+
+    abrirPermisos(id, nombre, rol) {
+        const usuarioId = Number(id);
+
+        window.PermisosMatriz.abrir({
+            nombre,
+            rol,
+            empresa: "INNPACK",
+            cargar: () => window.PhotinoBridge.send({
+                action: "usuarios.permisos.get",
+                data: { id: usuarioId, rol }
+            }),
+            guardar: permisos => window.PhotinoBridge.send({
+                action: "usuarios.permisos.guardar",
+                data: { id: usuarioId, permisos }
+            }),
+            restablecer: () => window.PhotinoBridge.send({
+                action: "usuarios.permisos.restablecer",
+                data: { id: usuarioId }
+            })
+        });
     }
 
     async resetPassword(id, nombre) {
@@ -446,6 +614,7 @@ window.UsuariosController = class UsuariosController {
     }
 
     destroy() {
+        window.PermisosMatriz?.cerrar();
         console.log("🧹 UsuariosController destruido");
     }
 };
