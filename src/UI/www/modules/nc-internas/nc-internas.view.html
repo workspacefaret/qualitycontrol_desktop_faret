@@ -224,6 +224,7 @@
 
             <div id="nci-gestion-error" class="nci-error" style="display:none;"></div>
             <div id="nci-gestion-mensaje" class="nci-mensaje" style="display:none;"></div>
+            <div id="nci-gestion-cierre-info" style="display:none;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px;color:#334155;"></div>
 
             <div class="nci-seccion">
                 <div class="nci-seccion-titulo"><span class="nci-seccion-badge">1</span>Gestión</div>
@@ -236,7 +237,7 @@
                         <label for="nci-gestion-estado">Estado de gestión</label>
                         <select id="nci-gestion-estado">
                             <option value="PENDIENTE">Pendiente</option>
-                            <option value="CERRADA">Cerrada</option>
+                            <option value="CERRADA" disabled>Cerrada</option>
                         </select>
                     </div>
                     <div class="nci-campo">
@@ -262,7 +263,7 @@
                 </div>
             </div>
 
-            <div class="nci-seccion">
+            <div class="nci-seccion" id="nci-gestion-seccion-cierre">
                 <div class="nci-seccion-titulo"><span class="nci-seccion-badge">3</span>Cierre</div>
                 <div class="nci-campo nci-campo-full" style="margin-top:0;">
                     <label for="nci-cierre-comentario">Comentario de cierre</label>

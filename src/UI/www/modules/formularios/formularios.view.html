@@ -1,0 +1,106 @@
+<div class="module formularios-module">
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">Formularios</div>
+            <div class="subtitle">Formularios operacionales de logística registrados en base de datos. Información compartida con Faret.</div>
+        </div>
+        <div class="module-actions">
+            <button class="btn-secondary" id="fm-limpiar-btn">Limpiar filtros</button>
+            <button class="btn-primary" id="fm-buscar-btn">Buscar</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="formularios-filters-grid">
+            <div class="form-field">
+                <label for="fm-tipo">Formulario</label>
+                <select id="fm-tipo">
+                    <option value="inspeccionesVehiculares">Inspecciones Vehiculares</option>
+                    <option value="revisionCamionJornada">Revisión Término Jornada</option>
+                    <option value="checklistBodegaCajas">Checklist Bodega Cajas</option>
+                    <option value="revisionBodegaOficinas">Revisión Bodega Oficinas</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="fm-fecha-desde">Fecha desde</label>
+                <input type="text" id="fm-fecha-desde" placeholder="Seleccionar fecha desde">
+            </div>
+
+            <div class="form-field">
+                <label for="fm-fecha-hasta">Fecha hasta</label>
+                <input type="text" id="fm-fecha-hasta" placeholder="Seleccionar fecha hasta">
+            </div>
+
+            <div class="form-field" data-filtro="patente">
+                <label for="fm-patente">Patente</label>
+                <input type="text" id="fm-patente" placeholder="Ej: ABCD12">
+            </div>
+
+            <div class="form-field" data-filtro="conductor">
+                <label for="fm-conductor">Conductor</label>
+                <input type="text" id="fm-conductor" placeholder="Nombre conductor">
+            </div>
+
+            <div class="form-field" data-filtro="responsable">
+                <label for="fm-responsable">Responsable</label>
+                <input type="text" id="fm-responsable" placeholder="Nombre responsable">
+            </div>
+
+            <div class="form-field" data-filtro="estado">
+                <label for="fm-estado">Estado</label>
+                <select id="fm-estado">
+                    <option value="">Todos los estados</option>
+                    <option value="guardado">Guardado</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="module-header" style="margin-bottom:12px;">
+            <div>
+                <div class="module-title" style="font-size:18px;">Listado de formularios</div>
+                <div id="fm-info" style="font-size:12px;color:#64748B;margin-top:4px;">Sin datos cargados</div>
+            </div>
+            <div class="module-actions">
+                <button class="btn-secondary" id="fm-exportar-btn">Exportar Excel</button>
+            </div>
+        </div>
+
+        <div class="table-container" style="max-height:360px;">
+            <table class="table" id="fm-tabla" style="min-width:1100px;">
+                <thead id="fm-thead"></thead>
+                <tbody id="fm-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" id="fm-detalle-card" style="display:none;">
+        <div class="module-header" style="margin-bottom:12px;">
+            <div>
+                <div class="module-title" style="font-size:18px;">Detalle</div>
+                <div id="fm-detalle-titulo" style="font-size:12px;color:#64748B;margin-top:4px;"></div>
+            </div>
+            <div class="module-actions">
+                <button class="btn-secondary" id="fm-abrir-pdf-btn">Abrir PDF</button>
+            </div>
+        </div>
+
+        <div class="table-container" style="max-height:360px;">
+            <table class="table" style="min-width:900px;">
+                <thead>
+                    <tr>
+                        <th style="width:80px;">Ítem</th>
+                        <th>Descripción</th>
+                        <th style="width:100px;">Resultado</th>
+                        <th>Observación</th>
+                    </tr>
+                </thead>
+                <tbody id="fm-detalle-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>

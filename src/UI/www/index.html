@@ -22,6 +22,7 @@
     <link rel="stylesheet" href="modules/no-conformidades/no-conformidades.css">
     <link rel="stylesheet" href="modules/nc-internas/nc-internas.css">
     <link rel="stylesheet" href="modules/control-documental/control-documental.css">
+    <link rel="stylesheet" href="modules/formularios/formularios.css">
     <link rel="stylesheet" href="modules/faret-talleres-externos/faret-talleres-externos.css">
     <link rel="stylesheet" href="modules/talleres-externos/talleres-externos.css">
     <link rel="stylesheet" href="modules/recepcion-calidad/recepcion-calidad.css">
@@ -234,6 +235,18 @@
                     <span>Trazabilidad</span>
                 </button>
 
+                <button data-module="faret-formularios" data-empresa="FARET">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z"></path>
+                            <path d="M8 6H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-2"></path>
+                            <path d="M9 12h6"></path>
+                            <path d="M9 16h6"></path>
+                        </svg>
+                    </span>
+                    <span>Formularios</span>
+                </button>
+
                 <!-- Control de Recepción y Laboratorio - Muestras: quitados del sidebar Faret a
                      pedido del usuario (2026-08-27) — quedan exclusivos de INNPACK. Módulo y
                      backend intactos (no se borró nada, solo el punto de entrada del menú), por
@@ -401,6 +414,18 @@
                     <span>Trazabilidad</span>
                 </button>
 
+                <button data-module="formularios" data-empresa="INNPACK">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z"></path>
+                            <path d="M8 6H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-2"></path>
+                            <path d="M9 12h6"></path>
+                            <path d="M9 16h6"></path>
+                        </svg>
+                    </span>
+                    <span>Formularios</span>
+                </button>
+
                 <button id="btn-usuarios" data-module="usuarios" data-empresa="INNPACK" style="display: none;">
                     <span class="menu-icon">
                         <svg viewBox="0 0 24 24">
@@ -424,7 +449,7 @@
                 </button>
             </div>
 
-            <div class="version">Version 1.8.14</div>
+            <div class="version">Version 1.8.15</div>
         </div>
     </div>
 
@@ -499,6 +524,11 @@
                     const callback = this._callbacks[data.id];
 
                     if (callback) {
+                        // Sesión INNPACK vencida (JWT de 8 h): volver al login en vez de dejar el módulo roto.
+                        const r = data.data;
+                        if (r && r.ok === false && typeof r.error === "string" && r.error.startsWith("Sesión expirada") && window.App?.cerrarSesionExpirada) {
+                            window.App.cerrarSesionExpirada(r.error);
+                        }
                         callback(data.data);
                         delete this._callbacks[data.id];
                     }
@@ -517,6 +547,7 @@
     </script>
 
     <script src="shared/utils.js"></script>
+    <script src="shared/formularios-base.js"></script>
     <script src="core/app.js"></script>
 
 </body>

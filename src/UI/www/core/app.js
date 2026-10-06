@@ -338,6 +338,70 @@ console.log("🔥 APP INICIO");
             });
         }
     }
+
+    // Cierra la sesión (botón "Cerrar sesión" o sesión expirada) y vuelve al selector de empresa.
+    function cerrarSesion(textoAviso) {
+        console.log("🔓 Cerrando sesión...");
+
+        const empresa = sessionStorage.getItem("empresa") || "INNPACK";
+        App.limpiarPermisos();
+        desactivarSoloVista();
+
+        // 🔹 mensaje visual simple
+        const message = document.createElement("div");
+        message.innerText = textoAviso;
+        message.style.position = "fixed";
+        message.style.bottom = "20px";
+        message.style.right = "20px";
+        message.style.background = "#111827";
+        message.style.color = "#fff";
+        message.style.padding = "12px 18px";
+        message.style.borderRadius = "8px";
+        message.style.fontSize = "14px";
+        message.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
+        message.style.zIndex = "9999";
+        document.body.appendChild(message);
+
+        if (empresa === "FARET") {
+            window.PhotinoBridge.send({ action: "faret.logout" }).catch(() => {});
+            sessionStorage.removeItem("faretLoggedIn");
+            sessionStorage.removeItem("faretNombreUsuario");
+            sessionStorage.removeItem("faretRol");
+            localStorage.removeItem("lcc_faret_remember_login");
+            localStorage.removeItem("lcc_faret_nombreUsuario");
+            localStorage.removeItem("lcc_faret_rol");
+            // No borramos lcc_faret_identificador ni lcc_faret_password para que el login quede autollenado
+        } else {
+            window.PhotinoBridge.send({ action: "auth.logout", data: {} }).catch(() => {});
+            sessionStorage.removeItem("isLoggedIn");
+            sessionStorage.removeItem("codigoUsuario");
+            sessionStorage.removeItem("nombreUsuario");
+            sessionStorage.removeItem("rolUsuario");
+            localStorage.removeItem("lcc_remember_login");
+            localStorage.removeItem("lcc_nombreUsuario");
+            localStorage.removeItem("lcc_rolUsuario");
+            localStorage.removeItem("lcc_usuarioActivo");
+            // No borramos lcc_codigoUsuario para que el login quede autollenado
+        }
+
+        sessionStorage.removeItem("empresa");
+
+        setTimeout(() => {
+            message.remove();
+            App.loadModule("empresa-selector");
+        }, 700);
+    }
+
+    // Llamado por PhotinoBridge (index.html) cuando la API responde "Sesión expirada".
+    // Una sola vez por expiración aunque lleguen varias respuestas 401 seguidas.
+    let cerrandoPorExpiracion = false;
+    App.cerrarSesionExpirada = function (texto) {
+        if (cerrandoPorExpiracion || sessionStorage.getItem("empresa") === null) return;
+        cerrandoPorExpiracion = true;
+        cerrarSesion(texto);
+        setTimeout(() => { cerrandoPorExpiracion = false; }, 3000);
+    };
+
     function initSidebar() {
 
         console.log("🚀 Inicializando sidebar");
@@ -369,57 +433,7 @@ console.log("🔥 APP INICIO");
         });
 
         if (logoutBtn) {
-            logoutBtn.addEventListener("click", () => {
-                console.log("🔓 Cerrando sesión...");
-
-                const empresa = sessionStorage.getItem("empresa") || "INNPACK";
-                App.limpiarPermisos();
-                desactivarSoloVista();
-
-                // 🔹 mensaje visual simple
-                const message = document.createElement("div");
-                message.innerText = "✔ Sesión cerrada correctamente";
-                message.style.position = "fixed";
-                message.style.bottom = "20px";
-                message.style.right = "20px";
-                message.style.background = "#111827";
-                message.style.color = "#fff";
-                message.style.padding = "12px 18px";
-                message.style.borderRadius = "8px";
-                message.style.fontSize = "14px";
-                message.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
-                message.style.zIndex = "9999";
-                document.body.appendChild(message);
-
-                if (empresa === "FARET") {
-                    window.PhotinoBridge.send({ action: "faret.logout" }).catch(() => {});
-                    sessionStorage.removeItem("faretLoggedIn");
-                    sessionStorage.removeItem("faretNombreUsuario");
-                    sessionStorage.removeItem("faretRol");
-                    localStorage.removeItem("lcc_faret_remember_login");
-                    localStorage.removeItem("lcc_faret_nombreUsuario");
-                    localStorage.removeItem("lcc_faret_rol");
-                    // No borramos lcc_faret_identificador ni lcc_faret_password para que el login quede autollenado
-                } else {
-                    window.PhotinoBridge.send({ action: "auth.logout", data: {} }).catch(() => {});
-                    sessionStorage.removeItem("isLoggedIn");
-                    sessionStorage.removeItem("codigoUsuario");
-                    sessionStorage.removeItem("nombreUsuario");
-                    sessionStorage.removeItem("rolUsuario");
-                    localStorage.removeItem("lcc_remember_login");
-                    localStorage.removeItem("lcc_nombreUsuario");
-                    localStorage.removeItem("lcc_rolUsuario");
-                    localStorage.removeItem("lcc_usuarioActivo");
-                    // No borramos lcc_codigoUsuario para que el login quede autollenado
-                }
-
-                sessionStorage.removeItem("empresa");
-
-                setTimeout(() => {
-                    message.remove();
-                    App.loadModule("empresa-selector");
-                }, 700);
-            });
+            logoutBtn.addEventListener("click", () => cerrarSesion("✔ Sesión cerrada correctamente"));
         }
     }
 

@@ -57,10 +57,30 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
 
-        public void ClearToken()
+        // cerrarSesion = true solo en el logout explícito: devuelve el cliente a "sin sesión
+        // interactiva" para que una sesión Faret posterior vuelva a usar la cuenta de servicio.
+        // Un 401 (token vencido) NO lo resetea: no hay fallback silencioso a la cuenta de servicio.
+        public void ClearToken(bool cerrarSesion = false)
         {
             _token = null;
             _http.DefaultRequestHeaders.Authorization = null;
+            if (cerrarSesion)
+                _hasInteractiveToken = false;
+        }
+
+        // El prefijo "Sesión expirada" lo detecta el frontend (index.html) para volver al login.
+        // Solo aplica a una sesión interactiva; con la cuenta de servicio el próximo intento
+        // vuelve a autenticarse solo, así que ahí no se pide login.
+        private const string MensajeSesionExpirada = "Sesión expirada. Vuelve a iniciar sesión.";
+        private const string MensajeNoAutorizado = "No autorizado. Intenta nuevamente.";
+
+        private string RespuestaNoAutorizada(string body)
+        {
+            var interactiva = _hasInteractiveToken;
+            ClearToken();
+            return string.IsNullOrWhiteSpace(body)
+                ? Err(interactiva ? MensajeSesionExpirada : MensajeNoAutorizado)
+                : body;
         }
 
         // Autologin con la cuenta de servicio (config.json → InnpackApiServiceAccount) — solo se
@@ -140,8 +160,7 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
 
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
-                    ClearToken();
-                    return (false, string.IsNullOrWhiteSpace(body) ? Err("Token expirado o no autorizado") : body);
+                    return (false, RespuestaNoAutorizada(body));
                 }
 
                 if (!response.IsSuccessStatusCode)
@@ -206,8 +225,7 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
 
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
-                    ClearToken();
-                    return (status, string.IsNullOrWhiteSpace(body) ? Err("No autorizado") : body);
+                    return (status, RespuestaNoAutorizada(body));
                 }
 
                 if (!response.IsSuccessStatusCode)
@@ -246,8 +264,7 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
 
                 if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
-                    ClearToken();
-                    return (status, string.IsNullOrWhiteSpace(body) ? Err("No autorizado") : body);
+                    return (status, RespuestaNoAutorizada(body));
                 }
 
                 if (!response.IsSuccessStatusCode)

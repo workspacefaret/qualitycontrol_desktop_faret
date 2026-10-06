@@ -224,6 +224,7 @@
 
             <div id="fnci-gestion-error" class="fnci-error" style="display:none;"></div>
             <div id="fnci-gestion-mensaje" class="fnci-mensaje" style="display:none;"></div>
+            <div id="fnci-gestion-cierre-info" style="display:none;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px;color:#334155;"></div>
 
             <div class="fnci-seccion">
                 <div class="fnci-seccion-titulo"><span class="fnci-seccion-badge">1</span>Gestión</div>
@@ -236,7 +237,7 @@
                         <label for="fnci-gestion-estado">Estado de gestión</label>
                         <select id="fnci-gestion-estado">
                             <option value="PENDIENTE">Pendiente</option>
-                            <option value="CERRADA">Cerrada</option>
+                            <option value="CERRADA" disabled>Cerrada</option>
                         </select>
                     </div>
                     <div class="fnci-campo">
@@ -262,7 +263,7 @@
                 </div>
             </div>
 
-            <div class="fnci-seccion">
+            <div class="fnci-seccion" id="fnci-gestion-seccion-cierre">
                 <div class="fnci-seccion-titulo"><span class="fnci-seccion-badge">3</span>Cierre</div>
                 <div class="fnci-campo fnci-campo-full" style="margin-top:0;">
                     <label for="fnci-cierre-comentario">Comentario de cierre</label>

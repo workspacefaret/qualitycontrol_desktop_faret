@@ -344,7 +344,8 @@ window.NcInternasController = class NcInternasController {
             this._detalleActual = res.data;
             document.getElementById("nci-form-titulo").textContent = `NC interna ${res.data.codigo ?? ""}`;
             document.getElementById("nci-form-subtitulo").textContent =
-                `Estado gestión: ${this._labelEstadoGestion(res.data.estadoGestion)} · Creada por: ${res.data.creadoPor || "-"}`;
+                `Estado gestión: ${this._labelEstadoGestion(res.data.estadoGestion)} · Creada por: ${res.data.creadoPor || "-"}`
+                + (res.data.cerradoPor ? ` · Cerrada por: ${res.data.cerradoPor}${res.data.fechaCierre ? " el " + this._fecha(res.data.fechaCierre) : ""}` : "");
             this._renderForm(res.data);
             this._setModoEdicion(false);
         } catch {
@@ -443,6 +444,7 @@ window.NcInternasController = class NcInternasController {
 
     async _abrirGestion(id) {
         this._gestionId = id;
+        this._aplicarModoCierre({});
         document.getElementById("nci-gestion-error").style.display = "none";
         document.getElementById("nci-gestion-mensaje").style.display = "none";
         document.getElementById("nci-gestion-titulo").textContent = "Cargando...";
@@ -461,10 +463,34 @@ window.NcInternasController = class NcInternasController {
             document.getElementById("nci-gestion-fecha-compromiso").value = nc.fechaCompromiso ? String(nc.fechaCompromiso).substring(0, 10) : "";
             document.getElementById("nci-cierre-comentario").value = "";
             document.getElementById("nci-seguimiento-comentario").value = "";
+            this._aplicarModoCierre(nc);
             await this._cargarSeguimiento(id);
         } catch {
             this._mostrarError("nci-gestion-error", "Error de comunicación con el backend");
         }
+    }
+
+    // NC cerrada = solo lectura: se muestra quién y cuándo la cerró y no se puede volver a gestionar
+    // ni a cerrar. La única forma de cerrar es "Cerrar NC interna" (deja cerrado_por/fecha_cierre).
+    _aplicarModoCierre(nc) {
+        const cerrada = (nc.estadoGestion || "").toUpperCase() === "CERRADA";
+        this._gestionCerrada = cerrada;
+
+        ["nci-gestion-responsable", "nci-gestion-estado", "nci-gestion-fecha-compromiso"].forEach(id => {
+            document.getElementById(id).disabled = cerrada;
+        });
+        document.getElementById("nci-gestion-guardar-btn").style.display = cerrada ? "none" : "";
+        document.getElementById("nci-gestion-seccion-cierre").style.display = cerrada ? "none" : "";
+
+        const info = document.getElementById("nci-gestion-cierre-info");
+        if (!cerrada) {
+            info.style.display = "none";
+            return;
+        }
+        const cuando = nc.fechaCierre ? ` el ${this._fecha(nc.fechaCierre)}` : "";
+        const comentario = nc.comentarioCierre ? `<br>Comentario: ${this._esc(nc.comentarioCierre)}` : "";
+        info.innerHTML = `<strong>NC cerrada</strong> por ${this._esc(nc.cerradoPor || "-")}${cuando}${comentario}`;
+        info.style.display = "block";
     }
 
     _cerrarGestion() {
@@ -473,7 +499,7 @@ window.NcInternasController = class NcInternasController {
     }
 
     async _guardarGestion() {
-        if (!this._gestionId) return;
+        if (!this._gestionId || this._gestionCerrada) return;
         document.getElementById("nci-gestion-error").style.display = "none";
 
         const btn = document.getElementById("nci-gestion-guardar-btn");
@@ -540,7 +566,7 @@ window.NcInternasController = class NcInternasController {
     }
 
     async _cerrarNc() {
-        if (!this._gestionId) return;
+        if (!this._gestionId || this._gestionCerrada) return;
         if (!confirm("¿Cerrar esta NC interna? Quedará marcada como CERRADA.")) return;
 
         const comentarioCierre = document.getElementById("nci-cierre-comentario").value.trim();
@@ -1001,7 +1027,7 @@ window.NcInternasController = class NcInternasController {
             ["Tipo de desviación", nc => nc.categoriaDefecto], ["Etapa que detecta", nc => nc.proceso],
             ["Horas perdidas", nc => nc.tiempoPerdidoHoras], ["Descripción", nc => nc.descripcion],
             ["Observación", nc => nc.observacion], ["Estado gestión", nc => this._labelEstadoGestion(nc.estadoGestion)],
-            ["Responsable", nc => nc.responsable], ["Fecha cierre", nc => this._fecha(nc.fechaCierre)],
+            ["Responsable", nc => nc.responsable], ["Fecha cierre", nc => this._fecha(nc.fechaCierre)], ["Cerrado por", nc => nc.cerradoPor],
             ["Creada por", nc => nc.creadoPor],
         ];
         const tabla = document.createElement("table");

@@ -94,7 +94,7 @@ namespace QualityControlCenter.Modules.Auth
 
         public void Logout()
         {
-            _api.ClearToken();
+            _api.ClearToken(cerrarSesion: true);
             _session.Clear();
         }
 
