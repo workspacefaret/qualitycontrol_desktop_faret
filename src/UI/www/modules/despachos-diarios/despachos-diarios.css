@@ -1,0 +1,215 @@
+/* =====================================================
+   DESPACHOS DIARIOS (INNPACK y Faret comparten vista, lógica y estos estilos).
+   Todo scoped a .despachos-module para no afectar ningún otro módulo.
+===================================================== */
+
+.despachos-module .despachos-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+    align-items: end;
+}
+
+.despachos-module .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.despachos-module .form-field label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+}
+
+.despachos-module .form-field input,
+.despachos-module .form-field select {
+    width: 100%;
+    height: 38px;
+    padding: 8px 10px;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    background: #FFFFFF;
+    color: #0F172A;
+    font-size: 13px;
+}
+
+.despachos-module .form-field input:focus,
+.despachos-module .form-field select:focus {
+    border-color: #3B82F6;
+    outline: none;
+}
+
+.despachos-module .dd-periodo {
+    margin-top: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+}
+
+/* KPI: una tarjeta por empresa + total */
+.despachos-module .dd-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+}
+
+.despachos-module .dd-card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-top: 4px solid #16A34A;
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.despachos-module .dd-card-total {
+    border-top-color: #1D4ED8;
+    background: #F8FAFC;
+}
+
+.despachos-module .dd-card-titulo {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: #334155;
+    margin-bottom: 12px;
+}
+
+.despachos-module .dd-cifras {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+}
+
+.despachos-module .dd-cifra-bloque {
+    display: flex;
+    flex-direction: column;
+}
+
+.despachos-module .dd-cifra {
+    font-size: 34px;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #0F172A;
+}
+
+.despachos-module .dd-etiqueta {
+    font-size: 12px;
+    font-weight: 700;
+    color: #166534;
+    margin-top: 4px;
+}
+
+.despachos-module .dd-detalle {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #475569;
+    line-height: 1.5;
+}
+
+/* Cuarentena / destrucción: visualmente apartado y en gris, para no confundirlo con lo liberado */
+.despachos-module .dd-fuera {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border: 1px dashed #CBD5E1;
+    border-radius: 8px;
+    background: #F1F5F9;
+    font-size: 11px;
+    color: #64748B;
+    line-height: 1.5;
+}
+
+.despachos-module .dd-mensaje {
+    grid-column: 1 / -1;
+    padding: 18px;
+    text-align: center;
+    color: #64748B;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+}
+
+.despachos-module .dd-aviso {
+    margin: 12px 0 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #FEF3C7;
+    color: #92400E;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.despachos-module .dd-cantidad {
+    margin: 10px 0;
+    font-size: 12px;
+    color: #64748B;
+}
+
+/* Liberado hoy (en vivo) */
+.despachos-module .dd-card-hoy {
+    border-top-color: #F59E0B;
+    background: #FFFBEB;
+}
+
+.despachos-module .dd-hoy-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.despachos-module .dd-vivo {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #B45309;
+}
+
+.despachos-module .dd-vivo-punto {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #DC2626;
+    animation: dd-parpadeo 1.6s ease-in-out infinite;
+}
+
+@keyframes dd-parpadeo {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+}
+
+.despachos-module .dd-hoy-estado {
+    flex: 1;
+    font-size: 12px;
+    color: #64748B;
+}
+
+.despachos-module .dd-hoy-error {
+    color: #B91C1C;
+    font-weight: 600;
+}
+
+/* Resumen diario */
+.despachos-module .dd-diario-encabezado {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.despachos-module .dd-paginacion {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: #475569;
+}

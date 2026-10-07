@@ -325,11 +325,11 @@ console.log("🔥 APP INICIO");
             btn.style.display = empresaOk && esFaretAdminFull ? "" : "none";
         });
 
-        // 🔹 gating por rol (CONSULTA de FARET: Inicio, Talleres Externos y los dos módulos de
+        // 🔹 gating por rol (CONSULTA de FARET: Inicio, Talleres Externos, Despachos Diarios y los dos módulos de
         // No Conformidades — la NC de producto (faret-nc) y NC Internas (faret-nc-internas))
         const esFaretConsulta = faretRolActual === "CONSULTA";
         if (esFaretConsulta) {
-            const modulosPermitidos = ["faret", "faret-talleres-externos", "faret-nc", "faret-nc-internas"];
+            const modulosPermitidos = ["faret", "faret-talleres-externos", "faret-nc", "faret-nc-internas", "faret-despachos-diarios"];
             document.querySelectorAll('[data-module^="faret"]').forEach(btn => {
                 const empresaOk = btn.getAttribute("data-empresa") === empresa;
                 if (empresaOk && !modulosPermitidos.includes(btn.getAttribute("data-module"))) {

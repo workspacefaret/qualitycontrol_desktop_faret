@@ -48,6 +48,18 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             return _client.GetAsync(query.TrimEnd('&', '?'));
         }
 
+        // Despachos Diarios: resumen por empresa/destino + detalle por folio (fechas opcionales).
+        public Task<(bool ok, string body)> ObtenerDespachosAsync(string? fechaDesde, string? fechaHasta)
+        {
+            var query = "api/despachos-diarios?";
+            if (!string.IsNullOrWhiteSpace(fechaDesde))
+                query += $"fechaDesde={Uri.EscapeDataString(fechaDesde)}&";
+            if (!string.IsNullOrWhiteSpace(fechaHasta))
+                query += $"fechaHasta={Uri.EscapeDataString(fechaHasta)}&";
+
+            return _client.GetAsync(query.TrimEnd('&', '?'));
+        }
+
         public Task<(bool ok, string body)> ObtenerPdfAsync(long folio) =>
             _client.GetAsync($"api/certificados-liberacion/{folio}/pdf");
 

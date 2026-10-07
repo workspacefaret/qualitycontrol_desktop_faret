@@ -40,6 +40,7 @@ namespace QualityControlCenter.Services
             ["talleres-externos"] = new("INNPACK", new[] { "talleresExternos" }),
             ["producto-terminado"] = new("INNPACK", new[] { "productoTerminado" }),
             ["certificados-liberacion"] = new("INNPACK", Array.Empty<string>()),
+            ["despachos-diarios"] = new("INNPACK", Array.Empty<string>()),
             ["recepcion-calidad"] = new("INNPACK", new[] { "recepcion" }),
             ["muestra-laboratorio"] = new("INNPACK", new[] { "muestraLab" }),
             ["trazabilidad"] = new("INNPACK", Array.Empty<string>()),
@@ -50,6 +51,7 @@ namespace QualityControlCenter.Services
             ["faret-inspecciones-pallet"] = new("FARET", new[] { "faret.inspeccionesPallet" }),
             ["faret-producto-terminado"] = new("FARET", new[] { "productoTerminado" }),
             ["faret-certificados-liberacion"] = new("FARET", Array.Empty<string>()),
+            ["faret-despachos-diarios"] = new("FARET", Array.Empty<string>()),
             ["faret-nc"] = new("FARET", new[] { "faret.nc", "faret.pncCatalogos", "faret.catalogos" }),
             ["faret-nc-internas"] = new("FARET", new[] { "noConformidades" }),
             ["faret-control-documental"] = new("FARET", new[] { "controlDocumental" }),
@@ -364,7 +366,7 @@ namespace QualityControlCenter.Services
 
             if (rol == "CONSULTA")
             {
-                return modulo is "faret" or "faret-talleres-externos" or "faret-nc" or "faret-nc-internas"
+                return modulo is "faret" or "faret-talleres-externos" or "faret-nc" or "faret-nc-internas" or "faret-despachos-diarios"
                     ? Editar
                     : SinAcceso;
             }

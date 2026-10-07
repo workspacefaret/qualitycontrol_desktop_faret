@@ -10,6 +10,7 @@ using QualityControlCenter.Backend.Services.InnpackApi;
 using QualityControlCenter.Backend.Services.PlanificacionApi;
 using QualityControlCenter.Modules.Auth;
 using QualityControlCenter.Modules.CertificadosLiberacion;
+using QualityControlCenter.Modules.DespachosDiarios;
 using QualityControlCenter.Modules.ControlDocumental;
 using QualityControlCenter.Modules.Dashboard;
 using QualityControlCenter.Modules.Faret;
@@ -199,6 +200,11 @@ namespace QualityControlCenter.Services
                 else if (action.StartsWith("certificadosLiberacion"))
                 {
                     var handler = new CertificadosLiberacionHandler(_innpackClient);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("despachosDiarios"))
+                {
+                    var handler = new DespachosDiariosHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("talleresExternos"))

@@ -1,0 +1,124 @@
+<div class="module despachos-module">
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">Despachos Diarios</div>
+            <div class="subtitle">Cantidad liberada según el Certificado de Terminaciones y Calidad del Producto (FARET SPA / INNPACK SPA). Información compartida con INNPACK.</div>
+        </div>
+        <div class="module-actions">
+            <button class="btn-secondary" id="dd-ultimo-mes-btn">Último mes</button>
+            <button class="btn-secondary" id="dd-historial-btn">Todo el historial</button>
+            <button class="btn-secondary" id="dd-exportar-btn">Exportar Excel</button>
+            <button class="btn-primary" id="dd-buscar-btn">Buscar</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="despachos-filters-grid">
+            <div class="form-field">
+                <label for="dd-fecha-desde">Fecha desde</label>
+                <input type="text" id="dd-fecha-desde" placeholder="Seleccionar fecha desde">
+            </div>
+            <div class="form-field">
+                <label for="dd-fecha-hasta">Fecha hasta</label>
+                <input type="text" id="dd-fecha-hasta" placeholder="Seleccionar fecha hasta">
+            </div>
+        </div>
+        <div class="dd-periodo" id="dd-periodo"></div>
+    </div>
+
+    <div class="dd-kpis" id="dd-hoy"></div>
+
+    <div class="dd-kpis" id="dd-kpis">
+        <div class="dd-mensaje">Cargando...</div>
+    </div>
+
+    <div class="card">
+        <div class="dd-diario-encabezado">
+            <div class="module-title">Liberado por día (00:00 a 24:00)</div>
+            <button class="btn-secondary" id="dd-diario-exportar-btn">Exportar resumen diario</button>
+        </div>
+        <div class="table-container">
+            <table class="table" id="dd-diario-tabla">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Pallets liberados</th>
+                        <th>Unidades liberadas</th>
+                        <th>Certificados</th>
+                        <th>Detalle por empresa</th>
+                        <th>No liberado (informativo)</th>
+                    </tr>
+                </thead>
+                <tbody id="dd-diario-tbody">
+                    <tr>
+                        <td colspan="6">Cargando...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="dd-paginacion" id="dd-diario-paginacion" style="display:none;">
+            <button class="btn-secondary" id="dd-diario-prev">Anterior</button>
+            <span id="dd-diario-info"></span>
+            <button class="btn-secondary" id="dd-diario-next">Siguiente</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="module-title">Certificados del período</div>
+
+        <div class="despachos-filters-grid">
+            <div class="form-field">
+                <label for="dd-filtro-empresa">Empresa</label>
+                <select id="dd-filtro-empresa">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="dd-filtro-destino">Destino</label>
+                <select id="dd-filtro-destino">
+                    <option value="">Todos</option>
+                    <option value="LIBERADO">Liberado</option>
+                    <option value="CUARENTENA">Cuarentena</option>
+                    <option value="DESTRUCCION">Destrucción</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="dd-filtro-texto">Buscar (NP, cliente, artículo, folio)</label>
+                <input type="text" id="dd-filtro-texto" placeholder="Ej. 22902 o KENVUE">
+            </div>
+        </div>
+
+        <div class="dd-aviso" id="dd-aviso" style="display:none;"></div>
+        <div class="dd-cantidad" id="dd-cantidad"></div>
+
+        <div class="table-container">
+            <table class="table" id="dd-tabla">
+                <thead>
+                    <tr>
+                        <th>Fecha liberación</th>
+                        <th>Folio</th>
+                        <th>Empresa</th>
+                        <th>NP</th>
+                        <th>Cliente</th>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Destino</th>
+                        <th>Embalaje</th>
+                        <th>Pallets</th>
+                        <th>Otros bultos</th>
+                        <th>Un. por bulto</th>
+                        <th>Saldo</th>
+                        <th>Unidades liberadas</th>
+                    </tr>
+                </thead>
+                <tbody id="dd-tbody">
+                    <tr>
+                        <td colspan="14">Cargando...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>

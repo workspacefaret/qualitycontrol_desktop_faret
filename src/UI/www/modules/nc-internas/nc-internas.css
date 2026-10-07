@@ -291,22 +291,6 @@
     font-weight: 700;
 }
 
-.nci-seguimiento-item {
-    border-bottom: 1px solid #F1F5F9;
-    padding: 8px 0;
-    font-size: 13px;
-}
-
-.nci-seguimiento-item:last-child {
-    border-bottom: none;
-}
-
-.nci-seguimiento-meta {
-    font-size: 11px;
-    color: #94A3B8;
-    margin-top: 2px;
-}
-
 .nci-accion-estado-select {
     height: 34px;
     border: 1px solid #D8DEE9;

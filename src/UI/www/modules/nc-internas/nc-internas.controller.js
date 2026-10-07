@@ -3,7 +3,7 @@
 // no_conformidades (API INNPACK) con ambito = "INTERNA" + empresa. Réplica INNPACK de
 // modules/faret-nc-internas (mismo código salvo EMPRESA, prefijo de ids nci-, usuario de sesión y
 // textos de exportación) — si se corrige algo en uno, replicarlo en el otro.
-// Reutiliza el mismo backend que el módulo No Conformidades INNPACK (gestión, seguimiento,
+// Reutiliza el mismo backend que el módulo No Conformidades INNPACK (gestión,
 // análisis de causa raíz, acciones y adjuntos), filtrando siempre por ambito/empresa.
 window.NcInternasController = class NcInternasController {
 
@@ -51,7 +51,6 @@ window.NcInternasController = class NcInternasController {
 
         document.getElementById("nci-gestion-cerrar-btn")?.addEventListener("click", () => this._cerrarGestion());
         document.getElementById("nci-gestion-guardar-btn")?.addEventListener("click", () => this._guardarGestion());
-        document.getElementById("nci-seguimiento-agregar-btn")?.addEventListener("click", () => this._agregarSeguimiento());
         document.getElementById("nci-cerrar-nc-btn")?.addEventListener("click", () => this._cerrarNc());
 
         document.getElementById("nci-analisis-cerrar-btn")?.addEventListener("click", () => this._cerrarAnalisis());
@@ -179,7 +178,7 @@ window.NcInternasController = class NcInternasController {
     async _loadLista() {
         const tbody = document.getElementById("nci-tbody");
         if (!tbody) return;
-        tbody.innerHTML = `<tr><td colspan="10">Cargando...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9">Cargando...</td></tr>`;
 
         const filtros = { ...this._getFiltros(), ...this._scope() };
 
@@ -191,7 +190,7 @@ window.NcInternasController = class NcInternasController {
             ]);
 
             if (!listRes.ok) {
-                tbody.innerHTML = `<tr><td colspan="10">${this._esc(listRes.error || "Error al cargar")}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9">${this._esc(listRes.error || "Error al cargar")}</td></tr>`;
                 return;
             }
 
@@ -206,7 +205,7 @@ window.NcInternasController = class NcInternasController {
             this._renderTabla();
             this._renderPaginacion();
         } catch {
-            tbody.innerHTML = `<tr><td colspan="10">Error de comunicación con el backend</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9">Error de comunicación con el backend</td></tr>`;
         }
     }
 
@@ -214,14 +213,13 @@ window.NcInternasController = class NcInternasController {
         document.getElementById("nci-total").textContent = r.total ?? 0;
         document.getElementById("nci-abiertas").textContent = r.abiertas ?? 0;
         document.getElementById("nci-cerradas").textContent = r.cerradas ?? 0;
-        document.getElementById("nci-horas").textContent = this._horas(r.horasPerdidas);
     }
 
     _renderTabla() {
         const tbody = document.getElementById("nci-tbody");
 
         if (!this._items.length) {
-            tbody.innerHTML = `<tr><td colspan="10">Sin registros</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9">Sin registros</td></tr>`;
             return;
         }
 
@@ -234,7 +232,6 @@ window.NcInternasController = class NcInternasController {
                 <td>${this._esc(nc.area ?? "-")}${nc.areasSecundarias ? `<div class="nci-nota">+ ${this._esc(nc.areasSecundarias)}</div>` : ""}</td>
                 <td>${this._esc(nc.categoriaDefecto ?? "-")}</td>
                 <td>${this._esc(nc.proceso ?? "-")}</td>
-                <td>${nc.tiempoPerdidoHoras != null ? this._horas(nc.tiempoPerdidoHoras) : "-"}</td>
                 <td>${this._badge(this._labelEstadoGestion(nc.estadoGestion), this._colorEstadoGestion(nc.estadoGestion))}</td>
                 <td class="nci-acciones-celda">
                     <button class="btn-ghost nci-ver-btn" data-id="${nc.id}">Ver</button>
@@ -303,7 +300,7 @@ window.NcInternasController = class NcInternasController {
 
     _camposIds() {
         return ["nci-f-fecha", "nci-f-np-nv", "nci-f-cliente", "nci-f-area", "nci-f-tipo", "nci-f-etapa",
-            "nci-f-horas", "nci-f-descripcion", "nci-f-observacion"];
+            "nci-f-descripcion", "nci-f-observacion"];
     }
 
     _setModoEdicion(editable) {
@@ -360,7 +357,6 @@ window.NcInternasController = class NcInternasController {
         this._setSelectValue(document.getElementById("nci-f-area"), nc.area);
         this._setSelectValue(document.getElementById("nci-f-tipo"), nc.categoriaDefecto);
         this._setSelectValue(document.getElementById("nci-f-etapa"), nc.proceso);
-        document.getElementById("nci-f-horas").value = nc.tiempoPerdidoHoras ?? "";
         document.getElementById("nci-f-descripcion").value = nc.descripcion ?? "";
         document.getElementById("nci-f-observacion").value = nc.observacion ?? "";
         const secundarias = (nc.areasSecundarias || "").split(";").map(s => s.trim()).filter(Boolean);
@@ -386,7 +382,6 @@ window.NcInternasController = class NcInternasController {
         document.getElementById("nci-form-error").style.display = "none";
 
         const valor = id => document.getElementById(id).value.trim();
-        const horasRaw = valor("nci-f-horas");
         const campos = {
             fechaDeteccion: valor("nci-f-fecha"),
             npNv: valor("nci-f-np-nv"),
@@ -397,16 +392,11 @@ window.NcInternasController = class NcInternasController {
             descripcion: valor("nci-f-descripcion"),
             observacion: valor("nci-f-observacion"),
             areasSecundarias: this._leerAreasSecundarias().join("; "),
-            tiempoPerdidoHoras: horasRaw === "" ? null : Number(horasRaw),
         };
 
         if (!campos.fechaDeteccion || !campos.npNv || !campos.cliente || !campos.area
             || !campos.categoriaDefecto || !campos.proceso || !campos.descripcion) {
             this._mostrarErrorForm("Fecha, NP/NV, Cliente, Área responsable, Tipo de desviación, Etapa y Descripción son obligatorios");
-            return;
-        }
-        if (campos.tiempoPerdidoHoras !== null && (isNaN(campos.tiempoPerdidoHoras) || campos.tiempoPerdidoHoras < 0)) {
-            this._mostrarErrorForm("El tiempo perdido debe ser un número mayor o igual a 0");
             return;
         }
 
@@ -459,12 +449,10 @@ window.NcInternasController = class NcInternasController {
             const nc = res.data;
             document.getElementById("nci-gestion-titulo").textContent = `Gestionar ${nc.codigo ?? ""}`;
             document.getElementById("nci-gestion-responsable").value = nc.responsable || "";
-            document.getElementById("nci-gestion-estado").value = nc.estadoGestion || "PENDIENTE";
+            this._gestionEstado = nc.estadoGestion || "PENDIENTE"; // sin selector: se reenvía tal cual para no pisarlo con null
             document.getElementById("nci-gestion-fecha-compromiso").value = nc.fechaCompromiso ? String(nc.fechaCompromiso).substring(0, 10) : "";
             document.getElementById("nci-cierre-comentario").value = "";
-            document.getElementById("nci-seguimiento-comentario").value = "";
             this._aplicarModoCierre(nc);
-            await this._cargarSeguimiento(id);
         } catch {
             this._mostrarError("nci-gestion-error", "Error de comunicación con el backend");
         }
@@ -476,7 +464,7 @@ window.NcInternasController = class NcInternasController {
         const cerrada = (nc.estadoGestion || "").toUpperCase() === "CERRADA";
         this._gestionCerrada = cerrada;
 
-        ["nci-gestion-responsable", "nci-gestion-estado", "nci-gestion-fecha-compromiso"].forEach(id => {
+        ["nci-gestion-responsable", "nci-gestion-fecha-compromiso"].forEach(id => {
             document.getElementById(id).disabled = cerrada;
         });
         document.getElementById("nci-gestion-guardar-btn").style.display = cerrada ? "none" : "";
@@ -509,7 +497,7 @@ window.NcInternasController = class NcInternasController {
                 action: "noConformidades.gestion.actualizar",
                 id: this._gestionId,
                 responsable: document.getElementById("nci-gestion-responsable").value.trim(),
-                estadoGestion: document.getElementById("nci-gestion-estado").value,
+                estadoGestion: this._gestionEstado,
                 fechaCompromiso: document.getElementById("nci-gestion-fecha-compromiso").value || null,
                 actualizadoPor: this._usuarioActual(),
             });
@@ -523,45 +511,6 @@ window.NcInternasController = class NcInternasController {
             this._mostrarError("nci-gestion-error", "Error de comunicación con el backend");
         } finally {
             btn.disabled = false;
-        }
-    }
-
-    async _cargarSeguimiento(ncId) {
-        const cont = document.getElementById("nci-seguimiento-lista");
-        cont.innerHTML = "Cargando...";
-        try {
-            const res = await window.PhotinoBridge.send({ action: "noConformidades.seguimiento.list", id: ncId });
-            const items = res.ok && Array.isArray(res.data) ? res.data : [];
-            if (!items.length) { cont.innerHTML = `<div>Sin comentarios de seguimiento</div>`; return; }
-            cont.innerHTML = items.map(c => `
-                <div class="nci-seguimiento-item">
-                    <div>${this._esc(c.comentario ?? "-")}</div>
-                    <div class="nci-seguimiento-meta">${this._esc(c.autor ?? "Sin autor")} · ${c.creadoEn ? new Date(c.creadoEn).toLocaleString("es-CL") : "-"}</div>
-                </div>
-            `).join("");
-        } catch {
-            cont.innerHTML = `<div>Error al cargar el seguimiento</div>`;
-        }
-    }
-
-    async _agregarSeguimiento() {
-        if (!this._gestionId) return;
-        const comentario = document.getElementById("nci-seguimiento-comentario").value.trim();
-        if (!comentario) return;
-
-        try {
-            const res = await window.PhotinoBridge.send({
-                action: "noConformidades.seguimiento.crear",
-                id: this._gestionId,
-                comentario,
-                autor: this._usuarioActual(),
-            });
-            if (!res.ok) { this._showMensajeEn("nci-gestion-mensaje", res.error || "Error al agregar el comentario", false); return; }
-            document.getElementById("nci-seguimiento-comentario").value = "";
-            await this._cargarSeguimiento(this._gestionId);
-            this._showMensajeEn("nci-gestion-mensaje", "Comentario agregado", true);
-        } catch {
-            this._showMensajeEn("nci-gestion-mensaje", "Error de comunicación con el backend", false);
         }
     }
 
@@ -1025,7 +974,7 @@ window.NcInternasController = class NcInternasController {
             ["Código", nc => nc.codigo], ["Fecha", nc => this._fecha(nc.fechaDeteccion)], ["NP/NV", nc => nc.npNv],
             ["Cliente", nc => nc.cliente], ["Área responsable", nc => nc.area], ["Otras áreas", nc => nc.areasSecundarias],
             ["Tipo de desviación", nc => nc.categoriaDefecto], ["Etapa que detecta", nc => nc.proceso],
-            ["Horas perdidas", nc => nc.tiempoPerdidoHoras], ["Descripción", nc => nc.descripcion],
+            ["Descripción", nc => nc.descripcion],
             ["Observación", nc => nc.observacion], ["Estado gestión", nc => this._labelEstadoGestion(nc.estadoGestion)],
             ["Responsable", nc => nc.responsable], ["Fecha cierre", nc => this._fecha(nc.fechaCierre)], ["Cerrado por", nc => nc.cerradoPor],
             ["Creada por", nc => nc.creadoPor],
@@ -1052,23 +1001,6 @@ window.NcInternasController = class NcInternasController {
     }
 
     _calcularIndicadores(items) {
-        // Horas perdidas por área responsable principal. Solo NC con horas registradas.
-        const horasMapa = new Map();
-        let horasTotal = 0;
-        let conHoras = 0;
-        items.forEach(nc => {
-            const horas = Number(nc.tiempoPerdidoHoras);
-            if (nc.tiempoPerdidoHoras == null || isNaN(horas)) return;
-            horasTotal += horas;
-            conHoras++;
-            const area = (nc.area || "-").trim();
-            horasMapa.set(area, (horasMapa.get(area) || 0) + horas);
-        });
-        const horasPorArea = [...horasMapa.entries()]
-            .filter(([, h]) => h > 0)
-            .sort((a, b) => b[1] - a[1])
-            .map(([categoria, total]) => ({ categoria, total: Math.round(total * 100) / 100 }));
-
         // Pareto por tipo de desviación (% acumulado con 2 decimales, mismo cálculo que NC).
         const porTipo = this._contarPor(items, nc => nc.categoriaDefecto);
         const totalTipo = porTipo.reduce((s, r) => s + r.total, 0);
@@ -1094,11 +1026,9 @@ window.NcInternasController = class NcInternasController {
             porCliente: this._contarPor(items, nc => nc.cliente),
             pareto,
             mensual,
-            horasPorArea,
             npAfectadas: porNp.length,
             npReincidentes: porNp.filter(r => r.total > 1).length,
             clientesAfectados: new Set(items.map(nc => (nc.cliente || "").trim()).filter(Boolean)).size,
-            horasPromedio: conHoras ? Math.round(horasTotal / conHoras * 100) / 100 : 0,
         };
     }
 
@@ -1108,7 +1038,6 @@ window.NcInternasController = class NcInternasController {
         this._setText("nci-stat-np", ind.npAfectadas);
         this._setText("nci-stat-np-reincidentes", ind.npReincidentes);
         this._setText("nci-stat-clientes", ind.clientesAfectados);
-        document.getElementById("nci-stat-horas-promedio").textContent = this._horas(ind.horasPromedio);
 
         this._chartBarHorizontal("nci-chart-area", ind.porArea, "NC", "NC por área responsable");
         this._chartPareto("nci-chart-pareto", this._aplicarTopNOtros(ind.pareto), "Pareto por tipo de desviación");
@@ -1119,11 +1048,6 @@ window.NcInternasController = class NcInternasController {
             ind.mensual.length >= 2,
             ind.mensual.length === 1 ? "Rango de un solo mes — sin evolución mensual que mostrar." : "Sin registros en el período para mostrar evolución.",
             () => this._chartBarVertical("nci-chart-mensual", ind.mensual, "Evolución mensual"));
-
-        this._mostrarChartONota("nci-chart-horas-area", "nci-nota-horas-area",
-            ind.horasPorArea.length > 0,
-            "Sin horas perdidas registradas en el período.",
-            () => this._chartBarHorizontal("nci-chart-horas-area", ind.horasPorArea, "Horas", "Horas perdidas por área"));
     }
 
     _mostrarChartONota(canvasId, notaId, hayDatos, textoNota, dibujar) {
@@ -1317,7 +1241,6 @@ window.NcInternasController = class NcInternasController {
         const items = this._itemsCompletos || [];
         const ind = this._calcularIndicadores(items);
         const cerradas = items.filter(nc => nc.estadoGestion === "CERRADA").length;
-        const horasTotal = items.reduce((s, nc) => s + (Number(nc.tiempoPerdidoHoras) || 0), 0);
 
         window.PrintExporter.printReport({
             empresa: NcInternasController.EMPRESA,
@@ -1328,11 +1251,9 @@ window.NcInternasController = class NcInternasController {
                 { label: "Total NC internas", valor: items.length },
                 { label: "Abiertas", valor: items.length - cerradas },
                 { label: "Cerradas", valor: cerradas },
-                { label: "Horas perdidas", valor: this._horas(horasTotal) },
                 { label: "NP afectadas", valor: ind.npAfectadas },
                 { label: "NP con más de una NC", valor: ind.npReincidentes },
                 { label: "Clientes afectados", valor: ind.clientesAfectados },
-                { label: "Horas perdidas promedio por NC", valor: this._horas(ind.horasPromedio) },
             ],
             graficos: this._capturarGraficos(),
             tablas: [
@@ -1342,7 +1263,6 @@ window.NcInternasController = class NcInternasController {
                     columnas: ["Tipo", "Frecuencia", "% Acumulado"],
                     filas: this._aplicarTopNOtros(ind.pareto).map(r => [r.defecto, r.frecuencia, `${r.porcentajeAcumulado}%`]),
                 },
-                { titulo: "Horas perdidas por área", columnas: ["Área", "Horas"], filas: ind.horasPorArea.map(r => [r.categoria, this._horas(r.total)]) },
                 { titulo: "Etapa que detecta", columnas: ["Etapa", "Total"], filas: ind.porEtapa.map(r => [r.categoria, r.total]) },
                 { titulo: "Clientes con más NC internas", columnas: ["Cliente", "Total"], filas: ind.porCliente.map(r => [r.categoria, r.total]) },
             ],
@@ -1380,11 +1300,6 @@ window.NcInternasController = class NcInternasController {
 
     _fecha(valor) {
         return window.DateUtils.formatear(valor);
-    }
-
-    _horas(valor) {
-        const n = Number(valor || 0);
-        return n.toLocaleString("es-CL", { maximumFractionDigits: 2 });
     }
 
     _badge(texto, color) {

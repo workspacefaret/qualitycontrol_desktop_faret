@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="modules/nc-internas/nc-internas.css">
     <link rel="stylesheet" href="modules/control-documental/control-documental.css">
     <link rel="stylesheet" href="modules/formularios/formularios.css">
+    <link rel="stylesheet" href="modules/despachos-diarios/despachos-diarios.css">
     <link rel="stylesheet" href="modules/faret-talleres-externos/faret-talleres-externos.css">
     <link rel="stylesheet" href="modules/talleres-externos/talleres-externos.css">
     <link rel="stylesheet" href="modules/recepcion-calidad/recepcion-calidad.css">
@@ -145,6 +146,18 @@
                         </svg>
                     </span>
                     <span>Certificados de Liberación</span>
+                </button>
+
+                <button data-module="faret-despachos-diarios" data-empresa="FARET">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M3 7h11v9H3z"></path>
+                            <path d="M14 10h4l3 3v3h-7"></path>
+                            <circle cx="7.5" cy="17.5" r="1.5"></circle>
+                            <circle cx="17.5" cy="17.5" r="1.5"></circle>
+                        </svg>
+                    </span>
+                    <span>Despachos Diarios</span>
                 </button>
 
                 <button data-module="faret-nc" data-empresa="FARET">
@@ -381,6 +394,18 @@
                     <span>Certificados de Liberación</span>
                 </button>
 
+                <button data-module="despachos-diarios" data-empresa="INNPACK">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M3 7h11v9H3z"></path>
+                            <path d="M14 10h4l3 3v3h-7"></path>
+                            <circle cx="7.5" cy="17.5" r="1.5"></circle>
+                            <circle cx="17.5" cy="17.5" r="1.5"></circle>
+                        </svg>
+                    </span>
+                    <span>Despachos Diarios</span>
+                </button>
+
                 <button data-module="recepcion-calidad" data-empresa="INNPACK">
                     <span class="menu-icon">
                         <svg viewBox="0 0 24 24">
@@ -548,6 +573,7 @@
 
     <script src="shared/utils.js"></script>
     <script src="shared/formularios-base.js"></script>
+    <script src="shared/despachos-diarios-base.js"></script>
     <script src="core/app.js"></script>
 
 </body>
