@@ -204,7 +204,7 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("despachosDiarios"))
                 {
-                    var handler = new DespachosDiariosHandler(_innpackClient);
+                    var handler = new DespachosDiariosHandler(_innpackClient, _sapRecepcionClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("talleresExternos"))

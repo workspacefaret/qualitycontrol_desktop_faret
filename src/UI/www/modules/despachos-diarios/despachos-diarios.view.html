@@ -6,6 +6,8 @@
             <div class="subtitle">Cantidad liberada según el Certificado de Terminaciones y Calidad del Producto (FARET SPA / INNPACK SPA). Información compartida con Faret.</div>
         </div>
         <div class="module-actions">
+            <button class="btn-secondary" id="dd-dia-hoy-btn">Hoy</button>
+            <button class="btn-secondary" id="dd-dia-ayer-btn">Ayer</button>
             <button class="btn-secondary" id="dd-ultimo-mes-btn">Último mes</button>
             <button class="btn-secondary" id="dd-historial-btn">Todo el historial</button>
             <button class="btn-secondary" id="dd-exportar-btn">Exportar Excel</button>
@@ -24,9 +26,131 @@
                 <input type="text" id="dd-fecha-hasta" placeholder="Seleccionar fecha hasta">
             </div>
         </div>
+        <div class="dd-aviso" id="dd-fechas-aviso" hidden></div>
+        <div class="dd-nota">Las fechas se aplican solas al elegirlas; para ver un solo día elija la misma fecha en las dos o use Hoy / Ayer.</div>
         <div class="dd-periodo" id="dd-periodo"></div>
     </div>
 
+    <div class="dd-ocultos" id="dd-ocultos" hidden></div>
+
+    <div class="dd-kpis" id="dd-sap-hoy"></div>
+
+    <div class="dd-sap-cabecera">
+        <div class="module-title" style="font-size:1rem;">Despachado según SAP</div>
+        <div class="dd-sap-estado" id="dd-sap-estado"></div>
+        <div class="dd-sap-filtros">
+            <div class="form-field dd-sap-selector">
+                <label for="dd-sap-empresa">Empresa</label>
+                <select id="dd-sap-empresa">
+                    <option value="">Todas</option>
+                    <option value="INNPACK">INNPACK</option>
+                    <option value="FARET">FARET</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="dd-nota">Haga clic en una tarjeta (o use el selector) para ver solo esa empresa, y marque una o varias categorías y clientes para filtrar las tarjetas, la tarjeta EN VIVO, el resumen diario y el detalle. Los filtros se combinan entre sí.</div>
+
+    <div class="dd-cats" id="dd-sap-categorias">
+        <div class="dd-cats-cabecera">
+            <span class="dd-cats-titulo">Categorías</span>
+            <span class="dd-cats-resumen" id="dd-sap-cat-resumen"></span>
+            <button type="button" class="dd-cats-quitar" id="dd-sap-cat-quitar" hidden>Quitar filtro</button>
+        </div>
+        <div class="dd-chips" id="dd-sap-chips" role="group" aria-label="Categorías de producto">
+            <span class="dd-nota">Cargando categorías...</span>
+        </div>
+    </div>
+    <div class="dd-cats dd-clientes" id="dd-sap-clientes">
+        <div class="dd-cats-cabecera">
+            <span class="dd-cats-titulo">Clientes</span>
+            <span class="dd-cats-resumen" id="dd-sap-cliente-resumen"></span>
+            <button type="button" class="dd-cats-quitar" id="dd-sap-cliente-quitar" hidden>Quitar filtro</button>
+        </div>
+        <div class="dd-clientes-combo" id="dd-sap-cliente-combo">
+            <input type="text" class="dd-clientes-buscar" id="dd-sap-cliente-buscar" placeholder="Cargando clientes de SAP..." autocomplete="off" spellcheck="false"
+                   role="combobox" aria-expanded="false" aria-controls="dd-sap-cliente-lista" aria-label="Buscar cliente por nombre o código" disabled>
+            <div class="dd-clientes-lista" id="dd-sap-cliente-lista" role="listbox" aria-multiselectable="true" aria-label="Clientes con despachos en el período" hidden></div>
+        </div>
+        <div class="dd-clientes-sel" id="dd-sap-cliente-sel" hidden></div>
+        <div class="dd-info" id="dd-sap-cliente-info" role="note" hidden>
+            <span class="dd-info-icono" aria-hidden="true">&#9432;</span>
+            <div>
+                <strong>Devoluciones y notas de crédito no disponibles con filtro de cliente.</strong>
+                SAP no informa el cliente en esos documentos, por lo que no se pueden atribuir a un cliente. Quite el filtro de cliente para ver el total de devoluciones del período.
+            </div>
+        </div>
+    </div>
+    <div class="dd-kpis" id="dd-sap">
+        <div class="dd-mensaje">Cargando...</div>
+    </div>
+
+    <div class="card">
+        <div class="module-title">Despachado por día (SAP)</div>
+        <div class="table-container">
+            <table class="table" id="dd-sapd-tabla">
+                <thead id="dd-sapd-thead"></thead>
+                <tbody id="dd-sapd-tbody">
+                    <tr><td>Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="dd-paginacion" id="dd-sapd-paginacion" style="display:none;">
+            <button class="btn-secondary" id="dd-sapd-prev">Anterior</button>
+            <span id="dd-sapd-info"></span>
+            <button class="btn-secondary" id="dd-sapd-next">Siguiente</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="dd-diario-encabezado">
+            <div class="module-title">Detalle de despachos según SAP</div>
+            <button class="btn-secondary" id="dd-sapdet-exportar-btn">Exportar detalle</button>
+        </div>
+        <div class="dd-nota">Una fila por línea de factura o guía de despacho. Los pallets son del documento completo y se muestran una sola vez, en su primera línea. «Ocultar» saca un documento de los totales y del Excel sin eliminarlo. Se consulta a SAP solo la empresa elegida arriba.</div>
+
+        <div class="despachos-filters-grid">
+            <div class="form-field">
+                <label for="dd-sapdet-texto">Buscar (cliente, documento, folio, nota de venta, producto, certificado)</label>
+                <input type="text" id="dd-sapdet-texto" placeholder="Ej. 26386 o C&amp;L FRUIT">
+            </div>
+        </div>
+
+        <div class="dd-aviso" id="dd-sapdet-aviso" style="display:none;"></div>
+        <div class="dd-cantidad" id="dd-sapdet-cantidad"></div>
+
+        <div class="table-container">
+            <table class="table" id="dd-sapdet-tabla">
+                <thead>
+                    <tr>
+                        <th>Ocultar</th>
+                        <th>Fecha</th>
+                        <th>Empresa</th>
+                        <th>Documento</th>
+                        <th>Nota de venta</th>
+                        <th>Cliente</th>
+                        <th>Producto</th>
+                        <th>Unidades</th>
+                        <th>Bultos×un.</th>
+                        <th>Pallets (documento)</th>
+                        <th>Observación</th>
+                        <th>Comentario SAP</th>
+                    </tr>
+                </thead>
+                <tbody id="dd-sapdet-tbody">
+                    <tr><td colspan="12">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="dd-paginacion" id="dd-sapdet-paginacion" style="display:none;">
+            <button class="btn-secondary" id="dd-sapdet-prev">Anterior</button>
+            <span id="dd-sapdet-info"></span>
+            <button class="btn-secondary" id="dd-sapdet-next">Siguiente</button>
+        </div>
+    </div>
+
+    <!-- Liberaciones (certificados QCS): oculto a pedido, NO eliminado. Se reactiva con MOSTRAR_LIBERACIONES = true en shared/despachos-diarios-base.js -->
+    <div id="dd-liberaciones" hidden>
     <div class="dd-kpis" id="dd-hoy"></div>
 
     <div class="dd-kpis" id="dd-kpis">
@@ -119,6 +243,7 @@
                 </tbody>
             </table>
         </div>
+    </div>
     </div>
 
 </div>

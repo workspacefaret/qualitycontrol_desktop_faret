@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace QualityControlCenter.Backend.Services.InnpackApi
 {
     // Wrapper delgado sobre InnpackApiClient para Formularios (LogisticControlCenter, control_bins),
-    // solo lectura. "tipo" es el segmento de ruta de la API (inspecciones-vehiculares, etc.).
+    // lectura y eliminación. "tipo" es el segmento de ruta de la API (inspecciones-vehiculares, etc.).
     public class InnpackFormulariosApiService
     {
         private readonly InnpackApiClient _client;
@@ -34,5 +34,9 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
 
         public Task<(bool ok, string body)> DetalleAsync(string tipo, int id) =>
             _client.GetAsync($"api/formularios/{tipo}/{id}");
+
+        // Borrado físico (irreversible) del registro y su detalle; la API usa una cuenta aparte solo con DELETE.
+        public Task<(bool ok, string body)> EliminarAsync(string tipo, int id) =>
+            _client.DeleteAsync($"api/formularios/{tipo}/{id}");
     }
 }

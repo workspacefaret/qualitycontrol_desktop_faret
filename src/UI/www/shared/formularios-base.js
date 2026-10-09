@@ -165,13 +165,14 @@ window.FormulariosBase = (function () {
                 this.buscar();
             });
 
-            // Un solo listener para los botones de cada fila (Ver / PDF).
+            // Un solo listener para los botones de cada fila (Ver / PDF / Eliminar).
             $("fm-tbody")?.addEventListener("click", (e) => {
                 const btn = e.target.closest("button[data-accion]");
                 if (!btn) return;
                 const item = this.items.find((x) => Number(x.id) === Number(btn.dataset.id));
                 if (!item) return;
                 if (btn.dataset.accion === "ver") this.verDetalle(item);
+                else if (btn.dataset.accion === "eliminar") this.eliminar(item);
                 else this.abrirPdf(item.pdfUrl);
             });
 
@@ -256,6 +257,7 @@ window.FormulariosBase = (function () {
                         <td>
                             ${def.detalle ? `<button class="btn-primary" style="padding:6px 10px;" data-accion="ver" data-id="${esc(item.id)}">Ver</button>` : ""}
                             ${item.pdfUrl ? `<button class="btn-secondary" style="padding:6px 10px;margin-left:4px;" data-accion="pdf" data-id="${esc(item.id)}">PDF</button>` : ""}
+                            <button class="btn-danger" style="padding:6px 10px;margin-left:4px;" data-requiere-editar data-accion="eliminar" data-id="${esc(item.id)}" title="Eliminar este registro definitivamente">Eliminar</button>
                         </td>
                     </tr>`;
                 })
@@ -333,6 +335,30 @@ window.FormulariosBase = (function () {
                 if (el) el.value = "";
             });
             this.buscar();
+        }
+
+        // Borrado físico: pide confirmación y recarga la lista conservando el scroll.
+        async eliminar(item) {
+            const def = TIPOS[this.tipo];
+            const ok = confirm(
+                `¿Eliminar definitivamente el registro #${item.id} (${def.unidad})?\n\n` +
+                    "Se borra el registro y su detalle. No se puede deshacer.\n" +
+                    "El PDF ya generado queda en el servidor web."
+            );
+            if (!ok) return;
+
+            const res = await window.PhotinoBridge.send({
+                action: "formularios.eliminar",
+                data: { tipo: this.tipo, id: item.id },
+            });
+
+            if (!res || !res.ok) {
+                alert(res?.error || "No se pudo eliminar el registro");
+                return;
+            }
+
+            const contenedor = $("fm-tbody")?.closest(".table-container");
+            await window.TableUtils.preservarScroll(contenedor, () => this.buscar());
         }
 
         async abrirPdf(url) {

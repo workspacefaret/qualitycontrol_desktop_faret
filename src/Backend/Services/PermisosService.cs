@@ -44,7 +44,7 @@ namespace QualityControlCenter.Services
             ["recepcion-calidad"] = new("INNPACK", new[] { "recepcion" }),
             ["muestra-laboratorio"] = new("INNPACK", new[] { "muestraLab" }),
             ["trazabilidad"] = new("INNPACK", Array.Empty<string>()),
-            ["formularios"] = new("INNPACK", Array.Empty<string>()),
+            ["formularios"] = new("INNPACK", new[] { "formularios" }),
             ["usuarios"] = new("INNPACK", new[] { "usuarios" }),
             ["faret"] = new("FARET", Array.Empty<string>()),
             ["faret-inspecciones"] = new("FARET", new[] { "faret.inspecciones" }),
@@ -60,7 +60,7 @@ namespace QualityControlCenter.Services
             ["faret-maquinas"] = new("FARET", Array.Empty<string>()),
             ["faret-data"] = new("FARET", Array.Empty<string>()),
             ["faret-trazabilidad"] = new("FARET", Array.Empty<string>()),
-            ["faret-formularios"] = new("FARET", Array.Empty<string>()),
+            ["faret-formularios"] = new("FARET", new[] { "formularios" }),
             ["faret-laboratorio"] = new("FARET", new[] { "faretLab" }),
             ["faret-recepcion-calidad"] = new("FARET", new[] { "recepcion" }),
             ["faret-usuarios"] = new("FARET", new[] { "faret.usuarios" }),
@@ -91,6 +91,7 @@ namespace QualityControlCenter.Services
             "controlDocumental.adjunto.abrir",
             "dashboard.obtenerFiltros",
             "dashboard.obtenerResumen",
+            "despachosDiarios.sap.categorias",
             "faret.catalogos.areas",
             "faret.catalogos.defectos",
             "faret.catalogos.inspectores",
@@ -199,6 +200,10 @@ namespace QualityControlCenter.Services
                     if (!EsAdminTiSinLock() || empresaAccion != _empresa)
                         return "Acceso no autorizado: solo ADMIN_TI puede administrar usuarios.";
                 }
+
+                // Eliminar formularios (borrado físico, irreversible): solo ADMIN_TI.
+                if (action == "formularios.eliminar" && !EsAdminTiSinLock())
+                    return "Acceso no autorizado: solo ADMIN_TI puede eliminar formularios.";
 
                 if (string.IsNullOrWhiteSpace(modulo) || !Modulos.TryGetValue(modulo, out var def))
                     return "Acción rechazada: módulo de origen no reconocido.";

@@ -7,10 +7,10 @@ using QualityControlCenter.Backend.Services.InnpackApi;
 
 namespace QualityControlCenter.Modules.Formularios
 {
-    // Módulo "Formularios" (compartido INNPACK/Faret, solo lectura): formularios de
-    // LogisticControlCenter (control_bins) leídos vía QualityControlInnpack.Api (api/formularios).
-    // No hay escritura: los registra la app web de formularios. Las 3 acciones son lecturas
-    // (.list/.detalle por sufijo, .abrirPdf en AccionesLectura de PermisosService).
+    // Módulo "Formularios" (compartido INNPACK/Faret): formularios de LogisticControlCenter
+    // (control_bins) leídos vía QualityControlInnpack.Api (api/formularios). Los registra la app web
+    // de formularios; desde acá solo se leen y se pueden ELIMINAR (borrado físico). .list/.detalle
+    // (sufijo) y .abrirPdf (AccionesLectura) son lecturas; .eliminar es escritura (permiso EDITAR).
     public class FormulariosHandler
     {
         private readonly InnpackFormulariosApiService _api;
@@ -57,6 +57,7 @@ namespace QualityControlCenter.Modules.Formularios
                     "formularios.list" => await HandleList(data),
                     "formularios.detalle" => await HandleDetalle(data),
                     "formularios.abrirPdf" => HandleAbrirPdf(data),
+                    "formularios.eliminar" => await HandleEliminar(data),
                     _ => Error($"Acción no reconocida en Formularios: {action}"),
                 };
             }
@@ -95,6 +96,21 @@ namespace QualityControlCenter.Modules.Formularios
                 return Error("ID de registro inválido");
 
             var (ok, body) = await _api.DetalleAsync(tipo, id);
+            return Unwrap(ok, body);
+        }
+
+        // Borrado físico e irreversible. El PDF ya generado queda en el servidor de la app web.
+        private async Task<string> HandleEliminar(Dictionary<string, object> data)
+        {
+            var payload = GetDataElement(data);
+
+            if (!TryGetTipo(payload, out var tipo))
+                return Error("Formulario no soportado");
+
+            if (!int.TryParse(GetString(payload, "id"), out var id) || id <= 0)
+                return Error("ID de registro inválido");
+
+            var (ok, body) = await _api.EliminarAsync(tipo, id);
             return Unwrap(ok, body);
         }
 
