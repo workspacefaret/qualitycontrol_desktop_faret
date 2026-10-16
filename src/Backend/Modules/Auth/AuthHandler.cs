@@ -21,6 +21,7 @@ namespace QualityControlCenter.Modules.Auth
                     "auth.login" => await Login(data),
                     "auth.logout" => Logout(),
                     "auth.me" => Me(),
+                    "auth.cambiarPassword" => await CambiarPassword(data),
                     _ => JsonSerializer.Serialize(
                         new { ok = false, error = $"Acción no soportada: {action}" }
                     ),
@@ -44,6 +45,32 @@ namespace QualityControlCenter.Modules.Auth
             }
 
             var result = await _authService.LoginAsync(request);
+
+            return JsonSerializer.Serialize(
+                new
+                {
+                    ok = result.Success,
+                    data = result,
+                    error = result.Success ? (string?)null : result.Message,
+                }
+            );
+        }
+
+        // Cambio de clave del propio usuario (política de contraseñas). Devuelve el mismo shape
+        // que auth.login (PascalCase), con el estado actualizado de la política.
+        private async Task<string> CambiarPassword(JsonElement data)
+        {
+            var passwordActual = data.TryGetProperty("PasswordActual", out var a) ? a.GetString() : null;
+            var passwordNueva = data.TryGetProperty("PasswordNueva", out var n) ? n.GetString() : null;
+
+            if (string.IsNullOrEmpty(passwordActual) || string.IsNullOrEmpty(passwordNueva))
+            {
+                return JsonSerializer.Serialize(
+                    new { ok = false, error = "Debes ingresar la contraseña actual y la nueva" }
+                );
+            }
+
+            var result = await _authService.CambiarPasswordAsync(passwordActual, passwordNueva);
 
             return JsonSerializer.Serialize(
                 new

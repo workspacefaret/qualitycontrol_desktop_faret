@@ -10,6 +10,7 @@ if (!window.InicioController) {
             console.log("🚀 INIT INICIO QCC NUEVO")
 
             this.bindModuleCards()
+            window.Novedades?.mostrarSiCorresponde()
 
             const data = await this.cargarDashboard()
 

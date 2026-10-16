@@ -45,7 +45,12 @@ window.EmpresaSelectorController = class EmpresaSelectorController {
                     sessionStorage.setItem("faretNombreUsuario", res.data?.username || identificador);
                     sessionStorage.setItem("faretRol", res.data?.role || "");
                     await window.App.cargarPermisos();
-                    window.App.loadModule("faret");
+                    // Política de contraseñas: clave temporal/vencida → pantalla de cambio primero.
+                    window.App.loadModule(window.App.rutaTrasLogin({
+                        debeCambiar: res.data?.debeCambiarPassword === true,
+                        motivo: res.data?.motivoCambioPassword,
+                        dias: res.data?.diasParaVencer,
+                    }, "faret"));
                     return;
                 }
             } catch {
@@ -81,7 +86,12 @@ window.EmpresaSelectorController = class EmpresaSelectorController {
                     localStorage.setItem("lcc_nombreUsuario", nombre);
                     localStorage.setItem("lcc_rolUsuario", rol);
                     await window.App.cargarPermisos();
-                    window.App.loadModule("inicio");
+                    // Política de contraseñas: clave temporal/vencida → pantalla de cambio primero.
+                    window.App.loadModule(window.App.rutaTrasLogin({
+                        debeCambiar: res.data?.DebeCambiarPassword === true,
+                        motivo: res.data?.MotivoCambioPassword,
+                        dias: res.data?.DiasParaVencer,
+                    }, "inicio"));
                     return;
                 }
             } catch {

@@ -14,7 +14,6 @@ window.NoConformidadesController = class NoConformidadesController {
         this._analisisNcId = null;
         this._analisisActual = null;
         this._acciones = [];
-        this._statsCharts = [];
         this._itemsCompletos = [];
 
         // Columnas opcionales del listado (campos que ya vienen en cada fila de "noConformidades.list"
@@ -40,6 +39,14 @@ window.NoConformidadesController = class NoConformidadesController {
         document.getElementById("ncq-exportar-btn")?.addEventListener("click", () => this._exportar());
         document.getElementById("ncq-imprimir-btn")?.addEventListener("click", () => this._imprimir());
         document.getElementById("ncq-imprimir-reporte-btn")?.addEventListener("click", () => this._imprimirReporteEstadistico());
+        document.getElementById("ncq-estadisticas-btn")?.addEventListener("click", () => this._abrirEstadisticas());
+        document.getElementById("ncq-estad-cerrar-btn")?.addEventListener("click", () => this._cerrarEstadisticas());
+        document.getElementById("ncq-estad-detalle-btn")?.addEventListener("click", () => this._estadAlternarDetalle());
+        document.getElementById("ncq-estad-imprimir-btn")?.addEventListener("click", () => this._imprimirReporteEstadistico());
+        document.getElementById("ncq-estad-tabs")?.addEventListener("click", e => {
+            const tab = e.target.closest("[data-tab]")?.dataset.tab;
+            if (tab) this._estadActivarTab(tab);
+        });
 
         document.getElementById("ncq-columnas-btn")?.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -160,7 +167,8 @@ window.NoConformidadesController = class NoConformidadesController {
 
     destroy() {
         console.log("NoConformidadesController destruido");
-        this._destroyStatsCharts();
+        this._estadDestruir();
+        this._inlineDestruir();
     }
 
     _usuarioActual() {
@@ -409,8 +417,6 @@ window.NoConformidadesController = class NoConformidadesController {
     }
 
     _renderIndicadores(ind) {
-        this._destroyStatsCharts();
-
         this._setText("ncq-stat-cuarentenas-total", ind.cuarentenas.total);
         this._setText("ncq-stat-cuarentenas-cant-unidades", ind.cuarentenas.cantidadTotalUnidades);
 
@@ -423,43 +429,7 @@ window.NoConformidadesController = class NoConformidadesController {
         this._setText("ncq-stat-operadores-total", ind.operadoresInvolucrados);
         this._setText("ncq-stat-clientes-total", ind.clientesInvolucrados);
 
-        this._renderEvolucionMensual(
-            "ncq-chart-cuarentenas", "ncq-nota-cuarentenas",
-            ind.cuarentenas.evolucionMensual, "Cuarentenas — evolución mensual"
-        );
-        this._renderEvolucionMensual(
-            "ncq-chart-rechazos", "ncq-nota-rechazos",
-            ind.rechazosCliente.evolucionMensual, "Rechazos de cliente — evolución mensual"
-        );
-
-        this._chartBarHorizontalStats(
-            "ncq-chart-familia", ind.porFamilia, "categoria", "total", "PNC",
-            "PNC por familia de producto"
-        );
-        this._chartBarHorizontalStats(
-            "ncq-chart-area", ind.porArea, "categoria", "total", "Incidentes",
-            "Incidentes por área"
-        );
-        this._chartBarHorizontalStats(
-            "ncq-chart-maquina", ind.porMaquina, "categoria", "total", "NC",
-            "Máquinas involucradas", { scroll: true }
-        );
-        this._chartBarHorizontalStats(
-            "ncq-chart-operador", ind.porOperador, "categoria", "total", "NC",
-            "Operadores involucrados", { scroll: true }
-        );
-        this._chartBarHorizontalStats(
-            "ncq-chart-cliente", ind.porCliente, "categoria", "total", "NC",
-            "Clientes involucrados", { scroll: true }
-        );
-        this._chartDoughnutStats(
-            "ncq-chart-tipo-pnc", ind.porTipoPnc, "categoria", "total",
-            "Distribución por tipo de PNC"
-        );
-        this._chartParetoStats(
-            "ncq-chart-pareto", this._aplicarTopNOtros(ind.pareto), "defecto", "frecuencia", "porcentajeAcumulado",
-            "Pareto de defectos"
-        );
+        this._renderGraficosInline(ind);
     }
 
     // Limita el Pareto a las N categorías con mayor frecuencia (por defecto 10) y agrupa el resto
@@ -508,20 +478,16 @@ window.NoConformidadesController = class NoConformidadesController {
 
     // ---------- Charts (mismo patrón visual/técnico que faret-nc.controller.js) ----------
 
-    // opts.scroll=true: el canvas muestra TODAS las categorías (sin Top-N ni "Otros" — no se
-    // oculta ningún dato real), con un alto calculado según la cantidad de filas para que cada
-    // barra quede legible; el contenedor `.ncq-chart-scroll` (ver CSS) limita el alto visible y
-    // agrega scroll interno para que el bloque no crezca sin límite. Se fija con !important
-    // inline porque la regla general `.ncq-stats-card canvas { height: 200px !important }` sería
-    // más específica que un alto fijo en CSS y necesita un valor dinámico por gráfico.
-    _chartBarHorizontalStats(canvasId, rows, labelKey, valueKey, label, titulo, opts = {}) {
+    // Vista resumida: Top 10 + "Otros" (window.ChartUtils.topNConOtros), o todas las categorías en
+    // "Ver detalle completo" (_topN). Solo afecta lo que se dibuja: los indicadores y las tablas del
+    // reporte impreso conservan todas las categorías. El alto crece con las filas y el eje nunca
+    // omite etiquetas.
+    _chartBarHorizontalStats(canvasId, rows, labelKey, valueKey, label, titulo) {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
 
-        if (opts.scroll) {
-            const alto = Math.max(180, rows.length * 26);
-            ctx.style.setProperty("height", `${alto}px`, "important");
-        }
+        rows = window.ChartUtils.topNConOtros(rows, this._topN(canvasId), labelKey, valueKey);
+        ctx.style.setProperty("height", `${window.ChartUtils.altoBarrasHorizontales(rows.length, 180)}px`, "important");
 
         // Paleta cíclica: antes eran 7 colores fijos y con más de 7 barras (posible desde que
         // estos gráficos muestran todas las categorías, sin límite Top-N) las barras 8+ quedaban
@@ -536,20 +502,21 @@ window.NoConformidadesController = class NoConformidadesController {
                 datasets: [{
                     label,
                     data: rows.map(r => Number(r[valueKey] || 0)),
-                    backgroundColor: rows.map((_, i) => paleta[i % paleta.length]),
+                    backgroundColor: window.ChartUtils.coloresBarras(rows, paleta),
                     borderRadius: 8,
                 }],
             },
             options: {
+                ...this._opcionesClic(canvasId, rows),
                 indexAxis: "y",
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true }, y: { ticks: { font: { size: 11 } } } },
+                plugins: { legend: { display: false }, tooltip: window.ChartUtils.tooltipOtros(rows, labelKey, valueKey) },
+                scales: { x: { beginAtZero: true }, y: window.ChartUtils.ejeCategoriasHorizontal(rows.length) },
             },
         });
 
-        this._statsCharts.push({ chart, canvas: ctx, titulo });
+        this._chartsDe(canvasId).push({ chart, canvas: ctx, titulo });
     }
 
     // Mismo patrón que _chartDoughnutStats en faret-nc.controller.js.
@@ -571,11 +538,12 @@ window.NoConformidadesController = class NoConformidadesController {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { position: "right", labels: { font: { size: 11 } } } },
+                ...this._opcionesClic(canvasId, rows),
                 cutout: "62%",
             },
         });
 
-        this._statsCharts.push({ chart, canvas: ctx, titulo });
+        this._chartsDe(canvasId).push({ chart, canvas: ctx, titulo });
     }
 
     _chartBarAgrupadaStats(canvasId, rows, labelKey, series, titulo, tooltipKey) {
@@ -621,7 +589,7 @@ window.NoConformidadesController = class NoConformidadesController {
             },
         });
 
-        this._statsCharts.push({ chart, canvas: ctx, titulo });
+        this._chartsDe(canvasId).push({ chart, canvas: ctx, titulo });
     }
 
     // Pareto real: barras = frecuencia por defecto, línea = % acumulado sobre eje secundario.
@@ -681,6 +649,7 @@ window.NoConformidadesController = class NoConformidadesController {
                     },
                     x: {
                         ticks: {
+                            autoSkip: false,
                             maxRotation: 40,
                             minRotation: 40,
                             font: { size: 10 },
@@ -694,14 +663,170 @@ window.NoConformidadesController = class NoConformidadesController {
         });
 
         // `full: true` marca este gráfico para ocupar el ancho completo en el reporte impreso.
-        this._statsCharts.push({ chart, canvas: ctx, titulo, full: true });
+        this._chartsDe(canvasId).push({ chart, canvas: ctx, titulo, full: true });
     }
 
-    _destroyStatsCharts() {
-        (this._statsCharts || []).forEach(({ chart }) => {
+    // ---------- Modal de estadísticas (pestañas) ----------
+
+    // Mismos indicadores y constructores de gráficos que la sección inline, sobre el mismo universo
+    // filtrado (`_itemsCompletos`). Los gráficos del modal se registran aparte (`_estadCharts`) y
+    // cada pestaña se dibuja la primera vez que se visita.
+    _abrirEstadisticas() {
+        const items = this._itemsCompletos || [];
+        this._estadInd = this._calcularIndicadores(items);
+        const ind = this._estadInd;
+
+        this._estadDestruir();
+        this._estadDetalle = false;
+        document.getElementById("ncq-estad-detalle-btn").textContent = "Ver detalle completo";
+
+        document.getElementById("ncq-estad-filtros").textContent =
+            `${this._resumenFiltrosTexto()} · ${items.length.toLocaleString("es-CL")} registros`;
+        this._setText("ncqm-kpi-cuarentenas", ind.cuarentenas.total);
+        this._setText("ncqm-kpi-cuarentenas-unidades", ind.cuarentenas.cantidadTotalUnidades);
+        this._setText("ncqm-kpi-rechazados", ind.rechazosTotales);
+        this._setText("ncqm-kpi-reclamos", ind.totalReclamos);
+
+        document.getElementById("ncq-estad-modal").style.display = "flex";
+        this._estadActivarTab("resumen");
+    }
+
+    _cerrarEstadisticas() {
+        document.getElementById("ncq-estad-modal").style.display = "none";
+        this._estadDestruir();
+    }
+
+    _estadActivarTab(tab) {
+        this._estadTab = tab;
+        document.querySelectorAll("#ncq-estad-tabs [data-tab]").forEach(b =>
+            b.classList.toggle("active", b.dataset.tab === tab));
+        document.querySelectorAll("#ncq-estad-modal [data-panel]").forEach(p =>
+            p.classList.toggle("active", p.dataset.panel === tab));
+
+        // El canvas debe estar visible para que Chart.js mida su tamaño: se dibuja ya activo el panel.
+        if (!this._estadDibujados.has(tab)) {
+            this._estadDibujados.add(tab);
+            this._estadDibujar(tab);
+        }
+    }
+
+    _estadDibujar(tab) {
+        const ind = this._estadInd;
+        const barras = (id, rows, label, titulo) =>
+            this._chartBarHorizontalStats(`ncqm-chart-${id}`, rows, "categoria", "total", label, titulo);
+
+        if (tab === "resumen") {
+            this._chartDoughnutStats("ncqm-chart-tipo-pnc", ind.porTipoPnc, "categoria", "total",
+                "Distribución por tipo de PNC");
+            this._renderEvolucionMensual("ncqm-chart-cuarentenas", "ncqm-nota-cuarentenas",
+                ind.cuarentenas.evolucionMensual, "Cuarentenas — evolución mensual");
+            this._renderEvolucionMensual("ncqm-chart-rechazos", "ncqm-nota-rechazos",
+                ind.rechazosCliente.evolucionMensual, "Rechazos de cliente — evolución mensual");
+        } else if (tab === "donde") {
+            barras("familia", ind.porFamilia, "PNC", "PNC por familia de producto");
+            barras("area", ind.porArea, "Incidentes", "Incidentes por área");
+            barras("maquina", ind.porMaquina, "NC", "Máquinas involucradas");
+        } else if (tab === "quien") {
+            barras("operador", ind.porOperador, "NC", "Operadores involucrados");
+            barras("cliente", ind.porCliente, "NC", "Clientes involucrados");
+        } else if (tab === "defectos") {
+            this._chartParetoStats("ncqm-chart-pareto", this._aplicarTopNOtros(ind.pareto, this._topN("ncqm-chart-pareto")),
+                "defecto", "frecuencia", "porcentajeAcumulado", "Pareto de defectos");
+        }
+    }
+
+    _estadDestruir() {
+        (this._estadCharts || []).forEach(({ chart }) => {
             try { chart.destroy(); } catch { /* noop */ }
         });
-        this._statsCharts = [];
+        this._estadCharts = [];
+        this._estadDibujados = new Set();
+    }
+
+    // Vista resumida (Top 10 + "Otros") o detalle completo (todas las categorías) de los rankings.
+    _topN(canvasId = "") {
+        if (!canvasId.startsWith("ncqm-")) return 5; // gráficos de la pantalla: compactos
+        return this._estadDetalle ? Infinity : 10;
+    }
+
+    // Los gráficos del modal (prefijo "ncqm-") se registran en `_estadCharts` (impresión y cierre del
+    // modal); los de la pantalla en `_inlineCharts`, que se redibujan con cada cambio de filtro.
+    _chartsDe(canvasId) {
+        if (canvasId.startsWith("ncqm-")) return this._estadCharts;
+        return (this._inlineCharts = this._inlineCharts || []);
+    }
+
+    _inlineDestruir() {
+        (this._inlineCharts || []).forEach(({ chart }) => {
+            try { chart.destroy(); } catch { /* noop */ }
+        });
+        this._inlineCharts = [];
+    }
+
+    // Gráficos bajo los KPIs: Top 5 + "Otros" (el detalle completo vive en "Ver estadísticas").
+    _renderGraficosInline(ind) {
+        this._inlineDestruir();
+        const barras = (id, rows, label, titulo) =>
+            this._chartBarHorizontalStats(`ncq-chart-${id}`, rows, "categoria", "total", label, titulo);
+
+        this._chartDoughnutStats("ncq-chart-tipo-pnc", ind.porTipoPnc, "categoria", "total",
+            "Distribución por tipo de PNC");
+        this._renderEvolucionMensual("ncq-chart-cuarentenas", "ncq-nota-cuarentenas",
+            ind.cuarentenas.evolucionMensual, "Cuarentenas — evolución mensual");
+        this._renderEvolucionMensual("ncq-chart-rechazos", "ncq-nota-rechazos",
+            ind.rechazosCliente.evolucionMensual, "Rechazos de cliente — evolución mensual");
+        barras("familia", ind.porFamilia, "PNC", "PNC por familia de producto");
+        barras("area", ind.porArea, "Incidentes", "Incidentes por área");
+        barras("maquina", ind.porMaquina, "NC", "Máquinas involucradas");
+        barras("operador", ind.porOperador, "NC", "Operadores involucrados");
+        barras("cliente", ind.porCliente, "NC", "Clientes involucrados");
+        this._chartParetoStats("ncq-chart-pareto", this._aplicarTopNOtros(ind.pareto, this._topN("ncq-chart-pareto")),
+            "defecto", "frecuencia", "porcentajeAcumulado", "Pareto de defectos");
+    }
+
+    _estadAlternarDetalle() {
+        this._estadDetalle = !this._estadDetalle;
+        document.getElementById("ncq-estad-detalle-btn").textContent =
+            this._estadDetalle ? "Ver Top 10" : "Ver detalle completo";
+
+        const tab = this._estadTab;
+        this._estadDestruir();
+        this._estadActivarTab(tab);
+    }
+
+    // Gráficos del reporte impreso: los mismos que se ven en pantalla (Top 5 + "Otros"), con los
+    // filtros activos. Se capturan los canvas de la pantalla, que siempre están visibles y dibujados;
+    // los del modal viven en paneles ocultos y salían en blanco.
+    _graficosParaImpresion() {
+        return this._capturarGraficosParaImpresion();
+    }
+
+    // ---------- Gráfico -> filtro ----------
+
+    // Al hacer clic en una barra/segmento se aplica el filtro existente de la misma dimensión (solo
+    // las que ya tienen filtro; el resto de gráficos no es clickeable). Si el valor no existe como
+    // opción del filtro no se ofrece el clic. El sufijo del id del canvas (`...chart-area`) identifica
+    // el gráfico, tanto en la sección inline como en el modal.
+    _opcionesClic(canvasId, rows, labelKey = "categoria") {
+        const selectId = { "area": "ncq-filtro-area", "cliente": "ncq-filtro-cliente", "tipo-pnc": "ncq-filtro-tipo-pnc" }[canvasId.split("chart-")[1]];
+        if (!selectId) return {};
+
+        const opcion = fila => [...(document.getElementById(selectId)?.options || [])]
+            .find(o => o.value && o.value.trim() === String(fila[labelKey]).trim());
+
+        return window.ChartUtils.opcionesClic(rows,
+            fila => this._aplicarFiltroDesdeGrafico(selectId, opcion(fila).value),
+            fila => !!opcion(fila));
+    }
+
+    _aplicarFiltroDesdeGrafico(selectId, valor) {
+        // Diferido: el gráfico pulsado se destruye al redibujar, y no debe ocurrir dentro de su propio clic.
+        setTimeout(() => {
+            document.getElementById(selectId).value = valor;
+            this._cerrarEstadisticas();
+            this._page = 1;
+            this._loadLista();
+        }, 0);
     }
 
     _setText(id, value) {
@@ -709,15 +834,15 @@ window.NoConformidadesController = class NoConformidadesController {
         if (el) el.textContent = Number(value || 0).toLocaleString("es-CL");
     }
 
-    // Toma el <canvas> YA renderizado en pantalla de cada gráfico (chart.canvas — mismas
-    // instancias que ve el usuario con los filtros activos, sin crear ni recalcular ningún
-    // Chart). Valida ancho/alto del canvas y el DataURL resultante antes de incluirlo; si algo
-    // falla se omite ESE gráfico puntual sin bloquear el resto del reporte.
+    // Toma el <canvas> de cada gráfico del modal de estadísticas. Valida ancho/alto del canvas y el
+    // DataURL resultante antes de incluirlo; si algo falla se omite ESE gráfico puntual (con detalle
+    // en consola) sin bloquear el resto del reporte.
     _capturarGraficosParaImpresion() {
         const diagnostico = [];
         const resultado = [];
 
-        (this._statsCharts || []).forEach(({ chart, titulo, full }) => {
+        (this._inlineCharts || []).forEach(({ chart, titulo, full }) => {
+            chart?.update("none"); // estado final, sin animación, antes de capturar
             const canvas = chart?.canvas || null;
             const fila = {
                 grafico: titulo,
@@ -1962,14 +2087,14 @@ window.NoConformidadesController = class NoConformidadesController {
     }
 
     // Reutiliza this._itemsCompletos (ya cargado por _loadLista con los filtros activos, mismo
-    // universo que alimenta los 6 indicadores) — sin refetch. Los gráficos se capturan tal cual
-    // están renderizados en pantalla (_capturarGraficosParaImpresion), sin recrear ningún Chart.
+    // universo que alimenta los indicadores) — sin refetch. Los gráficos son los del modal de
+    // estadísticas (todas las pestañas), ver _graficosParaImpresion.
     _imprimirReporteEstadistico() {
         const items = this._itemsCompletos || [];
         const ind = this._calcularIndicadores(items);
         const paretoImpreso = this._aplicarTopNOtros(ind.pareto);
 
-        const graficos = this._capturarGraficosParaImpresion();
+        const graficos = this._graficosParaImpresion();
 
         window.PrintExporter.printReport({
             empresa: "INNPACK",

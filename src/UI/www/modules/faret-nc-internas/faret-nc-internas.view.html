@@ -7,6 +7,7 @@
         </div>
         <div class="module-actions">
             <button id="fnci-exportar-btn" class="btn-secondary">Exportar Excel</button>
+            <button id="fnci-estadisticas-btn" class="btn-secondary">Ver estadísticas</button>
             <button id="fnci-imprimir-reporte-btn" class="btn-secondary">Imprimir Reporte Estadístico</button>
             <button id="fnci-nuevo-btn" class="btn-primary">+ Nueva NC interna</button>
         </div>
@@ -67,7 +68,7 @@
         </div>
     </div>
 
-    <!-- Indicadores (calculados sobre todo el universo filtrado, no solo la página visible) -->
+    <!-- Indicadores principales (todo el universo filtrado); los gráficos están en "Ver estadísticas" -->
     <div class="card fnci-stats-card">
         <div class="module-title" style="font-size:1rem; margin-bottom:16px;">Indicadores</div>
 
@@ -76,28 +77,27 @@
             <div><span class="kpi-value" id="fnci-stat-np-reincidentes">0</span><div class="fnci-nota">NP con más de una NC</div></div>
             <div><span class="kpi-value" id="fnci-stat-clientes">0</span><div class="fnci-nota">Clientes afectados</div></div>
         </div>
-
-        <div class="fnci-stats-grid">
-            <div class="fnci-seccion">
-                <div class="fnci-seccion-titulo">NC por área responsable</div>
-                <div class="fnci-chart-scroll"><canvas id="fnci-chart-area"></canvas></div>
-            </div>
-            <div class="fnci-seccion">
-                <div class="fnci-seccion-titulo">Pareto por tipo de desviación</div>
-                <canvas id="fnci-chart-pareto" class="fnci-chart-alto"></canvas>
-            </div>
+        <div class="fnci-graficos-grid">
             <div class="fnci-seccion">
                 <div class="fnci-seccion-titulo">Evolución mensual</div>
-                <canvas id="fnci-chart-mensual"></canvas>
                 <div id="fnci-nota-mensual" class="fnci-nota" style="display:none;"></div>
+                <canvas id="fnci-chart-mensual"></canvas>
             </div>
             <div class="fnci-seccion">
                 <div class="fnci-seccion-titulo">Etapa que detecta</div>
                 <canvas id="fnci-chart-etapa"></canvas>
             </div>
             <div class="fnci-seccion">
+                <div class="fnci-seccion-titulo">NC por área responsable</div>
+                <canvas id="fnci-chart-area"></canvas>
+            </div>
+            <div class="fnci-seccion">
                 <div class="fnci-seccion-titulo">Clientes con más NC internas</div>
-                <div class="fnci-chart-scroll"><canvas id="fnci-chart-cliente"></canvas></div>
+                <canvas id="fnci-chart-cliente"></canvas>
+            </div>
+            <div class="fnci-seccion">
+                <div class="fnci-seccion-titulo">Pareto por tipo de desviación</div>
+                <canvas id="fnci-chart-pareto"></canvas>
             </div>
         </div>
     </div>
@@ -129,6 +129,63 @@
     </div>
 
     <!-- Modal Nueva / Ver / Editar -->
+    <!-- Modal Estadísticas (mismos indicadores que la sección inline, organizados por pestañas) -->
+    <div id="fnci-estad-modal" class="fnci-modal-overlay" style="display:none;">
+        <div class="fnci-modal fnci-estad-modal card">
+            <div class="module-header">
+                <div>
+                    <div class="module-title" style="font-size:1rem;">Estadísticas de NC Internas</div>
+                    <div class="subtitle" id="fnci-estad-filtros"></div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button id="fnci-estad-detalle-btn" class="btn-secondary">Ver detalle completo</button>
+                    <button id="fnci-estad-imprimir-btn" class="btn-secondary">Imprimir Reporte</button>
+                    <button id="fnci-estad-cerrar-btn" class="btn-secondary">Cerrar</button>
+                </div>
+            </div>
+
+            <div class="fnci-estad-kpis">
+                <div><span class="kpi-value" id="fncim-kpi-np">0</span><div class="fnci-nota">NP afectadas</div></div>
+                <div><span class="kpi-value" id="fncim-kpi-np-reinc">0</span><div class="fnci-nota">NP con más de una NC</div></div>
+                <div><span class="kpi-value" id="fncim-kpi-clientes">0</span><div class="fnci-nota">Clientes afectados</div></div>
+            </div>
+
+            <div id="fnci-estad-tabs" class="fnci-estad-tabs">
+                <button type="button" class="fnci-estad-tab active" data-tab="resumen">Resumen</button>
+                <button type="button" class="fnci-estad-tab" data-tab="areas">Áreas y clientes</button>
+                <button type="button" class="fnci-estad-tab" data-tab="defectos">Defectos</button>
+            </div>
+
+            <div class="fnci-estad-panel active" data-panel="resumen">
+                <div class="fnci-seccion">
+                    <div class="fnci-seccion-titulo">Evolución mensual</div>
+                    <div id="fncim-nota-mensual" class="fnci-nota" style="display:none;"></div>
+                    <canvas id="fncim-chart-mensual"></canvas>
+                </div>
+                <div class="fnci-seccion">
+                    <div class="fnci-seccion-titulo">Etapa que detecta</div>
+                    <canvas id="fncim-chart-etapa"></canvas>
+                </div>
+            </div>
+            <div class="fnci-estad-panel" data-panel="areas">
+                <div class="fnci-seccion">
+                    <div class="fnci-seccion-titulo">NC por área responsable</div>
+                    <canvas id="fncim-chart-area"></canvas>
+                </div>
+                <div class="fnci-seccion">
+                    <div class="fnci-seccion-titulo">Clientes con más NC internas</div>
+                    <canvas id="fncim-chart-cliente"></canvas>
+                </div>
+            </div>
+            <div class="fnci-estad-panel" data-panel="defectos">
+                <div class="fnci-seccion">
+                    <div class="fnci-seccion-titulo">Pareto por tipo de desviación</div>
+                    <canvas id="fncim-chart-pareto"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="fnci-form-modal" class="fnci-modal-overlay" style="display:none;">
         <div class="fnci-modal card">
             <div class="module-header">

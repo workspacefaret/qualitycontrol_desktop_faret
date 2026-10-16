@@ -81,7 +81,13 @@ window.FaretLoginController = class FaretLoginController {
 
                 this._showMsg("Ingreso correcto", true);
                 await window.App.cargarPermisos();
-                setTimeout(() => window.App.loadModule("faret"), 400);
+                // Política de contraseñas: clave temporal/vencida → pantalla de cambio primero.
+                const destino = window.App.rutaTrasLogin({
+                    debeCambiar: res.data?.debeCambiarPassword === true,
+                    motivo: res.data?.motivoCambioPassword,
+                    dias: res.data?.diasParaVencer,
+                }, "faret");
+                setTimeout(() => window.App.loadModule(destino), 400);
             } else {
                 this._showMsg(res.error || "Credenciales incorrectas", false);
             }

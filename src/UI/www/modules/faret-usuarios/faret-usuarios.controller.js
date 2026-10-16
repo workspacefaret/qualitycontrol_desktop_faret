@@ -38,7 +38,23 @@ window.FaretUsuariosController = class FaretUsuariosController {
             document.getElementById("fu-form-username").value = "";
             document.getElementById("fu-form-nombre").value = "";
             document.getElementById("fu-form-rol").value = "CONSULTA";
+            const pass = document.getElementById("fu-form-password");
+            if (pass) pass.value = "";
         }
+    }
+
+    // Política de contraseñas (campos camelCase de la API qualitycontrol Faret).
+    _estadoClave(u) {
+        if (u.passwordSinVencimiento) {
+            return `<span title="Cuenta exenta de vencimiento">Sin vencimiento</span>`;
+        }
+        if (u.debeCambiarPassword) {
+            return `<span style="color:#B45309; font-weight:600;" title="Clave temporal, nunca cambiada o vencida: deberá definir una nueva al ingresar">Debe cambiarla</span>`;
+        }
+        if (u.passwordVenceEl) {
+            return `Vence ${window.DateUtils.formatear(u.passwordVenceEl)}`;
+        }
+        return "-";
     }
 
     _showMensaje(texto, ok) {
@@ -55,6 +71,7 @@ window.FaretUsuariosController = class FaretUsuariosController {
         const username = document.getElementById("fu-form-username")?.value.trim();
         const nombre = document.getElementById("fu-form-nombre")?.value.trim();
         const rol = document.getElementById("fu-form-rol")?.value;
+        const password = document.getElementById("fu-form-password")?.value || "";
         const errorEl = document.getElementById("fu-form-error");
         const crearBtn = document.getElementById("fu-crear-btn");
 
@@ -66,6 +83,12 @@ window.FaretUsuariosController = class FaretUsuariosController {
             return;
         }
 
+        if (password.length < 8) {
+            errorEl.textContent = "La clave temporal debe tener al menos 8 caracteres";
+            errorEl.style.display = "block";
+            return;
+        }
+
         crearBtn.disabled = true;
         try {
             const res = await window.PhotinoBridge.send({
@@ -73,6 +96,7 @@ window.FaretUsuariosController = class FaretUsuariosController {
                 username,
                 nombre,
                 rol,
+                password,
             });
 
             if (!res.ok) {
@@ -82,7 +106,7 @@ window.FaretUsuariosController = class FaretUsuariosController {
             }
 
             this._toggleForm(false);
-            this._showMensaje(`Usuario "${nombre}" creado con clave inicial Faret2026`, true);
+            this._showMensaje(`Usuario "${nombre}" creado: deberá cambiar la clave temporal en su primer ingreso`, true);
             this._loadLista();
         } catch {
             errorEl.textContent = "Error de comunicación con el backend";
@@ -147,6 +171,7 @@ window.FaretUsuariosController = class FaretUsuariosController {
                     </select>
                 </td>
                 <td>${u.activo ? "Activo" : "Inactivo"}</td>
+                <td>${this._estadoClave(u)}</td>
                 <td>${window.DateUtils.formatear(u.createdAt)}</td>
                 <td>
                     <button class="btn-secondary fu-reset-btn" data-id="${u.id}" data-nombre="${u.nombre ?? ""}">Restablecer clave</button>
@@ -216,17 +241,29 @@ window.FaretUsuariosController = class FaretUsuariosController {
         }
     }
 
+    // Clave temporal escrita por el ADMIN_TI (antes era siempre "Faret2026"): el usuario deberá
+    // definir la suya en el próximo ingreso (política de contraseñas).
     async _resetPassword(id, nombre) {
-        const confirmado = window.confirm(`¿Restablecer la contraseña de "${nombre}" a Faret2026?`);
+        const temporal = window.prompt(`Clave temporal para "${nombre}" (mínimo 8 caracteres):`);
+        if (temporal === null) return;
+
+        const password = temporal.trim();
+        if (password.length < 8) {
+            this._showMensaje("La clave temporal debe tener al menos 8 caracteres", false);
+            return;
+        }
+
+        const confirmado = window.confirm(`¿Restablecer la contraseña de "${nombre}"? Deberá cambiarla en su próximo ingreso.`);
         if (!confirmado) return;
 
         try {
-            const res = await window.PhotinoBridge.send({ action: "faret.usuarios.resetPassword", id: Number(id) });
+            const res = await window.PhotinoBridge.send({ action: "faret.usuarios.resetPassword", id: Number(id), password });
             if (!res.ok) {
                 this._showMensaje(res.error || "Error al restablecer la contraseña", false);
                 return;
             }
-            this._showMensaje(`Contraseña de "${nombre}" restablecida a Faret2026`, true);
+            this._showMensaje(`Contraseña temporal asignada a "${nombre}": deberá cambiarla al ingresar`, true);
+            this._loadLista();
         } catch {
             this._showMensaje("Error de comunicación con el backend", false);
         }

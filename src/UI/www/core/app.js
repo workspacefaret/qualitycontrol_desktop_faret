@@ -21,8 +21,33 @@ console.log("🔥 APP INICIO");
     // ==============================
     // APP ROUTER
     // ==============================
-    // Pantallas previas al login: no dependen de permisos.
-    const MODULOS_PUBLICOS = ["auth", "empresa-selector", "faret-login"];
+    // Pantallas previas al login (y el cambio de clave propio): no dependen de permisos.
+    const MODULOS_PUBLICOS = ["auth", "empresa-selector", "faret-login", "cambiar-password"];
+
+    // Política de contraseñas: claves de sessionStorage que setea rutaTrasLogin y lee la
+    // pantalla cambiar-password / el aviso de vencimiento en Inicio.
+    const PWD_KEYS = ["pwdCambioForzado", "pwdMotivo", "pwdDiasParaVencer"];
+
+    // Aviso "tu contraseña vence en N días" en Inicio (INNPACK y Faret), con acceso directo al cambio.
+    function mostrarAvisoPassword(container) {
+        const dias = sessionStorage.getItem("pwdDiasParaVencer");
+        if (dias === null || !container) return;
+        const n = Number(dias);
+        const aviso = document.createElement("div");
+        aviso.className = "card";
+        aviso.style.cssText = "margin-bottom:12px; padding:10px 14px; background:#FFFBEB; color:#92400E; font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;";
+        const texto = document.createElement("span");
+        texto.textContent = n <= 0
+            ? "Tu contraseña vence hoy. Cámbiala para no perder el acceso."
+            : `Tu contraseña vence en ${n} día${n === 1 ? "" : "s"}. Te recomendamos cambiarla ahora.`;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn-primary";
+        btn.textContent = "Cambiar contraseña";
+        btn.addEventListener("click", () => App.loadModule("cambiar-password"));
+        aviso.append(texto, btn);
+        container.prepend(aviso);
+    }
 
     // Botones de escritura que se ocultan en modo "Solo vista" (texto del botón, sin mayúsculas).
     // Es solo UX: el bloqueo real está en el backend (PermisosService), que rechaza cualquier
@@ -91,6 +116,24 @@ console.log("🔥 APP INICIO");
             return App.permisos[moduleName] || "SIN_ACCESO";
         },
 
+        // Política de contraseñas: decide a dónde ir tras un login correcto (las 4 vías de login
+        // la usan). info = { debeCambiar, motivo, dias }. Clave temporal, nunca cambiada o vencida
+        // → pantalla cambiar-password en modo forzado (sin sidebar); si vence pronto, deja el
+        // aviso para Inicio. Devuelve el módulo a cargar.
+        rutaTrasLogin(info, destino) {
+            PWD_KEYS.forEach(k => sessionStorage.removeItem(k));
+            if (info && info.debeCambiar) {
+                sessionStorage.setItem("pwdCambioForzado", "1");
+                if (info.motivo) sessionStorage.setItem("pwdMotivo", info.motivo);
+                sessionStorage.setItem("pwdDestino", destino);
+                return "cambiar-password";
+            }
+            if (info && info.dias !== null && info.dias !== undefined && Number(info.dias) <= 7) {
+                sessionStorage.setItem("pwdDiasParaVencer", String(info.dias));
+            }
+            return destino;
+        },
+
         loadModule(moduleName) {
             try {
                 console.log("📦 Cargando módulo:", moduleName);
@@ -129,7 +172,9 @@ console.log("🔥 APP INICIO");
                 const sidebar = document.getElementById("sidebar");
                 const mainLayout = document.getElementById("main-layout");
 
-                if (moduleName === "auth" || moduleName === "empresa-selector" || moduleName === "faret-login") {
+                // cambiar-password forzado (clave temporal/vencida): sin sidebar, igual que el login.
+                const cambioForzado = moduleName === "cambiar-password" && sessionStorage.getItem("pwdCambioForzado") === "1";
+                if (moduleName === "auth" || moduleName === "empresa-selector" || moduleName === "faret-login" || cambioForzado) {
                     if (sidebar) sidebar.style.display = "none";
                     if (mainLayout) mainLayout.style.marginLeft = "0";
                 } else {
@@ -227,7 +272,11 @@ console.log("🔥 APP INICIO");
                             activarSoloVista(container);
                         }
 
-                        if (moduleName === "inicio" || moduleName === "auth" || moduleName === "empresa-selector" || moduleName === "faret-login" || moduleName === "faret") {
+                        if (moduleName === "inicio" || moduleName === "faret") {
+                            mostrarAvisoPassword(container);
+                        }
+
+                        if (moduleName === "inicio" || moduleName === "auth" || moduleName === "empresa-selector" || moduleName === "faret-login" || moduleName === "faret" || moduleName === "cambiar-password") {
                             setTimeout(() => hideSplash(), 300);
                         }
                     } else {
@@ -385,12 +434,17 @@ console.log("🔥 APP INICIO");
         }
 
         sessionStorage.removeItem("empresa");
+        PWD_KEYS.forEach(k => sessionStorage.removeItem(k));
+        sessionStorage.removeItem("pwdDestino");
 
         setTimeout(() => {
             message.remove();
             App.loadModule("empresa-selector");
         }, 700);
     }
+
+    // Botón "Cerrar sesión" de la pantalla de cambio forzado de clave (sin sidebar).
+    App.cerrarSesion = cerrarSesion;
 
     // Llamado por PhotinoBridge (index.html) cuando la API responde "Sesión expirada".
     // Una sola vez por expiración aunque lleguen varias respuestas 401 seguidas.
@@ -434,6 +488,11 @@ console.log("🔥 APP INICIO");
 
         if (logoutBtn) {
             logoutBtn.addEventListener("click", () => cerrarSesion("✔ Sesión cerrada correctamente"));
+        }
+
+        const cambiarPasswordBtn = document.getElementById("cambiar-password-btn");
+        if (cambiarPasswordBtn) {
+            cambiarPasswordBtn.addEventListener("click", () => App.loadModule("cambiar-password"));
         }
     }
 

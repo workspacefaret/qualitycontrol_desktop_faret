@@ -17,7 +17,7 @@
         <div class="module-header">
             <div>
                 <div class="module-title" style="font-size:1rem;">Nuevo usuario</div>
-                <div class="subtitle">La clave inicial siempre será <strong>Faret2026</strong></div>
+                <div class="subtitle">La clave temporal la defines tú; el usuario deberá cambiarla en su primer ingreso</div>
             </div>
         </div>
 
@@ -39,6 +39,10 @@
                     <option value="INSPECTOR">INSPECTOR</option>
                     <option value="CONSULTA" selected>CONSULTA</option>
                 </select>
+            </div>
+            <div class="fu-form-campo">
+                <label for="fu-form-password">Clave temporal</label>
+                <input type="password" id="fu-form-password" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
             </div>
             <div class="fu-form-campo">
                 <label>Estado</label>
@@ -71,6 +75,7 @@
                         <th>Nombre</th>
                         <th>Rol</th>
                         <th>Estado</th>
+                        <th>Clave</th>
                         <th>Creado</th>
                         <th>Acciones</th>
                     </tr>

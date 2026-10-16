@@ -5,6 +5,7 @@
             <div class="module-title">Panel Faret</div>
             <div class="subtitle">Resumen general del sistema</div>
         </div>
+        <button id="fh-planta-btn" class="btn-secondary">Modo planta</button>
     </div>
 
     <!-- KPIs SUPERIORES -->
@@ -149,6 +150,13 @@
             <div class="module-title">Indicadores de calidad</div>
             <div class="subtitle">Cuarentenas, rechazos de cliente, reclamos y análisis de defectos</div>
         </div>
+        <select id="fh-periodo-calidad" title="Período de los indicadores de calidad">
+            <option value="">Todo el histórico</option>
+            <option value="1">Mes actual</option>
+            <option value="3">Últimos 3 meses</option>
+            <option value="6">Últimos 6 meses</option>
+            <option value="12">Últimos 12 meses</option>
+        </select>
     </div>
 
     <div class="home-modules-grid">
@@ -169,7 +177,7 @@
 
         <div class="home-module-card">
             <div>
-                <div class="home-module-card-title">📣 RECLAMOS (TOTAL)</div>
+                <div class="home-module-card-title">📣 RECLAMOS (PERÍODO)</div>
                 <div class="home-module-card-value" id="fh-kpi-reclamos-total">0</div>
             </div>
         </div>

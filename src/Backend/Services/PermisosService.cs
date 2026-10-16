@@ -75,8 +75,12 @@ namespace QualityControlCenter.Services
             "auth.login",
             "auth.logout",
             "auth.me",
+            // Cambio de clave propio (pantalla cambiar-password, sin módulo de permisos; la API
+            // exige el token de la sesión y la clave actual).
+            "auth.cambiarPassword",
             "faret.login",
             "faret.logout",
+            "faret.cambiarPassword",
             "faret.health",
             "excel.guardar",
         };

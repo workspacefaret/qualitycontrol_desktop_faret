@@ -18,14 +18,17 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                     : "api/usuarios"
             );
 
-        public Task<(bool ok, string body)> CreateAsync(string nombre, string username, string rol) =>
+        // Clave inicial/temporal: la escribe el ADMIN_TI (antes era siempre "Faret2026" fija,
+        // origen de que todos los usuarios compartieran la misma clave). La API la marca como
+        // temporal: el usuario define la suya en su primer ingreso (política de contraseñas).
+        public Task<(bool ok, string body)> CreateAsync(string nombre, string username, string rol, string password) =>
             _client.PostJsonAsync(
                 "api/usuarios",
                 new
                 {
                     nombre,
                     username,
-                    password = "Faret2026",
+                    password,
                     rol,
                     roles = new[] { rol },
                 }
@@ -34,8 +37,8 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public Task<(bool ok, string body)> UpdateRolesAsync(int id, string rol) =>
             _client.PutJsonAsync($"api/usuarios/{id}/roles", new { roles = new[] { rol } });
 
-        public Task<(bool ok, string body)> ResetPasswordAsync(int id) =>
-            _client.PutJsonAsync($"api/usuarios/{id}/password", new { password = "Faret2026" });
+        public Task<(bool ok, string body)> ResetPasswordAsync(int id, string password) =>
+            _client.PutJsonAsync($"api/usuarios/{id}/password", new { password });
 
         public Task<(bool ok, string body)> ActivarAsync(int id) =>
             _client.PutJsonAsync($"api/usuarios/{id}/activar", new { });

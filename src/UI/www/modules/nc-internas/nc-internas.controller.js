@@ -35,9 +35,16 @@ window.NcInternasController = class NcInternasController {
         this._acciones = [];
         this._adjuntos = [];
         this._itemsCompletos = [];
-        this._statsCharts = [];
 
         document.getElementById("nci-imprimir-reporte-btn")?.addEventListener("click", () => this._imprimirReporteEstadistico());
+        document.getElementById("nci-estadisticas-btn")?.addEventListener("click", () => this._abrirEstadisticas());
+        document.getElementById("nci-estad-cerrar-btn")?.addEventListener("click", () => this._cerrarEstadisticas());
+        document.getElementById("nci-estad-detalle-btn")?.addEventListener("click", () => this._estadAlternarDetalle());
+        document.getElementById("nci-estad-imprimir-btn")?.addEventListener("click", () => this._imprimirReporteEstadistico());
+        document.getElementById("nci-estad-tabs")?.addEventListener("click", e => {
+            const tab = e.target.closest("[data-tab]")?.dataset.tab;
+            if (tab) this._estadActivarTab(tab);
+        });
         document.getElementById("nci-nuevo-btn")?.addEventListener("click", () => this._abrirNuevo());
         document.getElementById("nci-exportar-btn")?.addEventListener("click", () => this._exportar());
         document.getElementById("nci-filtrar-btn")?.addEventListener("click", () => { this._page = 1; this._loadLista(); });
@@ -73,8 +80,9 @@ window.NcInternasController = class NcInternasController {
 
     destroy() {
         console.log("NcInternasController destruido");
+        this._inlineDestruir();
         document.getElementById("nciModalAdjunto")?.remove();
-        this._destroyStatsCharts();
+        this._estadDestruir();
     }
 
     _usuarioActual() {
@@ -1033,21 +1041,15 @@ window.NcInternasController = class NcInternasController {
     }
 
     _renderIndicadores(ind) {
-        this._destroyStatsCharts();
-
         this._setText("nci-stat-np", ind.npAfectadas);
         this._setText("nci-stat-np-reincidentes", ind.npReincidentes);
         this._setText("nci-stat-clientes", ind.clientesAfectados);
 
-        this._chartBarHorizontal("nci-chart-area", ind.porArea, "NC", "NC por área responsable");
-        this._chartPareto("nci-chart-pareto", this._aplicarTopNOtros(ind.pareto), "Pareto por tipo de desviación");
-        this._chartDoughnut("nci-chart-etapa", ind.porEtapa, "Etapa que detecta");
-        this._chartBarHorizontal("nci-chart-cliente", ind.porCliente, "NC", "Clientes con más NC internas");
+        this._renderGraficosInline(ind);
+    }
 
-        this._mostrarChartONota("nci-chart-mensual", "nci-nota-mensual",
-            ind.mensual.length >= 2,
-            ind.mensual.length === 1 ? "Rango de un solo mes — sin evolución mensual que mostrar." : "Sin registros en el período para mostrar evolución.",
-            () => this._chartBarVertical("nci-chart-mensual", ind.mensual, "Evolución mensual"));
+    _notaSinEvolucion(meses) {
+        return meses === 1 ? "Rango de un solo mes — sin evolución mensual que mostrar." : "Sin registros en el período para mostrar evolución.";
     }
 
     _mostrarChartONota(canvasId, notaId, hayDatos, textoNota, dibujar) {
@@ -1080,12 +1082,14 @@ window.NcInternasController = class NcInternasController {
 
     // ---------- Gráficos (Chart.js local, mismo patrón que No Conformidades INNPACK) ----------
 
-    // Muestra TODAS las categorías (sin ocultar datos); el alto crece con la cantidad de filas y
-    // el contenedor .nci-chart-scroll agrega scroll interno.
+    // Vista resumida: Top 10 + "Otros", o todas las categorías en "Ver detalle completo" (_topN).
+    // Solo afecta lo dibujado: indicadores y tablas del reporte impreso conservan todas las
+    // categorías. El alto crece con las filas.
     _chartBarHorizontal(canvasId, rows, label, titulo) {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
-        ctx.style.setProperty("height", `${Math.max(180, rows.length * 26)}px`, "important");
+        rows = window.ChartUtils.topNConOtros(rows, this._topN(canvasId));
+        ctx.style.setProperty("height", `${window.ChartUtils.altoBarrasHorizontales(rows.length, 180)}px`, "important");
 
         const paleta = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#16a34a", "#3b82f6", "#6366f1", "#a855f7", "#ec4899", "#14b8a6"];
         const chart = new Chart(ctx, {
@@ -1095,19 +1099,20 @@ window.NcInternasController = class NcInternasController {
                 datasets: [{
                     label,
                     data: rows.map(r => Number(r.total || 0)),
-                    backgroundColor: rows.map((_, i) => paleta[i % paleta.length]),
+                    backgroundColor: window.ChartUtils.coloresBarras(rows, paleta),
                     borderRadius: 8,
                 }],
             },
             options: {
+                ...this._opcionesClic(canvasId, rows),
                 indexAxis: "y",
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true }, y: { ticks: { font: { size: 11 } } } },
+                plugins: { legend: { display: false }, tooltip: window.ChartUtils.tooltipOtros(rows) },
+                scales: { x: { beginAtZero: true }, y: window.ChartUtils.ejeCategoriasHorizontal(rows.length) },
             },
         });
-        this._statsCharts.push({ chart, titulo });
+        this._chartsDe(canvasId).push({ chart, titulo });
     }
 
     _chartBarVertical(canvasId, rows, titulo) {
@@ -1129,7 +1134,7 @@ window.NcInternasController = class NcInternasController {
                 },
             },
         });
-        this._statsCharts.push({ chart, titulo });
+        this._chartsDe(canvasId).push({ chart, titulo });
     }
 
     _chartDoughnut(canvasId, rows, titulo) {
@@ -1152,7 +1157,7 @@ window.NcInternasController = class NcInternasController {
                 cutout: "62%",
             },
         });
-        this._statsCharts.push({ chart, titulo });
+        this._chartsDe(canvasId).push({ chart, titulo });
     }
 
     // Barras = frecuencia por tipo, línea = % acumulado en eje secundario.
@@ -1191,11 +1196,13 @@ window.NcInternasController = class NcInternasController {
                     legend: { position: "bottom", labels: { font: { size: 11 } } },
                     tooltip: { callbacks: { title: items => (items[0] ? rows[items[0].dataIndex]?.defecto || "" : "") } },
                 },
+                ...this._opcionesClic(canvasId, rows, "defecto"),
                 scales: {
                     y: { beginAtZero: true, position: "left", ticks: { precision: 0 }, title: { display: true, text: "Frecuencia" } },
                     y1: { beginAtZero: true, max: 100, position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "% Acumulado" } },
                     x: {
                         ticks: {
+                            autoSkip: false,
                             maxRotation: 40,
                             minRotation: 40,
                             font: { size: 10 },
@@ -1205,14 +1212,151 @@ window.NcInternasController = class NcInternasController {
                 },
             },
         });
-        this._statsCharts.push({ chart, titulo, full: true });
+        this._chartsDe(canvasId).push({ chart, titulo, full: true });
     }
 
-    _destroyStatsCharts() {
-        (this._statsCharts || []).forEach(({ chart }) => {
+    // ---------- Modal de estadísticas (pestañas) ----------
+
+    // Mismos indicadores y constructores de gráficos que la sección inline, sobre el mismo universo
+    // filtrado (`_itemsCompletos`). Los gráficos del modal se registran aparte (`_estadCharts`) y
+    // cada pestaña se dibuja la primera vez que se visita.
+    _abrirEstadisticas() {
+        const items = this._itemsCompletos || [];
+        this._estadInd = this._calcularIndicadores(items);
+        const ind = this._estadInd;
+
+        this._estadDestruir();
+        this._estadDetalle = false;
+        document.getElementById("nci-estad-detalle-btn").textContent = "Ver detalle completo";
+
+        document.getElementById("nci-estad-filtros").textContent =
+            `${this._resumenFiltrosTexto()} · ${items.length.toLocaleString("es-CL")} registros`;
+        this._setText("ncim-kpi-np", ind.npAfectadas);
+        this._setText("ncim-kpi-np-reinc", ind.npReincidentes);
+        this._setText("ncim-kpi-clientes", ind.clientesAfectados);
+
+        document.getElementById("nci-estad-modal").style.display = "flex";
+        this._estadActivarTab("resumen");
+    }
+
+    _cerrarEstadisticas() {
+        document.getElementById("nci-estad-modal").style.display = "none";
+        this._estadDestruir();
+    }
+
+    _estadActivarTab(tab) {
+        this._estadTab = tab;
+        document.querySelectorAll("#nci-estad-tabs [data-tab]").forEach(b =>
+            b.classList.toggle("active", b.dataset.tab === tab));
+        document.querySelectorAll("#nci-estad-modal [data-panel]").forEach(p =>
+            p.classList.toggle("active", p.dataset.panel === tab));
+
+        // El canvas debe estar visible para que Chart.js mida su tamaño: se dibuja ya activo el panel.
+        if (!this._estadDibujados.has(tab)) {
+            this._estadDibujados.add(tab);
+            this._estadDibujar(tab);
+        }
+    }
+
+    _estadDibujar(tab) {
+        const ind = this._estadInd;
+
+        if (tab === "resumen") {
+            this._mostrarChartONota("ncim-chart-mensual", "ncim-nota-mensual",
+                ind.mensual.length >= 2, this._notaSinEvolucion(ind.mensual.length),
+                () => this._chartBarVertical("ncim-chart-mensual", ind.mensual, "Evolución mensual"));
+            this._chartDoughnut("ncim-chart-etapa", ind.porEtapa, "Etapa que detecta");
+        } else if (tab === "areas") {
+            this._chartBarHorizontal("ncim-chart-area", ind.porArea, "NC", "NC por área responsable");
+            this._chartBarHorizontal("ncim-chart-cliente", ind.porCliente, "NC", "Clientes con más NC internas");
+        } else if (tab === "defectos") {
+            this._chartPareto("ncim-chart-pareto", this._aplicarTopNOtros(ind.pareto, this._topN("ncim-chart-pareto")), "Pareto por tipo de desviación");
+        }
+    }
+
+    _estadDestruir() {
+        (this._estadCharts || []).forEach(({ chart }) => {
             try { chart.destroy(); } catch { /* noop */ }
         });
-        this._statsCharts = [];
+        this._estadCharts = [];
+        this._estadDibujados = new Set();
+    }
+
+    // Vista resumida (Top 10 + "Otros") o detalle completo (todas las categorías) de los rankings.
+    _topN(canvasId = "") {
+        if (!canvasId.startsWith("ncim-")) return 5; // gráficos de la pantalla: compactos
+        return this._estadDetalle ? Infinity : 10;
+    }
+
+    // Los gráficos del modal (prefijo "ncim-") se registran en `_estadCharts` (impresión y cierre del
+    // modal); los de la pantalla en `_inlineCharts`, que se redibujan con cada cambio de filtro.
+    _chartsDe(canvasId) {
+        if (canvasId.startsWith("ncim-")) return this._estadCharts;
+        return (this._inlineCharts = this._inlineCharts || []);
+    }
+
+    _inlineDestruir() {
+        (this._inlineCharts || []).forEach(({ chart }) => {
+            try { chart.destroy(); } catch { /* noop */ }
+        });
+        this._inlineCharts = [];
+    }
+
+    // Gráficos bajo los indicadores: Top 5 + "Otros" (el detalle completo vive en "Ver estadísticas").
+    _renderGraficosInline(ind) {
+        this._inlineDestruir();
+        this._mostrarChartONota("nci-chart-mensual", "nci-nota-mensual",
+            ind.mensual.length >= 2, this._notaSinEvolucion(ind.mensual.length),
+            () => this._chartBarVertical("nci-chart-mensual", ind.mensual, "Evolución mensual"));
+        this._chartDoughnut("nci-chart-etapa", ind.porEtapa, "Etapa que detecta");
+        this._chartBarHorizontal("nci-chart-area", ind.porArea, "NC", "NC por área responsable");
+        this._chartBarHorizontal("nci-chart-cliente", ind.porCliente, "NC", "Clientes con más NC internas");
+        this._chartPareto("nci-chart-pareto", this._aplicarTopNOtros(ind.pareto, this._topN("nci-chart-pareto")), "Pareto por tipo de desviación");
+    }
+
+    _estadAlternarDetalle() {
+        this._estadDetalle = !this._estadDetalle;
+        document.getElementById("nci-estad-detalle-btn").textContent =
+            this._estadDetalle ? "Ver Top 10" : "Ver detalle completo";
+
+        const tab = this._estadTab;
+        this._estadDestruir();
+        this._estadActivarTab(tab);
+    }
+
+    // Gráficos del reporte impreso: los mismos que se ven en pantalla (Top 5 + "Otros"), con los
+    // filtros activos. Se capturan los canvas de la pantalla, que siempre están visibles y dibujados;
+    // los del modal viven en paneles ocultos y salían en blanco.
+    _graficosParaImpresion() {
+        return this._capturarGraficos();
+    }
+
+    // ---------- Gráfico -> filtro ----------
+
+    // Al hacer clic en una barra/segmento se aplica el filtro existente de la misma dimensión (solo
+    // las que ya tienen filtro; el resto de gráficos no es clickeable). Si el valor no existe como
+    // opción del filtro no se ofrece el clic. El sufijo del id del canvas (`...chart-area`) identifica
+    // el gráfico, tanto en la sección inline como en el modal.
+    _opcionesClic(canvasId, rows, labelKey = "categoria") {
+        const selectId = { "area": "nci-filtro-area", "cliente": "nci-filtro-cliente", "pareto": "nci-filtro-tipo" }[canvasId.split("chart-")[1]];
+        if (!selectId) return {};
+
+        const opcion = fila => [...(document.getElementById(selectId)?.options || [])]
+            .find(o => o.value && o.value.trim() === String(fila[labelKey]).trim());
+
+        return window.ChartUtils.opcionesClic(rows,
+            fila => this._aplicarFiltroDesdeGrafico(selectId, opcion(fila).value),
+            fila => !!opcion(fila));
+    }
+
+    _aplicarFiltroDesdeGrafico(selectId, valor) {
+        // Diferido: el gráfico pulsado se destruye al redibujar, y no debe ocurrir dentro de su propio clic.
+        setTimeout(() => {
+            document.getElementById(selectId).value = valor;
+            this._cerrarEstadisticas();
+            this._page = 1;
+            this._loadLista();
+        }, 0);
     }
 
     _setText(id, value) {
@@ -1222,11 +1366,12 @@ window.NcInternasController = class NcInternasController {
 
     // ---------- Reporte estadístico imprimible (mismo PrintExporter.printReport que NC) ----------
 
-    // Captura los gráficos tal cual están en pantalla (mismo universo filtrado); si un canvas no
-    // se puede capturar, se omite solo ese gráfico.
+    // Captura los gráficos del modal de estadísticas; si un canvas no se puede capturar, se omite
+    // solo ese gráfico.
     _capturarGraficos() {
         const graficos = [];
-        (this._statsCharts || []).forEach(({ chart, titulo, full }) => {
+        (this._inlineCharts || []).forEach(({ chart, titulo, full }) => {
+            chart?.update("none"); // estado final, sin animación, antes de capturar
             const canvas = chart?.canvas;
             if (!canvas || !canvas.width || !canvas.height || canvas.style.display === "none") return;
             try {
@@ -1255,7 +1400,7 @@ window.NcInternasController = class NcInternasController {
                 { label: "NP con más de una NC", valor: ind.npReincidentes },
                 { label: "Clientes afectados", valor: ind.clientesAfectados },
             ],
-            graficos: this._capturarGraficos(),
+            graficos: this._graficosParaImpresion(),
             tablas: [
                 { titulo: "NC por área responsable", columnas: ["Área", "Total"], filas: ind.porArea.map(r => [r.categoria, r.total]) },
                 {

@@ -108,8 +108,15 @@ window.AuthController = class AuthController {
 
                     await window.App.cargarPermisos();
 
+                    // Política de contraseñas: clave temporal/vencida → pantalla de cambio primero.
+                    const destino = window.App.rutaTrasLogin({
+                        debeCambiar: response.data?.DebeCambiarPassword === true,
+                        motivo: response.data?.MotivoCambioPassword,
+                        dias: response.data?.DiasParaVencer,
+                    }, "inicio");
+
                     setTimeout(() => {
-                        window.App.loadModule("inicio");
+                        window.App.loadModule(destino);
                     }, 500);
 
                 } else {

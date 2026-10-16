@@ -110,6 +110,20 @@ window.UsuariosController = class UsuariosController {
         }
     }
 
+    // Política de contraseñas (campos PascalCase que proyecta UsuariosHandler.ListAsync).
+    estadoClave(usuario) {
+        if (usuario.PasswordSinVencimiento) {
+            return `<span title="Cuenta exenta de vencimiento">Sin vencimiento</span>`;
+        }
+        if (usuario.DebeCambiarPassword) {
+            return `<span style="color:#B45309; font-weight:600;" title="Clave temporal, nunca cambiada o vencida: deberá definir una nueva al ingresar">Debe cambiarla</span>`;
+        }
+        if (usuario.PasswordVenceEl) {
+            return `Vence ${window.DateUtils.formatear(usuario.PasswordVenceEl)}`;
+        }
+        return "-";
+    }
+
     renderTable(usuarios) {
         if (!this.tableBody) return;
 
@@ -142,6 +156,10 @@ window.UsuariosController = class UsuariosController {
 
                 <td>
                     ${usuario.Activo ? "Sí" : "No"}
+                </td>
+
+                <td>
+                    ${this.estadoClave(usuario)}
                 </td>
 
                 <td>
@@ -275,7 +293,7 @@ window.UsuariosController = class UsuariosController {
 
         this.tableBody.innerHTML = `
             <tr>
-                <td colspan="6" style="text-align:center; opacity:0.6;">
+                <td colspan="7" style="text-align:center; opacity:0.6;">
                     ${this.escapeHtml(text)}
                 </td>
             </tr>

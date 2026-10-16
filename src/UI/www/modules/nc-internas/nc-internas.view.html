@@ -7,6 +7,7 @@
         </div>
         <div class="module-actions">
             <button id="nci-exportar-btn" class="btn-secondary">Exportar Excel</button>
+            <button id="nci-estadisticas-btn" class="btn-secondary">Ver estadísticas</button>
             <button id="nci-imprimir-reporte-btn" class="btn-secondary">Imprimir Reporte Estadístico</button>
             <button id="nci-nuevo-btn" class="btn-primary">+ Nueva NC interna</button>
         </div>
@@ -67,7 +68,7 @@
         </div>
     </div>
 
-    <!-- Indicadores (calculados sobre todo el universo filtrado, no solo la página visible) -->
+    <!-- Indicadores principales (todo el universo filtrado); los gráficos están en "Ver estadísticas" -->
     <div class="card nci-stats-card">
         <div class="module-title" style="font-size:1rem; margin-bottom:16px;">Indicadores</div>
 
@@ -76,28 +77,27 @@
             <div><span class="kpi-value" id="nci-stat-np-reincidentes">0</span><div class="nci-nota">NP con más de una NC</div></div>
             <div><span class="kpi-value" id="nci-stat-clientes">0</span><div class="nci-nota">Clientes afectados</div></div>
         </div>
-
-        <div class="nci-stats-grid">
-            <div class="nci-seccion">
-                <div class="nci-seccion-titulo">NC por área responsable</div>
-                <div class="nci-chart-scroll"><canvas id="nci-chart-area"></canvas></div>
-            </div>
-            <div class="nci-seccion">
-                <div class="nci-seccion-titulo">Pareto por tipo de desviación</div>
-                <canvas id="nci-chart-pareto" class="nci-chart-alto"></canvas>
-            </div>
+        <div class="nci-graficos-grid">
             <div class="nci-seccion">
                 <div class="nci-seccion-titulo">Evolución mensual</div>
-                <canvas id="nci-chart-mensual"></canvas>
                 <div id="nci-nota-mensual" class="nci-nota" style="display:none;"></div>
+                <canvas id="nci-chart-mensual"></canvas>
             </div>
             <div class="nci-seccion">
                 <div class="nci-seccion-titulo">Etapa que detecta</div>
                 <canvas id="nci-chart-etapa"></canvas>
             </div>
             <div class="nci-seccion">
+                <div class="nci-seccion-titulo">NC por área responsable</div>
+                <canvas id="nci-chart-area"></canvas>
+            </div>
+            <div class="nci-seccion">
                 <div class="nci-seccion-titulo">Clientes con más NC internas</div>
-                <div class="nci-chart-scroll"><canvas id="nci-chart-cliente"></canvas></div>
+                <canvas id="nci-chart-cliente"></canvas>
+            </div>
+            <div class="nci-seccion">
+                <div class="nci-seccion-titulo">Pareto por tipo de desviación</div>
+                <canvas id="nci-chart-pareto"></canvas>
             </div>
         </div>
     </div>
@@ -129,6 +129,63 @@
     </div>
 
     <!-- Modal Nueva / Ver / Editar -->
+    <!-- Modal Estadísticas (mismos indicadores que la sección inline, organizados por pestañas) -->
+    <div id="nci-estad-modal" class="nci-modal-overlay" style="display:none;">
+        <div class="nci-modal nci-estad-modal card">
+            <div class="module-header">
+                <div>
+                    <div class="module-title" style="font-size:1rem;">Estadísticas de NC Internas</div>
+                    <div class="subtitle" id="nci-estad-filtros"></div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button id="nci-estad-detalle-btn" class="btn-secondary">Ver detalle completo</button>
+                    <button id="nci-estad-imprimir-btn" class="btn-secondary">Imprimir Reporte</button>
+                    <button id="nci-estad-cerrar-btn" class="btn-secondary">Cerrar</button>
+                </div>
+            </div>
+
+            <div class="nci-estad-kpis">
+                <div><span class="kpi-value" id="ncim-kpi-np">0</span><div class="nci-nota">NP afectadas</div></div>
+                <div><span class="kpi-value" id="ncim-kpi-np-reinc">0</span><div class="nci-nota">NP con más de una NC</div></div>
+                <div><span class="kpi-value" id="ncim-kpi-clientes">0</span><div class="nci-nota">Clientes afectados</div></div>
+            </div>
+
+            <div id="nci-estad-tabs" class="nci-estad-tabs">
+                <button type="button" class="nci-estad-tab active" data-tab="resumen">Resumen</button>
+                <button type="button" class="nci-estad-tab" data-tab="areas">Áreas y clientes</button>
+                <button type="button" class="nci-estad-tab" data-tab="defectos">Defectos</button>
+            </div>
+
+            <div class="nci-estad-panel active" data-panel="resumen">
+                <div class="nci-seccion">
+                    <div class="nci-seccion-titulo">Evolución mensual</div>
+                    <div id="ncim-nota-mensual" class="nci-nota" style="display:none;"></div>
+                    <canvas id="ncim-chart-mensual"></canvas>
+                </div>
+                <div class="nci-seccion">
+                    <div class="nci-seccion-titulo">Etapa que detecta</div>
+                    <canvas id="ncim-chart-etapa"></canvas>
+                </div>
+            </div>
+            <div class="nci-estad-panel" data-panel="areas">
+                <div class="nci-seccion">
+                    <div class="nci-seccion-titulo">NC por área responsable</div>
+                    <canvas id="ncim-chart-area"></canvas>
+                </div>
+                <div class="nci-seccion">
+                    <div class="nci-seccion-titulo">Clientes con más NC internas</div>
+                    <canvas id="ncim-chart-cliente"></canvas>
+                </div>
+            </div>
+            <div class="nci-estad-panel" data-panel="defectos">
+                <div class="nci-seccion">
+                    <div class="nci-seccion-titulo">Pareto por tipo de desviación</div>
+                    <canvas id="ncim-chart-pareto"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="nci-form-modal" class="nci-modal-overlay" style="display:none;">
         <div class="nci-modal card">
             <div class="module-header">

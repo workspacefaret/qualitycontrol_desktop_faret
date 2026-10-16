@@ -3,7 +3,6 @@ window.FaretNcController = class FaretNcController {
     init() {
         console.log("FaretNcController iniciado");
 
-        this._statsCharts = [];
         this._dataItems = [];
         this._inspeccionItems = [];
         this._ncItems = [];
@@ -98,6 +97,20 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-imprimir-reporte-btn")
             ?.addEventListener("click", () => this._imprimirReporteEstadistico());
 
+        document.getElementById("fnc-estadisticas-btn")
+            ?.addEventListener("click", () => this._abrirEstadisticas());
+        document.getElementById("fnc-estad-cerrar-btn")
+            ?.addEventListener("click", () => this._cerrarEstadisticas());
+        document.getElementById("fnc-estad-detalle-btn")
+            ?.addEventListener("click", () => this._estadAlternarDetalle());
+        document.getElementById("fnc-estad-imprimir-btn")
+            ?.addEventListener("click", () => this._imprimirReporteEstadistico());
+        document.getElementById("fnc-estad-tabs")
+            ?.addEventListener("click", e => {
+                const tab = e.target.closest("[data-tab]")?.dataset.tab;
+                if (tab) this._estadActivarTab(tab);
+            });
+
         document.getElementById("fnc-columnas-btn")
             ?.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -191,7 +204,8 @@ window.FaretNcController = class FaretNcController {
 
     destroy() {
         console.log("FaretNcController destruido");
-        this._destroyStatsCharts();
+        this._estadDestruir();
+        this._inlineDestruir();
     }
 
     // ---------- Carga y fusión Data + NC ----------
@@ -514,13 +528,15 @@ window.FaretNcController = class FaretNcController {
         const f = this._getFiltros();
 
         return this._combinados.filter(fila => {
-            if (f.cliente && !fila.cliente.toLowerCase().includes(f.cliente)) return false;
-            if (f.tipoPnc && !fila.tipoPnc.toLowerCase().includes(f.tipoPnc)) return false;
+            // Cliente, Tipo PNC y Área son listas cerradas (<select>): coincidencia exacta, para que
+            // "Cliente 1" no incluya también "Cliente 10" (el clic en un gráfico usa estos mismos filtros).
+            if (f.cliente && fila.cliente.trim().toLowerCase() !== f.cliente) return false;
+            if (f.tipoPnc && fila.tipoPnc.trim().toLowerCase() !== f.tipoPnc) return false;
             if (f.nivel && fila.nivelSeveridad !== f.nivel) return false;
             // "Pendiente" = todo lo no cerrado (incluye filas de Data sin gestión todavía).
             if (f.estadoGestion === "CERRADA" && fila.estadoGestion !== "CERRADA") return false;
             if (f.estadoGestion === "PENDIENTE" && fila.estadoGestion === "CERRADA") return false;
-            if (f.area && !fila.area.toLowerCase().includes(f.area)) return false;
+            if (f.area && fila.area.trim().toLowerCase() !== f.area) return false;
             if (f.fuente && fila.fuente !== f.fuente) return false;
 
             if (fila.fechaIngreso) {
@@ -883,8 +899,6 @@ window.FaretNcController = class FaretNcController {
     }
 
     _renderIndicadores(ind) {
-        this._destroyStatsCharts();
-
         this._setText("fnc-stat-cuarentenas-total", ind.cuarentenas.total);
         this._setText("fnc-stat-cuarentenas-cant-unidades", ind.cuarentenas.cantidadTotalUnidades);
 
@@ -903,43 +917,7 @@ window.FaretNcController = class FaretNcController {
         this._setText("fnc-stat-operadores-total", ind.operadoresInvolucrados);
         this._setText("fnc-stat-clientes-total", ind.clientesInvolucrados);
 
-        this._renderEvolucionMensual(
-            "fnc-chart-cuarentenas", "fnc-nota-cuarentenas",
-            ind.cuarentenas.evolucionMensual, "Cuarentenas — evolución mensual"
-        );
-        this._renderEvolucionMensual(
-            "fnc-chart-rechazos", "fnc-nota-rechazos",
-            ind.rechazosCliente.evolucionMensual, "Rechazos de cliente — evolución mensual"
-        );
-
-        this._chartBarHorizontalStats(
-            "fnc-chart-familia", ind.porFamilia, "categoria", "total", "PNC",
-            "PNC por familia de producto"
-        );
-        this._chartBarHorizontalStats(
-            "fnc-chart-area", ind.porArea, "categoria", "total", "Incidentes",
-            "Incidentes por área"
-        );
-        this._chartBarHorizontalStats(
-            "fnc-chart-maquina", ind.porMaquina, "categoria", "total", "NC",
-            "Máquinas involucradas", { scroll: true }
-        );
-        this._chartBarHorizontalStats(
-            "fnc-chart-operador", ind.porOperador, "categoria", "total", "NC",
-            "Operadores involucrados", { scroll: true }
-        );
-        this._chartBarHorizontalStats(
-            "fnc-chart-cliente", ind.porCliente, "categoria", "total", "NC",
-            "Clientes involucrados", { scroll: true }
-        );
-        this._chartDoughnutStats(
-            "fnc-chart-tipo-pnc", ind.porTipoPnc, "categoria", "total",
-            "Distribución por tipo de PNC"
-        );
-        this._chartParetoStats(
-            "fnc-chart-pareto", this._aplicarTopNOtros(ind.pareto), "defecto", "frecuencia", "porcentajeAcumulado",
-            "Pareto de defectos"
-        );
+        this._renderGraficosInline(ind);
     }
 
     // Limita el Pareto a las N categorías con mayor frecuencia (por defecto 10) y agrupa el resto
@@ -990,20 +968,16 @@ window.FaretNcController = class FaretNcController {
 
     // ---------- Charts (mismo patrón visual/técnico que faret.controller.js / Inicio Faret) ----------
 
-    // opts.scroll=true: el canvas muestra TODAS las categorías (sin Top-N ni "Otros" — no se
-    // oculta ningún dato real), con un alto calculado según la cantidad de filas para que cada
-    // barra quede legible; el contenedor `.fnc-chart-scroll` (ver CSS) limita el alto visible y
-    // agrega scroll interno para que el bloque no crezca sin límite. Se fija con !important
-    // inline porque la regla general `.fnc-stats-card canvas { height: 200px !important }` sería
-    // más específica que un alto fijo en CSS y necesita un valor dinámico por gráfico.
-    _chartBarHorizontalStats(canvasId, rows, labelKey, valueKey, label, titulo, opts = {}) {
+    // Vista resumida: Top 10 + "Otros" (window.ChartUtils.topNConOtros), o todas las categorías en
+    // "Ver detalle completo" (_topN). Solo afecta lo que se dibuja: los indicadores y las tablas del
+    // reporte impreso conservan todas las categorías. El alto crece con las filas y el eje nunca
+    // omite etiquetas.
+    _chartBarHorizontalStats(canvasId, rows, labelKey, valueKey, label, titulo) {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
 
-        if (opts.scroll) {
-            const alto = Math.max(180, rows.length * 26);
-            ctx.style.setProperty("height", `${alto}px`, "important");
-        }
+        rows = window.ChartUtils.topNConOtros(rows, this._topN(canvasId), labelKey, valueKey);
+        ctx.style.setProperty("height", `${window.ChartUtils.altoBarrasHorizontales(rows.length, 180)}px`, "important");
 
         // Paleta cíclica: antes eran 7 colores fijos y con más de 7 barras (posible desde que
         // estos gráficos muestran todas las categorías, sin límite Top-N) las barras 8+ quedaban
@@ -1018,20 +992,21 @@ window.FaretNcController = class FaretNcController {
                 datasets: [{
                     label,
                     data: rows.map(r => Number(r[valueKey] || 0)),
-                    backgroundColor: rows.map((_, i) => paleta[i % paleta.length]),
+                    backgroundColor: window.ChartUtils.coloresBarras(rows, paleta),
                     borderRadius: 8,
                 }],
             },
             options: {
+                ...this._opcionesClic(canvasId, rows),
                 indexAxis: "y",
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true }, y: { ticks: { font: { size: 11 } } } },
+                plugins: { legend: { display: false }, tooltip: window.ChartUtils.tooltipOtros(rows, labelKey, valueKey) },
+                scales: { x: { beginAtZero: true }, y: window.ChartUtils.ejeCategoriasHorizontal(rows.length) },
             },
         });
 
-        this._statsCharts.push({ chart, canvas: ctx, titulo });
+        this._chartsDe(canvasId).push({ chart, canvas: ctx, titulo });
     }
 
     // Mismo patrón que _chartDoughnut en faret.controller.js / Inicio Faret.
@@ -1053,11 +1028,12 @@ window.FaretNcController = class FaretNcController {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { position: "right", labels: { font: { size: 11 } } } },
+                ...this._opcionesClic(canvasId, rows),
                 cutout: "62%",
             },
         });
 
-        this._statsCharts.push({ chart, canvas: ctx, titulo });
+        this._chartsDe(canvasId).push({ chart, canvas: ctx, titulo });
     }
 
     // `tooltipKey` es opcional: si se indica, el título del tooltip usa ese campo de `rows`
@@ -1108,7 +1084,7 @@ window.FaretNcController = class FaretNcController {
             },
         });
 
-        this._statsCharts.push({ chart, canvas: ctx, titulo });
+        this._chartsDe(canvasId).push({ chart, canvas: ctx, titulo });
     }
 
     // Pareto real: barras = frecuencia por defecto, línea = % acumulado sobre eje secundario
@@ -1173,6 +1149,7 @@ window.FaretNcController = class FaretNcController {
                     },
                     x: {
                         ticks: {
+                            autoSkip: false,
                             maxRotation: 40,
                             minRotation: 40,
                             font: { size: 10 },
@@ -1187,14 +1164,170 @@ window.FaretNcController = class FaretNcController {
 
         // `full: true` marca este gráfico para ocupar el ancho completo en el reporte impreso
         // (único con doble eje + más categorías, necesita más espacio horizontal).
-        this._statsCharts.push({ chart, canvas: ctx, titulo, full: true });
+        this._chartsDe(canvasId).push({ chart, canvas: ctx, titulo, full: true });
     }
 
-    _destroyStatsCharts() {
-        (this._statsCharts || []).forEach(({ chart }) => {
+    // ---------- Modal de estadísticas (pestañas) ----------
+
+    // Usa los mismos indicadores y constructores de gráficos que la sección inline, sobre el mismo
+    // dataset filtrado que la tabla (_filtrarItems). Los gráficos del modal se registran aparte
+    // (`_estadCharts`) y cada pestaña se dibuja la primera vez que se visita.
+    _abrirEstadisticas() {
+        const filtrados = this._filtrarItems();
+        this._estadInd = this._calcularIndicadores(filtrados);
+        const ind = this._estadInd;
+
+        this._estadDestruir();
+        this._estadDetalle = false;
+        document.getElementById("fnc-estad-detalle-btn").textContent = "Ver detalle completo";
+
+        document.getElementById("fnc-estad-filtros").textContent =
+            `${this._resumenFiltrosTexto()} · ${filtrados.length.toLocaleString("es-CL")} registros`;
+        this._setText("fncm-kpi-cuarentenas", ind.cuarentenas.total);
+        this._setText("fncm-kpi-cuarentenas-unidades", ind.cuarentenas.cantidadTotalUnidades);
+        this._setText("fncm-kpi-rechazados", ind.rechazosTotales);
+        this._setText("fncm-kpi-reclamos", ind.totalReclamos);
+
+        document.getElementById("fnc-estad-modal").style.display = "flex";
+        this._estadActivarTab("resumen");
+    }
+
+    _cerrarEstadisticas() {
+        document.getElementById("fnc-estad-modal").style.display = "none";
+        this._estadDestruir();
+    }
+
+    _estadActivarTab(tab) {
+        this._estadTab = tab;
+        document.querySelectorAll("#fnc-estad-tabs [data-tab]").forEach(b =>
+            b.classList.toggle("active", b.dataset.tab === tab));
+        document.querySelectorAll("#fnc-estad-modal [data-panel]").forEach(p =>
+            p.classList.toggle("active", p.dataset.panel === tab));
+
+        // El canvas debe estar visible para que Chart.js mida su tamaño: se dibuja ya activo el panel.
+        if (!this._estadDibujados.has(tab)) {
+            this._estadDibujados.add(tab);
+            this._estadDibujar(tab);
+        }
+    }
+
+    _estadDibujar(tab) {
+        const ind = this._estadInd;
+        const barras = (id, rows, label, titulo) =>
+            this._chartBarHorizontalStats(`fncm-chart-${id}`, rows, "categoria", "total", label, titulo);
+
+        if (tab === "resumen") {
+            this._chartDoughnutStats("fncm-chart-tipo-pnc", ind.porTipoPnc, "categoria", "total",
+                "Distribución por tipo de PNC");
+            this._renderEvolucionMensual("fncm-chart-cuarentenas", "fncm-nota-cuarentenas",
+                ind.cuarentenas.evolucionMensual, "Cuarentenas — evolución mensual");
+            this._renderEvolucionMensual("fncm-chart-rechazos", "fncm-nota-rechazos",
+                ind.rechazosCliente.evolucionMensual, "Rechazos de cliente — evolución mensual");
+        } else if (tab === "donde") {
+            barras("familia", ind.porFamilia, "PNC", "PNC por familia de producto");
+            barras("area", ind.porArea, "Incidentes", "Incidentes por área");
+            barras("maquina", ind.porMaquina, "NC", "Máquinas involucradas");
+        } else if (tab === "quien") {
+            barras("operador", ind.porOperador, "NC", "Operadores involucrados");
+            barras("cliente", ind.porCliente, "NC", "Clientes involucrados");
+        } else if (tab === "defectos") {
+            this._chartParetoStats("fncm-chart-pareto", this._aplicarTopNOtros(ind.pareto, this._topN("fncm-chart-pareto")),
+                "defecto", "frecuencia", "porcentajeAcumulado", "Pareto de defectos");
+        }
+    }
+
+    _estadDestruir() {
+        (this._estadCharts || []).forEach(({ chart }) => {
             try { chart.destroy(); } catch { /* noop */ }
         });
-        this._statsCharts = [];
+        this._estadCharts = [];
+        this._estadDibujados = new Set();
+    }
+
+    // Vista resumida (Top 10 + "Otros") o detalle completo (todas las categorías) de los rankings.
+    _topN(canvasId = "") {
+        if (!canvasId.startsWith("fncm-")) return 5; // gráficos de la pantalla: compactos
+        return this._estadDetalle ? Infinity : 10;
+    }
+
+    // Los gráficos del modal (prefijo "fncm-") se registran en `_estadCharts` (impresión y cierre del
+    // modal); los de la pantalla en `_inlineCharts`, que se redibujan con cada cambio de filtro.
+    _chartsDe(canvasId) {
+        if (canvasId.startsWith("fncm-")) return this._estadCharts;
+        return (this._inlineCharts = this._inlineCharts || []);
+    }
+
+    _inlineDestruir() {
+        (this._inlineCharts || []).forEach(({ chart }) => {
+            try { chart.destroy(); } catch { /* noop */ }
+        });
+        this._inlineCharts = [];
+    }
+
+    // Gráficos bajo los KPIs: Top 5 + "Otros" (el detalle completo vive en "Ver estadísticas").
+    _renderGraficosInline(ind) {
+        this._inlineDestruir();
+        const barras = (id, rows, label, titulo) =>
+            this._chartBarHorizontalStats(`fnc-chart-${id}`, rows, "categoria", "total", label, titulo);
+
+        this._chartDoughnutStats("fnc-chart-tipo-pnc", ind.porTipoPnc, "categoria", "total",
+            "Distribución por tipo de PNC");
+        this._renderEvolucionMensual("fnc-chart-cuarentenas", "fnc-nota-cuarentenas",
+            ind.cuarentenas.evolucionMensual, "Cuarentenas — evolución mensual");
+        this._renderEvolucionMensual("fnc-chart-rechazos", "fnc-nota-rechazos",
+            ind.rechazosCliente.evolucionMensual, "Rechazos de cliente — evolución mensual");
+        barras("familia", ind.porFamilia, "PNC", "PNC por familia de producto");
+        barras("area", ind.porArea, "Incidentes", "Incidentes por área");
+        barras("maquina", ind.porMaquina, "NC", "Máquinas involucradas");
+        barras("operador", ind.porOperador, "NC", "Operadores involucrados");
+        barras("cliente", ind.porCliente, "NC", "Clientes involucrados");
+        this._chartParetoStats("fnc-chart-pareto", this._aplicarTopNOtros(ind.pareto, this._topN("fnc-chart-pareto")),
+            "defecto", "frecuencia", "porcentajeAcumulado", "Pareto de defectos");
+    }
+
+    _estadAlternarDetalle() {
+        this._estadDetalle = !this._estadDetalle;
+        document.getElementById("fnc-estad-detalle-btn").textContent =
+            this._estadDetalle ? "Ver Top 10" : "Ver detalle completo";
+
+        const tab = this._estadTab;
+        this._estadDestruir();
+        this._estadActivarTab(tab);
+    }
+
+    // Gráficos del reporte impreso: los mismos que se ven en pantalla (Top 5 + "Otros"), con los
+    // filtros activos. Se capturan los canvas de la pantalla, que siempre están visibles y dibujados;
+    // los del modal viven en paneles ocultos y salían en blanco.
+    _graficosParaImpresion() {
+        return this._capturarGraficosParaImpresion();
+    }
+
+    // ---------- Gráfico -> filtro ----------
+
+    // Al hacer clic en una barra/segmento se aplica el filtro existente de la misma dimensión (solo
+    // las que ya tienen filtro; el resto de gráficos no es clickeable). Si el valor no existe como
+    // opción del filtro no se ofrece el clic. El sufijo del id del canvas (`...chart-area`) identifica
+    // el gráfico, tanto en la sección inline como en el modal.
+    _opcionesClic(canvasId, rows, labelKey = "categoria") {
+        const selectId = { "area": "fnc-filtro-area", "cliente": "fnc-filtro-cliente", "tipo-pnc": "fnc-filtro-tipo-pnc" }[canvasId.split("chart-")[1]];
+        if (!selectId) return {};
+
+        const opcion = fila => [...(document.getElementById(selectId)?.options || [])]
+            .find(o => o.value && o.value.trim() === String(fila[labelKey]).trim());
+
+        return window.ChartUtils.opcionesClic(rows,
+            fila => this._aplicarFiltroDesdeGrafico(selectId, opcion(fila).value),
+            fila => !!opcion(fila));
+    }
+
+    _aplicarFiltroDesdeGrafico(selectId, valor) {
+        // Diferido: el gráfico pulsado se destruye al redibujar, y no debe ocurrir dentro de su propio clic.
+        setTimeout(() => {
+            document.getElementById(selectId).value = valor;
+            this._cerrarEstadisticas();
+            this._page = 1;
+            this._renderTabla();
+        }, 0);
     }
 
     _setText(id, value) {
@@ -1204,18 +1337,16 @@ window.FaretNcController = class FaretNcController {
 
     // ---------- Reporte estadístico imprimible ----------
 
-    // Toma el <canvas> YA renderizado en pantalla de cada gráfico (chart.canvas — mismas
-    // instancias que ve el usuario con los filtros activos, sin crear ni recalcular ningún
-    // Chart). Valida ancho/alto del canvas y el DataURL resultante antes de incluirlo; si algo
-    // falla se omite ESE gráfico puntual (con detalle en consola) sin bloquear el resto del
-    // reporte. El console.table queda como diagnóstico permanente de bajo costo (solo corre al
-    // pulsar "Imprimir Reporte Estadístico", no en cada render) para poder auditar futuros
-    // problemas de impresión sin tener que reintroducir logs.
+    // Toma el <canvas> de cada gráfico del modal de estadísticas. Valida ancho/alto del canvas y el
+    // DataURL resultante antes de incluirlo; si algo falla se omite ESE gráfico puntual (con detalle
+    // en consola) sin bloquear el resto del reporte. El console.table queda como diagnóstico
+    // permanente de bajo costo (solo corre al imprimir el reporte).
     _capturarGraficosParaImpresion() {
         const diagnostico = [];
         const resultado = [];
 
-        (this._statsCharts || []).forEach(({ chart, titulo, full }) => {
+        (this._inlineCharts || []).forEach(({ chart, titulo, full }) => {
+            chart?.update("none"); // estado final, sin animación, antes de capturar
             const canvas = chart?.canvas || null;
             const fila = {
                 grafico: titulo,
@@ -1264,10 +1395,8 @@ window.FaretNcController = class FaretNcController {
         const ind = this._calcularIndicadores(filtrados);
         const paretoImpreso = this._aplicarTopNOtros(ind.pareto);
 
-        // Captura EXACTAMENTE los gráficos ya renderizados en pantalla con los filtros activos
-        // (this._statsCharts ya está sincronizado por el último _renderTabla()) — no se recrea
-        // ningún Chart ni se recalcula nada solo para imprimir.
-        const graficos = this._capturarGraficosParaImpresion();
+        // Mismos gráficos del modal de estadísticas (todas las pestañas), con los filtros activos.
+        const graficos = this._graficosParaImpresion();
 
         window.PrintExporter.printReport({
             empresa: "FARET",

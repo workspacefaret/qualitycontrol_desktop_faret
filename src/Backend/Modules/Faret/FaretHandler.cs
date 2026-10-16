@@ -63,6 +63,7 @@ namespace QualityControlCenter.Modules.Faret
             {
                 "faret.login" => await HandleLogin(data),
                 "faret.logout" => HandleLogout(),
+                "faret.cambiarPassword" => await HandleCambiarPassword(data),
                 "faret.health" => await HandleHealth(),
                 "faret.catalogos.areas" => await HandleCatalogo(_catalogos.GetAreasAsync),
                 "faret.catalogos.inspectores" => await HandleCatalogo(
@@ -176,8 +177,40 @@ namespace QualityControlCenter.Modules.Faret
             if (!ok)
                 return Error(error ?? "Login fallido");
 
-            return Ok(new { username = loginData!.Username, role = loginData.Role });
+            return Ok(RespuestaSesion(loginData!));
         }
+
+        // Cambio de clave del propio usuario Faret (política de contraseñas, 15-10-2026).
+        private async Task<string> HandleCambiarPassword(Dictionary<string, object> data)
+        {
+            if (!_client.HasToken)
+                return Error("No autenticado en API Faret");
+
+            if (!TryGetString(data, "passwordActual", out var actual) || string.IsNullOrEmpty(actual))
+                return Error("Debes ingresar tu contraseña actual");
+
+            if (!TryGetString(data, "passwordNueva", out var nueva) || string.IsNullOrEmpty(nueva))
+                return Error("Debes ingresar la contraseña nueva");
+
+            var (ok, loginData, error) = await _auth.CambiarPasswordAsync(actual, nueva);
+            if (!ok)
+                return Error(error ?? "No se pudo cambiar la contraseña");
+
+            return Ok(RespuestaSesion(loginData!));
+        }
+
+        // Mismo shape para faret.login y faret.cambiarPassword (el frontend lee username/role y
+        // el estado de la política de contraseñas).
+        private static object RespuestaSesion(QualityControlCenter.Backend.Models.FaretApi.LoginResponse loginData) =>
+            new
+            {
+                username = loginData.Username,
+                role = loginData.Role,
+                debeCambiarPassword = loginData.DebeCambiarPassword,
+                motivoCambioPassword = loginData.MotivoCambioPassword,
+                diasParaVencer = loginData.DiasParaVencer,
+                passwordVenceEl = loginData.PasswordVenceEl,
+            };
 
         private string HandleLogout()
         {
@@ -730,7 +763,11 @@ namespace QualityControlCenter.Modules.Faret
             if (!TryGetString(data, "rol", out var rol) || string.IsNullOrWhiteSpace(rol))
                 return Error("Falta el rol");
 
-            var (ok, body) = await _usuarios.CreateAsync(nombre!, username!, rol!);
+            // Clave temporal escrita por el ADMIN_TI (la API exige 8 caracteres y la marca como temporal).
+            if (!TryGetString(data, "password", out var password) || string.IsNullOrWhiteSpace(password))
+                return Error("Falta la clave temporal");
+
+            var (ok, body) = await _usuarios.CreateAsync(nombre!, username!, rol!, password!);
             if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
                 return Error(error);
 
@@ -841,7 +878,11 @@ namespace QualityControlCenter.Modules.Faret
             if (!TryGetInt(data, "id", out var id))
                 return Error("Falta el id del usuario");
 
-            var (ok, body) = await _usuarios.ResetPasswordAsync(id);
+            // Clave temporal escrita por el ADMIN_TI (antes era siempre "Faret2026").
+            if (!TryGetString(data, "password", out var password) || string.IsNullOrWhiteSpace(password))
+                return Error("Falta la clave temporal");
+
+            var (ok, body) = await _usuarios.ResetPasswordAsync(id, password!);
             if (!TryUnwrapApiResponse(body, out var payload, out var error) || !ok)
                 return Error(error);
 

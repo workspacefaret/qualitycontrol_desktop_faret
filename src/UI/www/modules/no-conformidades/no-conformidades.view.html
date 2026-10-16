@@ -12,6 +12,7 @@
             </div>
             <button id="ncq-exportar-btn" class="btn-secondary">Exportar Excel</button>
             <button id="ncq-imprimir-btn" class="btn-secondary">Imprimir</button>
+            <button id="ncq-estadisticas-btn" class="btn-secondary">Ver estadísticas</button>
             <button id="ncq-imprimir-reporte-btn" class="btn-secondary">Imprimir Reporte Estadístico</button>
             <button id="ncq-nuevo-btn" class="btn-primary">+ Nueva NC</button>
         </div>
@@ -85,71 +86,57 @@
         </div>
     </div>
 
-    <!-- Indicadores estadísticos (calculados sobre el mismo dataset filtrado que la tabla) -->
+    <!-- Indicadores principales (mismo dataset filtrado que la tabla); los gráficos están en "Ver estadísticas" -->
     <div class="card ncq-stats-card">
         <div class="module-title" style="font-size:1rem; margin-bottom:16px;">Indicadores Estadísticos</div>
 
-        <div class="ncq-stats-grid">
+        <div class="ncq-kpi-grid">
+            <div><span class="kpi-value" id="ncq-stat-cuarentenas-total">0</span><div class="ncq-stats-nota">Cuarentenas — total</div></div>
+            <div><span class="kpi-value" id="ncq-stat-cuarentenas-cant-unidades">0</span><div class="ncq-stats-nota">Cantidad total unidades cuarentenas</div></div>
+            <div><span class="kpi-value" id="ncq-stat-rechazos-total">0</span><div class="ncq-stats-nota">Rechazos cliente — total</div></div>
+            <div><span class="kpi-value" id="ncq-stat-rechazos-totales-general">0</span><div class="ncq-stats-nota">Rechazados totales</div></div>
+            <div><span class="kpi-value" id="ncq-stat-reclamos-total">0</span><div class="ncq-stats-nota">Total reclamos</div></div>
+            <div><span class="kpi-value" id="ncq-stat-maquinas-total">0</span><div class="ncq-stats-nota">Máquinas involucradas</div></div>
+            <div><span class="kpi-value" id="ncq-stat-operadores-total">0</span><div class="ncq-stats-nota">Operadores involucrados</div></div>
+            <div><span class="kpi-value" id="ncq-stat-clientes-total">0</span><div class="ncq-stats-nota">Clientes involucrados</div></div>
+        </div>
+        <div class="ncq-graficos-grid">
             <div class="ncq-seccion">
-                <div class="ncq-seccion-titulo">Cuarentenas</div>
-                <div class="ncq-stats-resumen">
-                    <div><span class="kpi-value" id="ncq-stat-cuarentenas-total">0</span><div class="ncq-stats-nota">Total período</div></div>
-                    <div><span class="kpi-value" id="ncq-stat-cuarentenas-cant-unidades">0</span><div class="ncq-stats-nota">Cantidad total unidades cuarentenas</div></div>
-                </div>
-                <canvas id="ncq-chart-cuarentenas"></canvas>
-                <div id="ncq-nota-cuarentenas" class="ncq-stats-nota" style="display:none;"></div>
-            </div>
-
-            <div class="ncq-seccion">
-                <div class="ncq-seccion-titulo">Rechazos de Cliente</div>
-                <div class="ncq-stats-resumen">
-                    <div><span class="kpi-value" id="ncq-stat-rechazos-total">0</span><div class="ncq-stats-nota">Total período</div></div>
-                    <div><span class="kpi-value" id="ncq-stat-rechazos-totales-general">0</span><div class="ncq-stats-nota">Rechazados totales</div></div>
-                </div>
-                <canvas id="ncq-chart-rechazos"></canvas>
-                <div id="ncq-nota-rechazos" class="ncq-stats-nota" style="display:none;"></div>
-            </div>
-
-            <div class="ncq-seccion">
-                <div class="ncq-seccion-titulo">Total de Reclamos</div>
-                <span class="kpi-value" id="ncq-stat-reclamos-total">0</span>
-            </div>
-
-            <div class="ncq-seccion">
-                <div class="ncq-seccion-titulo">PNC por Familia de Producto</div>
-                <canvas id="ncq-chart-familia"></canvas>
-            </div>
-
-            <div class="ncq-seccion">
-                <div class="ncq-seccion-titulo">Incidentes por Área</div>
-                <canvas id="ncq-chart-area"></canvas>
-            </div>
-
-            <div class="ncq-seccion">
-                <div class="ncq-seccion-titulo">Máquinas Involucradas</div>
-                <span class="kpi-value" id="ncq-stat-maquinas-total">0</span>
-                <div class="ncq-chart-scroll"><canvas id="ncq-chart-maquina"></canvas></div>
-            </div>
-
-            <div class="ncq-seccion">
-                <div class="ncq-seccion-titulo">Operadores Involucrados</div>
-                <span class="kpi-value" id="ncq-stat-operadores-total">0</span>
-                <div class="ncq-chart-scroll"><canvas id="ncq-chart-operador"></canvas></div>
-            </div>
-
-            <div class="ncq-seccion">
-                <div class="ncq-seccion-titulo">Clientes Involucrados</div>
-                <span class="kpi-value" id="ncq-stat-clientes-total">0</span>
-                <div class="ncq-chart-scroll"><canvas id="ncq-chart-cliente"></canvas></div>
-            </div>
-
-            <div class="ncq-seccion">
-                <div class="ncq-seccion-titulo">Distribución por Tipo de PNC</div>
+                <div class="ncq-seccion-titulo">Distribución por tipo de PNC</div>
                 <canvas id="ncq-chart-tipo-pnc"></canvas>
             </div>
-
             <div class="ncq-seccion">
-                <div class="ncq-seccion-titulo">Pareto de Defectos</div>
+                <div class="ncq-seccion-titulo">Cuarentenas — evolución mensual</div>
+                <div id="ncq-nota-cuarentenas" class="ncq-stats-nota" style="display:none;"></div>
+                <canvas id="ncq-chart-cuarentenas"></canvas>
+            </div>
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Rechazos de cliente — evolución mensual</div>
+                <div id="ncq-nota-rechazos" class="ncq-stats-nota" style="display:none;"></div>
+                <canvas id="ncq-chart-rechazos"></canvas>
+            </div>
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">PNC por familia de producto</div>
+                <canvas id="ncq-chart-familia"></canvas>
+            </div>
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Incidentes por área</div>
+                <canvas id="ncq-chart-area"></canvas>
+            </div>
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Máquinas involucradas</div>
+                <canvas id="ncq-chart-maquina"></canvas>
+            </div>
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Operadores involucrados</div>
+                <canvas id="ncq-chart-operador"></canvas>
+            </div>
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Clientes involucrados</div>
+                <canvas id="ncq-chart-cliente"></canvas>
+            </div>
+            <div class="ncq-seccion">
+                <div class="ncq-seccion-titulo">Pareto de defectos</div>
                 <canvas id="ncq-chart-pareto"></canvas>
             </div>
         </div>
@@ -185,6 +172,84 @@
         </div>
 
         <div class="pagination" id="ncq-paginacion"></div>
+    </div>
+
+    <!-- Modal Estadísticas (mismos indicadores que la sección inline, organizados por pestañas) -->
+    <div id="ncq-estad-modal" class="ncq-modal-overlay" style="display:none;">
+        <div class="ncq-modal ncq-estad-modal card">
+            <div class="module-header">
+                <div>
+                    <div class="module-title" style="font-size:1rem;">Estadísticas de No Conformidades</div>
+                    <div class="subtitle" id="ncq-estad-filtros"></div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button id="ncq-estad-detalle-btn" class="btn-secondary">Ver detalle completo</button>
+                    <button id="ncq-estad-imprimir-btn" class="btn-secondary">Imprimir Reporte</button>
+                    <button id="ncq-estad-cerrar-btn" class="btn-secondary">Cerrar</button>
+                </div>
+            </div>
+
+            <div class="ncq-estad-kpis">
+                <div><span class="kpi-value" id="ncqm-kpi-cuarentenas">0</span><div class="ncq-stats-nota">Cuarentenas</div></div>
+                <div><span class="kpi-value" id="ncqm-kpi-cuarentenas-unidades">0</span><div class="ncq-stats-nota">Unidades en cuarentena</div></div>
+                <div><span class="kpi-value" id="ncqm-kpi-rechazados">0</span><div class="ncq-stats-nota">Rechazados totales</div></div>
+                <div><span class="kpi-value" id="ncqm-kpi-reclamos">0</span><div class="ncq-stats-nota">Reclamos</div></div>
+            </div>
+
+            <div id="ncq-estad-tabs" class="ncq-estad-tabs">
+                <button type="button" class="ncq-estad-tab active" data-tab="resumen">Resumen</button>
+                <button type="button" class="ncq-estad-tab" data-tab="donde">Dónde ocurre</button>
+                <button type="button" class="ncq-estad-tab" data-tab="quien">Quién / a quién</button>
+                <button type="button" class="ncq-estad-tab" data-tab="defectos">Defectos</button>
+            </div>
+
+            <div class="ncq-estad-panel active" data-panel="resumen">
+                <div class="ncq-seccion">
+                    <div class="ncq-seccion-titulo">Distribución por tipo de PNC</div>
+                    <canvas id="ncqm-chart-tipo-pnc"></canvas>
+                </div>
+                <div class="ncq-seccion">
+                    <div class="ncq-seccion-titulo">Cuarentenas — evolución mensual</div>
+                    <div id="ncqm-nota-cuarentenas" class="ncq-stats-nota" style="display:none;"></div>
+                    <canvas id="ncqm-chart-cuarentenas"></canvas>
+                </div>
+                <div class="ncq-seccion">
+                    <div class="ncq-seccion-titulo">Rechazos de cliente — evolución mensual</div>
+                    <div id="ncqm-nota-rechazos" class="ncq-stats-nota" style="display:none;"></div>
+                    <canvas id="ncqm-chart-rechazos"></canvas>
+                </div>
+            </div>
+            <div class="ncq-estad-panel" data-panel="donde">
+                <div class="ncq-seccion">
+                    <div class="ncq-seccion-titulo">PNC por familia de producto</div>
+                    <canvas id="ncqm-chart-familia"></canvas>
+                </div>
+                <div class="ncq-seccion">
+                    <div class="ncq-seccion-titulo">Incidentes por área</div>
+                    <canvas id="ncqm-chart-area"></canvas>
+                </div>
+                <div class="ncq-seccion">
+                    <div class="ncq-seccion-titulo">Máquinas involucradas</div>
+                    <canvas id="ncqm-chart-maquina"></canvas>
+                </div>
+            </div>
+            <div class="ncq-estad-panel" data-panel="quien">
+                <div class="ncq-seccion">
+                    <div class="ncq-seccion-titulo">Operadores involucrados</div>
+                    <canvas id="ncqm-chart-operador"></canvas>
+                </div>
+                <div class="ncq-seccion">
+                    <div class="ncq-seccion-titulo">Clientes involucrados</div>
+                    <canvas id="ncqm-chart-cliente"></canvas>
+                </div>
+            </div>
+            <div class="ncq-estad-panel" data-panel="defectos">
+                <div class="ncq-seccion">
+                    <div class="ncq-seccion-titulo">Pareto de defectos</div>
+                    <canvas id="ncqm-chart-pareto"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal Nueva NC / Ver / Editar (comparten estructura) -->

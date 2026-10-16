@@ -95,6 +95,11 @@ namespace QualityControlCenter.Modules.Usuarios
                 u.Activo,
                 u.CreadoEn,
                 u.ActualizadoEn,
+                // Política de contraseñas (columna "Clave" de Gestión de Usuarios).
+                u.PasswordActualizadaEn,
+                u.PasswordVenceEl,
+                u.DebeCambiarPassword,
+                u.PasswordSinVencimiento,
             });
 
             return Ok(proyectado);
@@ -109,6 +114,10 @@ namespace QualityControlCenter.Modules.Usuarios
             public bool Activo { get; set; }
             public DateTime? CreadoEn { get; set; }
             public DateTime? ActualizadoEn { get; set; }
+            public DateTime? PasswordActualizadaEn { get; set; }
+            public DateTime? PasswordVenceEl { get; set; }
+            public bool DebeCambiarPassword { get; set; }
+            public bool PasswordSinVencimiento { get; set; }
         }
 
         private async Task<string> CreateAsync(Dictionary<string, object> payload)

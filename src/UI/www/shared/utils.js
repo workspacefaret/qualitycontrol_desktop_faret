@@ -794,3 +794,122 @@ window.LiberacionCalidad = (function () {
 
     return { cargar, texto, celda };
 })();
+
+// Ajustes comunes de ejes para gráficos Chart.js de barras con categorías (rankings).
+// Chart.js omite etiquetas del eje cuando no caben (autoSkip), lo que en un ranking parece
+// que "se salta" categorías: estas funciones lo evitan y dimensionan el canvas según las filas.
+window.ChartUtils = (function () {
+    const PX_POR_FILA = 20;
+    const MARGEN_EJE_X = 30;
+
+    // Factor de tamaño de tipografías y filas (1 = normal). "Modo planta" de Inicio Faret lo sube
+    // para pantallas de televisión; quien lo cambia debe restaurarlo a 1 al salir.
+    let escala = 1;
+
+    function fijarEscala(valor) {
+        escala = valor;
+    }
+
+    function fuente(px) {
+        return Math.round(px * escala);
+    }
+
+    function truncar(texto, max) {
+        return texto.length > max ? `${texto.slice(0, max - 1)}…` : texto;
+    }
+
+    // Alto del canvas de una barra horizontal para que cada fila (y su etiqueta) quepa.
+    function altoBarrasHorizontales(nFilas, minimo = 0) {
+        return Math.max(minimo, Math.round(nFilas * PX_POR_FILA * escala) + MARGEN_EJE_X);
+    }
+
+    // Eje de categorías (y) de una barra horizontal: nunca omite etiquetas, reduce la tipografía
+    // cuando hay muchas filas y trunca nombres largos solo en el eje (el tooltip conserva el
+    // nombre completo desde los datos).
+    function ejeCategoriasHorizontal(nFilas, maxCaracteres = 30) {
+        return {
+            ticks: {
+                autoSkip: false,
+                font: { size: fuente(nFilas > 11 ? 9 : nFilas > 6 ? 10 : 11) },
+                callback: function (value) {
+                    return truncar(String(this.getLabelForValue(value)), maxCaracteres);
+                },
+            },
+        };
+    }
+
+    // Ranking resumido: las `topN` categorías de mayor valor + una barra "Otros" que suma el resto
+    // (el total representado no cambia). "Otros" va siempre al final, sin reordenar el ranking, y
+    // guarda en `detalle` las categorías agrupadas. Con `topN` filas o menos devuelve todo.
+    // Solo para conteos/sumas: no usar con valores no sumables (porcentajes).
+    function topNConOtros(rows, topN = 10, labelKey = "categoria", valueKey = "total") {
+        const ordenadas = [...rows].sort((a, b) => Number(b[valueKey] || 0) - Number(a[valueKey] || 0));
+        if (ordenadas.length <= topN) return ordenadas;
+
+        const resto = ordenadas.slice(topN);
+        return [...ordenadas.slice(0, topN), {
+            [labelKey]: `Otros (${resto.length} ${resto.length === 1 ? "categoría" : "categorías"})`,
+            [valueKey]: resto.reduce((s, r) => s + Number(r[valueKey] || 0), 0),
+            esOtros: true,
+            detalle: resto,
+        }];
+    }
+
+    // Pareto: las `topN` categorías de mayor frecuencia + "Otros". El % acumulado de "Otros" es el
+    // real sobre todas las categorías (el último valor del Pareto completo), nunca se recalcula.
+    function paretoTopNConOtros(pareto, topN = 10) {
+        if (pareto.length <= topN) return pareto;
+
+        const resto = pareto.slice(topN);
+        return [...pareto.slice(0, topN), {
+            defecto: "Otros",
+            frecuencia: resto.reduce((s, r) => s + Number(r.frecuencia || 0), 0),
+            porcentajeAcumulado: pareto[pareto.length - 1].porcentajeAcumulado,
+            esOtros: true,
+        }];
+    }
+
+    // Color por barra: paleta cíclica y gris para "Otros".
+    function coloresBarras(rows, paleta) {
+        return rows.map((r, i) => (r.esOtros ? "#94a3b8" : paleta[i % paleta.length]));
+    }
+
+    // Tooltip: en la barra "Otros" lista las categorías agrupadas (hasta 10) para no ocultarlas.
+    function tooltipOtros(rows, labelKey = "categoria", valueKey = "total", max = 10) {
+        return {
+            callbacks: {
+                afterBody: items => {
+                    const fila = items[0] ? rows[items[0].dataIndex] : null;
+                    if (!fila?.esOtros) return [];
+                    const lineas = fila.detalle.slice(0, max).map(r => `${r[labelKey]}: ${r[valueKey]}`);
+                    if (fila.detalle.length > max) lineas.push(`… y ${fila.detalle.length - max} más`);
+                    return lineas;
+                },
+            },
+        };
+    }
+
+    // Gráfico clickeable: al pulsar una barra/segmento llama a `alSeleccionar(fila)`. Nunca aplica a
+    // "Otros" (no es una categoría real) ni a las filas que `puede(fila)` rechace; el cursor solo
+    // cambia a "pointer" sobre lo clickeable. Se mezcla en `options` del gráfico.
+    function opcionesClic(rows, alSeleccionar, puede = () => true) {
+        const fila = elementos => {
+            const f = elementos[0] ? rows[elementos[0].index] : null;
+            return f && !f.esOtros && puede(f) ? f : null;
+        };
+        return {
+            onClick: (_evento, elementos) => {
+                const f = fila(elementos);
+                if (f) alSeleccionar(f);
+            },
+            onHover: (evento, elementos) => {
+                evento.native.target.style.cursor = fila(elementos) ? "pointer" : "default";
+            },
+        };
+    }
+
+    return {
+        truncar, fijarEscala, fuente, altoBarrasHorizontales, ejeCategoriasHorizontal,
+        topNConOtros, paretoTopNConOtros, coloresBarras, tooltipOtros, opcionesClic,
+    };
+})();

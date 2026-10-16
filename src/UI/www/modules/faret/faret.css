@@ -173,3 +173,9 @@
 .auth-back-btn:hover {
     color: #0F172A;
 }
+
+/* Modo planta (Inicio): gráficos más altos para pantallas de televisión. Las tipografías y el alto
+   de las barras horizontales los escala ChartUtils (fijarEscala). */
+.home-module.faret-planta canvas {
+    height: 340px !important;
+}

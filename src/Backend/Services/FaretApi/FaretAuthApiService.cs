@@ -15,7 +15,8 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         }
 
         // Respuesta real de la API:
-        // { success, message, data: { token, expiresAt, usuario: { nombre, roles: ["ADMIN"] } } }
+        // { success, message, data: { token, expiresAt, usuario: { nombre, roles: ["ADMIN"] },
+        //   debeCambiarPassword, motivoCambioPassword, diasParaVencer, passwordVenceEl } }
         public async Task<(bool ok, LoginResponse? data, string? error)> LoginAsync(
             string identificador,
             string password
@@ -26,6 +27,30 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 new LoginRequest { Identificador = identificador, Password = password }
             );
 
+            return ProcesarRespuestaSesion(ok, body, "Credenciales incorrectas");
+        }
+
+        // Cambio de clave por el propio usuario (política de contraseñas, 15-10-2026). La API
+        // devuelve un token nuevo (sin "cambio pendiente") que reemplaza al de la sesión.
+        public async Task<(bool ok, LoginResponse? data, string? error)> CambiarPasswordAsync(
+            string passwordActual,
+            string passwordNueva
+        )
+        {
+            var (ok, body) = await _client.PostJsonAsync(
+                "api/Auth/cambiar-password",
+                new { passwordActual, passwordNueva }
+            );
+
+            return ProcesarRespuestaSesion(ok, body, "No se pudo cambiar la contraseña");
+        }
+
+        private (bool ok, LoginResponse? data, string? error) ProcesarRespuestaSesion(
+            bool ok,
+            string body,
+            string errorPorDefecto
+        )
+        {
             try
             {
                 using var doc = JsonDocument.Parse(body);
@@ -37,7 +62,7 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                     string? msg = null;
                     if (root.TryGetProperty("message", out var m)) msg = m.GetString();
                     else if (root.TryGetProperty("error", out var e)) msg = e.GetString();
-                    return (false, null, msg ?? "Credenciales incorrectas");
+                    return (false, null, msg ?? errorPorDefecto);
                 }
 
                 // Extraer data anidada
@@ -70,6 +95,21 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                     Token = token,
                     Username = nombre,
                     Role = role,
+                    DebeCambiarPassword =
+                        dataEl.TryGetProperty("debeCambiarPassword", out var dc)
+                        && dc.ValueKind == JsonValueKind.True,
+                    MotivoCambioPassword =
+                        dataEl.TryGetProperty("motivoCambioPassword", out var mo) && mo.ValueKind == JsonValueKind.String
+                            ? mo.GetString()
+                            : null,
+                    DiasParaVencer =
+                        dataEl.TryGetProperty("diasParaVencer", out var dv) && dv.ValueKind == JsonValueKind.Number
+                            ? dv.GetInt32()
+                            : null,
+                    PasswordVenceEl =
+                        dataEl.TryGetProperty("passwordVenceEl", out var ve) && ve.ValueKind == JsonValueKind.String
+                            ? ve.GetString()
+                            : null,
                 };
 
                 _client.SetToken(loginResp.Token);

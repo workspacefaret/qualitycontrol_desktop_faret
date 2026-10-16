@@ -225,36 +225,31 @@
     margin-bottom: 20px;
 }
 
+/* Gráficos bajo los indicadores (Top 5 + "Otros"); el detalle completo está en el modal. */
+.faret-nc-internas-module .fnci-graficos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #E5E9F0;
+}
+
+.faret-nc-internas-module .fnci-graficos-grid canvas {
+    width: 100% !important;
+    height: 200px !important;
+    margin-top: 8px;
+}
+
+.faret-nc-internas-module #fnci-chart-pareto {
+    height: 260px !important;
+}
+
 .fnci-stats-kpis {
     display: flex;
     flex-wrap: wrap;
     gap: 28px;
     margin-bottom: 4px;
-}
-
-.fnci-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 16px;
-}
-
-.fnci-stats-grid canvas {
-    width: 100% !important;
-    height: 200px !important;
-    margin-top: 4px;
-}
-
-/* El Pareto rota sus etiquetas: necesita más alto para que no se corten. */
-.fnci-stats-grid canvas.fnci-chart-alto {
-    height: 260px !important;
-}
-
-/* Barras horizontales con todas las categorías: el alto lo calcula el JS y este contenedor
-   limita el alto visible con scroll interno. */
-.fnci-chart-scroll {
-    max-height: 220px;
-    overflow-y: auto;
-    overflow-x: hidden;
 }
 
 /* ---------- Secciones de Gestionar / Analizar ---------- */
@@ -360,4 +355,59 @@
         margin-left: 0;
         width: 100%;
     }
+}
+
+/* ---------- Modal Estadísticas (pestañas) ---------- */
+
+.fnci-estad-modal {
+    max-width: 1100px;
+}
+
+.fnci-estad-kpis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    margin: 14px 0;
+}
+
+.fnci-estad-tabs {
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid #E5E9F0;
+}
+
+.fnci-estad-tab {
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748B;
+    cursor: pointer;
+}
+
+.fnci-estad-tab.active {
+    color: #1E293B;
+    border-bottom-color: #3B82F6;
+}
+
+.fnci-estad-panel {
+    display: none;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 16px;
+}
+
+.fnci-estad-panel.active {
+    display: grid;
+}
+
+.fnci-estad-modal canvas {
+    width: 100% !important;
+    height: 260px !important;
+    margin-top: 8px;
+}
+
+#fncim-chart-pareto {
+    height: 320px !important;
 }

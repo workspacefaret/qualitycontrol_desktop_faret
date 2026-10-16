@@ -30,9 +30,30 @@ namespace QualityControlCenter.Modules.Auth
         {
             var (ok, body) = await _api.PostJsonAsync(
                 "api/auth/login",
-                new { codigoUsuario = request.CodigoUsuario, password = request.Password }
+                new { codigoUsuario = request.CodigoUsuario, password = request.Password, soportaCambioPassword = true }
             );
 
+            return ProcesarRespuestaSesion(ok, body, "Login correcto");
+        }
+
+        // Cambio de clave por el propio usuario (política de contraseñas, 15-10-2026). La API
+        // devuelve un token nuevo (sin "cambio pendiente") que reemplaza al de la sesión.
+        public async Task<LoginResponse> CambiarPasswordAsync(string passwordActual, string passwordNueva)
+        {
+            if (!_session.IsAuthenticated)
+                return new LoginResponse { Success = false, Message = "No hay sesión activa" };
+
+            var (ok, body) = await _api.PostJsonAsync(
+                "api/auth/cambiar-password",
+                new { passwordActual, passwordNueva }
+            );
+
+            return ProcesarRespuestaSesion(ok, body, "Contraseña actualizada correctamente");
+        }
+
+        // Respuesta de login y de cambio de clave: mismo shape ApiResponse<LoginResponseDto>.
+        private LoginResponse ProcesarRespuestaSesion(bool ok, string body, string mensajeOk)
+        {
             string? mensaje;
             try
             {
@@ -84,11 +105,15 @@ namespace QualityControlCenter.Modules.Auth
             return new LoginResponse
             {
                 Success = true,
-                Message = mensaje ?? "Login correcto",
+                Message = mensaje ?? mensajeOk,
                 UserId = user.Id,
                 CodigoUsuario = user.CodigoUsuario,
                 NombreCompleto = user.NombreCompleto,
                 Rol = user.Rol,
+                DebeCambiarPassword = data.DebeCambiarPassword,
+                MotivoCambioPassword = data.MotivoCambioPassword,
+                DiasParaVencer = data.DiasParaVencer,
+                PasswordVenceEl = data.PasswordVenceEl,
             };
         }
 
@@ -115,6 +140,10 @@ namespace QualityControlCenter.Modules.Auth
             public string CodigoUsuario { get; set; } = "";
             public string NombreCompleto { get; set; } = "";
             public string Rol { get; set; } = "";
+            public bool DebeCambiarPassword { get; set; }
+            public string? MotivoCambioPassword { get; set; }
+            public int? DiasParaVencer { get; set; }
+            public DateTime? PasswordVenceEl { get; set; }
         }
     }
 }

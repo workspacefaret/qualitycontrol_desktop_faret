@@ -4,14 +4,22 @@ window.FaretController = class FaretController {
         console.log("FaretController (Inicio) iniciado");
 
         this._charts = [];
+        this._datos = null;
+        this._planta = false;
 
         this._bindModuleCards();
+        window.Novedades?.mostrarSiCorresponde();
+        document.getElementById("fh-periodo-calidad")
+            ?.addEventListener("change", () => this._cambiarPeriodoCalidad());
+        document.getElementById("fh-planta-btn")
+            ?.addEventListener("click", () => this._alternarModoPlanta());
         this._loadDashboard();
     }
 
     destroy() {
         console.log("FaretController destruido");
         this._destroyCharts();
+        window.ChartUtils.fijarEscala(1);
     }
 
     _bindModuleCards() {
@@ -24,20 +32,29 @@ window.FaretController = class FaretController {
     }
 
     async _loadDashboard() {
-        this._destroyCharts();
-
         const { desde: mesDesde, hasta: mesHasta } = this._rangoMesActual();
 
         const [dashboard, inspecciones, maquinas, indicadoresCalidad, productoTerminado, talleresExternos, ncList, dataMes] = await Promise.all([
             this._fetch("faret.dashboard.resumen"),
             this._fetch("faret.inspecciones.resumen"),
             this._fetch("faret.maquinas.resumen"),
-            this._fetch("faret.indicadoresCalidad.resumen"),
+            this._fetch("faret.indicadoresCalidad.resumen", this._rangoCalidad()),
             this._fetch("productoTerminado.resumen", { data: { empresa: "FARET", fechaDesde: mesDesde, fechaHasta: mesHasta } }),
             this._fetch("faret.talleresExternos.resumen"),
             this._fetch("faret.nc.list"),
             this._traerDataMes(mesDesde, mesHasta),
         ]);
+
+        this._datos = { dashboard, inspecciones, maquinas, indicadoresCalidad, productoTerminado, talleresExternos, ncList, dataMes };
+        this._renderTodo();
+    }
+
+    // Dibuja todo desde los datos ya cargados (`_datos`): sirve para cambiar el período de los
+    // indicadores de calidad o el modo planta sin volver a consultar el resto de las fuentes.
+    _renderTodo() {
+        this._destroyCharts();
+
+        const { dashboard, inspecciones, maquinas, indicadoresCalidad, productoTerminado, talleresExternos, ncList, dataMes } = this._datos;
 
         this._renderKpis(dashboard?.kpis || {}, inspecciones || {}, maquinas || {});
         this._renderCharts(dashboard || {}, inspecciones || {});
@@ -46,6 +63,42 @@ window.FaretController = class FaretController {
         this._renderResumen(dashboard?.kpis || {}, inspecciones || {}, maquinas || {}, indicadoresCalidad || {});
         this._renderIndicadoresCalidad(indicadoresCalidad || {});
         this._renderIndicadoresAdicionales(productoTerminado || {}, talleresExternos || {}, ncList || [], dataMes);
+    }
+
+    // Período de los indicadores de calidad (la API acepta fechaDesde/fechaHasta; "todo" = sin
+    // filtro, el comportamiento anterior). Los demás bloques de Inicio no cambian: sus fuentes
+    // (dashboard NC, máquinas, talleres, NC) no aceptan rango, y los "hoy"/"mes" son fijos.
+    _rangoCalidad() {
+        const meses = Number(document.getElementById("fh-periodo-calidad")?.value || 0);
+        if (!meses) return {};
+
+        const hoy = new Date();
+        const desde = new Date(hoy.getFullYear(), hoy.getMonth() - (meses - 1), 1);
+        const mm = String(desde.getMonth() + 1).padStart(2, "0");
+        return { fechaDesde: `${desde.getFullYear()}-${mm}-01`, fechaHasta: window.DateUtils.hoyISO() };
+    }
+
+    async _cambiarPeriodoCalidad() {
+        const select = document.getElementById("fh-periodo-calidad");
+        select.disabled = true;
+        try {
+            const indicadores = await this._fetch("faret.indicadoresCalidad.resumen", this._rangoCalidad());
+            if (!indicadores) return;
+            this._datos.indicadoresCalidad = indicadores;
+            this._renderTodo();
+        } finally {
+            select.disabled = false;
+        }
+    }
+
+    // Modo planta (pantallas de televisión): gráficos y tipografías más grandes. Los rankings ya
+    // muestran Top 10 + "Otros", así que no dependen de scroll ni de interacción.
+    _alternarModoPlanta() {
+        this._planta = !this._planta;
+        window.ChartUtils.fijarEscala(this._planta ? 1.5 : 1);
+        document.querySelector(".home-module")?.classList.toggle("faret-planta", this._planta);
+        document.getElementById("fh-planta-btn").textContent = this._planta ? "Salir de modo planta" : "Modo planta";
+        if (this._datos) this._renderTodo();
     }
 
     _rangoMesActual() {
@@ -112,7 +165,7 @@ window.FaretController = class FaretController {
     }
 
     _renderCharts(dashboard, inspecciones) {
-        const ncPorProceso = (dashboard.ncPorProceso || []).filter(r => r.categoria !== "Rechazo");
+        const ncPorProceso = window.ChartUtils.topNConOtros((dashboard.ncPorProceso || []).filter(r => r.categoria !== "Rechazo"));
         this._chartBarHorizontal("fh-chart-nc-proceso", ncPorProceso, "categoria", "total", "NC");
     }
 
@@ -166,6 +219,9 @@ window.FaretController = class FaretController {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
 
+        // Alto mínimo = el de la regla general (220px); crece solo si hay más filas de las que caben.
+        ctx.style.setProperty("height", `${window.ChartUtils.altoBarrasHorizontales(rows.length, this._planta ? 340 : 220)}px`, "important");
+
         const chart = new Chart(ctx, {
             type: "bar",
             data: {
@@ -173,7 +229,7 @@ window.FaretController = class FaretController {
                 datasets: [{
                     label,
                     data: rows.map(r => Number(r[valueKey] || 0)),
-                    backgroundColor: ["#ef4444", "#f97316", "#eab308", "#22c55e", "#16a34a", "#3b82f6", "#6366f1"],
+                    backgroundColor: window.ChartUtils.coloresBarras(rows, ["#ef4444", "#f97316", "#eab308", "#22c55e", "#16a34a", "#3b82f6", "#6366f1", "#a855f7", "#ec4899", "#14b8a6"]),
                     borderRadius: 8,
                 }],
             },
@@ -181,8 +237,8 @@ window.FaretController = class FaretController {
                 indexAxis: "y",
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true }, y: { ticks: { font: { size: 11 } } } },
+                plugins: { legend: { display: false }, tooltip: window.ChartUtils.tooltipOtros(rows, labelKey, valueKey) },
+                scales: { x: { beginAtZero: true }, y: window.ChartUtils.ejeCategoriasHorizontal(rows.length) },
             },
         });
 
@@ -206,7 +262,7 @@ window.FaretController = class FaretController {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: "right", labels: { font: { size: 11 } } } },
+                plugins: { legend: { position: "right", labels: { font: { size: window.ChartUtils.fuente(11) } } } },
                 cutout: "62%",
             },
         });
@@ -264,10 +320,10 @@ window.FaretController = class FaretController {
         this._chartBarAgrupada("fh-chart-cuarentenas-mes", ind.cuarentenasPorMes || [], "mes", seriesRecuperadoDestruido);
         this._chartBarAgrupada("fh-chart-rechazos-cliente-mes", ind.rechazosClientePorMes || [], "mes", seriesRecuperadoDestruido);
 
-        this._chartBarHorizontal("fh-chart-incidentes-area", ind.porArea || [], "categoria", "total", "Incidentes");
-        this._chartBarHorizontal("fh-chart-incidentes-familia", ind.porFamilia || [], "categoria", "total", "Incidentes");
+        this._chartBarHorizontal("fh-chart-incidentes-area", window.ChartUtils.topNConOtros(ind.porArea || []), "categoria", "total", "Incidentes");
+        this._chartBarHorizontal("fh-chart-incidentes-familia", window.ChartUtils.topNConOtros(ind.porFamilia || []), "categoria", "total", "Incidentes");
 
-        this._chartPareto("fh-chart-pareto-defectos", ind.paretoDefectos || [], "defecto", "frecuencia", "porcentajeAcumulado");
+        this._chartPareto("fh-chart-pareto-defectos", window.ChartUtils.paretoTopNConOtros(ind.paretoDefectos || []), "defecto", "frecuencia", "porcentajeAcumulado");
     }
 
     _renderIndicadoresAdicionales(pt, taller, ncList, dataMes) {
@@ -332,7 +388,7 @@ window.FaretController = class FaretController {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: "bottom", labels: { font: { size: 11 } } } },
+                plugins: { legend: { position: "bottom", labels: { font: { size: window.ChartUtils.fuente(11) } } } },
                 scales: {
                     y: { beginAtZero: true },
                     x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
@@ -356,7 +412,7 @@ window.FaretController = class FaretController {
                     {
                         label: "Frecuencia",
                         data: rows.map(r => Number(r[freqKey] || 0)),
-                        backgroundColor: "#3b82f6",
+                        backgroundColor: rows.map(r => (r.esOtros ? "#94a3b8" : "#3b82f6")),
                         borderRadius: 6,
                         yAxisID: "y",
                     },
@@ -376,7 +432,7 @@ window.FaretController = class FaretController {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: "bottom", labels: { font: { size: 11 } } } },
+                plugins: { legend: { position: "bottom", labels: { font: { size: window.ChartUtils.fuente(11) } } } },
                 scales: {
                     y: { beginAtZero: true, position: "left", title: { display: true, text: "Frecuencia" } },
                     y1: {
@@ -386,7 +442,16 @@ window.FaretController = class FaretController {
                         grid: { drawOnChartArea: false },
                         title: { display: true, text: "% Acumulado" },
                     },
-                    x: { ticks: { maxRotation: 30, autoSkip: true, maxTicksLimit: 10, font: { size: 10 } } },
+                    x: {
+                        ticks: {
+                            maxRotation: 30,
+                            autoSkip: false,
+                            font: { size: window.ChartUtils.fuente(10) },
+                            callback: function (value) {
+                                return window.ChartUtils.truncar(String(this.getLabelForValue(value)), 14);
+                            },
+                        },
+                    },
                 },
             },
         });

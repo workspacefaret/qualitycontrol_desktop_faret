@@ -430,12 +430,9 @@
     margin-left: auto;
 }
 
-/* ---------- Indicadores estadísticos (Paso 52) ----------
-   .home-middle/.home-bottom y el tamaño de canvas de Inicio Faret están scoped a .home-module
-   (core/styles.css) y no aplican fuera de ese módulo — confirmado antes de escribir esto. Se
-   reutilizan .card/.module-title/.fnc-toolbar-header/.fnc-analisis-seccion/.fnc-nota/
-   .home-module-card-value ya existentes; solo se agrega el grid y el alto del canvas, que no
-   tienen ninguna clase existente equivalente fuera de Inicio Faret. */
+/* ---------- Indicadores principales (KPIs) ----------
+   Los gráficos viven en el modal "Ver estadísticas"; acá solo quedan los KPIs. Reutiliza
+   .card/.fnc-toolbar-header/.fnc-nota/.home-module-card-value ya existentes. */
 
 .faret-nc-module .fnc-stats-card {
     padding: 18px 22px;
@@ -443,39 +440,37 @@
     border: 1px solid #E5E9F0;
 }
 
-.faret-nc-module .fnc-stats-grid {
+.faret-nc-module .fnc-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px 22px;
+    margin-top: 12px;
+}
+
+/* Gráficos bajo los KPIs (Top 5 + "Otros"); el detalle completo está en el modal. */
+.faret-nc-module .fnc-graficos-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 16px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #E5E9F0;
+}
+
+.faret-nc-module .fnc-graficos-grid canvas {
+    width: 100% !important;
+    height: 200px !important;
+    margin-top: 8px;
+}
+
+.faret-nc-module #fnc-chart-pareto {
+    height: 260px !important;
 }
 
 .faret-nc-module .fnc-stats-resumen {
     display: flex;
     gap: 22px;
     margin: 2px 0 6px;
-}
-
-.faret-nc-module .fnc-stats-card canvas {
-    width: 100% !important;
-    height: 200px !important;
-    margin-top: 8px;
-}
-
-/* El Pareto rota sus etiquetas 40° (hasta 11 categorías: Top 10 + "Otros") — necesita más alto
-   que el resto de los gráficos de esta sección para que las etiquetas no se corten. */
-.faret-nc-module #fnc-chart-pareto {
-    height: 260px !important;
-}
-
-/* Máquinas/Operadores/Clientes muestran TODAS las categorías reales (sin agrupar en "Otros",
-   para no ocultar datos), ordenadas de mayor a menor. El alto del canvas se calcula en JS según
-   la cantidad real de filas (_chartBarHorizontalStats, opts.scroll) para que cada barra quede
-   legible; este contenedor limita el alto visible y agrega scroll interno para que el bloque no
-   crezca sin límite cuando hay muchas categorías. */
-.faret-nc-module .fnc-chart-scroll {
-    max-height: 220px;
-    overflow-y: auto;
-    overflow-x: hidden;
 }
 
 /* ---------- Paginación ---------- */
@@ -579,6 +574,59 @@
 .fnc-detalle-descripcion {
     font-size: 13px;
     margin-top: 10px;
+}
+
+/* ---------- Modal Estadísticas (pestañas) ---------- */
+
+.fnc-estad-modal {
+    max-width: 1100px;
+}
+
+.faret-nc-module .fnc-estad-kpis {
+    flex-wrap: wrap;
+    margin: 14px 0;
+}
+
+.faret-nc-module .fnc-estad-tabs {
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid #E5E9F0;
+}
+
+.faret-nc-module .fnc-estad-tab {
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748B;
+    cursor: pointer;
+}
+
+.faret-nc-module .fnc-estad-tab.active {
+    color: #1E293B;
+    border-bottom-color: #3B82F6;
+}
+
+.faret-nc-module .fnc-estad-panel {
+    display: none;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 16px;
+}
+
+.faret-nc-module .fnc-estad-panel.active {
+    display: grid;
+}
+
+.faret-nc-module .fnc-estad-modal canvas {
+    width: 100% !important;
+    height: 260px !important;
+    margin-top: 8px;
+}
+
+.faret-nc-module #fncm-chart-pareto {
+    height: 320px !important;
 }
 
 /* ---------- Modal Analizar NC (secciones tipo card) ---------- */
