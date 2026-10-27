@@ -96,6 +96,7 @@ namespace QualityControlCenter.Services
             "dashboard.obtenerFiltros",
             "dashboard.obtenerResumen",
             "despachosDiarios.sap.categorias",
+            "faret.adjuntos.firmar",
             "faret.catalogos.areas",
             "faret.catalogos.defectos",
             "faret.catalogos.inspectores",
