@@ -663,8 +663,8 @@ if (!window.RegistrosProduccionController) {
             }
         }
 
-        mostrarImagenProduccion(url) {
-            const imagenUrl = this.normalizarImagenUrl(url)
+        async mostrarImagenProduccion(url) {
+            const imagenUrl = await window.QccImagenes.resolver(this.normalizarImagenUrl(url))
 
             if (!imagenUrl) {
                 alert("No hay imagen disponible para este registro.")

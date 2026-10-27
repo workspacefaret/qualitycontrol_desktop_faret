@@ -913,3 +913,21 @@ window.ChartUtils = (function () {
         topNConOtros, paretoTopNConOtros, coloresBarras, tooltipOtros, opcionesClic,
     };
 })();
+
+// Fotos de /uploads (API `calidad`): piden una URL temporal firmada a través del backend (sesión del usuario). Si el backend aún no
+// exige firma o no puede firmar, se usa la URL de siempre. No contiene secretos: la firma la genera solo el servidor.
+window.QccImagenes = {
+    async resolver(url) {
+        const original = String(url || "").trim();
+        if (!original || /[?&]sig=/.test(original)) return original;
+        const i = original.indexOf("/uploads/");
+        if (i < 0) return original;
+        try {
+            const res = await window.PhotinoBridge.send({ action: "faret.adjuntos.firmar", ruta: original.substring(i) });
+            if (res && res.ok && res.data && res.data.url) return res.data.url;
+        } catch {
+            // se conserva la URL original
+        }
+        return original;
+    }
+};

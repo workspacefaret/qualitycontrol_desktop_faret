@@ -511,8 +511,8 @@ if (!window.RegistrosControlController) {
       })
     }
 
-    mostrarImagenRegistroControl(url) {
-      const imagenUrl = this.normalizarImagenUrl(url)
+    async mostrarImagenRegistroControl(url) {
+      const imagenUrl = await window.QccImagenes.resolver(this.normalizarImagenUrl(url))
 
       if (!imagenUrl) {
         alert("No hay imagen disponible para este registro.")

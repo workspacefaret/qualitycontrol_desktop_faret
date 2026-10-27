@@ -638,8 +638,8 @@ if (!window.ProductoTerminadoController) {
       }
     }
 
-    mostrarImagen(url) {
-      const imagenUrl = this.normalizarImagenUrl(url)
+    async mostrarImagen(url) {
+      const imagenUrl = await window.QccImagenes.resolver(this.normalizarImagenUrl(url))
 
       if (!imagenUrl) {
         alert("No hay imagen disponible para este hallazgo.")

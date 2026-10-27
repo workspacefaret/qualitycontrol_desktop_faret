@@ -50,11 +50,15 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
         public bool IsConfigured => _settings.UseApi && !string.IsNullOrEmpty(_settings.BaseUrl);
         public bool HasToken => !string.IsNullOrEmpty(_token);
 
+        // Solo el login interactivo (no el token de la cuenta de servicio): Program.cs lo reenvía a la API `calidad`.
+        public event Action<string?>? TokenChanged;
+
         public void SetToken(string token)
         {
             _token = token;
             _hasInteractiveToken = true;
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            TokenChanged?.Invoke(token);
         }
 
         // cerrarSesion = true solo en el logout explícito: devuelve el cliente a "sin sesión
@@ -65,7 +69,10 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             _token = null;
             _http.DefaultRequestHeaders.Authorization = null;
             if (cerrarSesion)
+            {
                 _hasInteractiveToken = false;
+                TokenChanged?.Invoke(null);
+            }
         }
 
         // El prefijo "Sesión expirada" lo detecta el frontend (index.html) para volver al login.

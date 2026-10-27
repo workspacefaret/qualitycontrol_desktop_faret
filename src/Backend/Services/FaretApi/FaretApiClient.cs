@@ -28,6 +28,10 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public bool IsConfigured => _settings.UseApi && !string.IsNullOrEmpty(_settings.BaseUrl);
         public bool HasToken => !string.IsNullOrEmpty(_token);
 
+        // Aviso de cambio de sesión (token nuevo o null al cerrar/expirar). Program.cs lo usa para que la API `calidad`
+        // (consulta/borrado de inspecciones y fotos) reciba el mismo JWT del usuario autenticado.
+        public event Action<string?>? TokenChanged;
+
         public void SetToken(string token)
         {
             _token = token;
@@ -35,12 +39,14 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 "Bearer",
                 token
             );
+            TokenChanged?.Invoke(token);
         }
 
         public void ClearToken()
         {
             _token = null;
             _http.DefaultRequestHeaders.Authorization = null;
+            TokenChanged?.Invoke(null);
         }
 
         public async Task<(bool ok, string body)> GetAsync(string path)

@@ -109,6 +109,7 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.nc.acciones.list" => await HandleNcAccionesList(data),
                 "faret.nc.acciones.crear" => await HandleNcAccionesCrear(data),
                 "faret.nc.acciones.actualizar" => await HandleNcAccionesActualizar(data),
+                "faret.adjuntos.firmar" => await HandleAdjuntosFirmar(data),
                 "faret.nc.adjuntos.list" => await HandleNcAdjuntosList(data),
                 "faret.nc.adjuntos.subir" => await HandleNcAdjuntosSubir(data),
                 "faret.nc.adjuntos.abrir" => await HandleNcAdjuntosAbrir(data),
@@ -2301,6 +2302,31 @@ namespace QualityControlCenter.Modules.Faret
                 return true;
             }
             return bool.TryParse(raw?.ToString(), out value);
+        }
+
+        // URL temporal firmada (API `calidad`) para abrir una foto de /uploads. Exige la sesión del usuario (JWT reenviado).
+        private async Task<string> HandleAdjuntosFirmar(Dictionary<string, object> data)
+        {
+            var ruta = data.TryGetValue("ruta", out var r) ? r?.ToString()?.Trim() : null;
+            if (string.IsNullOrEmpty(ruta) || ruta.Length > 300)
+                return Error("ruta es requerida");
+
+            var (ok, body) = await _calidadClient.GetAsync(
+                $"adjuntos/firmar?ruta={Uri.EscapeDataString(ruta)}"
+            );
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                if (ok && doc.RootElement.TryGetProperty("data", out var d) && d.TryGetProperty("url", out var u))
+                    return Ok(new { url = u.GetString() });
+                var msg = doc.RootElement.TryGetProperty("message", out var m) ? m.GetString()
+                    : doc.RootElement.TryGetProperty("error", out var e) ? e.GetString() : null;
+                return Error(msg ?? "No fue posible obtener la imagen");
+            }
+            catch (JsonException)
+            {
+                return Error("No fue posible obtener la imagen");
+            }
         }
 
         private string Ok(object? data) =>

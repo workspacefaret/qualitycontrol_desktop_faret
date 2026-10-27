@@ -58,6 +58,16 @@ namespace QualityControlCenter
                 var faretCalidadSettings = FaretApiSettings.Load("CalidadFaretApi");
                 var faretCalidadClient = new FaretApiClient(faretCalidadSettings);
 
+                // La API `calidad` valida el JWT del usuario para consultar/borrar inspecciones y firmar fotos: se le reenvía
+                // el token de la sesión activa (INNPACK o FARET). Los formularios públicos de la app móvil no lo usan.
+                void ReenviarTokenACalidad(string? token)
+                {
+                    if (string.IsNullOrEmpty(token)) faretCalidadClient.ClearToken();
+                    else faretCalidadClient.SetToken(token);
+                }
+                faretApiClient.TokenChanged += ReenviarTokenACalidad;
+                innpackApiClient.TokenChanged += ReenviarTokenACalidad;
+
                 // =========================
                 // 🏭 API FPS (Talleres Externos INNPACK, ver contex.md)
                 // =========================
