@@ -3,37 +3,18 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.23";
+    const ID = "1.8.25";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
         {
-            titulo: "Gráficos más claros en No Conformidades",
-            icono: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
-            puntos: [
-                { t: "Debajo de los indicadores ahora ves los gráficos de la pantalla." },
-                { t: "Muestran las 5 categorías principales y agrupan el resto en «Otros», para que se lea de un vistazo." },
-                { t: "Cambian solos al aplicar cualquier filtro: lo que ves es lo que filtraste." },
-            ],
-        },
-        {
-            titulo: "Más detalle, con un clic",
+            titulo: "Trazabilidad y Laboratorio, de nuevo al 100%",
             icono: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
             puntos: [
-                { t: "Botón «Ver estadísticas»: abre todos los gráficos ordenados en pestañas." },
-                { t: "Haz clic en una barra o en un segmento (cliente, área, tipo de PNC o desviación) y la tabla se filtra sola." },
-                { t: "«Ver detalle completo» muestra todas las categorías, no solo las principales." },
-                { t: "Aplica a No Conformidades y a NC Internas." },
-            ],
-        },
-        {
-            titulo: "Reporte impreso igual a la pantalla",
-            icono: '<path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="7" rx="1"/><path d="M6 18H4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2"/>',
-            puntos: [
-                { t: "«Imprimir Reporte Estadístico» usa los mismos gráficos que ves, con tus filtros activos." },
-                { t: "Las tablas del reporte siguen mostrando todas las categorías, con el detalle completo." },
-                { t: "En el Inicio de Faret puedes elegir el período de los indicadores de calidad y activar el «Modo planta» para pantallas grandes.", solo: "FARET" },
+                { t: "Corregimos el error de «token no válido» al consultar una NP en Trazabilidad." },
+                { t: "En Laboratorio - Muestras, la búsqueda de la NP vuelve a autocompletar cliente, código y proceso." },
+                { t: "No tienes que hacer nada: si ves esta ventana, ya está actualizado." },
             ],
         },
     ];

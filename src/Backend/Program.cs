@@ -79,9 +79,9 @@ namespace QualityControlCenter
 
                 // =========================
                 // 🧭 API Planificación FARET (Trazabilidad INNPACK, ver contex.md)
+                // Vía QualityControlInnpack.Api: el token de servicio de Planificación vive solo en el servidor.
                 // =========================
-                var planificacionApiSettings = PlanificacionApiSettings.Load();
-                var planificacionApiClient = new PlanificacionApiClient(planificacionApiSettings);
+                var planificacionApiClient = new PlanificacionApiClient(innpackApiClient);
 
                 // =========================
                 // 🧪 API SAP Recepción (Control de Recepción - Calidad, apisapfaret, ver contex.md)

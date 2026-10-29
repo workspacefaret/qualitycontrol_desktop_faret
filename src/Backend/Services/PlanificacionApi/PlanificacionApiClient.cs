@@ -1,72 +1,59 @@
 using System;
-using System.Net.Http;
+using System.Text.Json;
 using System.Threading.Tasks;
+using QualityControlCenter.Backend.Services.InnpackApi;
 
 namespace QualityControlCenter.Backend.Services.PlanificacionApi
 {
-    // Cliente HTTP mínimo para la API de Programa de Producción: solo GET, sin autenticación
-    // (confirmado real). Mismo patrón que FpsApiClient, sin el header x-api-key.
+    // Programa de Producción exige desde 2026-10-06 un token de servicio (X-Internal-Gateway-Token)
+    // que NO debe vivir en los equipos. Este cliente ya no llama a esa API directo: consulta a
+    // QualityControlInnpack.Api (GET api/trazabilidad/planificacion, con el JWT de la sesión), que
+    // agrega el token desde el servidor. Se conserva la firma GetAsync("api/plan/vista-planificacion")
+    // devolviendo el arreglo crudo de Planificación, para que Trazabilidad y Laboratorio - Muestras
+    // sigan filtrando y parseando exactamente igual que antes.
     public class PlanificacionApiClient
     {
-        private readonly HttpClient _http;
-        private readonly PlanificacionApiSettings _settings;
+        private const string RutaPlanificacion = "api/plan/vista-planificacion";
+        private const string RutaApiInnpack = "api/trazabilidad/planificacion";
 
-        public PlanificacionApiClient(PlanificacionApiSettings settings)
+        private readonly InnpackApiClient _innpack;
+
+        public PlanificacionApiClient(InnpackApiClient innpack)
         {
-            _settings = settings;
-            _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            _innpack = innpack;
         }
 
-        public bool IsConfigured => _settings.UseApi && !string.IsNullOrEmpty(_settings.BaseUrl);
+        public bool IsConfigured => _innpack.IsConfigured;
 
         public async Task<(bool ok, string body)> GetAsync(string path)
         {
-            var url = BuildUrl(path);
+            if (!string.Equals(path.TrimStart('/'), RutaPlanificacion, StringComparison.OrdinalIgnoreCase))
+                return (false, Err($"Ruta de Planificación no permitida: {path}"));
+
+            var (ok, body) = await _innpack.GetAsync(RutaApiInnpack);
+            if (!ok)
+                return (false, body);
+
             try
             {
-                var response = await _http.GetAsync(url);
-                var body = await response.Content.ReadAsStringAsync();
-                var status = (int)response.StatusCode;
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+                if (
+                    root.ValueKind == JsonValueKind.Object
+                    && root.TryGetProperty("success", out var s)
+                    && s.ValueKind == JsonValueKind.True
+                    && root.TryGetProperty("data", out var data)
+                )
+                    return (true, data.GetRawText());
 
-                Console.WriteLine($"[PlanificacionApi] GET {url} → {status}");
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return (
-                        false,
-                        string.IsNullOrWhiteSpace(body)
-                            ? Err($"HTTP {status}: {response.ReasonPhrase}")
-                            : body
-                    );
-                }
-
-                return (true, body);
+                return (false, Err("Respuesta inesperada de la API INNPACK al consultar Planificación."));
             }
-            catch (TaskCanceledException)
+            catch (JsonException)
             {
-                Console.WriteLine($"[PlanificacionApi] GET {url} → TIMEOUT");
-                return (false, Err("Timeout al conectar con Planificación FARET"));
-            }
-            catch (HttpRequestException ex)
-            {
-                Console.WriteLine($"[PlanificacionApi] GET {url} → RED: {ex.Message}");
-                return (false, Err($"Error de red: {ex.Message}"));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[PlanificacionApi] GET {url} → ERROR: {ex.Message}");
-                return (false, Err($"Error inesperado: {ex.Message}"));
+                return (false, Err("Respuesta inválida de la API INNPACK al consultar Planificación."));
             }
         }
 
-        private string BuildUrl(string path)
-        {
-            var base_ = _settings.BaseUrl.TrimEnd('/');
-            var p = path.TrimStart('/');
-            return $"{base_}/{p}";
-        }
-
-        private static string Err(string msg) =>
-            System.Text.Json.JsonSerializer.Serialize(new { ok = false, message = msg });
+        private static string Err(string msg) => JsonSerializer.Serialize(new { ok = false, message = msg });
     }
 }
