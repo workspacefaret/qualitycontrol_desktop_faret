@@ -3,18 +3,19 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.26";
+    const ID = "1.8.27";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
         {
-            titulo: "Nuevo filtro: Operador en No Conformidades",
-            icono: '<path d="M3 5h18l-7 8v6l-4-2v-4z"/>',
+            titulo: "Laboratorio - Muestras: varias muestras por ensayo",
+            icono: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>',
             puntos: [
-                { t: "En No Conformidades ahora puedes filtrar por Operador, junto a Cliente, Área y los demás filtros." },
-                { t: "El Excel, el reporte imprimible y los indicadores respetan el mismo filtro." },
-                { t: "También puedes hacer clic en una barra del gráfico «Operadores involucrados» para filtrar por ese operador." },
+                { solo: "INNPACK", t: "Humedad, Espesor, Gramaje, Cobb, RCT, FCT, ECT y BCT se registran ahora por muestra, con todas sus determinaciones, como en el REG-LAB-04." },
+                { solo: "INNPACK", t: "Los resultados y promedios se calculan mientras escribes. Puedes guardar sin finalizar y continuar después." },
+                { solo: "INNPACK", t: "El informe imprimible incluye cada muestra, sus determinaciones y su promedio. Las correcciones conservan el valor original." },
+                { solo: "FARET", t: "Esta versión trae mejoras para Laboratorio de INNPACK. En Faret no cambia nada de lo que usas." },
             ],
         },
     ];
