@@ -74,3 +74,31 @@ UNION ALL SELECT 'muestra_laboratorio_ensayos', COUNT(*), MAX(id), CHECKSUM_AGG(
 - fps-api y el reinicio de su tarea interrumpen unos segundos Talleres Externos/Trazabilidad/Despachos.
 - Instalador sin firma digital + alertas Kaspersky previas: depende de Seguridad TI.
 - La web (Java) no soporta `muestraLab.exportarExcel/exportarPdf`: si la web sirve este mismo `www`, esos botones fallarán allí (ver contrato).
+
+---
+
+## Anexo: despliegue GENERAL (sin piloto) — 03-11-2026
+
+Instrucción del responsable: no hay piloto en un equipo; la actualización es general por el actualizador corporativo. Java Web queda para una fase posterior.
+
+### A. Coexistencia 1.8.26 / 1.8.27 (verificada localmente, LocalDB `QCC_LAB_TEST`, sin tocar producción)
+Cliente **1.8.26 real** (`git archive e78cf36 src/UI/www`) contra la API y el SQL nuevos, vía el `MuestraLaboratorioHandler` real:
+- Abre el detalle de una muestra; renderiza la tabla de ensayos **con ensayos del modelo nuevo** (Humedad Termobalanza, Espesor) sin errores JS; `generarInforme()` funciona.
+- Guardados con payload 1.8.26: humedad, gramaje, cobb, espesor, ect y bct-medido → todos OK. Alta de muestra sin campos nuevos y listado → OK.
+- Única "falla" del arnés fue un dato de prueba mío (valor de la cara de Cobb), no una incompatibilidad.
+- SQL: solo agrega columnas con DEFAULT/NULL y tablas nuevas (sin UPDATE/DELETE/DROP): el cliente viejo no las usa y sigue leyendo lo histórico. Orden obligatorio SQL → API (API sin SQL rompe Laboratorio).
+- Conclusión: no se detectó incompatibilidad. Lo que un 1.8.26 **no** hace: editar/continuar ensayos del modelo nuevo ni ver sus determinaciones (los ve como una fila de resultado). Recomendación operativa: que quienes registren Humedad/Espesor/Gramaje/BCT/Cobb/RCT/FCT/ECT se actualicen primero (el equipo de Laboratorio), para no mezclar modelos sobre una misma muestra.
+
+### B. Actualizador (revisión de código, sin cambios respecto de 1.8.26)
+- `latest.json` actual = 1.8.26 con `mandatory:false`: cada equipo detecta, copia el instalador, valida SHA-256 (`PackageValidator`, recalculado sobre el archivo real) y lo instala en forma silenciosa vía la tarea `QCCUpdaterElevado`. No exige actualización simultánea; los equipos abiertos quedan en 1.8.26 hasta aceptar la actualización.
+- `UpdateService`, `QCC.Updater`, `.task.xml` y `Set-QccUpdaterTaskAcl.ps1` **no cambian** entre 1.8.26 y 1.8.27 (solo versión en `.csproj`/`.iss`). El mecanismo ya está validado en producción desde 1.8.4 (1.8.26 confirmada en equipos reales).
+- Rollback a 1.8.26: `QualityControlCenter_Setup_v1.8.26.exe` sigue en el share; restaurar `latest.json` desde el respaldo con timestamp. Un cliente que ya instaló 1.8.27 no baja solo: se reinstala el 1.8.26 manualmente (los datos están en SQL, no en el equipo).
+
+### C. ⚠ Hallazgo de seguridad para Seguridad TI (preexistente, no nuevo)
+`installers/QualityControlCenter.iss` ([Code], `RegisterUpdaterTask`) ejecuta `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Set-QccUpdaterTaskAcl.ps1` en cada instalación para ajustar el SDDL de la tarea. Es el mismo mecanismo que 1.8.4–1.8.26, pero choca con la política vigente (sin `-ExecutionPolicy Bypass`) y con la detección PDM de Kaspersky. Opciones a decidir por Seguridad TI (no se cambió nada): (1) aceptarlo expresamente por ser un script fijo, empaquetado y sin entrada externa; (2) reemplazarlo en un release posterior por el SDDL embebido en el `.task.xml`/`schtasks` (requiere nuevo instalador y nueva prueba E2E). El instalador **no está firmado** (Authenticode): decisión pendiente de Seguridad TI antes de publicar.
+
+### D. Detección de equipos fallidos / aún en 1.8.26 (sin telemetría ni servicios nuevos)
+Infraestructura existente: cada equipo deja `C:\ProgramData\QualityControlCenter\Updater\results\result-<RunId>.json` y logs en `...\Logs\Updater\` con el resultado del último intento. No hay recolección central y **no se usarán recursos administrativos (`c$`)**. Procedimiento propuesto: (1) TI consulta la versión instalada con su inventario corporativo/GPO ya aprobado; (2) en equipos sospechosos, una persona revisa el `result-*.json` más reciente; (3) la tabla `muestra_laboratorio` permite ver si hay usuarios aún con 1.8.26 solo indirectamente (no registra versión): no se agregará telemetría.
+
+### E. Orden de despliegue general (cada paso con autorización específica)
+1) Respaldo SQL verificado (DBA) → 2) migración SQL + verificación → 3) API INNPACK (DLL+PDB) → 4) fps-api (autorización independiente, ver `DEPLOY_FPS_API_LABORATORIO_REGISTROS.md`) → 5) verificación de servicios con lecturas → 6) `latest.json` a 1.8.27 → 7) monitoreo → 8) validación funcional con registros reales (NP Faret 22924, NP Innpack 4062) → 9) cierre.
