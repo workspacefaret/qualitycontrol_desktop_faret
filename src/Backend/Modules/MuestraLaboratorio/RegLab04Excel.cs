@@ -124,10 +124,9 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             TablaPorMaterial(h, humedad, new[] { "Lote de bobina de origen", "Punto izquierdo (%)", "Centro (%)", "Punto derecho (%)" }, "humedad", 3);
 
             // 2. Gramaje de sustratos
-            var nominal = GramajeNominal(m);
             h.Fila(new[] { 3, 2, 3, 2, 2 }, new object?[] {
                 "2. GRAMAJE DE SUSTRATOS (g/m²)", "Gramaje nominal",
-                "Liner: " + nominal.liner, "Onda: " + nominal.onda, "Cartulina: " + nominal.cartulina }, seccion: 0, etiquetas: new[] { 1 });
+                "Liner:", "Onda:", "Cartulina:" }, seccion: 0, etiquetas: new[] { 1 });
             TablaPorMaterial(h, gramaje, new[] { "Lote de bobina de origen", "Peso (g) Punto izq.", "Peso (g) Centro", "Peso (g) Punto der." }, "peso", 3);
 
             // 3. Espesor de sustratos
@@ -580,18 +579,8 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             return partes.Length > 1 && partes[1].Length >= 5 ? partes[1][..5] : "";
         }
 
-        // Gramaje nominal: solo si el texto oficial del proceso FPS (o los antecedentes de la nota de
-        // venta) lo dice explícitamente ("LINER 140", "ONDA E 120", "240gr"); si no, queda en blanco.
-        public static (string liner, string onda, string cartulina) GramajeNominal(JsonElement m)
-        {
-            var texto = (Str(m, "procesoTextoFps") + " " + Str(m, "descripcion") + " " + Str(m, "antecedentesFps")).ToUpperInvariant();
-            string Buscar(string patron)
-            {
-                var r = System.Text.RegularExpressions.Regex.Match(texto, patron);
-                return r.Success ? r.Groups[1].Value : "";
-            }
-            return (Buscar(@"\bLINER\s+(\d{2,3})\b"), Buscar(@"\bONDA\s+[A-Z]{1,2}\s+(\d{2,3})\b"), Buscar(@"\bCART[A-Z.]*\b[^\n]*?\b(\d{3})\s*GR\b"));
-        }
+        // El gramaje nominal NO se infiere del texto del proceso FPS (no hay regla de extracción validada):
+        // queda en blanco para completarse a mano, como en el registro físico.
 
         private static string[] Observaciones(JsonElement m, List<JsonElement> ensayos)
         {

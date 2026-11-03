@@ -1699,7 +1699,7 @@ if (!window.MuestraLaboratorioController) {
         data: { fileName: res.data.fileName, base64: res.data.base64 },
       })
       if (g && g.ok === false) alert(g.error || "No se pudo guardar el Excel")
-    },
+    }
 
     generarInforme() {
       const m = this._muestraActualDetalle
