@@ -7,11 +7,12 @@ if (!window.MuestraLaboratorioController) {
       this._corrigiendoEnsayoId = null
       this.deepLinkEstado = null
       // Catálogos reales (máquinas/tipos de onda) y snapshot FPS de la muestra en edición —
-      // ver _consultarNp/_consultarRegistroProduccion.
+      // ver _consultarNp/_renderRegistrosFps.
       this._catalogos = { maquinas: [], tiposOnda: [], metodos: [] }
-      this._fpsProcesos = []
-      this._fpsRegistros = []
+      this._fpsDatos = null
+      this._fpsRegistrosVisibles = []
       this._fpsSnapshot = null
+      this._fpsAutollenado = null
     }
 
     async init() {
@@ -143,7 +144,6 @@ if (!window.MuestraLaboratorioController) {
         if (id === "mlbNmCancelar") return this.cerrarModal("mlbModalNuevaMuestra")
         if (id === "mlbNmGuardar") return this.guardarNuevaMuestra()
         if (id === "mlbNmBtnConsultarNp") return this._consultarNp()
-        if (id === "mlbNmBtnConsultarProduccion") return this._consultarRegistroProduccion()
         if (e.target.classList?.contains("mlb-btn-resolver-bobina")) {
           return this._resolverBobina(e.target.dataset.input, e.target.dataset.info)
         }
@@ -260,8 +260,9 @@ if (!window.MuestraLaboratorioController) {
           this._refrescarMetodoAuto("HUMEDAD", "mlbHumMetodo", e.target.value)
         }
         if (e.target.id === "mlbBctMedCajas") this.renderBctMedCajas()
-        if (e.target.id === "mlbNmProceso") this._onSeleccionarProcesoFps()
-        if (e.target.id === "mlbNmRegistroProduccion") this._onSeleccionarRegistroProduccion()
+        if (e.target.id === "mlbNmOrdenFps") this._onCambiarOrdenFps()
+        if (e.target.id === "mlbNmItemFps" || e.target.id === "mlbNmEtapaFps") this._renderRegistrosFps()
+        if (e.target.name === "mlbNmRegistroRadio") this._onSeleccionarRegistroProduccion(e.target.value)
         if (e.target.id === "mlbNmOrigen") {
           document.getElementById("mlbNmPruebaSolicitadaBloque").style.display = e.target.value === "Pruebas" ? "block" : "none"
           document.getElementById("mlbNmMonotapaBloque").style.display = e.target.value === "Monotapa" ? "block" : "none"
@@ -745,21 +746,11 @@ if (!window.MuestraLaboratorioController) {
       document.getElementById("mlbNmCliente").disabled = false
       document.getElementById("mlbNmCodigo").disabled = false
       document.getElementById("mlbNmDescripcion").disabled = false
-      document.getElementById("mlbNmProcesoWrap").style.display = "none"
-      document.getElementById("mlbNmRegistroWrap").style.display = "none"
-      document.getElementById("mlbNmFpsInfo").style.display = "none"
-      document.getElementById("mlbNmBtnConsultarProduccion").disabled = true
-
-      this._fpsProcesos = []
-      this._fpsRegistros = []
-      this._fpsSnapshot = null
+      this._limpiarSeleccionFps()
 
       this.abrirModal("mlbModalNuevaMuestra")
     }
 
-    // Consulta la NP en Planificación FARET (vista-planificacion) para autocompletar
-    // Cliente/Código/Descripción y listar los procesos disponibles (punto de partida para
-    // "Consultar producción"). No persiste nada todavía.
     // Punto 20 REG-LAB-04: valida el id de la muestra Monotapa relacionada y muestra un resumen
     // (no bloquea el campo — igual criterio que "resolver bobina", solo informativo/de apoyo).
     async _buscarMonotapaRelacionada() {
@@ -819,96 +810,243 @@ if (!window.MuestraLaboratorioController) {
       }
     }
 
+    // REG-LAB-04 (Prioridad 1): una sola consulta a FPS (fps-api, vía muestraLab.consultarRegistrosFps)
+    // por NP Faret o Innpack. Trae las órdenes que coinciden (los dos correlativos se cruzan: si hay
+    // más de una, el analista elige), los procesos de laboratorio (Corrugado/Emplacado/Troquel/
+    // Termoformado/Pegado) y TODAS sus sesiones. Nunca se preselecciona un registro.
     async _consultarNp() {
       const np = document.getElementById("mlbNmNp").value.trim()
       if (!np) return alert("Ingresa la NP antes de consultar")
+      if (!/^[0-9]+$/.test(np)) return alert("La NP debe ser numérica (Faret o Innpack)")
 
+      this._limpiarSeleccionFps()
+      const btn = document.getElementById("mlbNmBtnConsultarNp")
+      btn.disabled = true
       try {
-        const res = await window.PhotinoBridge.send({ action: "muestraLab.consultarNp", data: { np } })
-        if (!res || res.ok === false) throw new Error(res?.error || "No se pudo consultar la NP")
+        const res = await window.PhotinoBridge.send({ action: "muestraLab.consultarRegistrosFps", data: { np } })
+        if (!res || res.ok === false) throw new Error(res?.error || "No se pudo consultar la NP en FPS")
 
-        this._fpsProcesos = res.data || []
-        if (this._fpsProcesos.length === 0) throw new Error(`No se encontró la NP ${np}`)
+        const datos = res.data || {}
+        const ordenes = datos.ordenes || []
+        if (ordenes.length === 0) throw new Error(`No se encontró la NP ${np} en FPS`)
+        this._fpsDatos = { ordenes, procesos: datos.procesos || [], registros: datos.registros || [] }
 
-        const primero = this._fpsProcesos[0]
-        document.getElementById("mlbNmCliente").value = primero.cliente || ""
-        document.getElementById("mlbNmCodigo").value = primero.codigoProducto || ""
-        document.getElementById("mlbNmDescripcion").value = primero.descripcion || ""
-        document.getElementById("mlbNmCliente").disabled = true
-        document.getElementById("mlbNmCodigo").disabled = true
-        document.getElementById("mlbNmDescripcion").disabled = true
-
-        const selProceso = document.getElementById("mlbNmProceso")
-        selProceso.innerHTML = this._fpsProcesos
-          .map((p, i) => `<option value="${i}">${this._esc(p.proceso)} (proceso ${p.idProceso})</option>`)
-          .join("")
-        document.getElementById("mlbNmProcesoWrap").style.display = this._fpsProcesos.length > 1 ? "" : "none"
-        document.getElementById("mlbNmBtnConsultarProduccion").disabled = false
+        const selOrden = document.getElementById("mlbNmOrdenFps")
+        const coincide = o => [o.coincideNpFaret ? "NP Faret" : null, o.coincideNpInnpack ? "NP Innpack" : null].filter(Boolean).join(" y ")
+        selOrden.innerHTML = (ordenes.length > 1 ? '<option value="">-- Seleccionar orden --</option>' : "") +
+          ordenes.map(o => `<option value="${o.ordenTrabajo}">NP Faret ${this._esc(o.npFaret || "-")} / NP Innpack ${this._esc(o.npInnpack || "-")} — ${this._esc(o.cliente || "-")} (coincide como ${coincide(o)})</option>`).join("")
+        document.getElementById("mlbNmOrdenWrap").style.display = ""
+        this._onCambiarOrdenFps()
       } catch (err) {
         alert(err.message)
+      } finally {
+        btn.disabled = false
       }
     }
 
-    _onSeleccionarProcesoFps() {
-      document.getElementById("mlbNmRegistroWrap").style.display = "none"
+    _limpiarSeleccionFps() {
+      this._soltarRegistroFps()
+      this._fpsDatos = null
+      this._fpsRegistrosVisibles = []
+      ;["mlbNmOrdenWrap", "mlbNmItemWrap", "mlbNmEtapaWrap", "mlbNmRegistroWrap", "mlbNmFpsInfo"].forEach(id => {
+        document.getElementById(id).style.display = "none"
+      })
+      document.getElementById("mlbNmTablaRegistrosBody").innerHTML = ""
+      document.getElementById("mlbNmCliente").disabled = false
+      document.getElementById("mlbNmCodigo").disabled = false
+      document.getElementById("mlbNmDescripcion").disabled = false
+    }
+
+    // Deshace lo que llenó el registro FPS elegido (código, descripción y turno) para que un
+    // cambio de NP/orden/filtro no deje datos de otro registro. El turno solo se borra si el
+    // analista no lo cambió a mano.
+    _soltarRegistroFps() {
+      const auto = this._fpsAutollenado
+      this._fpsSnapshot = null
+      this._fpsAutollenado = null
       document.getElementById("mlbNmFpsInfo").style.display = "none"
-    }
-
-    // Consulta las sesiones reales (WorkOrderRecords) del proceso elegido — el analista elige
-    // cuál corresponde al control que está registrando.
-    async _consultarRegistroProduccion() {
-      const selProceso = document.getElementById("mlbNmProceso")
-      const proceso = this._fpsProcesos[selProceso.value ? parseInt(selProceso.value, 10) : 0]
-      if (!proceso) return alert("Consulta primero la NP")
-
-      try {
-        const res = await window.PhotinoBridge.send({
-          action: "muestraLab.consultarRegistroProduccion",
-          data: { idProceso: proceso.idProceso }
-        })
-        if (!res || res.ok === false) throw new Error(res?.error || "No se pudo consultar FPS")
-
-        this._fpsRegistros = res.data || []
-        if (this._fpsRegistros.length === 0) throw new Error("Este proceso no tiene sesiones de producción registradas en FPS")
-
-        const selRegistro = document.getElementById("mlbNmRegistroProduccion")
-        selRegistro.innerHTML = this._fpsRegistros
-          .map((r, i) => `<option value="${i}">${r.productionStartDate || "-"} — ${this._esc(r.maquinaDescripcion || r.maquina)} — ${this._esc(r.operador)}</option>`)
-          .join("")
-        document.getElementById("mlbNmRegistroWrap").style.display = ""
-        this._fpsSnapshot = { proceso }
-        this._onSeleccionarRegistroProduccion()
-      } catch (err) {
-        alert(err.message)
+      if (!auto) return
+      document.getElementById("mlbNmCodigo").value = ""
+      document.getElementById("mlbNmDescripcion").value = ""
+      document.getElementById("mlbNmCodigo").disabled = false
+      document.getElementById("mlbNmDescripcion").disabled = false
+      const turno = document.getElementById("mlbNmTurno")
+      if (auto.turno && turno.value === auto.turno) turno.value = ""
+      const maquina = document.getElementById("mlbNmMaquina")
+      if (auto.maquina && maquina.value === auto.maquina) maquina.value = ""
+      const origen = document.getElementById("mlbNmOrigen")
+      if (auto.origen && origen.value === auto.origen) {
+        origen.value = "ControlRecepcion"
+        origen.dispatchEvent(new Event("change", { bubbles: true }))
       }
     }
 
-    _onSeleccionarRegistroProduccion() {
-      const selRegistro = document.getElementById("mlbNmRegistroProduccion")
-      const registro = this._fpsRegistros[selRegistro.value ? parseInt(selRegistro.value, 10) : 0]
-      if (!registro || !this._fpsSnapshot) return
+    _ordenFpsActual() {
+      const valor = document.getElementById("mlbNmOrdenFps").value
+      if (!this._fpsDatos || !valor) return null
+      return this._fpsDatos.ordenes.find(o => String(o.ordenTrabajo) === valor) || null
+    }
 
+    _etapaLaboratorio(categoria) {
+      return { CORRUGADO: "Corrugado", EMPLACADO: "Emplacado", TROQUEL: "Troquelado", TERMOFORMADO: "Termoformado", PEGADO: "Pegado" }[categoria] || categoria || "-"
+    }
+
+    _onCambiarOrdenFps() {
+      this._soltarRegistroFps()
+      const orden = this._ordenFpsActual()
+      if (!orden) {
+        ;["mlbNmItemWrap", "mlbNmEtapaWrap", "mlbNmRegistroWrap"].forEach(id => { document.getElementById(id).style.display = "none" })
+        return
+      }
+
+      document.getElementById("mlbNmCliente").value = orden.cliente || ""
+      document.getElementById("mlbNmCliente").disabled = true
+
+      const procesos = this._fpsDatos.procesos.filter(p => p.ordenTrabajo === orden.ordenTrabajo)
+      const items = [...new Set(procesos.map(p => p.item || ""))].sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0))
+      const ordenEtapas = ["CORRUGADO", "EMPLACADO", "TROQUEL", "TERMOFORMADO", "PEGADO"]
+      const etapas = [...new Set(procesos.map(p => p.categoria))]
+      etapas.sort((a, b) => ordenEtapas.indexOf(a) - ordenEtapas.indexOf(b))
+
+      document.getElementById("mlbNmItemFps").innerHTML = '<option value="">Todos</option>' +
+        items.map(i => `<option value="${this._esc(i)}">${i ? `Ítem ${this._esc(i)}` : "Sin ítem"}</option>`).join("")
+      document.getElementById("mlbNmEtapaFps").innerHTML = '<option value="">Todos</option>' +
+        etapas.map(c => `<option value="${this._esc(c)}">${this._esc(this._etapaLaboratorio(c))}</option>`).join("")
+      document.getElementById("mlbNmItemWrap").style.display = ""
+      document.getElementById("mlbNmEtapaWrap").style.display = ""
+      this._renderRegistrosFps()
+    }
+
+    _renderRegistrosFps() {
+      this._soltarRegistroFps()
+      const orden = this._ordenFpsActual()
+      if (!orden) return
+
+      const item = document.getElementById("mlbNmItemFps").value
+      const etapa = document.getElementById("mlbNmEtapaFps").value
+      const procesos = new Map(this._fpsDatos.procesos
+        .filter(p => p.ordenTrabajo === orden.ordenTrabajo && (!item || p.item === item) && (!etapa || p.categoria === etapa))
+        .map(p => [p.idProceso, p]))
+
+      this._fpsRegistrosVisibles = this._fpsDatos.registros
+        .filter(r => procesos.has(r.idProceso))
+        .map(r => ({ registro: r, proceso: procesos.get(r.idProceso) }))
+
+      const body = document.getElementById("mlbNmTablaRegistrosBody")
+      const total = this._fpsRegistrosVisibles.length
+      document.getElementById("mlbNmRegistrosConteo").textContent = `— ${total} registro${total === 1 ? "" : "s"}`
+      document.getElementById("mlbNmRegistroWrap").style.display = ""
+
+      if (total === 0) {
+        body.innerHTML = `<tr><td colspan="13" style="text-align:center;">${procesos.size === 0
+          ? "Esta orden no tiene procesos de Corrugado, Emplacado, Troquelado, Termoformado ni Pegado para el filtro elegido"
+          : "Sin sesiones de producción registradas en FPS para el filtro elegido"}</td></tr>`
+        return
+      }
+
+      body.innerHTML = this._fpsRegistrosVisibles.map(({ registro: r, proceso: p }) => {
+        const [fIni, hIni] = this._partirFechaFps(r.productionStartDate)
+        const [fFin, hFin] = this._partirFechaFps(r.productionEndDate)
+        const cantidad = this._numeroFps(r.productionQuantity)
+        const etiquetas = [
+          cantidad === 0 ? '<span style="display:inline-block; padding:1px 6px; border-radius:8px; font-size:11px; background:#fef3c7; color:#92400e;">Sin producción</span>' : "",
+          r.status !== 1 ? '<span style="display:inline-block; padding:1px 6px; border-radius:8px; font-size:11px; background:#e2e8f0; color:#334155;" title="Status del registro en FPS distinto de 1">No vigente en FPS</span>' : "",
+        ].join(" ")
+        return `
+          <tr>
+            <td><input type="radio" name="mlbNmRegistroRadio" value="${r.recordKey}"></td>
+            <td>${r.recordKey}</td>
+            <td>${this._esc(orden.npFaret || "-")}</td>
+            <td>${this._esc(orden.npInnpack || "-")}</td>
+            <td>${this._esc(p.item || "-")}</td>
+            <td title="${this._esc(p.nombreProceso || "")}">${this._esc(this._etapaLaboratorio(p.categoria))}</td>
+            <td title="${this._esc(r.maquinaDescripcion || "")}">${this._esc(r.maquina || r.maquinaDescripcion || "-")}</td>
+            <td>${this._esc(r.operador || "-")}</td>
+            <td>${fIni}</td>
+            <td>${hIni}</td>
+            <td>${fFin}</td>
+            <td>${hFin}</td>
+            <td style="text-align:right;">${cantidad === null ? "-" : cantidad.toLocaleString("es-CL")} ${etiquetas}</td>
+          </tr>`
+      }).join("")
+    }
+
+    // Las fechas de FPS llegan como texto local "aaaa-mm-dd hh:mm:ss" (sin zona horaria). No se
+    // pasan por new Date(): se separan como texto para no correr la hora.
+    _partirFechaFps(texto) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(texto || "")
+      if (!m) return ["-", "-"]
+      return [`${m[3]}-${m[2]}-${m[1]}`, `${m[4]}:${m[5]}`]
+    }
+
+    _numeroFps(valor) {
+      if (valor === null || valor === undefined || valor === "") return null
+      const n = Number(valor)
+      return Number.isFinite(n) ? n : null
+    }
+
+    _onSeleccionarRegistroProduccion(recordKey) {
+      const elegido = this._fpsRegistrosVisibles.find(x => String(x.registro.recordKey) === String(recordKey))
+      const orden = this._ordenFpsActual()
+      if (!elegido || !orden) return
+
+      // Cambiar de un registro a otro: primero se deshace lo que llenó el anterior.
+      this._soltarRegistroFps()
+      const { registro, proceso } = elegido
       this._fpsSnapshot = {
-        ...this._fpsSnapshot,
+        orden,
+        // `proceso.proceso` se conserva por compatibilidad con guardarNuevaMuestra (procesoTextoFps).
+        proceso: { ...proceso, proceso: proceso.nombreProceso },
         registro,
         fechaConsultaFps: new Date().toISOString(),
       }
 
+      document.getElementById("mlbNmCodigo").value = proceso.itemCode || ""
+      document.getElementById("mlbNmDescripcion").value = proceso.itemName || ""
+      document.getElementById("mlbNmCodigo").disabled = true
+      document.getElementById("mlbNmDescripcion").disabled = true
+
+      const [fIni, hIni] = this._partirFechaFps(registro.productionStartDate)
+      document.getElementById("mlbNmRegistroTexto").textContent = `${registro.recordKey} (${this._etapaLaboratorio(proceso.categoria)}, ítem ${proceso.item || "-"})`
       document.getElementById("mlbNmOperadorTexto").textContent = registro.operador || "-"
-      document.getElementById("mlbNmFechaProduccionTexto").textContent = registro.productionStartDate || "-"
+      document.getElementById("mlbNmFechaProduccionTexto").textContent = fIni === "-" ? "-" : `${fIni} ${hIni}`
       document.getElementById("mlbNmFpsInfo").style.display = ""
 
-      if (registro.productionStartDate) {
-        document.getElementById("mlbNmTurno").value = this._calcularTurno(new Date(registro.productionStartDate))
+      const turno = this._calcularTurnoDesdeTexto(registro.productionStartDate)
+      if (turno) document.getElementById("mlbNmTurno").value = turno
+      this._fpsAutollenado = { turno, maquina: null, origen: null }
+
+      // Origen: si sigue en el valor por defecto, se toma la etapa del registro elegido (dato de
+      // FPS, no una suposición). Si el analista ya eligió otro origen (ej. Monotapa), se respeta.
+      const selOrigen = document.getElementById("mlbNmOrigen")
+      const origenEtapa = { CORRUGADO: "Corrugado", EMPLACADO: "Emplacado", TROQUEL: "Troquelado", PEGADO: "Pegado" }[proceso.categoria]
+      if (origenEtapa && selOrigen.value === "ControlRecepcion") {
+        selOrigen.value = origenEtapa
+        selOrigen.dispatchEvent(new Event("change", { bubbles: true }))
+        this._fpsAutollenado.origen = origenEtapa
       }
 
       // Sugiere la máquina por nombre si coincide con el catálogo real — el analista puede
       // corregirla igual, FPS y el catálogo QCC no son la misma fuente.
-      const nombreFps = (registro.maquinaDescripcion || registro.maquina || "").trim().toLowerCase()
-      if (nombreFps) {
-        const match = this._catalogos.maquinas.find(m => m.nombre.trim().toLowerCase() === nombreFps)
-        if (match) document.getElementById("mlbNmMaquina").value = match.id
+      const nombreFps = (registro.maquinaDescripcion || "").trim().toLowerCase()
+      const nombreCortoFps = (registro.maquina || "").trim().toLowerCase()
+      if (nombreFps || nombreCortoFps) {
+        const match = this._catalogos.maquinas.find(m => {
+          const n = m.nombre.trim().toLowerCase()
+          return (nombreFps && n === nombreFps) || (nombreCortoFps && n === nombreCortoFps)
+        })
+        if (match) {
+          document.getElementById("mlbNmMaquina").value = match.id
+          this._fpsAutollenado.maquina = String(match.id)
+        }
       }
+    }
+
+    // FPS entrega hora local como texto: se toma hh:mm directo del texto.
+    _calcularTurnoDesdeTexto(texto) {
+      const m = /^\d{4}-\d{2}-\d{2}[ T](\d{2}):(\d{2})/.exec(texto || "")
+      if (!m) return null
+      return this._calcularTurno(new Date(2000, 0, 1, parseInt(m[1], 10), parseInt(m[2], 10)))
     }
 
     // Misma regla de turno que ya usa la app móvil Flutter (core/utils/turno_calculator.dart):

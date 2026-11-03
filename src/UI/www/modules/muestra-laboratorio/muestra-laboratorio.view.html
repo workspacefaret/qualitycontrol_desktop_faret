@@ -151,7 +151,7 @@
 
   <!-- MODAL: Nueva muestra -->
   <div id="mlbModalNuevaMuestra" class="mlb-modal-overlay" style="display:none;">
-    <div class="card mlb-modal">
+    <div class="card mlb-modal mlb-modal-ancho">
       <div class="module-title" style="font-size:16px; margin-bottom:12px;">Nueva Muestra</div>
       <div class="mlb-form-row">
         <div class="mlb-form-campo">
@@ -186,29 +186,59 @@
       </div>
       <div class="mlb-form-row">
         <div class="mlb-form-campo">
-          <label>NP</label>
+          <label>NP Faret / Innpack</label>
           <div style="display:flex; gap:6px;">
             <input type="text" id="mlbNmNp" style="flex:1;">
             <button type="button" class="btn-secondary" id="mlbNmBtnConsultarNp">Consultar NP</button>
           </div>
         </div>
-        <div class="mlb-form-campo" id="mlbNmProcesoWrap" style="display:none;">
-          <label>Proceso (FPS)</label>
-          <select id="mlbNmProceso"></select>
+      </div>
+      <div class="mlb-form-row">
+        <div class="mlb-form-campo" id="mlbNmOrdenWrap" style="display:none;">
+          <label>Orden FPS</label>
+          <select id="mlbNmOrdenFps"></select>
         </div>
-        <div class="mlb-form-campo" style="align-self:flex-end;">
-          <button type="button" class="btn-secondary" id="mlbNmBtnConsultarProduccion" disabled>Consultar producción</button>
+        <div class="mlb-form-campo" id="mlbNmItemWrap" style="display:none;">
+          <label>Ítem</label>
+          <select id="mlbNmItemFps"></select>
+        </div>
+        <div class="mlb-form-campo" id="mlbNmEtapaWrap" style="display:none;">
+          <label>Proceso</label>
+          <select id="mlbNmEtapaFps"></select>
         </div>
       </div>
+      <!-- REG-LAB-04 (Prioridad 1): todas las sesiones reales de FPS del ítem/proceso elegido. El
+           analista elige una; no se preselecciona ninguna. -->
       <div class="mlb-form-row" id="mlbNmRegistroWrap" style="display:none;">
         <div class="mlb-form-campo mlb-form-campo-full">
-          <label>Registro de producción (FPS)</label>
-          <select id="mlbNmRegistroProduccion"></select>
+          <label>Registro de producción (FPS) <span id="mlbNmRegistrosConteo" style="font-weight:400;"></span></label>
+          <div class="table-container" style="max-height:260px; overflow:auto;">
+            <table class="table" id="mlbNmTablaRegistros">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>ID registro FPS</th>
+                  <th>NP Faret</th>
+                  <th>NP Innpack</th>
+                  <th>Ítem</th>
+                  <th>Proceso</th>
+                  <th>Máquina</th>
+                  <th>Operador</th>
+                  <th>Fecha inicio</th>
+                  <th>Hora inicio</th>
+                  <th>Fecha término</th>
+                  <th>Hora término</th>
+                  <th>Cantidad producida</th>
+                </tr>
+              </thead>
+              <tbody id="mlbNmTablaRegistrosBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
       <div class="mlb-form-row" id="mlbNmFpsInfo" style="display:none;">
         <div class="mlb-form-campo mlb-form-campo-full">
-          <small>Operador (FPS): <b id="mlbNmOperadorTexto"></b> &nbsp;|&nbsp; Fecha producción: <b id="mlbNmFechaProduccionTexto"></b></small>
+          <small>Registro seleccionado: <b id="mlbNmRegistroTexto"></b> &nbsp;|&nbsp; Operador (FPS): <b id="mlbNmOperadorTexto"></b> &nbsp;|&nbsp; Fecha producción: <b id="mlbNmFechaProduccionTexto"></b></small>
         </div>
       </div>
       <div class="mlb-form-row">
@@ -228,7 +258,7 @@
           <select id="mlbNmTipoOnda"><option value="">-- Seleccionar --</option></select>
         </div>
         <div class="mlb-form-campo"><label>Turno</label><input type="text" id="mlbNmTurno" placeholder="A / B / C"></div>
-        <div class="mlb-form-campo"><label>N.º de registro de producción</label><input type="text" id="mlbNmLote" placeholder="Manual, si no usaste Consultar producción"></div>
+        <div class="mlb-form-campo"><label>N.º de registro de producción</label><input type="text" id="mlbNmLote" placeholder="Manual, si no elegiste un registro FPS"></div>
         <div class="mlb-form-campo"><label>Proveedor</label><input type="text" id="mlbNmProveedor"></div>
       </div>
       <!-- Punto 24 REG-LAB-04: solo relevante cuando Origen="Pruebas" (Prueba solicitada) -->

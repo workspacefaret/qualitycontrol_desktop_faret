@@ -137,3 +137,11 @@
 .muestra-laboratorio-module .mlb-bobina-info.mlb-bobina-info-error {
     color: #c62828;
 }
+
+/* REG-LAB-04 (Prioridad 1): tabla compacta de registros FPS en "Nueva Muestra". */
+.muestra-laboratorio-module #mlbNmTablaRegistros th,
+.muestra-laboratorio-module #mlbNmTablaRegistros td {
+    padding: 6px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+}

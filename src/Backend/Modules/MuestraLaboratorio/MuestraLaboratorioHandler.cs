@@ -240,6 +240,26 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     return Ok(registros);
                 }
 
+                // REG-LAB-04 (Prioridad 1): reemplaza a consultarNp + consultarRegistroProduccion en
+                // el formulario. Una sola consulta a fps-api por NP Faret o Innpack: órdenes,
+                // procesos de laboratorio y todas sus sesiones. El analista elige el registro; no
+                // se preselecciona nada. Las dos acciones anteriores se mantienen por compatibilidad.
+                if (action == "muestraLab.consultarRegistrosFps")
+                {
+                    var npTexto = GetString(jsonData, "np")?.Trim();
+                    if (string.IsNullOrWhiteSpace(npTexto) || !long.TryParse(npTexto, out var npNum) || npNum <= 0 || npNum > 999999999)
+                        return Error("Ingresa una NP numérica válida (Faret o Innpack).");
+
+                    if (!_fpsRegistroProduccion.IsConfigured)
+                        return Error("FPS no está configurado en este equipo.");
+
+                    var (ok, datos, error) = await _fpsRegistroProduccion.ObtenerRegistrosLaboratorioAsync(npNum);
+                    if (!ok)
+                        return Error(error ?? "No fue posible consultar FPS.");
+
+                    return Ok(datos);
+                }
+
                 // Resuelve un número de bobina/lote contra SAP (apisapfaret, mismo endpoint que ya
                 // usa la app móvil Flutter para el escaneo de bobinas en Registros de Control).
                 if (action == "muestraLab.resolverBobina")
