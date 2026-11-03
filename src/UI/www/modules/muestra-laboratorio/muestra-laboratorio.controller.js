@@ -173,6 +173,7 @@ if (!window.MuestraLaboratorioController) {
         }
         if (id === "mlbDetCerrar") return this.cerrarModal("mlbModalDetalle")
         if (id === "mlbBtnInforme") return this.generarInforme()
+        if (id === "mlbBtnExcel") return this.exportarExcel()
         if (id === "mlbDetBtnEditarFecha") return this._abrirEditarFecha()
         if (id === "mlbDetBtnAnularRegistro") return this.anularMuestra()
         if (id === "mlbDetBtnVerRegistroProduccion") return this.verRegistroProduccion()
@@ -1686,6 +1687,19 @@ if (!window.MuestraLaboratorioController) {
         alert(err.message)
       }
     }
+
+    // Excel con el formato del REG-LAB-04: lo arma el backend (ClosedXML) a partir del detalle real.
+    async exportarExcel() {
+      const m = this._muestraActualDetalle
+      if (!m) return
+      const res = await window.PhotinoBridge.send({ action: "muestraLab.exportarExcel", data: { id: m.id } })
+      if (!res?.ok) return alert(res?.error || "No se pudo generar el Excel")
+      const g = await window.PhotinoBridge.send({
+        action: "excel.guardar",
+        data: { fileName: res.data.fileName, base64: res.data.base64 },
+      })
+      if (g && g.ok === false) alert(g.error || "No se pudo guardar el Excel")
+    },
 
     generarInforme() {
       const m = this._muestraActualDetalle

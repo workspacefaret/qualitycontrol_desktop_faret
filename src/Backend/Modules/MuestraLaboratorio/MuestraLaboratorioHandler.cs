@@ -333,6 +333,48 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                 if (action == "muestraLab.catalogos")
                     return await Forward(_api.CatalogosAsync());
 
+                // Exportación Excel con el formato del REG-LAB-04 (solo lectura: arma el archivo
+                // en memoria y lo devuelve en base64; el front lo guarda con excel.guardar).
+                if (action == "muestraLab.exportarExcel")
+                {
+                    var id = GetInt(jsonData, "id") ?? 0;
+                    if (id <= 0)
+                        return Error("Falta indicar la muestra");
+
+                    var (okD, bodyD) = await _api.DetalleAsync(id);
+                    if (!TryUnwrapApiResponse(bodyD, out var muestra, out var errD) || !okD || muestra.ValueKind != JsonValueKind.Object)
+                        return Error(errD);
+
+                    string? tipoOnda = null;
+                    if (muestra.TryGetProperty("tipoOndaId", out var toId) && toId.ValueKind == JsonValueKind.Number)
+                    {
+                        var (okC, bodyC) = await _api.CatalogosAsync();
+                        if (okC && TryUnwrapApiResponse(bodyC, out var cat, out _)
+                            && cat.ValueKind == JsonValueKind.Object
+                            && cat.TryGetProperty("tiposOnda", out var lista) && lista.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var t in lista.EnumerateArray())
+                                if (t.TryGetProperty("id", out var tid) && tid.ValueKind == JsonValueKind.Number && tid.GetInt32() == toId.GetInt32())
+                                    tipoOnda = t.TryGetProperty("nombre", out var tn) ? tn.GetString() : null;
+                        }
+                    }
+
+                    byte[]? logo = null;
+                    try
+                    {
+                        var rutaLogo = Path.Combine(AppContext.BaseDirectory, "src", "UI", "www", "logo.png");
+                        if (File.Exists(rutaLogo))
+                            logo = File.ReadAllBytes(rutaLogo);
+                    }
+                    catch { }
+
+                    var bytes = RegLab04Excel.Construir(muestra, tipoOnda, logo);
+                    var np = muestra.TryGetProperty("np", out var npEl) ? (npEl.GetString() ?? "") : "";
+                    foreach (var c in Path.GetInvalidFileNameChars())
+                        np = np.Replace(c, '_');
+                    return Ok(new { fileName = $"REG-LAB-04_{np}_{id}.xlsx", base64 = Convert.ToBase64String(bytes) });
+                }
+
                 // Punto 7 del REG-LAB-04: corrige la fecha efectiva de un registro ya creado, sin
                 // tocar fecha_ingreso (creación) — deja auditoría (quién/cuándo) del lado API.
                 if (action == "muestraLab.actualizarFechaEnsayo")
