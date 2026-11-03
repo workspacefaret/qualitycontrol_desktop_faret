@@ -1566,7 +1566,15 @@ if (!window.MuestraLaboratorioController) {
         cursor = cursor.ensayoReemplazaId ? lista.find(x => x.id === cursor.ensayoReemplazaId) : null
       }
 
-      const fmt = e => e.resultadoValor != null ? `${e.resultadoValor} ${e.resultadoUnidad || ""}`.trim() : "-"
+      const fmtUno = e => e.resultadoValor != null ? `${e.resultadoValor} ${e.resultadoUnidad || ""}`.trim() : "-"
+      // REG-LAB-04 v2: además del consolidado, el promedio de cada muestra vigente (los valores
+      // completos de un ensayo anulado se siguen viendo con "Ver muestras").
+      const fmt = e => {
+        if (!e.modeloMuestras) return fmtUno(e)
+        const porMuestra = (e.muestras || []).filter(m => !m.eliminada)
+          .map(m => `M${m.numero} ${m.promedio != null ? `${m.promedio} ${m.unidad || ""}`.trim() : "incompleta"}`)
+        return `${fmtUno(e)}${porMuestra.length ? ` (${porMuestra.join("; ")})` : ""}`
+      }
       const lineas = cadena.map((e, i) => {
         if (i === 0) return `Valor original (#${e.id}, ${e.fecha || "-"}): ${fmt(e)}`
         return `→ Corrección ${i} (#${e.id}, ${e.fecha || "-"}), motivo "${e.motivoReemplazo || "-"}": ${fmt(e)}`
@@ -1671,22 +1679,27 @@ if (!window.MuestraLaboratorioController) {
       const esHoja1 = ["ControlRecepcion", "Corrugado", "Monotapa"].includes(m.origen)
       const esMonotapa = m.origen === "Monotapa"
       const cubiertos = new Set()
-      const push = (tipo, fn) => { porTipo(tipo).forEach(e => tablas.push(fn(e))); cubiertos.add(tipo) }
+      // REG-LAB-04 v2: un ensayo con muestras (modeloMuestras) no tiene "detalle" plano; se imprime
+      // con todas sus muestras y determinaciones bajo el mismo título de sección del formulario.
+      const push = (tipo, fn, titulo) => {
+        porTipo(tipo).forEach(e => tablas.push(e.modeloMuestras ? this._tablaEnsayoMuestras(e, titulo) : fn(e)))
+        cubiertos.add(tipo)
+      }
 
       if (esHoja1) {
-        if (esMonotapa) push("HUMEDAD", e => this._tablaHumedadMonotapa(e, m))
-        else push("HUMEDAD", e => this._tablaSustrato(e, "1. HUMEDAD DE SUSTRATOS (%)", ["Punto izquierdo (%)", "Centro (%)", "Punto derecho (%)"]))
-        push("GRAMAJE", e => this._tablaSustrato(e, "2. GRAMAJE DE SUSTRATOS (g/m²)", ["Peso (g) Punto izq.", "Peso (g) Centro", "Peso (g) Punto der."]))
-        push("ESPESOR", e => this._tablaSustrato(e, "3. ESPESOR DE SUSTRATOS (mm)", ["Punto izquierdo", "Centro", "Punto derecho"]))
-        push("COBB", e => this._tablaCobbDoc(e))
-        push("RCT", e => this._tablaRctDoc(e))
+        if (esMonotapa) push("HUMEDAD", e => this._tablaHumedadMonotapa(e, m), "6. HUMEDAD MONOTAPA (%)")
+        else push("HUMEDAD", e => this._tablaSustrato(e, "1. HUMEDAD DE SUSTRATOS (%)", ["Punto izquierdo (%)", "Centro (%)", "Punto derecho (%)"]), "1. HUMEDAD DE SUSTRATOS (%)")
+        push("GRAMAJE", e => this._tablaSustrato(e, "2. GRAMAJE DE SUSTRATOS (g/m²)", ["Peso (g) Punto izq.", "Peso (g) Centro", "Peso (g) Punto der."]), "2. GRAMAJE DE SUSTRATOS (g/m²)")
+        push("ESPESOR", e => this._tablaSustrato(e, "3. ESPESOR DE SUSTRATOS (mm)", ["Punto izquierdo", "Centro", "Punto derecho"]), "3. ESPESOR DE SUSTRATOS (mm)")
+        push("COBB", e => this._tablaCobbDoc(e), "4. COBB (g/m²) – Área efectiva: 100 cm²")
+        push("RCT", e => this._tablaRctDoc(e), "5. RCT (lbf)")
       } else if (m.origen) {
-        push("HUMEDAD", e => this._tablaHumedadComplejo(e))
-        push("GRAMAJE", e => this._tablaGramajeComplejo(e))
-        push("ESPESOR", e => this._tablaEspesorComplejo(e))
-        push("ECT", e => this._tablaEct(e))
-        push("FCT", e => this._tablaFctDoc(e))
-        push("BCT_MEDIDO", e => this._tablaBctMedido(e))
+        push("HUMEDAD", e => this._tablaHumedadComplejo(e), "1. HUMEDAD DEL COMPLEJO (%)")
+        push("GRAMAJE", e => this._tablaGramajeComplejo(e), "2. GRAMAJE DEL COMPLEJO (g/m²)")
+        push("ESPESOR", e => this._tablaEspesorComplejo(e), "3. ESPESOR DEL COMPLEJO (mm)")
+        push("ECT", e => this._tablaEct(e), "4. ECT (lbf)")
+        push("FCT", e => this._tablaFctDoc(e), "5. FCT (lbf)")
+        push("BCT_MEDIDO", e => this._tablaBctMedido(e), "6. BCT (lbf)")
       }
 
       // Cualquier ensayo cuyo tipo no haya sido cubierto por la hoja correspondiente (ej. un tipo
@@ -1694,7 +1707,7 @@ if (!window.MuestraLaboratorioController) {
       // que no tienen sección propia en el formulario físico) igual se lista, en formato genérico,
       // para no perder datos.
       ;["HUMEDAD", "GRAMAJE", "ESPESOR", "COBB", "RCT", "FCT", "ECT", "BCT_MEDIDO", "BCT_TEORICO", "VISCOSIDAD", "PH", "SOLIDOS", "LUGOL"]
-        .forEach(tipo => { if (!cubiertos.has(tipo)) porTipo(tipo).forEach(e => tablas.push(this._tablaGenerica(e))) })
+        .forEach(tipo => { if (!cubiertos.has(tipo)) porTipo(tipo).forEach(e => tablas.push(e.modeloMuestras ? this._tablaEnsayoMuestras(e, tipo) : this._tablaGenerica(e))) })
 
       window.PrintExporter.printReport({
         titulo: `Informe de Laboratorio - Muestra #${m.id}`,
@@ -1717,8 +1730,62 @@ if (!window.MuestraLaboratorioController) {
         `#${e.id}`, `Método: ${e.metodo || "-"}`, `Analista: ${e.analistaNombre || "-"}`, `Fecha: ${e.fecha || "-"}`,
         `Resultado: ${resultado}`, `Cumplimiento: ${e.cumplimiento || "-"}`, `Estado: ${this._labelEstado(e.estado)}`
       ]
+      if (e.variante) partes.splice(1, 0, `Método de equipo: ${e.variante}`)
+      if (e.ensayoReemplazaId) partes.push(`Corrige el ensayo #${e.ensayoReemplazaId}${e.motivoReemplazo ? ` (motivo: ${e.motivoReemplazo})` : ""}`)
       if (e.observacion) partes.push(`Obs: ${e.observacion}`)
       return partes.join(" · ")
+    }
+
+    // REG-LAB-04 v2: una fila por determinación (valores ingresados y resultados calculados tal
+    // como quedaron guardados por la API) y una fila de promedio por muestra. Las muestras
+    // eliminadas se listan con usuario, fecha y motivo (no desaparecen del informe).
+    _tablaEnsayoMuestras(e, titulo) {
+      const cfg = this._cfgEnsayo(e.tipoEnsayo, e.variante) || this._emCfgSoloLectura(e)
+      const esc = (v) => this._esc(v)
+      const entradas = cfg.entradas || []
+      const codigosEntrada = new Set(entradas.map(x => x.codigo))
+      const resultados = (cfg.resultados || []).filter(r => !codigosEntrada.has(r.codigo))
+      const fmt = (v, dec) => (v === null || v === undefined ? "-" : this._emFormato(v, dec))
+      const columnas = ["Muestra", "Identificación", "Determinación",
+        ...entradas.map(x => esc(`${x.etiqueta}${x.unidad ? ` (${x.unidad})` : ""}`)),
+        ...resultados.map(x => esc(`${x.etiqueta}${x.unidad ? ` (${x.unidad})` : ""}`)),
+        "Validez"]
+      const vacias = () => Array(columnas.length - 3).fill("")
+      const filas = []
+      const origenes = { Bobinas: "Bobina", SeparacionPapeles: "Separación de papeles o descape" }
+      for (const mu of e.muestras || []) {
+        if (mu.eliminada) {
+          filas.push([`N.º ${mu.numero}`, esc(`Eliminada por ${mu.eliminadaPor || "-"} el ${mu.fechaEliminacion || "-"}${mu.motivoEliminacion ? ` — Motivo: ${mu.motivoEliminacion}` : ""}`), "", ...vacias()])
+          continue
+        }
+        const ident = []
+        if (mu.sustrato) ident.push(`${cfg.etiquetaSustrato || "Sustrato"}: ${mu.sustrato}`)
+        if (mu.bobinaNumero) ident.push(`Bobina: ${mu.bobinaNumero}`)
+        if (mu.bobinaLote) ident.push(`Lote: ${mu.bobinaLote}`)
+        if (mu.origenMuestra) ident.push(`Origen: ${origenes[mu.origenMuestra] || mu.origenMuestra}`)
+        if (mu.tipoAnalisis) ident.push(`Análisis: ${mu.tipoAnalisis}`)
+        for (const [codigo, valor] of Object.entries(mu.parametros || {})) {
+          if (!valor) continue
+          const p = (cfg.parametros || []).find(x => x.codigo === codigo)
+          ident.push(`${p?.etiqueta || codigo}: ${valor}`)
+        }
+        if (mu.observacion) ident.push(`Obs: ${mu.observacion}`)
+        const dets = mu.determinaciones || []
+        dets.forEach((d, i) => filas.push([
+          i === 0 ? `N.º ${mu.numero}` : "",
+          i === 0 ? esc(ident.join(" · ") || "-") : "",
+          esc(this._emEtiquetaDet(cfg, d.numero)),
+          ...entradas.map(x => esc(d.valores?.[x.codigo] ?? "-")),
+          ...resultados.map(x => fmt(d.resultados?.[x.codigo], x.decimales ?? 2)),
+          d.valida === false ? esc(`No válida: ${d.motivoInvalida || "-"}`) : "Válida",
+        ]))
+        if (dets.length === 0) filas.push([`N.º ${mu.numero}`, esc(ident.join(" · ") || "-"), "Sin determinaciones", ...vacias()])
+        const promedio = mu.completa && mu.promedio !== null && mu.promedio !== undefined
+          ? `Promedio muestra N.º ${mu.numero}: ${fmt(mu.promedio, cfg.decimales ?? 2)} ${mu.unidad || cfg.unidad || ""}`
+          : `Muestra N.º ${mu.numero} incompleta (sin promedio)`
+        filas.push(["", "", `<b>${esc(promedio)}</b>${mu.completa ? this._emTextoOtros(cfg, mu.otrosPromedios) : ""}`, ...vacias().slice(0, -1), esc(`Cumplimiento: ${mu.cumplimiento || "-"}`)])
+      }
+      return { titulo: `${titulo || e.tipoEnsayo} — ${this._metaEnsayo(e)}`, columnas, filas }
     }
 
     // Agrupa las bobinas muestreadas (Punto 11) en las 3 columnas fijas del REG-LAB-04
