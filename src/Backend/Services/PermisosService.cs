@@ -115,6 +115,7 @@ namespace QualityControlCenter.Services
             "muestraLab.consultarNp",
             "muestraLab.consultarRegistroProduccion",
             "muestraLab.consultarRegistrosFps",
+            "muestraLab.ensayoMuestras.config",
             "muestraLab.indicadores",
             "muestraLab.materialesFps",
             "muestraLab.resolverBobina",

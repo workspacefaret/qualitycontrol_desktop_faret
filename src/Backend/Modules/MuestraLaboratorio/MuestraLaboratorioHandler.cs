@@ -405,6 +405,36 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     return await Forward(_api.EliminarAdjuntoAsync(adjuntoId));
                 }
 
+                // REG-LAB-04 v2, Fase 2: ensayo con varias muestras (piloto Humedad por termobalanza).
+                // Las muestras viajan tal cual a la API, que valida todo; el analista sale siempre
+                // de la sesión, nunca del payload.
+                if (action == "muestraLab.ensayoMuestras.config")
+                    return await Forward(_api.ConfigEnsayosMuestrasAsync());
+
+                if (action == "muestraLab.ensayoMuestras.guardar")
+                {
+                    var usuario = _session.GetCurrentUser();
+                    var request = new
+                    {
+                        MuestraId = GetInt(jsonData, "muestraId") ?? 0,
+                        EnsayoId = GetInt(jsonData, "ensayoId"),
+                        Revision = GetInt(jsonData, "revision"),
+                        TipoEnsayo = GetString(jsonData, "tipoEnsayo"),
+                        Variante = GetString(jsonData, "variante"),
+                        Finalizar = jsonData.TryGetProperty("finalizar", out var fin) && fin.ValueKind == JsonValueKind.True,
+                        AnalistaUsuarioId = usuario?.Id,
+                        AnalistaNombre = usuario?.NombreCompleto,
+                        Observacion = GetString(jsonData, "observacion"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
+                        Muestras = jsonData.TryGetProperty("muestras", out var ms) && ms.ValueKind == JsonValueKind.Array
+                            ? (object)ms.Clone()
+                            : Array.Empty<object>(),
+                    };
+
+                    return await Forward(_api.GuardarEnsayoMuestrasAsync(request));
+                }
+
                 if (action == "muestraLab.humedad.guardar")
                 {
                     var usuario = _session.GetCurrentUser();

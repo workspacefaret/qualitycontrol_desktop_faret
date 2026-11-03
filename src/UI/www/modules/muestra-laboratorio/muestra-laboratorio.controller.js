@@ -20,6 +20,7 @@ if (!window.MuestraLaboratorioController) {
       this.consumirDeepLink()
       this.bindEvents()
       await this.cargarCatalogos()
+      await this._cargarConfigMuestras()
       await this.cargarLista()
       await this.cargarIndicadores()
     }
@@ -174,9 +175,20 @@ if (!window.MuestraLaboratorioController) {
         if (id === "mlbEditarFechaGuardar") return this._guardarFechaEnsayo()
         if (id === "mlbBtnCrearNc") return this.crearNoConformidad()
 
-        if (id === "mlbBtnNuevoHumedad") return this.abrirModal("mlbModalHumedad")
+        if (id === "mlbBtnNuevoHumedad") {
+          this._prepararHumedadNueva()
+          return this.abrirModal("mlbModalHumedad")
+        }
         if (id === "mlbHumCancelar") return this.cerrarModal("mlbModalHumedad")
         if (id === "mlbHumGuardar") return this.guardarHumedad()
+        if (id === "mlbHumGuardarBorrador") return this._guardarEnsayoMuestras("mlbModalHumedad", false)
+
+        // REG-LAB-04 v2: muestras y determinaciones
+        if (e.target.classList?.contains("mlb-em-agregar")) return this._emAgregarMuestra()
+        if (e.target.classList?.contains("mlb-em-eliminar")) return this._emEliminarMuestra(parseInt(e.target.dataset.idx, 10))
+        if (e.target.classList?.contains("mlb-em-deshacer")) return this._emDeshacerEliminar(parseInt(e.target.dataset.idx, 10))
+        if (e.target.classList?.contains("mlb-em-continuar-btn")) return this.abrirEnsayoMuestras(parseInt(e.target.dataset.id, 10), false)
+        if (e.target.classList?.contains("mlb-em-ver-btn")) return this.abrirEnsayoMuestras(parseInt(e.target.dataset.id, 10), true)
 
         if (id === "mlbBtnNuevoGramaje") return this.abrirModal("mlbModalGramaje")
         if (id === "mlbGraCancelar") return this.cerrarModal("mlbModalGramaje")
@@ -274,6 +286,12 @@ if (!window.MuestraLaboratorioController) {
         }
       }
       document.addEventListener("change", this._changeHandler)
+
+      this._inputHandler = (e) => {
+        if (e.target.classList?.contains("mlb-em-det") || e.target.classList?.contains("mlb-em-campo")) this._emOnInput(e.target)
+      }
+      document.addEventListener("input", this._inputHandler)
+      document.addEventListener("change", this._inputHandler)
     }
 
     abrirModal(id) {
@@ -1481,7 +1499,14 @@ if (!window.MuestraLaboratorioController) {
       }
 
       body.innerHTML = ensayos.map(e => {
-        const resultado = e.resultadoValor != null ? `${e.resultadoValor} ${e.resultadoUnidad || ""}` : "-"
+        let resultado = e.resultadoValor != null ? `${e.resultadoValor} ${e.resultadoUnidad || ""}` : "-"
+        // REG-LAB-04 v2: un ensayo con varias muestras puede no tener consolidado (muestras no
+        // comparables); el detalle por muestra se ve con "Ver muestras".
+        if (e.modeloMuestras) {
+          const n = (e.muestras || []).filter(m => !m.eliminada).length
+          resultado = `${e.resultadoValor != null ? `${e.resultadoValor} ${e.resultadoUnidad || ""} · ` : ""}${n} muestra${n === 1 ? "" : "s"}`
+        }
+        const enEnsayo = e.modeloMuestras && e.estado === "En ensayo"
         const spec = (e.especificacionMin != null || e.especificacionMax != null)
           ? `${e.especificacionMin ?? ""} - ${e.especificacionMax ?? ""} ${e.especificacionUnidad || ""}`
           : "-"
@@ -1503,6 +1528,8 @@ if (!window.MuestraLaboratorioController) {
             <td>${e.cumplimiento}</td>
             <td${motivoAnulTitle}>${e.estado}${e.observacion ? ` <span title="${e.observacion}">&#9432;</span>` : ""}${corrigeBadge}</td>
             <td>
+              ${enEnsayo ? `<button class="btn-primary mlb-em-continuar-btn" data-id="${e.id}">Continuar</button>` : ""}
+              ${e.modeloMuestras && !enEnsayo ? `<button class="btn-secondary mlb-em-ver-btn" data-id="${e.id}">Ver muestras</button>` : ""}
               ${puedeAnular ? `<button class="btn-secondary mlb-anular-btn" data-id="${e.id}">Anular</button>` : ""}
               ${puedeCorregir ? `<button class="btn-secondary mlb-corregir-btn" data-id="${e.id}">Corregir</button>` : ""}
             </td>
@@ -2022,6 +2049,27 @@ if (!window.MuestraLaboratorioController) {
     }
 
     _precargarHumedad(e) {
+      const sel = document.getElementById("mlbHumMetodoEquipo")
+      // REG-LAB-04 v2: corregir un ensayo con muestras crea uno nuevo con las mismas muestras
+      // precargadas; corregir un ensayo histórico sigue con su formulario de siempre.
+      if (e.modeloMuestras) {
+        const cfg = this._cfgEnsayo(e.tipoEnsayo, e.variante)
+        if (!cfg) {
+          alert("La configuración de este ensayo no está disponible. Revisa la conexión con la API.")
+          return
+        }
+        this._humModoLegacy = false
+        sel.value = e.variante || "Termobalanza"
+        sel.disabled = true
+        document.getElementById("mlbHumMetodo").value = e.metodo || ""
+        document.getElementById("mlbHumObservacion").value = e.observacion || ""
+        this._emIniciar("mlbHumMuestrasPanel", cfg, e, "corregir")
+        this.actualizarCamposHumedad()
+        return
+      }
+      this._humModoLegacy = true
+      this._em = null
+      sel.disabled = false
       const d = e.detalle || {}
       document.getElementById("mlbHumMetodoEquipo").value = d.metodoEquipo || "Higrometro"
       document.getElementById("mlbHumIzq").value = d.higrometroIzquierdo ?? ""
@@ -2190,17 +2238,343 @@ if (!window.MuestraLaboratorioController) {
     }
 
     // =====================================================================
+    // REG-LAB-04 v2 (Fase 2): ENSAYO -> MUESTRAS -> DETERMINACIONES
+    // =====================================================================
+    // Editor genérico de muestras. Lo que se puede registrar (cuántas determinaciones, mínimo,
+    // máximo, unidad) lo define la API por ensayo (muestraLab.ensayoMuestras.config): acá no se
+    // fija ninguna regla de laboratorio. Si la API no lo informa (versión anterior), el ensayo sigue
+    // con su formulario de siempre. Piloto: Humedad por termobalanza.
+    async _cargarConfigMuestras() {
+      this._cfgMuestras = []
+      try {
+        const res = await window.PhotinoBridge.send({ action: "muestraLab.ensayoMuestras.config", data: {} })
+        if (res && res.ok !== false && Array.isArray(res.data)) this._cfgMuestras = res.data
+      } catch {
+        // Sin configuración: los ensayos usan su formulario histórico.
+      }
+    }
+
+    _cfgEnsayo(tipoEnsayo, variante) {
+      const v = (variante || "").toLowerCase()
+      return (this._cfgMuestras || []).find(c =>
+        c.tipoEnsayo === tipoEnsayo && (c.variante || "").toLowerCase() === v) || null
+    }
+
+    _emMuestraVacia(cfg) {
+      return {
+        id: null, numero: null, sustrato: "", bobinaNumero: "", bobinaLote: "", origenMuestra: "",
+        tipoAnalisis: "Inicial", observacion: "", eliminar: false, motivoEliminacion: null, eliminada: false,
+        determinaciones: Array.from({ length: cfg.determinacionesIniciales }, (_, i) => ({ numero: i + 1, lectura1: null, valida: true, motivoInvalida: null })),
+      }
+    }
+
+    _emDesdeServidor(m, cfg, comoNueva) {
+      const dets = (m.determinaciones || []).map(d => ({
+        numero: d.numero, lectura1: d.lectura1 ?? null, valida: d.valida !== false, motivoInvalida: d.motivoInvalida || null,
+      }))
+      for (let n = 1; n <= cfg.determinacionesIniciales; n++) {
+        if (!dets.some(d => d.numero === n)) dets.push({ numero: n, lectura1: null, valida: true, motivoInvalida: null })
+      }
+      dets.sort((a, b) => a.numero - b.numero)
+      return {
+        id: comoNueva ? null : m.id, numero: comoNueva ? null : m.numero,
+        sustrato: m.sustrato || "", bobinaNumero: m.bobinaNumero || "", bobinaLote: m.bobinaLote || "",
+        origenMuestra: m.origenMuestra || "", tipoAnalisis: m.tipoAnalisis || "", observacion: m.observacion || "",
+        eliminar: false, motivoEliminacion: null, eliminada: !comoNueva && !!m.eliminada,
+        eliminadaPor: m.eliminadaPor, fechaEliminacion: m.fechaEliminacion, motivoEliminacionGuardado: m.motivoEliminacion,
+        unidad: m.unidad || null, promedioGuardado: m.promedio ?? null, completaGuardada: !!m.completa, cumplimientoGuardado: m.cumplimiento || null,
+        determinaciones: dets,
+      }
+    }
+
+    // modo: "nuevo" | "continuar" | "ver" | "corregir"
+    _emIniciar(panelId, cfg, ensayo, modo) {
+      let muestras
+      if (!ensayo) muestras = [this._emMuestraVacia(cfg)]
+      else if (modo === "corregir") muestras = (ensayo.muestras || []).filter(m => !m.eliminada).map(m => this._emDesdeServidor(m, cfg, true))
+      else muestras = (ensayo.muestras || []).map(m => this._emDesdeServidor(m, cfg, false))
+      if (muestras.length === 0) muestras = [this._emMuestraVacia(cfg)]
+
+      this._em = {
+        panelId, cfg, modo,
+        ensayoId: modo === "continuar" || modo === "ver" ? ensayo.id : null,
+        revision: modo === "continuar" ? ensayo.revision : null,
+        soloLectura: modo === "ver",
+        numeroMaximo: Math.max(0, ...((ensayo?.muestras || []).map(m => m.numero))),
+        muestras,
+      }
+      const estado = document.querySelector(`#${panelId} .mlb-em-estado`)
+      if (estado) estado.textContent = ""
+      this._emRender()
+    }
+
+    _emNum(v) {
+      if (v === null || v === undefined || v === "") return null
+      const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."))
+      return Number.isFinite(n) ? n : null
+    }
+
+    _emFormato(v, dec) {
+      return Number(v).toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec })
+    }
+
+    // Solo para mostrar mientras se escribe: el promedio oficial lo calcula y guarda la API con la
+    // misma regla (determinaciones válidas e informadas; sin el mínimo, la muestra queda incompleta).
+    _emTextoPromedio(m) {
+      const cfg = this._em.cfg
+      if (this._em.soloLectura) {
+        if (!m.completaGuardada || m.promedioGuardado === null) return `<span class="mlb-em-incompleta">Incompleta</span>`
+        const unidad = m.unidad || cfg.unidad || ""
+        return `Promedio: ${this._emFormato(m.promedioGuardado, cfg.decimales ?? 2)} ${this._esc(unidad)}${m.cumplimientoGuardado ? ` · ${this._esc(m.cumplimientoGuardado)}` : ""}`
+      }
+      const valores = m.determinaciones.filter(d => d.valida && this._emNum(d.lectura1) !== null).map(d => this._emNum(d.lectura1))
+      if (valores.length < cfg.determinacionesMinimas) {
+        return `<span class="mlb-em-incompleta">Incompleta: ${valores.length} de ${cfg.determinacionesMinimas} determinaciones</span>`
+      }
+      const prom = valores.reduce((a, b) => a + b, 0) / valores.length
+      return `Promedio: ${this._emFormato(prom, cfg.decimales)} ${this._esc(cfg.unidad)}`
+    }
+
+    _emRender() {
+      const em = this._em
+      const panel = document.getElementById(em.panelId)
+      if (!panel) return
+      const cfg = em.cfg
+      const ro = em.soloLectura ? "disabled" : ""
+      const opciones = (lista, valor) => lista.map(([v, t]) => `<option value="${v}" ${v === valor ? "selected" : ""}>${t}</option>`).join("")
+      const sustratos = [["", "-- Seleccionar --"], ["Liner", "Liner"], ["Onda", "Onda"], ["Cartulina", "Cartulina"]]
+      const origenes = [["", "-- No informado --"], ["Bobinas", "Bobina"], ["SeparacionPapeles", "Separación de papeles o descape"]]
+      const tipos = [["", "-- Seleccionar --"], ["Inicial", "Inicial"], ["Contramuestra", "Contramuestra"], ["Reensayo", "Reensayo"]]
+
+      let nuevas = 0
+      panel.querySelector(".mlb-em-lista").innerHTML = em.muestras.map((m, idx) => {
+        if (m.eliminada) {
+          return `<div class="mlb-em-muestra mlb-em-eliminada">Muestra N.º ${m.numero} eliminada por ${this._esc(m.eliminadaPor || "-")} el ${this._esc(m.fechaEliminacion || "-")}${m.motivoEliminacionGuardado ? ` — Motivo: ${this._esc(m.motivoEliminacionGuardado)}` : ""}</div>`
+        }
+        const numero = m.numero ?? (em.numeroMaximo + (++nuevas))
+        if (m.eliminar) {
+          return `<div class="mlb-em-muestra mlb-em-eliminada" data-idx="${idx}">Muestra N.º ${numero}: se eliminará al guardar. <button type="button" class="btn-secondary mlb-em-deshacer" data-idx="${idx}">Deshacer</button></div>`
+        }
+        const dets = m.determinaciones.map((d, di) => `
+          <div class="mlb-form-campo"><label>Determinación ${d.numero} (${this._esc(cfg.unidad)})</label>
+            <input type="number" step="any" class="mlb-em-det" data-idx="${idx}" data-di="${di}" value="${d.lectura1 ?? ""}" ${ro}></div>`).join("")
+        return `
+          <div class="mlb-em-muestra" data-idx="${idx}">
+            <div class="mlb-em-cabecera">
+              <span>Muestra N.º ${numero}${m.id ? "" : " (nueva)"}</span>
+              ${em.soloLectura ? "" : `<button type="button" class="btn-secondary mlb-em-eliminar" data-idx="${idx}">Eliminar muestra</button>`}
+            </div>
+            <div class="mlb-form-row">
+              <div class="mlb-form-campo"><label>Sustrato</label><select class="mlb-em-campo" data-idx="${idx}" data-campo="sustrato" ${ro}>${opciones(sustratos, m.sustrato)}</select></div>
+              <div class="mlb-form-campo"><label>N.º de bobina</label><input type="text" class="mlb-em-campo" data-idx="${idx}" data-campo="bobinaNumero" value="${this._esc(m.bobinaNumero)}" ${ro}></div>
+              <div class="mlb-form-campo"><label>Lote de bobina</label><input type="text" class="mlb-em-campo" data-idx="${idx}" data-campo="bobinaLote" value="${this._esc(m.bobinaLote)}" ${ro}></div>
+            </div>
+            <div class="mlb-form-row">
+              <div class="mlb-form-campo"><label>Origen de la muestra</label><select class="mlb-em-campo" data-idx="${idx}" data-campo="origenMuestra" ${ro}>${opciones(origenes, m.origenMuestra)}</select></div>
+              <div class="mlb-form-campo"><label>Tipo de análisis</label><select class="mlb-em-campo" data-idx="${idx}" data-campo="tipoAnalisis" ${ro}>${opciones(tipos, m.tipoAnalisis)}</select></div>
+            </div>
+            <div class="mlb-form-row">
+              ${dets}
+              <div class="mlb-em-promedio" data-idx="${idx}">${this._emTextoPromedio(m)}</div>
+            </div>
+          </div>`
+      }).join("")
+
+      panel.querySelector(".mlb-em-agregar").style.display = em.soloLectura ? "none" : "inline-block"
+    }
+
+    // Sincroniza lo escrito con el estado (sin redibujar, para no perder el foco).
+    _emOnInput(target) {
+      const em = this._em
+      if (!em || em.soloLectura) return
+      const m = em.muestras[parseInt(target.dataset.idx, 10)]
+      if (!m) return
+      if (target.classList.contains("mlb-em-det")) {
+        m.determinaciones[parseInt(target.dataset.di, 10)].lectura1 = target.value === "" ? null : target.value
+        const prom = document.querySelector(`#${em.panelId} .mlb-em-promedio[data-idx="${target.dataset.idx}"]`)
+        if (prom) prom.innerHTML = this._emTextoPromedio(m)
+      } else if (target.classList.contains("mlb-em-campo")) {
+        m[target.dataset.campo] = target.value
+      }
+    }
+
+    _emAgregarMuestra() {
+      if (!this._em || this._em.soloLectura) return
+      this._em.muestras.push(this._emMuestraVacia(this._em.cfg))
+      this._emRender()
+    }
+
+    _emEliminarMuestra(idx) {
+      const m = this._em?.muestras[idx]
+      if (!m) return
+      if (!m.id) {
+        if (!confirm("¿Quitar esta muestra nueva? Lo escrito en ella se perderá.")) return
+        this._em.muestras.splice(idx, 1)
+        if (this._em.muestras.filter(x => !x.eliminada).length === 0) this._em.muestras.push(this._emMuestraVacia(this._em.cfg))
+      } else {
+        const motivo = prompt(`Motivo para eliminar la muestra N.º ${m.numero} (queda registrado):`, "")
+        if (motivo === null) return
+        m.eliminar = true
+        m.motivoEliminacion = motivo.trim() || null
+      }
+      this._emRender()
+    }
+
+    _emDeshacerEliminar(idx) {
+      const m = this._em?.muestras[idx]
+      if (!m) return
+      m.eliminar = false
+      m.motivoEliminacion = null
+      this._emRender()
+    }
+
+    _emPayloadMuestras() {
+      const lista = []
+      for (const m of this._em.muestras) {
+        if (m.eliminada) continue
+        if (m.eliminar) {
+          if (m.id) lista.push({ id: m.id, eliminar: true, motivoEliminacion: m.motivoEliminacion })
+          continue
+        }
+        lista.push({
+          id: m.id, sustrato: m.sustrato || null, bobinaNumero: m.bobinaNumero.trim() || null, bobinaLote: m.bobinaLote.trim() || null,
+          origenMuestra: m.origenMuestra || null, tipoAnalisis: m.tipoAnalisis || null, observacion: m.observacion || null,
+          determinaciones: m.determinaciones.map(d => ({
+            numero: d.numero, lectura1: this._emNum(d.lectura1), valida: d.valida, motivoInvalida: d.motivoInvalida,
+          })),
+        })
+      }
+      return lista
+    }
+
+    // finalizar = false deja el ensayo "En ensayo" (se retoma con "Continuar" desde el detalle).
+    async _guardarEnsayoMuestras(modalId, finalizar) {
+      const em = this._em
+      if (!em || em.soloLectura || !this._muestraActualId) return
+
+      for (const m of em.muestras) {
+        if (m.eliminada || m.eliminar) continue
+        for (const d of m.determinaciones) {
+          if (d.lectura1 !== null && d.lectura1 !== "" && this._emNum(d.lectura1) === null) {
+            alert(`La determinación ${d.numero} tiene un valor que no es un número.`)
+            return
+          }
+        }
+      }
+
+      const data = {
+        muestraId: this._muestraActualId,
+        ensayoId: em.ensayoId,
+        revision: em.revision,
+        tipoEnsayo: em.cfg.tipoEnsayo,
+        variante: em.cfg.variante,
+        finalizar,
+        observacion: document.getElementById("mlbHumObservacion")?.value.trim() || null,
+        muestras: this._emPayloadMuestras(),
+      }
+      if (em.modo === "corregir" && !this._aplicarDatosCorreccion(data)) return
+
+      try {
+        const res = await window.PhotinoBridge.send({ action: "muestraLab.ensayoMuestras.guardar", data })
+        if (!res || res.ok === false) throw new Error(res?.error || "Error guardando el ensayo")
+
+        const ensayoId = res.data?.ensayoId
+        await this.abrirDetalle(this._muestraActualId)
+        await this.cargarLista()
+
+        if (finalizar) {
+          this.cerrarModal(modalId)
+          return
+        }
+        // Borrador: se queda en el formulario con la revisión nueva, listo para seguir.
+        const ensayo = (this._ensayosActuales || []).find(e => e.id === ensayoId)
+        if (ensayo) this._emIniciar(em.panelId, em.cfg, ensayo, "continuar")
+        const estado = document.querySelector(`#${em.panelId} .mlb-em-estado`)
+        if (estado) {
+          const hora = new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })
+          estado.textContent = `Guardado como "En ensayo" a las ${hora}. Puedes cerrarlo y continuarlo después desde el detalle.`
+        }
+      } catch (err) {
+        alert(err.message)
+      }
+    }
+
+    // ---------- Humedad: qué formulario usa ----------
+    _humUsaModeloMuestras() {
+      const metodo = document.getElementById("mlbHumMetodoEquipo")?.value
+      return !this._humModoLegacy && !!this._cfgEnsayo("HUMEDAD", metodo)
+    }
+
+    _prepararHumedadNueva() {
+      this._humModoLegacy = false
+      this._em = null
+      const sel = document.getElementById("mlbHumMetodoEquipo")
+      sel.disabled = false
+      document.getElementById("mlbHumObservacion").value = ""
+      this.actualizarCamposHumedad()
+    }
+
+    // Continuar un ensayo "En ensayo" (o verlo, si ya está finalizado/anulado).
+    abrirEnsayoMuestras(ensayoId, soloLectura) {
+      const e = (this._ensayosActuales || []).find(x => x.id === ensayoId)
+      if (!e) return
+      if (e.tipoEnsayo !== "HUMEDAD") {
+        alert("Este tipo de ensayo aún no se puede abrir desde esta pantalla.")
+        return
+      }
+      // Para ver un ensayo ya guardado basta lo que trae; la configuración solo hace falta para editar.
+      const cfg = this._cfgEnsayo(e.tipoEnsayo, e.variante) || (soloLectura
+        ? { tipoEnsayo: e.tipoEnsayo, variante: e.variante, determinacionesIniciales: 0, determinacionesMinimas: 0, determinacionesMaximas: 0, unidad: e.resultadoUnidad || "", decimales: 2 }
+        : null)
+      if (!cfg) {
+        alert("La configuración de este ensayo no está disponible. Revisa la conexión con la API.")
+        return
+      }
+      this._humModoLegacy = false
+      const sel = document.getElementById("mlbHumMetodoEquipo")
+      sel.value = e.variante || "Termobalanza"
+      sel.disabled = true
+      document.getElementById("mlbHumObservacion").value = e.observacion || ""
+      this._emIniciar("mlbHumMuestrasPanel", cfg, e, soloLectura ? "ver" : "continuar")
+      this.actualizarCamposHumedad()
+      this.abrirModal("mlbModalHumedad")
+    }
+
+    // =====================================================================
     // ENSAYO HUMEDAD
     // =====================================================================
     actualizarCamposHumedad() {
       const metodo = document.getElementById("mlbHumMetodoEquipo").value
+      // REG-LAB-04 v2: si la API habilitó varias muestras para este método, se usa el panel de
+      // muestras; si no (o al corregir un ensayo histórico), el formulario de siempre.
+      const enCurso = !!this._em && this._em.panelId === "mlbHumMuestrasPanel" && this._em.modo !== "nuevo"
+      const nuevo = enCurso || this._humUsaModeloMuestras()
+      if (nuevo && !enCurso && (!this._em || this._em.cfg.variante !== metodo)) {
+        this._emIniciar("mlbHumMuestrasPanel", this._cfgEnsayo("HUMEDAD", metodo), null, "nuevo")
+      }
+      const soloLectura = nuevo && !!this._em?.soloLectura
+      const corrigiendo = !!this._corrigiendoEnsayoId
+
       document.getElementById("mlbHumHigrometroCampos").style.display = metodo === "Higrometro" ? "flex" : "none"
-      document.getElementById("mlbHumTermobalanzaCampos").style.display = metodo === "Termobalanza" ? "flex" : "none"
+      document.getElementById("mlbHumTermobalanzaCampos").style.display = metodo === "Termobalanza" && !nuevo ? "flex" : "none"
       document.getElementById("mlbHumHornoCampos").style.display = metodo === "Horno" ? "block" : "none"
+      document.getElementById("mlbHumMuestrasPanel").style.display = nuevo ? "block" : "none"
+      document.getElementById("mlbHumOrigenCampo").style.display = nuevo ? "none" : ""
+      document.getElementById("mlbHumBobinasLegacy").style.display = nuevo ? "none" : ""
+      document.getElementById("mlbHumGuardarBorrador").style.display = nuevo && !soloLectura && !corrigiendo ? "inline-block" : "none"
+      const btnGuardar = document.getElementById("mlbHumGuardar")
+      btnGuardar.style.display = soloLectura ? "none" : ""
+      btnGuardar.textContent = nuevo ? "Finalizar ensayo" : "Guardar"
+      document.getElementById("mlbHumCancelar").textContent = soloLectura ? "Cerrar" : "Cancelar"
+      document.getElementById("mlbHumObservacion").disabled = soloLectura
+      document.querySelector("#mlbModalHumedad .mlb-modal").classList.toggle("mlb-modal-ancho", nuevo)
     }
 
     async guardarHumedad() {
       if (!this._muestraActualId) return
+      if (document.getElementById("mlbHumMuestrasPanel").style.display !== "none") {
+        return this._guardarEnsayoMuestras("mlbModalHumedad", true)
+      }
 
       const num = (id) => {
         const v = document.getElementById(id).value
@@ -2745,6 +3119,11 @@ if (!window.MuestraLaboratorioController) {
       if (this._changeHandler) {
         document.removeEventListener("change", this._changeHandler)
         this._changeHandler = null
+      }
+      if (this._inputHandler) {
+        document.removeEventListener("input", this._inputHandler)
+        document.removeEventListener("change", this._inputHandler)
+        this._inputHandler = null
       }
       (this._statsCharts || []).forEach(c => c.destroy())
       this._statsCharts = []

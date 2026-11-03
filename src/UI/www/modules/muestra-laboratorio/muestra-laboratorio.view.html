@@ -426,7 +426,7 @@
       </div>
 
       <!-- Punto 8/9 REG-LAB-04: "Origen de la muestra" del formulario físico (Hoja 1 - Sustratos) -->
-      <div class="mlb-form-campo">
+      <div class="mlb-form-campo" id="mlbHumOrigenCampo">
         <label>Origen de la muestra</label>
         <select id="mlbHumOrigenMuestra">
           <option value="">-- No aplica / no informado --</option>
@@ -445,6 +445,14 @@
         <div class="mlb-form-campo"><label>Valor termobalanza (%)</label><input type="number" step="0.01" id="mlbHumTermo"></div>
       </div>
 
+      <!-- REG-LAB-04 v2 (Fase 2): ensayo con varias muestras, cada una con sus determinaciones.
+           Lo arma muestra-laboratorio.controller.js (_em*) según la configuración que entrega la API. -->
+      <div id="mlbHumMuestrasPanel" class="mlb-em-panel" style="display:none;">
+        <div class="mlb-em-lista"></div>
+        <button type="button" class="btn-secondary mlb-em-agregar">+ Agregar muestra</button>
+        <div class="mlb-em-estado"></div>
+      </div>
+
       <div id="mlbHumHornoCampos" style="display:none;">
         <div class="mlb-form-row">
           <div class="mlb-form-campo"><label>Horno 1 - Peso inicial (g)</label><input type="number" step="0.0001" id="mlbHum1i"></div>
@@ -460,6 +468,7 @@
         </div>
       </div>
 
+      <div id="mlbHumBobinasLegacy">
       <div class="mlb-form-row">
         <div class="mlb-form-campo"><label>Bobina Onda</label>
           <div style="display:flex; gap:6px;"><input type="text" id="mlbHumBobinaOnda" style="flex:1;"><button type="button" class="btn-secondary mlb-btn-resolver-bobina" data-input="mlbHumBobinaOnda" data-info="mlbHumBobinaOndaInfo">Resolver</button></div>
@@ -479,6 +488,7 @@
       <div class="module-title" style="font-size:13px; margin-top:10px;">Muestreo de bobinas (opcional, Corrugado)</div>
       <div id="mlbHumBobinasFilas"></div>
       <button type="button" class="btn-secondary mlb-bob-agregar" data-container="mlbHumBobinasFilas" data-labels="Punto izquierdo,Centro,Punto derecho" style="margin-bottom:8px;">+ Agregar bobina</button>
+      </div>
 
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Método (automático)</label><input type="text" id="mlbHumMetodo" disabled placeholder="Se completa solo al elegir el equipo">
@@ -489,6 +499,7 @@
 
       <div class="mlb-form-acciones">
         <button class="btn-secondary" id="mlbHumCancelar">Cancelar</button>
+        <button class="btn-secondary" id="mlbHumGuardarBorrador" style="display:none;">Guardar sin finalizar</button>
         <button class="btn-primary" id="mlbHumGuardar">Guardar</button>
       </div>
     </div>

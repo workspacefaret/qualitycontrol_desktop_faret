@@ -60,6 +60,12 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
         public Task<(bool ok, string body)> ActualizarFechaEnsayoAsync(int id, object request) =>
             _client.PutJsonAsync($"api/muestra-laboratorio/{id}/fecha-ensayo", request);
 
+        // REG-LAB-04 v2, Fase 2: ensayo con varias muestras y determinaciones.
+        public Task<(bool ok, string body)> GuardarEnsayoMuestrasAsync(object request) =>
+            _client.PostJsonAsync("api/muestra-laboratorio/ensayos-muestras", request);
+
+        public Task<(bool ok, string body)> ConfigEnsayosMuestrasAsync() => _client.GetAsync("api/muestra-laboratorio/ensayos-muestras/config");
+
         public Task<(bool ok, string body)> GuardarHumedadAsync(object request) => _client.PostJsonAsync("api/muestra-laboratorio/humedad", request);
 
         public Task<(bool ok, string body)> GuardarGramajeAsync(object request) => _client.PostJsonAsync("api/muestra-laboratorio/gramaje", request);

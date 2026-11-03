@@ -145,3 +145,50 @@
     font-size: 12px;
     white-space: nowrap;
 }
+
+/* REG-LAB-04 v2 (Fase 2): bloques de muestra con sus determinaciones */
+.muestra-laboratorio-module .mlb-em-muestra {
+    border: 1px solid #E5E9F0;
+    border-radius: 9px;
+    padding: 10px 12px 2px;
+    margin-bottom: 10px;
+    background: #F8FAFC;
+}
+
+.muestra-laboratorio-module .mlb-em-cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #0F172A;
+}
+
+.muestra-laboratorio-module .mlb-em-promedio {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    align-self: flex-end;
+    margin-bottom: 20px;
+    min-width: 150px;
+}
+
+.muestra-laboratorio-module .mlb-em-incompleta {
+    color: #b45309;
+}
+
+.muestra-laboratorio-module .mlb-em-eliminada {
+    background: white;
+    border-style: dashed;
+    color: #607d8b;
+    font-size: 12px;
+    padding: 8px 12px;
+}
+
+.muestra-laboratorio-module .mlb-em-estado {
+    font-size: 12px;
+    color: #475569;
+    margin-top: 6px;
+}
