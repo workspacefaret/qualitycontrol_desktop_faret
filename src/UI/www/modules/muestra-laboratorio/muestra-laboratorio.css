@@ -192,3 +192,47 @@
     color: #475569;
     margin-top: 6px;
 }
+
+/* REG-LAB-04 v2: determinaciones con varias magnitudes */
+.muestra-laboratorio-module .mlb-em-formula {
+    font-size: 12px;
+    color: #475569;
+    background: #F1F5F9;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-bottom: 10px;
+}
+
+.muestra-laboratorio-module .mlb-em-det-fila {
+    border-top: 1px dashed #E5E9F0;
+    padding-top: 6px;
+    margin-bottom: 6px;
+}
+
+.muestra-laboratorio-module .mlb-em-det-titulo {
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 4px;
+}
+
+.muestra-laboratorio-module .mlb-em-det-validez label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.muestra-laboratorio-module .mlb-em-det-validez input[type="checkbox"] {
+    width: auto;
+}
+
+.muestra-laboratorio-module .mlb-em-det-res {
+    font-size: 12px;
+    color: #334155;
+    min-height: 16px;
+    margin-bottom: 4px;
+}
+
+.muestra-laboratorio-module .mlb-em-det-agregar {
+    margin-bottom: 8px;
+}

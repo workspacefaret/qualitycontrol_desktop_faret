@@ -58,6 +58,11 @@ if (!window.MuestraLaboratorioController) {
       return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     }
 
+    // Para valores dentro de atributos (value="..."): además escapa las comillas.
+    _escAttr(v) {
+      return this._esc(v).replace(/"/g, "&quot;")
+    }
+
     // Solo etiqueta visible — el valor real guardado en BD (m.estado) no cambia, para no migrar
     // histórico ni romper el filtro. Alinea con la terminología del REG-LAB-04 (punto 34).
     _labelEstado(estado) {
@@ -187,34 +192,40 @@ if (!window.MuestraLaboratorioController) {
         if (e.target.classList?.contains("mlb-em-agregar")) return this._emAgregarMuestra()
         if (e.target.classList?.contains("mlb-em-eliminar")) return this._emEliminarMuestra(parseInt(e.target.dataset.idx, 10))
         if (e.target.classList?.contains("mlb-em-deshacer")) return this._emDeshacerEliminar(parseInt(e.target.dataset.idx, 10))
+        if (e.target.classList?.contains("mlb-em-det-agregar")) return this._emAgregarDeterminacion(parseInt(e.target.dataset.idx, 10))
+        if (e.target.classList?.contains("mlb-em-det-quitar")) return this._emQuitarDeterminacion(parseInt(e.target.dataset.idx, 10), parseInt(e.target.dataset.di, 10))
+        if (e.target.classList?.contains("mlb-em-det-deshacer")) return this._emDeshacerQuitarDeterminacion(parseInt(e.target.dataset.idx, 10), parseInt(e.target.dataset.di, 10))
+        if (id === "mlbEmCancelar") return this.cerrarModal("mlbModalEnsayoMuestras")
+        if (id === "mlbEmGuardar") return this._guardarEnsayoMuestras("mlbModalEnsayoMuestras", true)
+        if (id === "mlbEmGuardarBorrador") return this._guardarEnsayoMuestras("mlbModalEnsayoMuestras", false)
         if (e.target.classList?.contains("mlb-em-continuar-btn")) return this.abrirEnsayoMuestras(parseInt(e.target.dataset.id, 10), false)
         if (e.target.classList?.contains("mlb-em-ver-btn")) return this.abrirEnsayoMuestras(parseInt(e.target.dataset.id, 10), true)
 
-        if (id === "mlbBtnNuevoGramaje") return this.abrirModal("mlbModalGramaje")
+        if (id === "mlbBtnNuevoGramaje") return this._nuevoEnsayo("GRAMAJE", () => this.abrirModal("mlbModalGramaje"))
         if (id === "mlbGraCancelar") return this.cerrarModal("mlbModalGramaje")
         if (id === "mlbGraGuardar") return this.guardarGramaje()
 
-        if (id === "mlbBtnNuevoCobb") return this.abrirModal("mlbModalCobb")
+        if (id === "mlbBtnNuevoCobb") return this._nuevoEnsayo("COBB", () => this.abrirModal("mlbModalCobb"))
         if (id === "mlbCobbCancelar") return this.cerrarModal("mlbModalCobb")
         if (id === "mlbCobbGuardar") return this.guardarCobb()
 
-        if (id === "mlbBtnNuevoEspesor") return this.abrirModal("mlbModalEspesor")
+        if (id === "mlbBtnNuevoEspesor") return this._nuevoEnsayo("ESPESOR", () => this.abrirModal("mlbModalEspesor"))
         if (id === "mlbEspCancelar") return this.cerrarModal("mlbModalEspesor")
         if (id === "mlbEspGuardar") return this.guardarEspesor()
 
-        if (id === "mlbBtnNuevoRct") return this.abrirModal("mlbModalRct")
+        if (id === "mlbBtnNuevoRct") return this._nuevoEnsayo("RCT", () => this.abrirModal("mlbModalRct"))
         if (id === "mlbRctCancelar") return this.cerrarModal("mlbModalRct")
         if (id === "mlbRctGuardar") return this.guardarRct()
 
-        if (id === "mlbBtnNuevoFct") return this.abrirModal("mlbModalFct")
+        if (id === "mlbBtnNuevoFct") return this._nuevoEnsayo("FCT", () => this.abrirModal("mlbModalFct"))
         if (id === "mlbFctCancelar") return this.cerrarModal("mlbModalFct")
         if (id === "mlbFctGuardar") return this.guardarFct()
 
-        if (id === "mlbBtnNuevoEct") return this.abrirModal("mlbModalEct")
+        if (id === "mlbBtnNuevoEct") return this._nuevoEnsayo("ECT", () => this.abrirModal("mlbModalEct"))
         if (id === "mlbEctCancelar") return this.cerrarModal("mlbModalEct")
         if (id === "mlbEctGuardar") return this.guardarEct()
 
-        if (id === "mlbBtnNuevoBctMedido") return this.abrirModalBctMedido()
+        if (id === "mlbBtnNuevoBctMedido") return this._nuevoEnsayo("BCT_MEDIDO", () => this.abrirModalBctMedido())
         if (id === "mlbBctMedCancelar") return this.cerrarModal("mlbModalBctMedido")
         if (id === "mlbBctMedGuardar") return this.guardarBctMedido()
 
@@ -288,7 +299,7 @@ if (!window.MuestraLaboratorioController) {
       document.addEventListener("change", this._changeHandler)
 
       this._inputHandler = (e) => {
-        if (e.target.classList?.contains("mlb-em-det") || e.target.classList?.contains("mlb-em-campo")) this._emOnInput(e.target)
+        if (e.target.closest?.(".mlb-em-panel")) this._emOnInput(e.target)
       }
       document.addEventListener("input", this._inputHandler)
       document.addEventListener("change", this._inputHandler)
@@ -1981,6 +1992,20 @@ if (!window.MuestraLaboratorioController) {
       const ensayo = (this._ensayosActuales || []).find(e => e.id === ensayoId)
       if (!ensayo) return
 
+      // REG-LAB-04 v2: los ensayos con muestras (salvo Humedad, que lo maneja _precargarHumedad)
+      // se corrigen en el formulario genérico, con las muestras vigentes precargadas.
+      if (ensayo.modeloMuestras && ensayo.tipoEnsayo !== "HUMEDAD") {
+        const cfgMuestras = this._cfgEnsayo(ensayo.tipoEnsayo, ensayo.variante)
+        if (!cfgMuestras) {
+          alert("La configuración de este ensayo no está disponible. Revisa la conexión con la API.")
+          return
+        }
+        this._corrigiendoEnsayoId = ensayoId
+        this._abrirEnsayoGenerico(cfgMuestras, ensayo, "corregir")
+        this._mostrarMotivoCorreccion("mlbModalEnsayoMuestras")
+        return
+      }
+
       const cfg = this._tipoEnsayoConfig(ensayo.tipoEnsayo)
       if (!cfg) {
         alert("Este tipo de ensayo aún no soporta corrección desde esta pantalla.")
@@ -2183,8 +2208,8 @@ if (!window.MuestraLaboratorioController) {
 
     _precargarBctTeorico(e) {
       const d = e.detalle || {}
-      const ects = (this._ensayosActuales || []).filter(x => x.tipoEnsayo === "ECT" && x.estado === "Finalizado")
-      const espesores = (this._ensayosActuales || []).filter(x => x.tipoEnsayo === "ESPESOR" && x.estado === "Finalizado")
+      const ects = (this._ensayosActuales || []).filter(x => x.tipoEnsayo === "ECT" && x.estado === "Finalizado" && x.resultadoValor != null)
+      const espesores = (this._ensayosActuales || []).filter(x => x.tipoEnsayo === "ESPESOR" && x.estado === "Finalizado" && x.resultadoValor != null)
 
       const selEct = document.getElementById("mlbBctTeoEct")
       const selEsp = document.getElementById("mlbBctTeoEspesor")
@@ -2260,30 +2285,69 @@ if (!window.MuestraLaboratorioController) {
         c.tipoEnsayo === tipoEnsayo && (c.variante || "").toLowerCase() === v) || null
     }
 
+    // Dónde vive cada editor de muestras: Humedad usa su propio formulario (selector de método);
+    // el resto de los ensayos del modelo nuevo usa el formulario genérico mlbModalEnsayoMuestras.
+    _emHost(panelId) {
+      return panelId === "mlbHumMuestrasPanel"
+        ? { modalId: "mlbModalHumedad", observacionId: "mlbHumObservacion" }
+        : { modalId: "mlbModalEnsayoMuestras", observacionId: "mlbEmObservacion" }
+    }
+
+    _emDetVacia(numero) {
+      return { id: null, numero, valores: {}, resultados: {}, valida: true, motivoInvalida: "", eliminar: false, guardada: false, error: null }
+    }
+
+    // Datos de muestra (tamaño de probeta, cara, tiempo...): el valor guardado o, en una muestra
+    // nueva, el valor por defecto que informa la API (visible y modificable por el analista).
+    _emParametrosIniciales(cfg, guardados) {
+      const p = {}
+      for (const par of cfg.parametros || []) p[par.codigo] = guardados ? (guardados[par.codigo] ?? "") : (par.defecto ?? "")
+      return p
+    }
+
     _emMuestraVacia(cfg) {
       return {
         id: null, numero: null, sustrato: "", bobinaNumero: "", bobinaLote: "", origenMuestra: "",
         tipoAnalisis: "Inicial", observacion: "", eliminar: false, motivoEliminacion: null, eliminada: false,
-        determinaciones: Array.from({ length: cfg.determinacionesIniciales }, (_, i) => ({ numero: i + 1, lectura1: null, valida: true, motivoInvalida: null })),
+        parametros: this._emParametrosIniciales(cfg, null), otrosGuardados: [], calculo: null,
+        determinaciones: Array.from({ length: cfg.determinacionesIniciales }, (_, i) => this._emDetVacia(i + 1)),
       }
     }
 
     _emDesdeServidor(m, cfg, comoNueva) {
       const dets = (m.determinaciones || []).map(d => ({
-        numero: d.numero, lectura1: d.lectura1 ?? null, valida: d.valida !== false, motivoInvalida: d.motivoInvalida || null,
+        id: comoNueva ? null : d.id, numero: d.numero,
+        valores: Object.fromEntries(Object.entries(d.valores || {}).filter(([, v]) => v !== null && v !== undefined)),
+        resultados: d.resultados || {}, valida: d.valida !== false, motivoInvalida: d.motivoInvalida || "",
+        eliminar: false, guardada: !comoNueva, error: null,
       }))
       for (let n = 1; n <= cfg.determinacionesIniciales; n++) {
-        if (!dets.some(d => d.numero === n)) dets.push({ numero: n, lectura1: null, valida: true, motivoInvalida: null })
+        if (!dets.some(d => d.numero === n)) dets.push(this._emDetVacia(n))
       }
       dets.sort((a, b) => a.numero - b.numero)
       return {
         id: comoNueva ? null : m.id, numero: comoNueva ? null : m.numero,
         sustrato: m.sustrato || "", bobinaNumero: m.bobinaNumero || "", bobinaLote: m.bobinaLote || "",
         origenMuestra: m.origenMuestra || "", tipoAnalisis: m.tipoAnalisis || "", observacion: m.observacion || "",
+        parametros: this._emParametrosIniciales(cfg, m.parametros || {}),
         eliminar: false, motivoEliminacion: null, eliminada: !comoNueva && !!m.eliminada,
         eliminadaPor: m.eliminadaPor, fechaEliminacion: m.fechaEliminacion, motivoEliminacionGuardado: m.motivoEliminacion,
-        unidad: m.unidad || null, promedioGuardado: m.promedio ?? null, completaGuardada: !!m.completa, cumplimientoGuardado: m.cumplimiento || null,
+        unidad: m.unidad || null, promedioGuardado: m.promedio ?? null, completaGuardada: !!m.completa,
+        cumplimientoGuardado: m.cumplimiento || null, otrosGuardados: m.otrosPromedios || [], calculo: null,
         determinaciones: dets,
+      }
+    }
+
+    // Para ver un ensayo guardado cuyo tipo ya no está en la configuración de la API: se arma una
+    // configuración mínima con lo que trae el propio ensayo (el dato guardado nunca se oculta).
+    _emCfgSoloLectura(e) {
+      const codigos = new Set()
+      ;(e.muestras || []).forEach(m => (m.determinaciones || []).forEach(d => Object.keys(d.valores || {}).forEach(k => codigos.add(k))))
+      return {
+        tipoEnsayo: e.tipoEnsayo, variante: e.variante, nombre: e.tipoEnsayo, determinacionesIniciales: 0, determinacionesMinimas: 0,
+        determinacionesMaximas: 0, nombreDeterminacion: "Determinación", unidad: e.resultadoUnidad || "", decimales: 2,
+        entradas: [...codigos].map(c => ({ codigo: c, etiqueta: c, unidad: null, obligatoria: true })),
+        resultados: [], parametros: [], derivados: [], usaBobina: true, usaOrigen: true, sustratos: null,
       }
     }
 
@@ -2296,21 +2360,31 @@ if (!window.MuestraLaboratorioController) {
       if (muestras.length === 0) muestras = [this._emMuestraVacia(cfg)]
 
       this._em = {
-        panelId, cfg, modo,
+        panelId, cfg, modo, ...this._emHost(panelId),
         ensayoId: modo === "continuar" || modo === "ver" ? ensayo.id : null,
         revision: modo === "continuar" ? ensayo.revision : null,
         soloLectura: modo === "ver",
         numeroMaximo: Math.max(0, ...((ensayo?.muestras || []).map(m => m.numero))),
         muestras,
       }
-      const estado = document.querySelector(`#${panelId} .mlb-em-estado`)
+      const panel = document.getElementById(panelId)
+      const estado = panel?.querySelector(".mlb-em-estado")
       if (estado) estado.textContent = ""
+      const formula = panel?.querySelector(".mlb-em-formula")
+      if (formula) {
+        formula.textContent = cfg.formula ? `Fórmula: ${cfg.formula}` : ""
+        formula.style.display = cfg.formula ? "" : "none"
+      }
       this._emRender()
+      this._emProgramarCalculo(0)
     }
 
     _emNum(v) {
       if (v === null || v === undefined || v === "") return null
-      const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."))
+      if (typeof v === "number") return Number.isFinite(v) ? v : null
+      const t = String(v).trim().replace(",", ".")
+      if (t === "") return null
+      const n = Number(t)
       return Number.isFinite(n) ? n : null
     }
 
@@ -2318,21 +2392,81 @@ if (!window.MuestraLaboratorioController) {
       return Number(v).toLocaleString("es-CL", { minimumFractionDigits: dec, maximumFractionDigits: dec })
     }
 
-    // Solo para mostrar mientras se escribe: el promedio oficial lo calcula y guarda la API con la
-    // misma regla (determinaciones válidas e informadas; sin el mínimo, la muestra queda incompleta).
+    _emEtiquetaDet(cfg, numero) {
+      const et = cfg.etiquetasDeterminaciones
+      if (et && numero >= 1 && numero <= et.length) return et[numero - 1]
+      const nombre = cfg.nombreDeterminacion || "Determinación"
+      return nombre.length === 1 ? `${nombre}${numero}` : `${nombre} ${numero}`
+    }
+
+    _emDecimales(cfg, codigoValor) {
+      const codigo = codigoValor.slice(codigoValor.indexOf(":") + 1)
+      const def = codigoValor.startsWith("derivado:")
+        ? (cfg.derivados || []).find(x => x.codigo === codigo)
+        : (cfg.resultados || []).find(x => x.codigo === codigo)
+      return def?.decimales ?? cfg.decimales ?? 2
+    }
+
+    _emTextoOtros(cfg, otros) {
+      return (otros || []).filter(o => o.valor !== null && o.valor !== undefined)
+        .map(o => ` · ${this._esc(o.etiqueta)}: ${this._emFormato(o.valor, this._emDecimales(cfg, o.codigo))}${o.unidad ? ` ${this._esc(o.unidad)}` : ""}`)
+        .join("")
+    }
+
+    // Resultado de la muestra. Mientras se escribe sale de muestraLab.ensayoMuestras.calcular (las
+    // mismas fórmulas y reglas que el guardado, en la API); al ver un ensayo, de lo guardado.
     _emTextoPromedio(m) {
       const cfg = this._em.cfg
       if (this._em.soloLectura) {
         if (!m.completaGuardada || m.promedioGuardado === null) return `<span class="mlb-em-incompleta">Incompleta</span>`
         const unidad = m.unidad || cfg.unidad || ""
-        return `Promedio: ${this._emFormato(m.promedioGuardado, cfg.decimales ?? 2)} ${this._esc(unidad)}${m.cumplimientoGuardado ? ` · ${this._esc(m.cumplimientoGuardado)}` : ""}`
+        return `Promedio: ${this._emFormato(m.promedioGuardado, cfg.decimales ?? 2)} ${this._esc(unidad)}${this._emTextoOtros(cfg, m.otrosGuardados)}${m.cumplimientoGuardado ? ` · ${this._esc(m.cumplimientoGuardado)}` : ""}`
       }
-      const valores = m.determinaciones.filter(d => d.valida && this._emNum(d.lectura1) !== null).map(d => this._emNum(d.lectura1))
-      if (valores.length < cfg.determinacionesMinimas) {
-        return `<span class="mlb-em-incompleta">Incompleta: ${valores.length} de ${cfg.determinacionesMinimas} determinaciones</span>`
+      const c = m.calculo
+      if (this._em.calculoError) return `<span class="mlb-em-incompleta">${this._esc(this._em.calculoError)}</span>`
+      if (!c) return `<span class="mlb-em-incompleta">Calculando…</span>`
+      if (c.error) return `<span class="mlb-em-incompleta">${this._esc(c.error)}</span>`
+      if (!c.completa || c.promedio === null || c.promedio === undefined) {
+        return `<span class="mlb-em-incompleta">Incompleta: ${this._esc(c.faltante || "faltan datos")}</span>`
       }
-      const prom = valores.reduce((a, b) => a + b, 0) / valores.length
-      return `Promedio: ${this._emFormato(prom, cfg.decimales)} ${this._esc(cfg.unidad)}`
+      return `Promedio: ${this._emFormato(c.promedio, cfg.decimales ?? 2)} ${this._esc(c.unidad || cfg.unidad || "")}${this._emTextoOtros(cfg, c.otrosPromedios)}`
+    }
+
+    // Resultados calculados de una determinación (solo los que no son el mismo valor ingresado).
+    _emTextoResultadosDet(cfg, d) {
+      if (d.error) return `<span class="mlb-em-incompleta">${this._esc(d.error)}</span>`
+      if (!d.valida) return `<span class="mlb-em-incompleta">No válida: queda fuera de los promedios${d.motivoInvalida && this._em?.soloLectura ? ` (${this._esc(d.motivoInvalida)})` : ""}</span>`
+      const entradas = new Set((cfg.entradas || []).map(x => x.codigo))
+      return (cfg.resultados || [])
+        .filter(r => !entradas.has(r.codigo) && d.resultados?.[r.codigo] !== null && d.resultados?.[r.codigo] !== undefined)
+        .map(r => `${this._esc(r.etiqueta)}: ${this._emFormato(d.resultados[r.codigo], r.decimales ?? 2)}${r.unidad ? ` ${this._esc(r.unidad)}` : ""}`)
+        .join(" · ")
+    }
+
+    _emRenderDet(cfg, idx, di, d, ro) {
+      const etiqueta = this._esc(this._emEtiquetaDet(cfg, d.numero))
+      const attrs = `data-idx="${idx}" data-di="${di}"`
+      if (d.eliminar) {
+        return `<div class="mlb-em-det-fila mlb-em-eliminada">${etiqueta}: se eliminará al guardar. <button type="button" class="btn-secondary mlb-em-det-deshacer" ${attrs}>Deshacer</button></div>`
+      }
+      const entradas = (cfg.entradas || []).map(en => `
+          <div class="mlb-form-campo"><label>${this._esc(en.etiqueta)}${en.unidad ? ` (${this._esc(en.unidad)})` : ""}${en.obligatoria === false ? " (opcional)" : ""}</label>
+            <input type="number" step="any" class="mlb-em-det" ${attrs} data-codigo="${this._escAttr(en.codigo)}" value="${this._escAttr(d.valores[en.codigo] ?? "")}" ${ro}></div>`).join("")
+      const quitar = !ro && d.numero > cfg.determinacionesMinimas
+        ? `<button type="button" class="btn-secondary mlb-em-det-quitar" ${attrs}>Quitar</button>` : ""
+      return `
+        <div class="mlb-em-det-fila" ${attrs}>
+          <div class="mlb-em-det-titulo">${etiqueta}</div>
+          <div class="mlb-form-row">
+            ${entradas}
+            <div class="mlb-form-campo mlb-em-det-validez">
+              <label><input type="checkbox" class="mlb-em-det-invalida" ${attrs} ${d.valida ? "" : "checked"} ${ro}> No válida</label>
+              <input type="text" class="mlb-em-det-motivo" ${attrs} placeholder="Motivo (obligatorio)" maxlength="500" value="${this._escAttr(d.motivoInvalida)}" style="${d.valida ? "display:none;" : ""}" ${ro}>
+            </div>
+            ${quitar}
+          </div>
+          <div class="mlb-em-det-res" ${attrs}>${this._emTextoResultadosDet(cfg, d)}</div>
+        </div>`
     }
 
     _emRender() {
@@ -2341,8 +2475,10 @@ if (!window.MuestraLaboratorioController) {
       if (!panel) return
       const cfg = em.cfg
       const ro = em.soloLectura ? "disabled" : ""
-      const opciones = (lista, valor) => lista.map(([v, t]) => `<option value="${v}" ${v === valor ? "selected" : ""}>${t}</option>`).join("")
-      const sustratos = [["", "-- Seleccionar --"], ["Liner", "Liner"], ["Onda", "Onda"], ["Cartulina", "Cartulina"]]
+      const opciones = (lista, valor) => {
+        const items = valor && !lista.some(([v]) => v === valor) ? [...lista, [valor, valor]] : lista
+        return items.map(([v, t]) => `<option value="${this._escAttr(v)}" ${v === valor ? "selected" : ""}>${this._esc(t)}</option>`).join("")
+      }
       const origenes = [["", "-- No informado --"], ["Bobinas", "Bobina"], ["SeparacionPapeles", "Separación de papeles o descape"]]
       const tipos = [["", "-- Seleccionar --"], ["Inicial", "Inicial"], ["Contramuestra", "Contramuestra"], ["Reensayo", "Reensayo"]]
 
@@ -2355,32 +2491,105 @@ if (!window.MuestraLaboratorioController) {
         if (m.eliminar) {
           return `<div class="mlb-em-muestra mlb-em-eliminada" data-idx="${idx}">Muestra N.º ${numero}: se eliminará al guardar. <button type="button" class="btn-secondary mlb-em-deshacer" data-idx="${idx}">Deshacer</button></div>`
         }
-        const dets = m.determinaciones.map((d, di) => `
-          <div class="mlb-form-campo"><label>Determinación ${d.numero} (${this._esc(cfg.unidad)})</label>
-            <input type="number" step="any" class="mlb-em-det" data-idx="${idx}" data-di="${di}" value="${d.lectura1 ?? ""}" ${ro}></div>`).join("")
+        const campo = (etiqueta, html) => `<div class="mlb-form-campo"><label>${etiqueta}</label>${html}</div>`
+        const ident = []
+        if (cfg.sustratos && cfg.sustratos.length) {
+          ident.push(campo(this._esc(cfg.etiquetaSustrato || "Sustrato"),
+            `<select class="mlb-em-campo" data-idx="${idx}" data-campo="sustrato" ${ro}>${opciones([["", "-- Seleccionar --"], ...cfg.sustratos.map(s => [s, s])], m.sustrato)}</select>`))
+        }
+        if (cfg.usaBobina) {
+          ident.push(campo("N.º de bobina", `<input type="text" class="mlb-em-campo" data-idx="${idx}" data-campo="bobinaNumero" value="${this._escAttr(m.bobinaNumero)}" ${ro}>`))
+          ident.push(campo("Lote de bobina", `<input type="text" class="mlb-em-campo" data-idx="${idx}" data-campo="bobinaLote" value="${this._escAttr(m.bobinaLote)}" ${ro}>`))
+        }
+        if (cfg.usaOrigen) {
+          ident.push(campo("Origen de la muestra", `<select class="mlb-em-campo" data-idx="${idx}" data-campo="origenMuestra" ${ro}>${opciones(origenes, m.origenMuestra)}</select>`))
+        }
+        ident.push(campo("Tipo de análisis", `<select class="mlb-em-campo" data-idx="${idx}" data-campo="tipoAnalisis" ${ro}>${opciones(tipos, m.tipoAnalisis)}</select>`))
+        const params = (cfg.parametros || []).map(p => {
+          const etiqueta = `${this._esc(p.etiqueta)}${p.obligatorio ? " *" : ""}`
+          const valor = m.parametros?.[p.codigo] ?? ""
+          return p.opciones && p.opciones.length
+            ? campo(etiqueta, `<select class="mlb-em-param" data-idx="${idx}" data-codigo="${this._escAttr(p.codigo)}" ${ro}>${opciones([["", "-- Seleccionar --"], ...p.opciones.map(o => [o, o])], valor)}</select>`)
+            : campo(etiqueta, `<input type="text" class="mlb-em-param" data-idx="${idx}" data-codigo="${this._escAttr(p.codigo)}" maxlength="150" value="${this._escAttr(valor)}" ${ro}>`)
+        }).join("")
+        const activas = m.determinaciones.filter(d => !d.eliminar).length
+        const agregarDet = !em.soloLectura && activas < cfg.determinacionesMaximas
+          ? `<button type="button" class="btn-secondary mlb-em-det-agregar" data-idx="${idx}">+ Agregar ${this._esc((cfg.nombreDeterminacion || "determinación").toLowerCase())}</button>` : ""
         return `
           <div class="mlb-em-muestra" data-idx="${idx}">
             <div class="mlb-em-cabecera">
               <span>Muestra N.º ${numero}${m.id ? "" : " (nueva)"}</span>
               ${em.soloLectura ? "" : `<button type="button" class="btn-secondary mlb-em-eliminar" data-idx="${idx}">Eliminar muestra</button>`}
             </div>
-            <div class="mlb-form-row">
-              <div class="mlb-form-campo"><label>Sustrato</label><select class="mlb-em-campo" data-idx="${idx}" data-campo="sustrato" ${ro}>${opciones(sustratos, m.sustrato)}</select></div>
-              <div class="mlb-form-campo"><label>N.º de bobina</label><input type="text" class="mlb-em-campo" data-idx="${idx}" data-campo="bobinaNumero" value="${this._esc(m.bobinaNumero)}" ${ro}></div>
-              <div class="mlb-form-campo"><label>Lote de bobina</label><input type="text" class="mlb-em-campo" data-idx="${idx}" data-campo="bobinaLote" value="${this._esc(m.bobinaLote)}" ${ro}></div>
-            </div>
-            <div class="mlb-form-row">
-              <div class="mlb-form-campo"><label>Origen de la muestra</label><select class="mlb-em-campo" data-idx="${idx}" data-campo="origenMuestra" ${ro}>${opciones(origenes, m.origenMuestra)}</select></div>
-              <div class="mlb-form-campo"><label>Tipo de análisis</label><select class="mlb-em-campo" data-idx="${idx}" data-campo="tipoAnalisis" ${ro}>${opciones(tipos, m.tipoAnalisis)}</select></div>
-            </div>
-            <div class="mlb-form-row">
-              ${dets}
-              <div class="mlb-em-promedio" data-idx="${idx}">${this._emTextoPromedio(m)}</div>
-            </div>
+            <div class="mlb-form-row">${ident.join("")}</div>
+            ${params ? `<div class="mlb-form-row">${params}</div>` : ""}
+            ${m.determinaciones.map((d, di) => this._emRenderDet(cfg, idx, di, d, ro)).join("")}
+            ${agregarDet}
+            <div class="mlb-em-promedio" data-idx="${idx}">${this._emTextoPromedio(m)}</div>
           </div>`
       }).join("")
 
       panel.querySelector(".mlb-em-agregar").style.display = em.soloLectura ? "none" : "inline-block"
+    }
+
+    // Repinta solo los resultados (sin redibujar los campos, para no perder el foco).
+    _emPintarCalculos() {
+      const em = this._em
+      if (!em) return
+      em.muestras.forEach((m, idx) => {
+        const prom = document.querySelector(`#${em.panelId} .mlb-em-promedio[data-idx="${idx}"]`)
+        if (prom) prom.innerHTML = this._emTextoPromedio(m)
+        m.determinaciones.forEach((d, di) => {
+          const res = document.querySelector(`#${em.panelId} .mlb-em-det-res[data-idx="${idx}"][data-di="${di}"]`)
+          if (res) res.innerHTML = this._emTextoResultadosDet(em.cfg, d)
+        })
+      })
+    }
+
+    _emProgramarCalculo(ms = 250) {
+      clearTimeout(this._emTimer)
+      if (!this._em || this._em.soloLectura) return
+      this._emTimer = setTimeout(() => this._emCalcular(), ms)
+    }
+
+    async _emCalcular() {
+      const em = this._em
+      if (!em || em.soloLectura) return
+      const idxs = []
+      const muestras = []
+      em.muestras.forEach((m, idx) => {
+        if (m.eliminada || m.eliminar) return
+        idxs.push(idx)
+        muestras.push(this._emPayloadMuestra(m))
+      })
+      const token = (this._emCalcToken = (this._emCalcToken || 0) + 1)
+      let res
+      try {
+        res = await window.PhotinoBridge.send({
+          action: "muestraLab.ensayoMuestras.calcular",
+          data: { tipoEnsayo: em.cfg.tipoEnsayo, variante: em.cfg.variante, muestras },
+        })
+      } catch {
+        res = null
+      }
+      if (token !== this._emCalcToken || this._em !== em) return // llegó una respuesta vieja
+      if (!res || res.ok === false || !res.data) {
+        em.calculoError = `No se pudo calcular: ${res?.error || "sin respuesta de la API"}. El guardado igual valida y calcula todo.`
+        this._emPintarCalculos()
+        return
+      }
+      em.calculoError = null
+      ;(res.data.muestras || []).forEach((c, i) => {
+        const m = em.muestras[idxs[i]]
+        if (!m) return
+        m.calculo = c
+        for (const d of m.determinaciones) {
+          const dc = (c.determinaciones || []).find(x => x.numero === d.numero)
+          d.error = dc?.error || null
+          d.resultados = dc?.resultados || {}
+        }
+      })
+      this._emPintarCalculos()
     }
 
     // Sincroniza lo escrito con el estado (sin redibujar, para no perder el foco).
@@ -2389,19 +2598,33 @@ if (!window.MuestraLaboratorioController) {
       if (!em || em.soloLectura) return
       const m = em.muestras[parseInt(target.dataset.idx, 10)]
       if (!m) return
-      if (target.classList.contains("mlb-em-det")) {
-        m.determinaciones[parseInt(target.dataset.di, 10)].lectura1 = target.value === "" ? null : target.value
-        const prom = document.querySelector(`#${em.panelId} .mlb-em-promedio[data-idx="${target.dataset.idx}"]`)
-        if (prom) prom.innerHTML = this._emTextoPromedio(m)
-      } else if (target.classList.contains("mlb-em-campo")) {
+      const d = target.dataset.di !== undefined ? m.determinaciones[parseInt(target.dataset.di, 10)] : null
+      const cl = target.classList
+      if (cl.contains("mlb-em-det") && d) {
+        d.valores[target.dataset.codigo] = target.value === "" ? null : target.value
+      } else if (cl.contains("mlb-em-det-invalida") && d) {
+        d.valida = !target.checked
+        const motivo = target.closest(".mlb-em-det-fila")?.querySelector(".mlb-em-det-motivo")
+        if (motivo) motivo.style.display = d.valida ? "none" : ""
+      } else if (cl.contains("mlb-em-det-motivo") && d) {
+        d.motivoInvalida = target.value
+        return
+      } else if (cl.contains("mlb-em-param")) {
+        m.parametros[target.dataset.codigo] = target.value
+      } else if (cl.contains("mlb-em-campo")) {
         m[target.dataset.campo] = target.value
+        if (target.dataset.campo !== "sustrato") return
+      } else {
+        return
       }
+      this._emProgramarCalculo()
     }
 
     _emAgregarMuestra() {
       if (!this._em || this._em.soloLectura) return
       this._em.muestras.push(this._emMuestraVacia(this._em.cfg))
       this._emRender()
+      this._emProgramarCalculo(0)
     }
 
     _emEliminarMuestra(idx) {
@@ -2418,6 +2641,7 @@ if (!window.MuestraLaboratorioController) {
         m.motivoEliminacion = motivo.trim() || null
       }
       this._emRender()
+      this._emProgramarCalculo(0)
     }
 
     _emDeshacerEliminar(idx) {
@@ -2426,6 +2650,64 @@ if (!window.MuestraLaboratorioController) {
       m.eliminar = false
       m.motivoEliminacion = null
       this._emRender()
+      this._emProgramarCalculo(0)
+    }
+
+    // Determinaciones adicionales (solo entre el mínimo y el máximo del ensayo, p. ej. 4.ª/5.ª caja de BCT).
+    _emAgregarDeterminacion(idx) {
+      const em = this._em
+      const m = em?.muestras[idx]
+      if (!m || em.soloLectura) return
+      if (m.determinaciones.filter(d => !d.eliminar).length >= em.cfg.determinacionesMaximas) return
+      const usados = new Set(m.determinaciones.map(d => d.numero))
+      let n = 1
+      while (usados.has(n)) n++
+      if (n > em.cfg.determinacionesMaximas) return
+      m.determinaciones.push(this._emDetVacia(n))
+      m.determinaciones.sort((a, b) => a.numero - b.numero)
+      this._emRender()
+      this._emProgramarCalculo(0)
+    }
+
+    _emQuitarDeterminacion(idx, di) {
+      const m = this._em?.muestras[idx]
+      const d = m?.determinaciones[di]
+      if (!d || d.numero <= this._em.cfg.determinacionesMinimas) return
+      if (d.guardada) d.eliminar = true
+      else m.determinaciones.splice(di, 1)
+      this._emRender()
+      this._emProgramarCalculo(0)
+    }
+
+    _emDeshacerQuitarDeterminacion(idx, di) {
+      const d = this._em?.muestras[idx]?.determinaciones[di]
+      if (!d) return
+      d.eliminar = false
+      this._emRender()
+      this._emProgramarCalculo(0)
+    }
+
+    _emPayloadMuestra(m) {
+      const cfg = this._em.cfg
+      const texto = (v) => (v ?? "").toString().trim() || null
+      return {
+        id: m.id,
+        sustrato: cfg.sustratos && cfg.sustratos.length ? texto(m.sustrato) : null,
+        bobinaNumero: cfg.usaBobina ? texto(m.bobinaNumero) : null,
+        bobinaLote: cfg.usaBobina ? texto(m.bobinaLote) : null,
+        origenMuestra: cfg.usaOrigen ? texto(m.origenMuestra) : null,
+        tipoAnalisis: texto(m.tipoAnalisis),
+        observacion: texto(m.observacion),
+        parametros: Object.fromEntries((cfg.parametros || []).map(p => [p.codigo, texto(m.parametros?.[p.codigo])])),
+        determinaciones: m.determinaciones.map(d => d.eliminar
+          ? { numero: d.numero, eliminar: true }
+          : {
+            numero: d.numero,
+            valores: Object.fromEntries((cfg.entradas || []).map(en => [en.codigo, this._emNum(d.valores[en.codigo])])),
+            valida: d.valida,
+            motivoInvalida: d.valida ? null : texto(d.motivoInvalida),
+          }),
+      }
     }
 
     _emPayloadMuestras() {
@@ -2436,13 +2718,7 @@ if (!window.MuestraLaboratorioController) {
           if (m.id) lista.push({ id: m.id, eliminar: true, motivoEliminacion: m.motivoEliminacion })
           continue
         }
-        lista.push({
-          id: m.id, sustrato: m.sustrato || null, bobinaNumero: m.bobinaNumero.trim() || null, bobinaLote: m.bobinaLote.trim() || null,
-          origenMuestra: m.origenMuestra || null, tipoAnalisis: m.tipoAnalisis || null, observacion: m.observacion || null,
-          determinaciones: m.determinaciones.map(d => ({
-            numero: d.numero, lectura1: this._emNum(d.lectura1), valida: d.valida, motivoInvalida: d.motivoInvalida,
-          })),
-        })
+        lista.push(this._emPayloadMuestra(m))
       }
       return lista
     }
@@ -2452,12 +2728,20 @@ if (!window.MuestraLaboratorioController) {
       const em = this._em
       if (!em || em.soloLectura || !this._muestraActualId) return
 
+      // Un texto que no es número nunca se envía como vacío sin avisar.
+      let nuevas = 0
       for (const m of em.muestras) {
-        if (m.eliminada || m.eliminar) continue
+        if (m.eliminada) continue
+        const numero = m.numero ?? em.numeroMaximo + (++nuevas)
+        if (m.eliminar) continue
         for (const d of m.determinaciones) {
-          if (d.lectura1 !== null && d.lectura1 !== "" && this._emNum(d.lectura1) === null) {
-            alert(`La determinación ${d.numero} tiene un valor que no es un número.`)
-            return
+          if (d.eliminar) continue
+          for (const en of em.cfg.entradas || []) {
+            const v = d.valores[en.codigo]
+            if (v !== null && v !== undefined && String(v).trim() !== "" && this._emNum(v) === null) {
+              alert(`Muestra N.º ${numero}, ${this._emEtiquetaDet(em.cfg, d.numero)}: "${v}" no es un número válido para ${en.etiqueta.toLowerCase()}.`)
+              return
+            }
           }
         }
       }
@@ -2469,7 +2753,7 @@ if (!window.MuestraLaboratorioController) {
         tipoEnsayo: em.cfg.tipoEnsayo,
         variante: em.cfg.variante,
         finalizar,
-        observacion: document.getElementById("mlbHumObservacion")?.value.trim() || null,
+        observacion: document.getElementById(em.observacionId)?.value.trim() || null,
         muestras: this._emPayloadMuestras(),
       }
       if (em.modo === "corregir" && !this._aplicarDatosCorreccion(data)) return
@@ -2489,6 +2773,7 @@ if (!window.MuestraLaboratorioController) {
         // Borrador: se queda en el formulario con la revisión nueva, listo para seguir.
         const ensayo = (this._ensayosActuales || []).find(e => e.id === ensayoId)
         if (ensayo) this._emIniciar(em.panelId, em.cfg, ensayo, "continuar")
+        if (em.panelId === "mlbEmMuestrasPanel") this._emActualizarBotonesGenerico()
         const estado = document.querySelector(`#${em.panelId} .mlb-em-estado`)
         if (estado) {
           const hora = new Date().toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })
@@ -2497,6 +2782,35 @@ if (!window.MuestraLaboratorioController) {
       } catch (err) {
         alert(err.message)
       }
+    }
+
+    // ---------- Formulario genérico (todos los ensayos del modelo nuevo salvo Humedad) ----------
+    // Botones "Nuevo X": con configuración del modelo nuevo en la API se abre el formulario de
+    // muestras; sin ella (API anterior), el formulario histórico de siempre.
+    _nuevoEnsayo(tipoEnsayo, abrirHistorico) {
+      const cfg = this._cfgEnsayo(tipoEnsayo, null)
+      if (!cfg) return abrirHistorico()
+      this._abrirEnsayoGenerico(cfg, null, "nuevo")
+    }
+
+    _abrirEnsayoGenerico(cfg, ensayo, modo) {
+      document.getElementById("mlbEmTitulo").textContent = `Ensayo de ${cfg.nombre || cfg.tipoEnsayo}`
+      // El método lo resuelve la API desde el maestro al crear el ensayo; acá solo se muestra.
+      if (modo === "nuevo" || modo === "corregir") this._refrescarMetodoAuto(cfg.tipoEnsayo, "mlbEmMetodo")
+      else document.getElementById("mlbEmMetodo").value = ensayo?.metodo || ""
+      document.getElementById("mlbEmObservacion").value = ensayo?.observacion || ""
+      this._emIniciar("mlbEmMuestrasPanel", cfg, ensayo, modo)
+      this._emActualizarBotonesGenerico()
+      document.getElementById("mlbModalEnsayoMuestras").style.display = "flex"
+    }
+
+    _emActualizarBotonesGenerico() {
+      const em = this._em
+      const soloLectura = !!em?.soloLectura
+      document.getElementById("mlbEmGuardarBorrador").style.display = !soloLectura && em?.modo !== "corregir" ? "inline-block" : "none"
+      document.getElementById("mlbEmGuardar").style.display = soloLectura ? "none" : ""
+      document.getElementById("mlbEmCancelar").textContent = soloLectura ? "Cerrar" : "Cancelar"
+      document.getElementById("mlbEmObservacion").disabled = soloLectura
     }
 
     // ---------- Humedad: qué formulario usa ----------
@@ -2518,16 +2832,14 @@ if (!window.MuestraLaboratorioController) {
     abrirEnsayoMuestras(ensayoId, soloLectura) {
       const e = (this._ensayosActuales || []).find(x => x.id === ensayoId)
       if (!e) return
-      if (e.tipoEnsayo !== "HUMEDAD") {
-        alert("Este tipo de ensayo aún no se puede abrir desde esta pantalla.")
-        return
-      }
       // Para ver un ensayo ya guardado basta lo que trae; la configuración solo hace falta para editar.
-      const cfg = this._cfgEnsayo(e.tipoEnsayo, e.variante) || (soloLectura
-        ? { tipoEnsayo: e.tipoEnsayo, variante: e.variante, determinacionesIniciales: 0, determinacionesMinimas: 0, determinacionesMaximas: 0, unidad: e.resultadoUnidad || "", decimales: 2 }
-        : null)
+      const cfg = this._cfgEnsayo(e.tipoEnsayo, e.variante) || (soloLectura ? this._emCfgSoloLectura(e) : null)
       if (!cfg) {
         alert("La configuración de este ensayo no está disponible. Revisa la conexión con la API.")
+        return
+      }
+      if (e.tipoEnsayo !== "HUMEDAD") {
+        this._abrirEnsayoGenerico(cfg, e, soloLectura ? "ver" : "continuar")
         return
       }
       this._humModoLegacy = false
@@ -2555,9 +2867,9 @@ if (!window.MuestraLaboratorioController) {
       const soloLectura = nuevo && !!this._em?.soloLectura
       const corrigiendo = !!this._corrigiendoEnsayoId
 
-      document.getElementById("mlbHumHigrometroCampos").style.display = metodo === "Higrometro" ? "flex" : "none"
+      document.getElementById("mlbHumHigrometroCampos").style.display = metodo === "Higrometro" && !nuevo ? "flex" : "none"
       document.getElementById("mlbHumTermobalanzaCampos").style.display = metodo === "Termobalanza" && !nuevo ? "flex" : "none"
-      document.getElementById("mlbHumHornoCampos").style.display = metodo === "Horno" ? "block" : "none"
+      document.getElementById("mlbHumHornoCampos").style.display = metodo === "Horno" && !nuevo ? "block" : "none"
       document.getElementById("mlbHumMuestrasPanel").style.display = nuevo ? "block" : "none"
       document.getElementById("mlbHumOrigenCampo").style.display = nuevo ? "none" : ""
       document.getElementById("mlbHumBobinasLegacy").style.display = nuevo ? "none" : ""
@@ -2909,14 +3221,14 @@ if (!window.MuestraLaboratorioController) {
     // BCT TEORICO (McKee)
     // =====================================================================
     abrirModalBctTeorico() {
-      const ects = (this._ensayosActuales || []).filter(e => e.tipoEnsayo === "ECT" && e.estado === "Finalizado")
-      const espesores = (this._ensayosActuales || []).filter(e => e.tipoEnsayo === "ESPESOR" && e.estado === "Finalizado")
+      const ects = (this._ensayosActuales || []).filter(e => e.tipoEnsayo === "ECT" && e.estado === "Finalizado" && e.resultadoValor != null)
+      const espesores = (this._ensayosActuales || []).filter(e => e.tipoEnsayo === "ESPESOR" && e.estado === "Finalizado" && e.resultadoValor != null)
 
       const selEct = document.getElementById("mlbBctTeoEct")
       const selEsp = document.getElementById("mlbBctTeoEspesor")
 
       if (ects.length === 0 || espesores.length === 0) {
-        alert("Necesitas al menos un ECT y un Espesor finalizados en esta muestra antes de calcular el BCT teórico.")
+        alert("Necesitas al menos un ECT y un Espesor finalizados en esta muestra (con resultado consolidado) antes de calcular el BCT teórico.")
         return
       }
 

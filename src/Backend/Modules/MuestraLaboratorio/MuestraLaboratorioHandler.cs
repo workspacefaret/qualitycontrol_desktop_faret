@@ -411,6 +411,20 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                 if (action == "muestraLab.ensayoMuestras.config")
                     return await Forward(_api.ConfigEnsayosMuestrasAsync());
 
+                // Solo calcula (la API no guarda nada): resultados y promedios mientras se escribe.
+                if (action == "muestraLab.ensayoMuestras.calcular")
+                {
+                    var request = new
+                    {
+                        TipoEnsayo = GetString(jsonData, "tipoEnsayo"),
+                        Variante = GetString(jsonData, "variante"),
+                        Muestras = jsonData.TryGetProperty("muestras", out var ms) && ms.ValueKind == JsonValueKind.Array
+                            ? (object)ms.Clone()
+                            : Array.Empty<object>(),
+                    };
+                    return await Forward(_api.CalcularEnsayoMuestrasAsync(request));
+                }
+
                 if (action == "muestraLab.ensayoMuestras.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
