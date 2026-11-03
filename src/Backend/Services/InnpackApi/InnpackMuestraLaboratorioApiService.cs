@@ -98,6 +98,9 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
 
         public Task<(bool ok, string body)> GuardarLugolAsync(object request) => _client.PostJsonAsync("api/muestra-laboratorio/lugol", request);
 
+        public Task<(bool ok, string body)> GuardarFiltracionAsync(object request) =>
+            _client.PostJsonAsync("api/muestra-laboratorio/filtracion", request);
+
         public Task<(bool ok, string body)> ListarEspecificacionesAsync() => _client.GetAsync("api/muestra-laboratorio/especificaciones");
 
         public Task<(bool ok, string body)> GuardarEspecificacionAsync(object request) =>

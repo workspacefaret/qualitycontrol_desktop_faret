@@ -252,6 +252,10 @@ if (!window.MuestraLaboratorioController) {
         if (id === "mlbSolCancelar") return this.cerrarModal("mlbModalSolidos")
         if (id === "mlbSolGuardar") return this.guardarSolidos()
 
+        if (id === "mlbBtnNuevoFiltracion") return this.abrirFiltracion()
+        if (id === "mlbFilCancelar") return this.cerrarModal("mlbModalFiltracion")
+        if (id === "mlbFilGuardar") return this.guardarFiltracion()
+
         if (id === "mlbBtnNuevoLugol") return this.abrirModal("mlbModalLugol")
         if (id === "mlbLugolCancelar") return this.cerrarModal("mlbModalLugol")
         if (id === "mlbLugolGuardar") return this.guardarLugol()
@@ -565,7 +569,7 @@ if (!window.MuestraLaboratorioController) {
           <tr>
             <td>${m.tipoEnsayo}</td>
             <td>${m.variante || "-"}</td>
-            <td>${this._esc(m.nombre)}</td>
+            <td>${this._esc(m.nombre)}${m.cara || m.tiempoSegundos ? `<br><small>Cara: ${this._esc(m.cara || "la elige el analista")} · Tiempo: ${m.tiempoSegundos ? `${m.tiempoSegundos} s` : "lo elige el analista"}</small>` : ""}</td>
             <td>${this._esc(m.codigo || "-")}</td>
             <td>${this._esc(m.version || "-")}</td>
             <td>${this._esc(m.unidad || "-")}</td>
@@ -593,6 +597,8 @@ if (!window.MuestraLaboratorioController) {
       document.getElementById("mlbMetodoCodigo").value = ""
       document.getElementById("mlbMetodoVersion").value = ""
       document.getElementById("mlbMetodoUnidad").value = ""
+      document.getElementById("mlbMetodoCara").value = ""
+      document.getElementById("mlbMetodoTiempo").value = ""
       document.getElementById("mlbMetodoFormTitulo").textContent = "Nuevo método"
     }
 
@@ -604,6 +610,8 @@ if (!window.MuestraLaboratorioController) {
       document.getElementById("mlbMetodoCodigo").value = m.codigo || ""
       document.getElementById("mlbMetodoVersion").value = m.version || ""
       document.getElementById("mlbMetodoUnidad").value = m.unidad || ""
+      document.getElementById("mlbMetodoCara").value = m.cara || ""
+      document.getElementById("mlbMetodoTiempo").value = m.tiempoSegundos ?? ""
       document.getElementById("mlbMetodoFormTitulo").textContent = `Editando método #${m.id}`
     }
 
@@ -617,7 +625,9 @@ if (!window.MuestraLaboratorioController) {
         nombre: document.getElementById("mlbMetodoNombre").value.trim(),
         codigo: document.getElementById("mlbMetodoCodigo").value.trim(),
         version: document.getElementById("mlbMetodoVersion").value.trim(),
-        unidad: document.getElementById("mlbMetodoUnidad").value.trim()
+        unidad: document.getElementById("mlbMetodoUnidad").value.trim(),
+        cara: document.getElementById("mlbMetodoCara").value || null,
+        tiempoSegundos: document.getElementById("mlbMetodoTiempo").value ? parseInt(document.getElementById("mlbMetodoTiempo").value, 10) : null
       }
 
       try {
@@ -626,6 +636,8 @@ if (!window.MuestraLaboratorioController) {
 
         this.limpiarFormMetodo()
         await this.cargarMetodos()
+        // La cara y el tiempo de Cobb definidos por el administrador viajan en la configuración.
+        await this._cargarConfigMuestras()
       } catch (err) {
         alert(err.message)
       }
@@ -640,6 +652,7 @@ if (!window.MuestraLaboratorioController) {
         if (!res || res.ok === false) throw new Error(res?.error || "Error actualizando el método")
 
         await this.cargarMetodos()
+        await this._cargarConfigMuestras()
       } catch (err) {
         alert(err.message)
       }
@@ -785,6 +798,7 @@ if (!window.MuestraLaboratorioController) {
       document.getElementById("mlbNmCodigo").disabled = false
       document.getElementById("mlbNmDescripcion").disabled = false
       this._limpiarSeleccionFps()
+      this._ponerDatosNotaVentaFps(null)
 
       this.abrirModal("mlbModalNuevaMuestra")
     }
@@ -890,6 +904,7 @@ if (!window.MuestraLaboratorioController) {
         document.getElementById(id).style.display = "none"
       })
       document.getElementById("mlbNmTablaRegistrosBody").innerHTML = ""
+      this._ponerDatosNotaVentaFps(null)
       document.getElementById("mlbNmCliente").disabled = false
       document.getElementById("mlbNmCodigo").disabled = false
       document.getElementById("mlbNmDescripcion").disabled = false
@@ -919,6 +934,21 @@ if (!window.MuestraLaboratorioController) {
       }
     }
 
+    // REG-LAB-04 v2, sección 16 ("de FPS, en la nota de venta sale la información"): formato y
+    // antecedentes técnicos de la OF/NV tal como los entrega FPS. Lo que FPS no trae queda vacío
+    // (no se deduce ni se inventa). orden = null limpia los campos.
+    _ponerDatosNotaVentaFps(orden) {
+      const formato = (orden?.formato || "").trim()
+      const fmt = document.getElementById("mlbNmFormatoFps")
+      fmt.value = formato
+      fmt.disabled = !!formato
+      const lineas = []
+      if (orden?.sustrato?.trim()) lineas.push(`Sustrato: ${orden.sustrato.trim()}`)
+      if (orden?.guiaTecnica?.trim()) lineas.push(`Guía técnica: ${orden.guiaTecnica.trim()}`)
+      if (orden?.ordenDeCompra?.trim()) lineas.push(`Orden de compra: ${orden.ordenDeCompra.trim()}`)
+      document.getElementById("mlbNmAntecedentesFps").value = lineas.join("\n")
+    }
+
     _ordenFpsActual() {
       const valor = document.getElementById("mlbNmOrdenFps").value
       if (!this._fpsDatos || !valor) return null
@@ -939,6 +969,7 @@ if (!window.MuestraLaboratorioController) {
 
       document.getElementById("mlbNmCliente").value = orden.cliente || ""
       document.getElementById("mlbNmCliente").disabled = true
+      this._ponerDatosNotaVentaFps(orden)
 
       const procesos = this._fpsDatos.procesos.filter(p => p.ordenTrabajo === orden.ordenTrabajo)
       const items = [...new Set(procesos.map(p => p.item || ""))].sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0))
@@ -1164,7 +1195,9 @@ if (!window.MuestraLaboratorioController) {
         alturaOnda: num("mlbNmAlturaOnda"),
         monotapaRelacionadaId: document.getElementById("mlbNmMonotapaRelacionadaId").value
           ? parseInt(document.getElementById("mlbNmMonotapaRelacionadaId").value, 10) : null,
-        pliegoRelacionado: document.getElementById("mlbNmPliegoRelacionado").value.trim() || null
+        pliegoRelacionado: document.getElementById("mlbNmPliegoRelacionado").value.trim() || null,
+        formatoFps: document.getElementById("mlbNmFormatoFps").value.trim() || null,
+        antecedentesFps: document.getElementById("mlbNmAntecedentesFps").value.trim() || null
       }
 
       try {
@@ -1208,6 +1241,8 @@ if (!window.MuestraLaboratorioController) {
           <div><b>${m.evaluacion || "-"}</b>Evaluación</div>
           <div><b>${maquinaNombre || m.maquina || "-"}</b>Máquina</div>
           <div><b>${tipoOndaNombre || "-"}</b>Tipo de onda</div>
+          <div><b>${this._esc(m.formatoFps || "-")}</b>Formato (FPS)</div>
+          ${m.antecedentesFps ? `<div style="grid-column:1/-1;white-space:pre-line;"><b>${this._esc(m.antecedentesFps)}</b>Antecedentes técnicos de la nota de venta (FPS)</div>` : ""}
           ${m.registroProduccionRecordKey ? `
             <div><b>${m.registroProduccionRecordKey}</b>Registro de producción (FPS)</div>
             <div><b>${m.operadorTexto || "-"}</b>Operador (FPS)</div>
@@ -1263,7 +1298,10 @@ if (!window.MuestraLaboratorioController) {
     // trabaja sobre papeles (Humedad/Gramaje/Espesor/Cobb/RCT), Emplacado/Troquelado/Pegado/
     // Producto terminado trabajan sobre el complejo (Humedad/Gramaje/Espesor/ECT/FCT/BCT).
     // Pruebas/Otro/MuestraExterna no restringen nada (una prueba puntual puede pedir cualquiera).
+    // REG-LAB-04 v2 (Laboratorio, 03-11-2026): "a Termoformado solo ensayo de filtración".
+    // Paletizado y Producto terminado son solo etapas de donde se extraen muestras (sin búsqueda en FPS).
     _ensayosPorEtapa(origen) {
+      if (origen === "Termoformado") return ["mlbBtnNuevoFiltracion"]
       const sustrato = ["mlbBtnNuevoHumedad", "mlbBtnNuevoGramaje", "mlbBtnNuevoEspesor", "mlbBtnNuevoCobb", "mlbBtnNuevoRct"]
       const complejo = ["mlbBtnNuevoHumedad", "mlbBtnNuevoGramaje", "mlbBtnNuevoEspesor", "mlbBtnNuevoEct", "mlbBtnNuevoFct", "mlbBtnNuevoBctMedido", "mlbBtnNuevoBctTeorico"]
       const extra = ["mlbBtnNuevoViscosidad", "mlbBtnNuevoPh", "mlbBtnNuevoSolidos", "mlbBtnNuevoLugol"]
@@ -1547,6 +1585,7 @@ if (!window.MuestraLaboratorioController) {
           const n = (e.muestras || []).filter(m => !m.eliminada).length
           resultado = `${e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)} · ` : ""}${n} muestra${n === 1 ? "" : "s"}`
         }
+        if (e.tipoEnsayo === "FILTRACION" && e.detalle?.resultado) resultado = `${e.detalle.resultado} · ${e.detalle.tiempoMinutos} min`
         const enEnsayo = e.modeloMuestras && e.estado === "En ensayo"
         const spec = (e.especificacionMin != null || e.especificacionMax != null)
           ? `${e.especificacionMin ?? ""} - ${e.especificacionMax ?? ""} ${this._u(e.especificacionUnidad)}`
@@ -1596,7 +1635,7 @@ if (!window.MuestraLaboratorioController) {
         cursor = cursor.ensayoReemplazaId ? lista.find(x => x.id === cursor.ensayoReemplazaId) : null
       }
 
-      const fmtUno = e => e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)}`.trim() : "-"
+      const fmtUno = e => e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)}`.trim() : (e.detalle?.resultado || "-")
       // REG-LAB-04 v2: además del consolidado, el promedio de cada muestra vigente (los valores
       // completos de un ensayo anulado se siguen viendo con "Ver muestras").
       const fmt = e => {
@@ -1666,6 +1705,8 @@ if (!window.MuestraLaboratorioController) {
         { label: "Descripción", valor: m.descripcion || "-" },
         { label: "Máquina", valor: maquinaNombre || m.maquina || "-" },
         { label: "Tipo de onda", valor: tipoOndaNombre || "-" },
+        { label: "Formato (FPS)", valor: m.formatoFps || "-" },
+        ...(m.antecedentesFps ? [{ label: "Antecedentes técnicos (FPS)", valor: m.antecedentesFps }] : []),
         { label: "Turno", valor: m.turno || "-" },
         { label: "N.º de registro de producción", valor: m.registroProduccionRecordKey || m.lote || "-" },
         { label: "Proveedor", valor: m.proveedor || "-" },
@@ -1738,7 +1779,7 @@ if (!window.MuestraLaboratorioController) {
       // excepcional registrado en un origen atípico, o BCT_TEORICO/VISCOSIDAD/PH/SOLIDOS/LUGOL,
       // que no tienen sección propia en el formulario físico) igual se lista, en formato genérico,
       // para no perder datos.
-      ;["HUMEDAD", "GRAMAJE", "ESPESOR", "COBB", "RCT", "FCT", "ECT", "BCT_MEDIDO", "BCT_TEORICO", "VISCOSIDAD", "PH", "SOLIDOS", "LUGOL"]
+      ;["HUMEDAD", "GRAMAJE", "ESPESOR", "COBB", "RCT", "FCT", "ECT", "BCT_MEDIDO", "BCT_TEORICO", "VISCOSIDAD", "PH", "SOLIDOS", "LUGOL", "FILTRACION"]
         .forEach(tipo => { if (!cubiertos.has(tipo)) porTipo(tipo).forEach(e => tablas.push(e.modeloMuestras ? this._tablaEnsayoMuestras(e, tipo) : this._tablaGenerica(e))) })
 
       window.PrintExporter.printReport({
@@ -1757,7 +1798,8 @@ if (!window.MuestraLaboratorioController) {
     // sección lleva la metadata del ensayo (método/analista/fecha/resultado/cumplimiento/estado).
 
     _metaEnsayo(e) {
-      const resultado = e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)}`.trim() : "-"
+      // Ensayos categóricos (Filtración, Lugol): sin valor numérico, el resultado es el texto guardado.
+      const resultado = e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)}`.trim() : (e.detalle?.resultado || "-")
       const partes = [
         `#${e.id}`, `Método: ${e.metodo || "-"}`, `Analista: ${e.analistaNombre || "-"}`, `Fecha: ${e.fecha || "-"}`,
         `Resultado: ${resultado}`, `Cumplimiento: ${e.cumplimiento || "-"}`, `Estado: ${this._labelEstado(e.estado)}`
@@ -2036,6 +2078,7 @@ if (!window.MuestraLaboratorioController) {
         velocidadRpm: "Velocidad (RPM)", resultadoCp: "Resultado (cP)",
         valorTexto: "Valor / rango", colorObservado: "Color observado",
         puntoMuestra: "Punto de muestra", coloracion: "Coloración", resultado: "Resultado", interpretacion: "Interpretación",
+        tiempoMinutos: "Tiempo de prueba (min)",
         cumplimiento: "Cumplimiento",
         ectLbfM: "ECT usado (lbf/m)", ectLbIn: "ECT usado (lb/pulg)", espesorMm: "Espesor usado (mm)",
         espesorIn: "Espesor usado (pulg)", largoMm: "Largo interno (mm)", anchoMm: "Ancho interno (mm)",
@@ -2083,6 +2126,7 @@ if (!window.MuestraLaboratorioController) {
         PH: { modalId: "mlbModalPh", precargar: e => this._precargarPh(e) },
         SOLIDOS: { modalId: "mlbModalSolidos", precargar: e => this._precargarSolidos(e) },
         LUGOL: { modalId: "mlbModalLugol", precargar: e => this._precargarLugol(e) },
+        FILTRACION: { modalId: "mlbModalFiltracion", precargar: e => this._precargarFiltracion(e) },
       }
       return map[tipo]
     }
@@ -2351,6 +2395,11 @@ if (!window.MuestraLaboratorioController) {
       document.getElementById("mlbSolObservacion").value = e.observacion || ""
     }
 
+    _precargarFiltracion(e) {
+      document.getElementById("mlbFilResultado").value = e.detalle?.resultado || ""
+      document.getElementById("mlbFilObservacion").value = e.observacion || ""
+    }
+
     _precargarLugol(e) {
       const d = e.detalle || {}
       document.getElementById("mlbLugolPunto").value = d.puntoMuestra || ""
@@ -2605,11 +2654,13 @@ if (!window.MuestraLaboratorioController) {
         }
         ident.push(campo("Tipo de análisis", `<select class="mlb-em-campo" data-idx="${idx}" data-campo="tipoAnalisis" ${ro}>${opciones(tipos, m.tipoAnalisis)}</select>`))
         const params = (cfg.parametros || []).map(p => {
-          const etiqueta = `${this._esc(p.etiqueta)}${p.obligatorio ? " *" : ""}`
-          const valor = m.parametros?.[p.codigo] ?? ""
+          // Sección 9: si lo definió el administrador (maestro de métodos), el analista no lo cambia.
+          const etiqueta = `${this._esc(p.etiqueta)}${p.obligatorio ? " *" : ""}${p.fijo ? " (definido por el administrador)" : ""}`
+          const valor = m.parametros?.[p.codigo] || (p.fijo && !m.id ? p.defecto : "") || ""
+          const roP = p.fijo ? "disabled" : ro
           return p.opciones && p.opciones.length
-            ? campo(etiqueta, `<select class="mlb-em-param" data-idx="${idx}" data-codigo="${this._escAttr(p.codigo)}" ${ro}>${opciones([["", "-- Seleccionar --"], ...p.opciones.map(o => [o, o])], valor)}</select>`)
-            : campo(etiqueta, `<input type="text" class="mlb-em-param" data-idx="${idx}" data-codigo="${this._escAttr(p.codigo)}" maxlength="150" value="${this._escAttr(valor)}" ${ro}>`)
+            ? campo(etiqueta, `<select class="mlb-em-param" data-idx="${idx}" data-codigo="${this._escAttr(p.codigo)}" ${roP}>${opciones([["", "-- Seleccionar --"], ...p.opciones.map(o => [o, o])], valor)}</select>`)
+            : campo(etiqueta, `<input type="text" class="mlb-em-param" data-idx="${idx}" data-codigo="${this._escAttr(p.codigo)}" maxlength="150" value="${this._escAttr(valor)}" ${roP}>`)
         }).join("")
         const activas = m.determinaciones.filter(d => !d.eliminar).length
         const agregarDet = !em.soloLectura && activas < cfg.determinacionesMaximas
@@ -3464,6 +3515,39 @@ if (!window.MuestraLaboratorioController) {
         if (!res || res.ok === false) throw new Error(res?.error || "Error guardando Sólidos totales")
 
         this.cerrarModal("mlbModalSolidos")
+        await this.abrirDetalle(this._muestraActualId)
+        await this.cargarLista()
+      } catch (err) {
+        alert(err.message)
+      }
+    }
+
+    // =====================================================================
+    // FILTRACIÓN (solo Termoformado): Filtra / No filtra, prueba de 15 min (lo fija la API)
+    // =====================================================================
+    abrirFiltracion() {
+      document.getElementById("mlbFilResultado").value = ""
+      document.getElementById("mlbFilObservacion").value = ""
+      this.abrirModal("mlbModalFiltracion")
+    }
+
+    async guardarFiltracion() {
+      if (!this._muestraActualId) return
+      const resultado = document.getElementById("mlbFilResultado").value
+      if (!resultado) return alert("Indica el resultado de la filtración (Filtra / No filtra)")
+
+      const data = {
+        muestraId: this._muestraActualId,
+        resultado,
+        observacion: document.getElementById("mlbFilObservacion").value.trim()
+      }
+      if (!this._aplicarDatosCorreccion(data)) return
+
+      try {
+        const res = await window.PhotinoBridge.send({ action: "muestraLab.filtracion.guardar", data })
+        if (!res || res.ok === false) throw new Error(res?.error || "Error guardando la filtración")
+
+        this.cerrarModal("mlbModalFiltracion")
         await this.abrirDetalle(this._muestraActualId)
         await this.cargarLista()
       } catch (err) {

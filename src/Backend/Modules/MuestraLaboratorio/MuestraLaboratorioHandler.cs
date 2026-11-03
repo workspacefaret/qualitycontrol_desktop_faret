@@ -65,6 +65,9 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         // REG-LAB-04 v2, sección 17: campos propios, distintos de la etapa (Origen).
                         OrigenMaterial = GetString(jsonData, "origenMaterial"),
                         TipoControl = GetString(jsonData, "tipoControl"),
+                        // REG-LAB-04 v2, sección 16: datos de la nota de venta en FPS (opcionales).
+                        FormatoFps = GetString(jsonData, "formatoFps"),
+                        AntecedentesFps = GetString(jsonData, "antecedentesFps"),
                         TipoMuestra = GetString(jsonData, "tipoMuestra"),
                         Np = GetString(jsonData, "np"),
                         Cliente = GetString(jsonData, "cliente"),
@@ -710,6 +713,26 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     return await Forward(_api.GuardarSolidosAsync(request));
                 }
 
+                // REG-LAB-04 v2: Filtración (solo Termoformado). Filtra / No filtra; el tiempo de
+                // prueba (15 min) lo fija la API.
+                if (action == "muestraLab.filtracion.guardar")
+                {
+                    var usuario = _session.GetCurrentUser();
+                    var request = new
+                    {
+                        MuestraId = GetInt(jsonData, "muestraId") ?? 0,
+                        Metodo = GetString(jsonData, "metodo"),
+                        AnalistaUsuarioId = usuario?.Id,
+                        AnalistaNombre = usuario?.NombreCompleto,
+                        Observacion = GetString(jsonData, "observacion"),
+                        Resultado = GetString(jsonData, "resultado"),
+                        EnsayoOriginalId = GetInt(jsonData, "ensayoOriginalId"),
+                        MotivoReemplazo = GetString(jsonData, "motivoReemplazo"),
+                    };
+
+                    return await Forward(_api.GuardarFiltracionAsync(request));
+                }
+
                 if (action == "muestraLab.lugol.guardar")
                 {
                     var usuario = _session.GetCurrentUser();
@@ -752,6 +775,9 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         Codigo = GetString(jsonData, "codigo"),
                         Version = GetString(jsonData, "version"),
                         Unidad = GetString(jsonData, "unidad"),
+                        // Sección 9: cara y tiempo de Cobb que define el administrador (null = el analista).
+                        Cara = GetString(jsonData, "cara"),
+                        TiempoSegundos = GetInt(jsonData, "tiempoSegundos"),
                         UsuarioNombre = usuario?.NombreCompleto,
                     };
 

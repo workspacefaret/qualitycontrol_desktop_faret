@@ -97,6 +97,10 @@ namespace QualityControlCenter.Backend.Services.FpsApi
                         CodigoCliente = GetString(row, "CodigoCliente"),
                         EstadoDocumento = GetString(row, "EstadoDocumento"),
                         FechaIngreso = GetString(row, "FechaIngreso"),
+                        OrdenDeCompra = GetString(row, "OrdenDeCompra"),
+                        Formato = GetString(row, "Formato"),
+                        Sustrato = GetString(row, "Sustrato"),
+                        GuiaTecnica = GetString(row, "GuiaTecnica"),
                     });
                 }
 
@@ -221,6 +225,12 @@ namespace QualityControlCenter.Backend.Services.FpsApi
         public string CodigoCliente { get; set; } = "";
         public string EstadoDocumento { get; set; } = "";
         public string FechaIngreso { get; set; } = "";
+
+        // REG-LAB-04 v2, sección 16: cabecera de la OF/NV en FPS (texto tal cual; "" = sin dato).
+        public string OrdenDeCompra { get; set; } = "";
+        public string Formato { get; set; } = "";
+        public string Sustrato { get; set; } = "";
+        public string GuiaTecnica { get; set; } = "";
     }
 
     public class ProcesoLaboratorioFpsDto
