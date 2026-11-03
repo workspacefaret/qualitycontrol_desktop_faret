@@ -27,12 +27,13 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             string? nivel,
             string? estadoGestion,
             string? area,
+            string? operador,
             string? categoriaDefecto,
             string? fechaDesde,
             string? fechaHasta
         )
         {
-            var query = $"api/no-conformidades?page={page}&pageSize={pageSize}{FiltrosQuery(ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta)}";
+            var query = $"api/no-conformidades?page={page}&pageSize={pageSize}{FiltrosQuery(ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, operador, categoriaDefecto, fechaDesde, fechaHasta)}";
             return _client.GetAsync(query);
         }
 
@@ -44,13 +45,14 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             string? nivel,
             string? estadoGestion,
             string? area,
+            string? operador,
             string? categoriaDefecto,
             string? fechaDesde,
             string? fechaHasta
         )
         {
             var query = "api/no-conformidades/resumen";
-            var filtros = FiltrosQuery(ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta);
+            var filtros = FiltrosQuery(ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, operador, categoriaDefecto, fechaDesde, fechaHasta);
             if (!string.IsNullOrEmpty(filtros))
                 query += "?" + filtros.TrimStart('&');
             return _client.GetAsync(query);
@@ -64,6 +66,7 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             string? nivel,
             string? estadoGestion,
             string? area,
+            string? operador,
             string? categoriaDefecto,
             string? fechaDesde,
             string? fechaHasta
@@ -86,6 +89,8 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
                 q += $"&estadoGestion={System.Uri.EscapeDataString(estadoGestion)}";
             if (!string.IsNullOrWhiteSpace(area))
                 q += $"&area={System.Uri.EscapeDataString(area)}";
+            if (!string.IsNullOrWhiteSpace(operador))
+                q += $"&operador={System.Uri.EscapeDataString(operador)}";
             if (!string.IsNullOrWhiteSpace(categoriaDefecto))
                 q += $"&categoriaDefecto={System.Uri.EscapeDataString(categoriaDefecto)}";
             if (!string.IsNullOrWhiteSpace(fechaDesde))
@@ -97,7 +102,7 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
 
         public Task<(bool ok, string body)> FiltrosOpcionesAsync(string? ambito, string? empresa)
         {
-            var filtros = FiltrosQuery(ambito, empresa, null, null, null, null, null, null, null, null);
+            var filtros = FiltrosQuery(ambito, empresa, null, null, null, null, null, null, null, null, null);
             var query = "api/no-conformidades/filtros-opciones";
             if (!string.IsNullOrEmpty(filtros))
                 query += "?" + filtros.TrimStart('&');

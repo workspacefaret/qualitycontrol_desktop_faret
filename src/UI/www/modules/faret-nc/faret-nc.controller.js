@@ -374,6 +374,7 @@ window.FaretNcController = class FaretNcController {
             estadoGestion: ncRow?.estadoGestion || "SIN_GESTION",
             responsable: ncRow?.responsable || "-",
             area: dataRow?.area || "-",
+            operador: dataRow?.operador || "-",
             fechaCompromiso: ncRow?.fechaCompromiso || null,
         };
     }
@@ -391,6 +392,7 @@ window.FaretNcController = class FaretNcController {
         const mapa = {
             "fnc-filtro-cliente": "cliente",
             "fnc-filtro-area": "area",
+            "fnc-filtro-operador": "operador",
         };
 
         const selectTipoPnc = document.getElementById("fnc-filtro-tipo-pnc");
@@ -499,6 +501,7 @@ window.FaretNcController = class FaretNcController {
             nivel: document.getElementById("fnc-filtro-nivel")?.value || "",
             estadoGestion: document.getElementById("fnc-filtro-estado-gestion")?.value || "",
             area: document.getElementById("fnc-filtro-area")?.value.trim().toLowerCase() || "",
+            operador: document.getElementById("fnc-filtro-operador")?.value.trim().toLowerCase() || "",
             fuente: document.getElementById("fnc-filtro-fuente")?.value || "",
             fechaDesde: document.getElementById("fnc-filtro-fecha-desde")?.value || "",
             fechaHasta: document.getElementById("fnc-filtro-fecha-hasta")?.value || "",
@@ -511,6 +514,7 @@ window.FaretNcController = class FaretNcController {
         document.getElementById("fnc-filtro-nivel").value = "";
         document.getElementById("fnc-filtro-estado-gestion").value = "";
         document.getElementById("fnc-filtro-area").value = "";
+        document.getElementById("fnc-filtro-operador").value = "";
         document.getElementById("fnc-filtro-fuente").value = "";
         document.getElementById("fnc-filtro-fecha-desde").value = "";
         document.getElementById("fnc-filtro-fecha-hasta").value = "";
@@ -537,6 +541,7 @@ window.FaretNcController = class FaretNcController {
             if (f.estadoGestion === "CERRADA" && fila.estadoGestion !== "CERRADA") return false;
             if (f.estadoGestion === "PENDIENTE" && fila.estadoGestion === "CERRADA") return false;
             if (f.area && fila.area.trim().toLowerCase() !== f.area) return false;
+            if (f.operador && fila.operador.trim().toLowerCase() !== f.operador) return false;
             if (f.fuente && fila.fuente !== f.fuente) return false;
 
             if (fila.fechaIngreso) {
@@ -1309,7 +1314,7 @@ window.FaretNcController = class FaretNcController {
     // opción del filtro no se ofrece el clic. El sufijo del id del canvas (`...chart-area`) identifica
     // el gráfico, tanto en la sección inline como en el modal.
     _opcionesClic(canvasId, rows, labelKey = "categoria") {
-        const selectId = { "area": "fnc-filtro-area", "cliente": "fnc-filtro-cliente", "tipo-pnc": "fnc-filtro-tipo-pnc" }[canvasId.split("chart-")[1]];
+        const selectId = { "area": "fnc-filtro-area", "operador": "fnc-filtro-operador", "cliente": "fnc-filtro-cliente", "tipo-pnc": "fnc-filtro-tipo-pnc" }[canvasId.split("chart-")[1]];
         if (!selectId) return {};
 
         const opcion = fila => [...(document.getElementById(selectId)?.options || [])]
@@ -3239,6 +3244,7 @@ window.FaretNcController = class FaretNcController {
         if (f.nivel) partes.push(`Nivel: ${f.nivel}`);
         if (f.estadoGestion) partes.push(`Estado gestión: ${this._labelEstadoGestion(f.estadoGestion)}`);
         if (f.area) partes.push(`Área: ${f.area}`);
+        if (f.operador) partes.push(`Operador: ${f.operador}`);
         if (f.fuente) partes.push(`Fuente: ${this._labelFuente(f.fuente)}`);
         if (f.fechaDesde) partes.push(`Fecha ingreso desde: ${f.fechaDesde}`);
         if (f.fechaHasta) partes.push(`Fecha ingreso hasta: ${f.fechaHasta}`);

@@ -144,18 +144,18 @@ namespace QualityControlCenter.Modules.NoConformidades
         {
             var page = TryGetInt(data, "page", out var p) && p > 0 ? p : 1;
             var pageSize = TryGetInt(data, "pageSize", out var ps) && ps > 0 ? ps : 50;
-            var (ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta) = LeerFiltros(data);
+            var (ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, operador, categoriaDefecto, fechaDesde, fechaHasta) = LeerFiltros(data);
 
             return await Forward(
-                _api.ListAsync(page, pageSize, ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta)
+                _api.ListAsync(page, pageSize, ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, operador, categoriaDefecto, fechaDesde, fechaHasta)
             );
         }
 
         private async Task<string> HandleResumen(Dictionary<string, object> data)
         {
-            var (ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta) = LeerFiltros(data);
+            var (ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, operador, categoriaDefecto, fechaDesde, fechaHasta) = LeerFiltros(data);
             return await Forward(
-                _api.ResumenAsync(ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta)
+                _api.ResumenAsync(ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, operador, categoriaDefecto, fechaDesde, fechaHasta)
             );
         }
 
@@ -182,6 +182,7 @@ namespace QualityControlCenter.Modules.NoConformidades
             string? Nivel,
             string? EstadoGestion,
             string? Area,
+            string? Operador,
             string? CategoriaDefecto,
             string? FechaDesde,
             string? FechaHasta
@@ -194,10 +195,11 @@ namespace QualityControlCenter.Modules.NoConformidades
             TryGetString(data, "nivel", out var nivel);
             TryGetString(data, "estadoGestion", out var estadoGestion);
             TryGetString(data, "area", out var area);
+            TryGetString(data, "operador", out var operador);
             TryGetString(data, "categoriaDefecto", out var categoriaDefecto);
             TryGetString(data, "fechaDesde", out var fechaDesde);
             TryGetString(data, "fechaHasta", out var fechaHasta);
-            return (ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, categoriaDefecto, fechaDesde, fechaHasta);
+            return (ambito, empresa, cliente, tipoPnc, nivel, estadoGestion, area, operador, categoriaDefecto, fechaDesde, fechaHasta);
         }
 
         private async Task<string> HandleCreate(Dictionary<string, object> data)

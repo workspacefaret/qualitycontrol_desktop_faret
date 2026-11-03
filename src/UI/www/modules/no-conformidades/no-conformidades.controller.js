@@ -191,6 +191,7 @@ window.NoConformidadesController = class NoConformidadesController {
                 "ncq-filtro-cliente": "clientes",
                 "ncq-filtro-tipo-pnc": "tiposPnc",
                 "ncq-filtro-area": "areas",
+                "ncq-filtro-operador": "operadores",
             };
             Object.entries(mapa).forEach(([selectId, campo]) => {
                 const select = document.getElementById(selectId);
@@ -240,13 +241,14 @@ window.NoConformidadesController = class NoConformidadesController {
             nivel: document.getElementById("ncq-filtro-nivel")?.value || "",
             estadoGestion: document.getElementById("ncq-filtro-estado-gestion")?.value || "",
             area: document.getElementById("ncq-filtro-area")?.value || "",
+            operador: document.getElementById("ncq-filtro-operador")?.value || "",
             fechaDesde: document.getElementById("ncq-filtro-fecha-desde")?.value || "",
             fechaHasta: document.getElementById("ncq-filtro-fecha-hasta")?.value || "",
         };
     }
 
     _limpiarFiltros() {
-        ["ncq-filtro-cliente", "ncq-filtro-tipo-pnc", "ncq-filtro-nivel", "ncq-filtro-estado-gestion", "ncq-filtro-area"]
+        ["ncq-filtro-cliente", "ncq-filtro-tipo-pnc", "ncq-filtro-nivel", "ncq-filtro-estado-gestion", "ncq-filtro-area", "ncq-filtro-operador"]
             .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
         ["ncq-filtro-fecha-desde", "ncq-filtro-fecha-hasta"].forEach(id => { document.getElementById(id).value = ""; });
         this._page = 1;
@@ -808,7 +810,7 @@ window.NoConformidadesController = class NoConformidadesController {
     // opción del filtro no se ofrece el clic. El sufijo del id del canvas (`...chart-area`) identifica
     // el gráfico, tanto en la sección inline como en el modal.
     _opcionesClic(canvasId, rows, labelKey = "categoria") {
-        const selectId = { "area": "ncq-filtro-area", "cliente": "ncq-filtro-cliente", "tipo-pnc": "ncq-filtro-tipo-pnc" }[canvasId.split("chart-")[1]];
+        const selectId = { "area": "ncq-filtro-area", "operador": "ncq-filtro-operador", "cliente": "ncq-filtro-cliente", "tipo-pnc": "ncq-filtro-tipo-pnc" }[canvasId.split("chart-")[1]];
         if (!selectId) return {};
 
         const opcion = fila => [...(document.getElementById(selectId)?.options || [])]
@@ -2046,6 +2048,7 @@ window.NoConformidadesController = class NoConformidadesController {
         if (f.nivel) partes.push(`Nivel: ${f.nivel}`);
         if (f.estadoGestion) partes.push(`Estado gestión: ${this._labelEstadoGestion(f.estadoGestion)}`);
         if (f.area) partes.push(`Área: ${f.area}`);
+        if (f.operador) partes.push(`Operador: ${f.operador}`);
         if (f.fechaDesde) partes.push(`Fecha ingreso desde: ${f.fechaDesde}`);
         if (f.fechaHasta) partes.push(`Fecha ingreso hasta: ${f.fechaHasta}`);
         return partes.length ? partes.join(" · ") : "Sin filtros — histórico completo";
