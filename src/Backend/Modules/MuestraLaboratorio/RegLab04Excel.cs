@@ -31,6 +31,22 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
 
         public static byte[] Construir(JsonElement m, string? tipoOndaNombre, byte[]? logo)
         {
+            using var wb = ConstruirLibro(m, tipoOndaNombre, logo);
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
+        }
+
+        // PDF REG-LAB-04: el mismo libro que el Excel (misma fuente y mismos valores) renderizado a HTML
+        // imprimible; el front lo imprime/guarda como PDF. No hay una segunda lógica de datos.
+        public static string ConstruirHtml(JsonElement m, string? tipoOndaNombre, byte[]? logo)
+        {
+            using var wb = ConstruirLibro(m, tipoOndaNombre, logo);
+            return RegLab04Html.Render(wb, $"REG-LAB-04 · Muestra #{Int(m, "id")}");
+        }
+
+        private static XLWorkbook ConstruirLibro(JsonElement m, string? tipoOndaNombre, byte[]? logo)
+        {
             var ensayos = Arr(m, "ensayos").ToList();
             var vigentes = ensayos.Where(e => Str(e, "estado") != "Anulado").ToList();
             var origen = Str(m, "origen");
@@ -64,7 +80,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             if (hojas.Count == 0) hojas.Add(EtapasSustrato.Contains(origen) ? "Sustratos" : "Complejo");
             var total = hojas.Count + 1;
 
-            using var wb = new XLWorkbook();
+            var wb = new XLWorkbook();
             var pagina = 1;
             foreach (var h in hojas)
             {
@@ -72,10 +88,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                 else HojaComplejo(wb, m, complejo, tipoOndaNombre, logo, pagina++, total);
             }
             HojaResultados(wb, m, ensayos, tipoOndaNombre, logo, pagina, total);
-
-            using var ms = new MemoryStream();
-            wb.SaveAs(ms);
-            return ms.ToArray();
+            return wb;
         }
 
         // =====================================================================
@@ -92,7 +105,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             Encabezado(h, logo, pagina, total);
             var (fecha, hora) = FechaHoraEnsayo(m);
             h.Seccion("IDENTIFICACIÓN MUESTRA");
-            h.Fila(new[] { 2, 4, 2, 2, 1, 1 }, new object?[] { "Registro de producción", RegistroProduccion(m), "Fecha de ensayo", fecha, "Hora de inicio", hora }, etiquetas: new[] { 0, 2, 4 });
+            h.Fila(new[] { 2, 4, 2, 2, 1, 1 }, new object?[] { "Registro de producción", RegistroProduccion(m), "Fecha de ensayo", fecha, "Hora de inicio", hora }, etiquetas: new[] { 0, 2, 4 }, ajustar: true, alto: 22);
             h.Fila(new[] { 2, 2, 1, 1, 2, 4 }, new object?[] { "NP Faret – Innpack", Str(m, "np"), "Tipo de onda", onda ?? "", "Operador", Str(m, "operadorTexto") }, etiquetas: new[] { 0, 2, 4 });
             h.Fila(new[] { 2, 4, 2, 4 }, new object?[] { "Máquina", Str(m, "maquina"), "Analista", Analistas(m) }, etiquetas: new[] { 0, 2 });
 
@@ -110,7 +123,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             h.Fila(new[] { 3, 1, 3, 1, 4 }, new object?[] {
                 "1. HUMEDAD DE SUSTRATOS (%)", "Método",
                 $"{Marca(variantes.Contains("Higrometro"))} Higrómetro   {Marca(variantes.Contains("Termobalanza"))} Termobalanza",
-                "Probeta", Probetas(probetas) }, seccion: 0, etiquetas: new[] { 1, 3 });
+                "Probeta", Probetas(probetas) }, seccion: 0, etiquetas: new[] { 1, 3 }, ajustar: true, alto: 22);
             var todas = ensayos.SelectMany(Muestras).ToList();
             var origenesMuestra = todas.Select(x => Str(x, "origenMuestra")).ToHashSet();
             var origenMaterial = Str(m, "origenMaterial");
@@ -236,7 +249,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             Encabezado(h, logo, pagina, total);
             var (fecha, hora) = FechaHoraEnsayo(m);
             h.Seccion("IDENTIFICACIÓN MUESTRA");
-            h.Fila(new[] { 3, 5, 2, 2, 1, 1 }, new object?[] { "Registro de producción", RegistroProduccion(m), "Fecha de ensayo", fecha, "Hora de inicio", hora }, etiquetas: new[] { 0, 2, 4 });
+            h.Fila(new[] { 3, 5, 2, 2, 1, 1 }, new object?[] { "Registro de producción", RegistroProduccion(m), "Fecha de ensayo", fecha, "Hora de inicio", hora }, etiquetas: new[] { 0, 2, 4 }, ajustar: true, alto: 22);
             h.Fila(new[] { 3, 3, 1, 1, 2, 4 }, new object?[] { "NP Faret – Innpack", Str(m, "np"), "Tipo de onda", onda ?? "", "Operador", Str(m, "operadorTexto") }, etiquetas: new[] { 0, 2, 4 });
             h.Fila(new[] { 3, 5, 2, 4 }, new object?[] { "Máquina", Str(m, "maquina"), "Analista", Analistas(m) }, etiquetas: new[] { 0, 2 });
             var origen = Str(m, "origen");
@@ -254,7 +267,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             h.Fila(new[] { 4, 2, 3, 2, 3 }, new object?[] {
                 "1. HUMEDAD DEL COMPLEJO (%)", "Método",
                 $"{Marca(variantes.Contains("Horno"))} Horno   {Marca(variantes.Contains("Termobalanza") || variantes.Contains("Higrometro"))} Termobalanza",
-                "Probeta", Probetas(probetas) }, seccion: 0, etiquetas: new[] { 1, 3 });
+                "Probeta", Probetas(probetas) }, seccion: 0, etiquetas: new[] { 1, 3 }, ajustar: true, alto: 22);
             var sp1 = new[] { 2, 2, 2, 2, 2, 2, 2 };
             h.Fila(sp1, new object?[] { "Número de muestra", "Punto izquierdo (%)", "Centro (%)", "Punto derecho (%)", "Peso inicial (g)", "Peso final (g)", "Resultado (%)" }, cabecera: true);
             var filasHum = new List<(object?[] v, int[] inv)>();
@@ -403,11 +416,12 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             for (var i = 0; i < pares.Length; i += 2)
                 h.Fila(new[] { 2, 4, 2, 4 }, new object?[] { pares[i].Item1, pares[i].Item2, pares[i + 1].Item1, pares[i + 1].Item2 }, etiquetas: new[] { 0, 2 }, alineacionIzq: true);
             if (Str(m, "antecedentesFps").Length > 0)
-                h.Fila(new[] { 2, 10 }, new object?[] { "Antecedentes nota de venta (FPS)", Str(m, "antecedentesFps") }, etiquetas: new[] { 0 }, alineacionIzq: true, alto: 15 * Math.Max(1, Str(m, "antecedentesFps").Split('\n').Length));
+                h.Fila(new[] { 2, 10 }, new object?[] { "Antecedentes nota de venta (FPS)", Str(m, "antecedentesFps") }, etiquetas: new[] { 0 }, alineacionIzq: true, ajustar: true, alto: 15 * Math.Max(2, Str(m, "antecedentesFps").Split('\n').Length));
 
             h.Espacio();
             h.Seccion("RESULTADOS REGISTRADOS (todas las muestras y determinaciones; incluye ensayos históricos y anulados)");
             var sp = Enumerable.Repeat(1, 12).ToArray();
+            h.RepetirEncabezado(h.Fila_); // la cabecera de la tabla se repite en cada página impresa (Excel y PDF)
             h.Fila(sp, new object?[] { "Ensayo", "Método de equipo", "Método (código / versión)", "Estado", "Analista / fecha", "Muestra", "Material / bobina", "Parámetros", "Determinaciones", "Promedio", "Otros resultados", "Observación / trazabilidad" }, cabecera: true);
             foreach (var e in ensayos.OrderBy(e => Str(e, "tipoEnsayo")).ThenBy(e => Int(e, "id")))
             {
@@ -433,7 +447,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     var otros = string.Join("\n", Arr(x, "otrosPromedios").Select(o => $"{Str(o, "etiqueta")}: {Fmt(Num(o, "valor"))} {U(Str(o, "unidad"))}".Trim()));
                     var nValidas = Int(x, "determinacionesValidas");
                     var prom = Num(x, "promedio") is double p
-                        ? $"{Fmt(p)} {U(Str(x, "unidad"))}\n({nValidas} determinación{(nValidas == 1 ? "" : "es")} válida{(nValidas == 1 ? "" : "s")} de {Dets(x).Count})"
+                        ? $"{Fmt(p)} {U(Str(x, "unidad"))}\n({nValidas} determinaci{(nValidas == 1 ? "ón" : "ones")} válida{(nValidas == 1 ? "" : "s")} de {Dets(x).Count})"
                         : (Bool(x, "completa") ? "" : "Incompleta");
                     var parametros = string.Join("\n", Obj(x, "parametros").Select(kv => $"{kv.Key}: {kv.Value}"));
                     var material = string.Join("\n", new[] { Str(x, "sustrato"), Bobina(x), Str(x, "origenMuestra"), Str(x, "tipoAnalisis") }.Where(s => s.Length > 0));
@@ -727,6 +741,8 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                 Ws.Row(Fila_).Height = alto ?? (cabecera ? 24 : 14);
                 Fila_++;
             }
+
+            public void RepetirEncabezado(int fila) => Ws.PageSetup.SetRowsToRepeatAtTop(fila, fila);
 
             public void Imprimir(bool apaisado = false)
             {

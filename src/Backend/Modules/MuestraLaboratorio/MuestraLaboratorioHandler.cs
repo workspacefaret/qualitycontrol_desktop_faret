@@ -339,7 +339,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
 
                 // Exportación Excel con el formato del REG-LAB-04 (solo lectura: arma el archivo
                 // en memoria y lo devuelve en base64; el front lo guarda con excel.guardar).
-                if (action == "muestraLab.exportarExcel")
+                if (action == "muestraLab.exportarExcel" || action == "muestraLab.exportarPdf")
                 {
                     var id = GetInt(jsonData, "id") ?? 0;
                     if (id <= 0)
@@ -372,10 +372,13 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     }
                     catch { }
 
-                    var bytes = RegLab04Excel.Construir(muestra, tipoOnda, logo);
-                    var np = muestra.TryGetProperty("np", out var npEl) ? (npEl.GetString() ?? "") : "";
+                    var np = muestra.TryGetProperty("np", out var npEl) && npEl.ValueKind == JsonValueKind.String ? (npEl.GetString() ?? "") : "";
                     foreach (var c in Path.GetInvalidFileNameChars())
                         np = np.Replace(c, '_');
+                    // PDF REG-LAB-04: mismo libro que el Excel renderizado a HTML imprimible (una sola fuente de datos).
+                    if (action == "muestraLab.exportarPdf")
+                        return Ok(new { fileName = $"REG-LAB-04_{np}_{id}.pdf", html = RegLab04Excel.ConstruirHtml(muestra, tipoOnda, logo) });
+                    var bytes = RegLab04Excel.Construir(muestra, tipoOnda, logo);
                     return Ok(new { fileName = $"REG-LAB-04_{np}_{id}.xlsx", base64 = Convert.ToBase64String(bytes) });
                 }
 

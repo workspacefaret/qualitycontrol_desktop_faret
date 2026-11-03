@@ -174,6 +174,7 @@ if (!window.MuestraLaboratorioController) {
         if (id === "mlbDetCerrar") return this.cerrarModal("mlbModalDetalle")
         if (id === "mlbBtnInforme") return this.generarInforme()
         if (id === "mlbBtnExcel") return this.exportarExcel()
+        if (id === "mlbBtnPdf") return this.exportarPdf()
         if (id === "mlbDetBtnEditarFecha") return this._abrirEditarFecha()
         if (id === "mlbDetBtnAnularRegistro") return this.anularMuestra()
         if (id === "mlbDetBtnVerRegistroProduccion") return this.verRegistroProduccion()
@@ -1718,6 +1719,39 @@ if (!window.MuestraLaboratorioController) {
         data: { fileName: res.data.fileName, base64: res.data.base64 },
       })
       if (g && g.ok === false) alert(g.error || "No se pudo guardar el Excel")
+    }
+
+    // PDF con el formato del REG-LAB-04: el backend arma las mismas hojas que el Excel (misma fuente de datos)
+    // como HTML imprimible; se abre el diálogo de impresión del sistema (Guardar como PDF), igual que el resto
+    // de reportes de QCC. El informe anterior sigue disponible en "Generar informe".
+    async exportarPdf() {
+      const m = this._muestraActualDetalle
+      if (!m) return
+      const btn = document.getElementById("mlbBtnPdf")
+      if (btn) btn.disabled = true
+      try {
+        const res = await window.PhotinoBridge.send({ action: "muestraLab.exportarPdf", data: { id: m.id } })
+        if (!res?.ok || !res.data?.html) return alert(res?.error || "No se pudo generar el PDF")
+        const iframe = document.createElement("iframe")
+        iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0"
+        document.body.appendChild(iframe)
+        const doc = iframe.contentDocument
+        doc.open()
+        doc.write(res.data.html)
+        doc.close()
+        doc.title = res.data.fileName.replace(/\.pdf$/i, "")
+        const limpiar = () => iframe.remove()
+        iframe.contentWindow.onafterprint = limpiar
+        setTimeout(limpiar, 120000)
+        const imgs = Array.from(doc.querySelectorAll("img"))
+        await Promise.all(imgs.map(i => i.complete ? null : new Promise(r => { i.onload = i.onerror = r })))
+        iframe.contentWindow.focus()
+        iframe.contentWindow.print()
+      } catch (err) {
+        alert(err?.message || "No se pudo generar el PDF")
+      } finally {
+        if (btn) btn.disabled = false
+      }
     }
 
     generarInforme() {

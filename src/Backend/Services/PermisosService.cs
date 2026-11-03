@@ -117,7 +117,7 @@ namespace QualityControlCenter.Services
             "muestraLab.consultarRegistrosFps",
             "muestraLab.ensayoMuestras.calcular",
             "muestraLab.ensayoMuestras.config",
-            "muestraLab.exportarExcel",
+            "muestraLab.exportarExcel", "muestraLab.exportarPdf",
             "muestraLab.indicadores",
             "muestraLab.materialesFps",
             "muestraLab.resolverBobina",
