@@ -354,6 +354,10 @@ namespace QualityControlCenter.Services
             return null;
         }
 
+        // Solo para pruebas automatizadas (nunca se asigna en producción): ejecuta GuardarExcel real en un
+        // directorio temporal controlado, sin tocar las Descargas del usuario y sin abrir el archivo.
+        internal static string? DirectorioExportacionPruebas;
+
         private string GuardarExcel(Dictionary<string, object> data)
         {
             try
@@ -400,6 +404,9 @@ namespace QualityControlCenter.Services
                     );
                 }
 
+                if (DirectorioExportacionPruebas != null)
+                    downloads = DirectorioExportacionPruebas;
+
                 var finalPath = Path.Combine(downloads, fileName);
 
                 if (File.Exists(finalPath))
@@ -410,18 +417,27 @@ namespace QualityControlCenter.Services
                         downloads,
                         $"{name}_{DateTime.Now:yyyyMMdd_HHmmss}{ext}"
                     );
+                    // Nunca sobrescribir: dos exportaciones dentro del mismo segundo reciben un correlativo.
+                    for (var n = 2; File.Exists(finalPath); n++)
+                        finalPath = Path.Combine(
+                            downloads,
+                            $"{name}_{DateTime.Now:yyyyMMdd_HHmmss}_{n}{ext}"
+                        );
                 }
 
                 var bytes = Convert.FromBase64String(base64);
                 File.WriteAllBytes(finalPath, bytes);
 
-                try
+                if (DirectorioExportacionPruebas == null)
                 {
-                    Process.Start(
-                        new ProcessStartInfo { FileName = finalPath, UseShellExecute = true }
-                    );
+                    try
+                    {
+                        Process.Start(
+                            new ProcessStartInfo { FileName = finalPath, UseShellExecute = true }
+                        );
+                    }
+                    catch { }
                 }
-                catch { }
                 return JsonSerializer.Serialize(
                     new { ok = true, data = new { path = finalPath } },
                     _jsonOptions

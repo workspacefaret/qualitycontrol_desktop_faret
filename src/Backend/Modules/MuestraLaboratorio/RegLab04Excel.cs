@@ -393,6 +393,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                 ("NP", Str(m, "np")), ("Cliente", Str(m, "cliente")),
                 ("Código producto", Str(m, "codigoProducto")), ("Descripción", Str(m, "descripcion")),
                 ("Formato (FPS)", Str(m, "formatoFps")), ("Tipo de onda", onda ?? ""),
+                ("Dimensiones nominales", Dimensiones(m)), ("", ""),
                 ("Proceso (FPS)", Str(m, "procesoTextoFps")), ("Registro de producción", RegistroProduccion(m)),
                 ("Fecha producción (FPS)", Str(m, "fechaProduccionFps")), ("Operador", Str(m, "operadorTexto")),
                 ("Máquina", Str(m, "maquina")), ("Turno", Str(m, "turno")),
@@ -430,7 +431,10 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         $"D{Int(d, "numero")}: " + string.Join(" · ", Obj(d, "valores").Select(kv => $"{kv.Key} {Fmt(kv.Value)}"))
                         + (Bool(d, "valida") ? "" : $" (no válida: {Str(d, "motivoInvalida")})")));
                     var otros = string.Join("\n", Arr(x, "otrosPromedios").Select(o => $"{Str(o, "etiqueta")}: {Fmt(Num(o, "valor"))} {U(Str(o, "unidad"))}".Trim()));
-                    var prom = Num(x, "promedio") is double p ? $"{Fmt(p)} {U(Str(x, "unidad"))}" : (Bool(x, "completa") ? "" : "Incompleta");
+                    var nValidas = Int(x, "determinacionesValidas");
+                    var prom = Num(x, "promedio") is double p
+                        ? $"{Fmt(p)} {U(Str(x, "unidad"))}\n({nValidas} determinación{(nValidas == 1 ? "" : "es")} válida{(nValidas == 1 ? "" : "s")} de {Dets(x).Count})"
+                        : (Bool(x, "completa") ? "" : "Incompleta");
                     var parametros = string.Join("\n", Obj(x, "parametros").Select(kv => $"{kv.Key}: {kv.Value}"));
                     var material = string.Join("\n", new[] { Str(x, "sustrato"), Bobina(x), Str(x, "origenMuestra"), Str(x, "tipoAnalisis") }.Where(s => s.Length > 0));
                     var t = traza.ToList();
@@ -547,6 +551,14 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             => string.Join(" / ", new[] { Str(x, "bobinaNumero"), Str(x, "bobinaLote") }.Where(s => s.Length > 0));
 
         private static string NumMuestra(JsonElement x) => "M" + Int(x, "numero");
+
+        // "L 400 × A 300 × H 200 mm" solo con lo ingresado (nunca se completa lo que falta).
+        private static string Dimensiones(JsonElement m)
+        {
+            var partes = new[] { ("L", Num(m, "largoNominalMm")), ("A", Num(m, "anchoNominalMm")), ("H", Num(m, "altoNominalMm")) }
+                .Where(t => t.Item2.HasValue).Select(t => $"{t.Item1} {Fmt(t.Item2)}").ToList();
+            return partes.Count > 0 ? string.Join(" × ", partes) + " mm" : "";
+        }
 
         private static string Marca(bool v) => v ? Si : No;
 

@@ -68,6 +68,10 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         // REG-LAB-04 v2, sección 16: datos de la nota de venta en FPS (opcionales).
                         FormatoFps = GetString(jsonData, "formatoFps"),
                         AntecedentesFps = GetString(jsonData, "antecedentesFps"),
+                        // Dimensiones nominales (mm): FPS no las trae, las ingresa el analista (opcionales).
+                        LargoNominalMm = GetDecimal(jsonData, "largoNominalMm"),
+                        AnchoNominalMm = GetDecimal(jsonData, "anchoNominalMm"),
+                        AltoNominalMm = GetDecimal(jsonData, "altoNominalMm"),
                         TipoMuestra = GetString(jsonData, "tipoMuestra"),
                         Np = GetString(jsonData, "np"),
                         Cliente = GetString(jsonData, "cliente"),

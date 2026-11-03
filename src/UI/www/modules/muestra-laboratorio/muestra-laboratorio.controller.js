@@ -800,6 +800,7 @@ if (!window.MuestraLaboratorioController) {
       document.getElementById("mlbNmDescripcion").disabled = false
       this._limpiarSeleccionFps()
       this._ponerDatosNotaVentaFps(null)
+      ;["mlbNmLargoNominal", "mlbNmAnchoNominal", "mlbNmAltoNominal"].forEach(id => { document.getElementById(id).value = "" })
 
       this.abrirModal("mlbModalNuevaMuestra")
     }
@@ -947,7 +948,21 @@ if (!window.MuestraLaboratorioController) {
       if (orden?.sustrato?.trim()) lineas.push(`Sustrato: ${orden.sustrato.trim()}`)
       if (orden?.guiaTecnica?.trim()) lineas.push(`Guía técnica: ${orden.guiaTecnica.trim()}`)
       if (orden?.ordenDeCompra?.trim()) lineas.push(`Orden de compra: ${orden.ordenDeCompra.trim()}`)
-      document.getElementById("mlbNmAntecedentesFps").value = lineas.join("\n")
+      const antecedentes = document.getElementById("mlbNmAntecedentesFps")
+      antecedentes.value = lineas.join("\n")
+      antecedentes.readOnly = lineas.length > 0 // si FPS no trae nada, el analista puede escribirlos
+    }
+
+    _numeroONull(id) {
+      const v = document.getElementById(id).value.trim()
+      return v === "" ? null : Number(v)
+    }
+
+    // "L × A × H mm" con lo que haya (nunca se completa lo que falta).
+    _textoDimensiones(m) {
+      const partes = [["L", m.largoNominalMm], ["A", m.anchoNominalMm], ["H", m.altoNominalMm]]
+        .filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k} ${this._emFormato(v, 2)}`)
+      return partes.length ? `${partes.join(" × ")} mm` : ""
     }
 
     _ordenFpsActual() {
@@ -1198,7 +1213,10 @@ if (!window.MuestraLaboratorioController) {
           ? parseInt(document.getElementById("mlbNmMonotapaRelacionadaId").value, 10) : null,
         pliegoRelacionado: document.getElementById("mlbNmPliegoRelacionado").value.trim() || null,
         formatoFps: document.getElementById("mlbNmFormatoFps").value.trim() || null,
-        antecedentesFps: document.getElementById("mlbNmAntecedentesFps").value.trim() || null
+        antecedentesFps: document.getElementById("mlbNmAntecedentesFps").value.trim() || null,
+        largoNominalMm: this._numeroONull("mlbNmLargoNominal"),
+        anchoNominalMm: this._numeroONull("mlbNmAnchoNominal"),
+        altoNominalMm: this._numeroONull("mlbNmAltoNominal")
       }
 
       try {
@@ -1243,6 +1261,7 @@ if (!window.MuestraLaboratorioController) {
           <div><b>${maquinaNombre || m.maquina || "-"}</b>Máquina</div>
           <div><b>${tipoOndaNombre || "-"}</b>Tipo de onda</div>
           <div><b>${this._esc(m.formatoFps || "-")}</b>Formato (FPS)</div>
+          <div><b>${this._esc(this._textoDimensiones(m) || "-")}</b>Dimensiones nominales</div>
           ${m.antecedentesFps ? `<div style="grid-column:1/-1;white-space:pre-line;"><b>${this._esc(m.antecedentesFps)}</b>Antecedentes técnicos de la nota de venta (FPS)</div>` : ""}
           ${m.registroProduccionRecordKey ? `
             <div><b>${m.registroProduccionRecordKey}</b>Registro de producción (FPS)</div>
@@ -1720,6 +1739,7 @@ if (!window.MuestraLaboratorioController) {
         { label: "Máquina", valor: maquinaNombre || m.maquina || "-" },
         { label: "Tipo de onda", valor: tipoOndaNombre || "-" },
         { label: "Formato (FPS)", valor: m.formatoFps || "-" },
+        { label: "Dimensiones nominales", valor: this._textoDimensiones(m) || "-" },
         ...(m.antecedentesFps ? [{ label: "Antecedentes técnicos (FPS)", valor: m.antecedentesFps }] : []),
         { label: "Turno", valor: m.turno || "-" },
         { label: "N.º de registro de producción", valor: m.registroProduccionRecordKey || m.lote || "-" },
@@ -1869,7 +1889,7 @@ if (!window.MuestraLaboratorioController) {
         ]))
         if (dets.length === 0) filas.push([`N.º ${mu.numero}`, esc(ident.join(" · ") || "-"), "Sin determinaciones", ...vacias()])
         const promedio = mu.completa && mu.promedio !== null && mu.promedio !== undefined
-          ? `Promedio muestra N.º ${mu.numero}: ${fmt(mu.promedio, cfg.decimales ?? 2)} ${this._u(mu.unidad || cfg.unidad)}`
+          ? `Promedio muestra N.º ${mu.numero}: ${fmt(mu.promedio, cfg.decimales ?? 2)} ${this._u(mu.unidad || cfg.unidad)}${this._emTextoCantidad(cfg, mu.determinacionesValidas)}`
           : `Muestra N.º ${mu.numero} incompleta (sin promedio)`
         filas.push(["", "", `<b>${esc(promedio)}</b>${mu.completa ? this._emTextoOtros(cfg, mu.otrosPromedios) : ""}`, ...vacias().slice(0, -1), esc(`Cumplimiento: ${mu.cumplimiento || "-"}`)])
       }
@@ -2483,7 +2503,10 @@ if (!window.MuestraLaboratorioController) {
         resultados: d.resultados || {}, valida: d.valida !== false, motivoInvalida: d.motivoInvalida || "",
         eliminar: false, guardada: !comoNueva, error: null,
       }))
-      for (let n = 1; n <= cfg.determinacionesIniciales; n++) {
+      // Se completa hasta el mínimo exigido (nunca hasta las probetas "ofrecidas": una muestra guardada con 1 o 2
+      // probetas debe reabrirse con 1 o 2, no con 3 filas vacías). Una muestra sin determinaciones sí parte de las iniciales.
+      const hasta = dets.length ? Math.min(cfg.determinacionesIniciales, cfg.determinacionesMinimas) : cfg.determinacionesIniciales
+      for (let n = 1; n <= hasta; n++) {
         if (!dets.some(d => d.numero === n)) dets.push(this._emDetVacia(n))
       }
       dets.sort((a, b) => a.numero - b.numero)
@@ -2591,7 +2614,15 @@ if (!window.MuestraLaboratorioController) {
       if (!c.completa || c.promedio === null || c.promedio === undefined) {
         return `<span class="mlb-em-incompleta">Incompleta: ${this._esc(c.faltante || "faltan datos")}</span>`
       }
-      return `Promedio: ${this._emFormato(c.promedio, cfg.decimales ?? 2)} ${this._esc(this._u(c.unidad || cfg.unidad))}${this._emTextoOtros(cfg, c.otrosPromedios)}`
+      return `Promedio: ${this._emFormato(c.promedio, cfg.decimales ?? 2)} ${this._esc(this._u(c.unidad || cfg.unidad))}${this._emTextoOtros(cfg, c.otrosPromedios)}${this._emTextoCantidad(cfg, c.validas)}`
+    }
+
+    // Ensayos con cantidad de determinaciones configurable (mínimo menor que las ofrecidas: Cobb/RCT, probetas desde 1): el promedio indica
+    // con cuántas probetas válidas se calculó, para que no se lea como si fueran siempre las 3 de referencia.
+    _emTextoCantidad(cfg, validas) {
+      if (!(cfg.determinacionesMinimas < cfg.determinacionesIniciales) || !Number.isInteger(validas)) return ""
+      const nombre = (cfg.nombreDeterminacion || "determinación").toLowerCase()
+      return ` · ${validas} ${validas === 1 ? nombre : nombre + "s"} válida${validas === 1 ? "" : "s"}`
     }
 
     // Resultados calculados de una determinación (solo los que no son el mismo valor ingresado).

@@ -282,7 +282,12 @@
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Antecedentes técnicos de la nota de venta (FPS)</label>
         <textarea id="mlbNmAntecedentesFps" rows="3" readonly placeholder="Se completa al elegir la orden de la NP en FPS"></textarea>
-        <small>FPS no informa el tipo de onda ni el largo, ancho y alto nominales como datos separados: si aparecen, están en estos textos.</small>
+        <small>Si FPS no trae antecedentes para la orden, puedes escribirlos a mano. FPS tampoco informa el tipo de onda ni las dimensiones como datos separados.</small>
+      </div>
+      <div class="mlb-form-row">
+        <div class="mlb-form-campo"><label>Largo nominal (mm)</label><input type="number" step="0.01" min="0" id="mlbNmLargoNominal"></div>
+        <div class="mlb-form-campo"><label>Ancho nominal (mm)</label><input type="number" step="0.01" min="0" id="mlbNmAnchoNominal"></div>
+        <div class="mlb-form-campo"><label>Alto nominal (mm)</label><input type="number" step="0.01" min="0" id="mlbNmAltoNominal"></div>
       </div>
       <div class="mlb-form-row">
         <div class="mlb-form-campo">
