@@ -1,0 +1,19 @@
+# Contrato Photino ↔ Web (Java): clasificación de diferencias — REG-LAB-04 v2
+
+Medición: `photino_contract.py` contra desktop `335d3a7` (03-11-2026): **255/266 compatibles**; bloqueo = 9 REVISAR + 2 PENDIENTE (+2 SOLO_WEB).
+Baseline **NO aprobado** (requiere decisión humana). Verificación de código hecha en solo lectura.
+
+| Acción | Motivo del contrato | Clasificación | Evidencia | Recomendación |
+|---|---|---|---|---|
+| `excel.guardar` | la lógica C# cambió desde 1.8.12 | **Cambio legítimo compatible** (más estricto) | Diff: (a) nunca sobrescribe, correlativo `_n` si hay dos exportaciones en el mismo segundo; (b) punto de inyección `DirectorioExportacionPruebas` (`internal static`, nunca asignado en producción). Mismo payload (`fileName`,`base64`), mismas operaciones de archivo, sin permisos nuevos. La web lo resuelve en el navegador (`web-bridge.js`), no ejecuta este C#. `excel.guardar` real probado 11/0 | **Aprobar baseline.** Nota: el punto (b) es solo para pruebas; si prefieres cero código de prueba en producción se puede eliminar y probar de otra forma |
+| `muestraLab.exportarExcel` | sin equivalente web | **Requiere decisión** (PENDIENTE) | Photino-only: lectura (en `AccionesLectura`), arma el XLSX con ClosedXML en el desktop. El gateway Java rechazará la acción ("no permitida"); no hay riesgo de autorización | **Decidir**: (A) ocultar/ocultar-error en la web hasta tener generador propio; (B) construir generador en Java (Apache POI) — trabajo nuevo, no duplicar lógica ahora. Recomiendo A |
+| `muestraLab.exportarPdf` | sin equivalente web | **Requiere decisión** (PENDIENTE) | Igual que la anterior; el PDF imprime HTML generado en el desktop | Igual: recomiendo A |
+| `muestraLab.crear` | lógica cambió desde 1.8.14 | **Cambio legítimo compatible** | Las 38 claves que envía Photino están todas en las listas blancas del gateway (verificado por script); decimales nominales con el mismo tratamiento (`GetDecimal`: vacío/no numérico → null); prueba `BridgeFase4e1Test` + suite 1162/0 | **Aprobar baseline** |
+| `muestraLab.metodo.guardar` | lógica cambió desde 1.8.14 | **Cambio legítimo compatible** | Cambio = `cara`/`tiempoSegundos` (Cobb, sección 9). Java ya las acepta (`MuestraLaboratorioBridgeHandler` líneas ~1233/1263, `BridgeFase4e4Test`) | **Aprobar baseline** |
+| `permisos.mios` | la huella incluye `PermisosService.cs` completo (cambió desde 1.8.23) | **Cambio legítimo compatible** | Único cambio: 5 acciones nuevas en `AccionesLectura` (`consultarRegistrosFps`, `ensayoMuestras.calcular/config`, `exportarExcel/Pdf`). Solo amplía lecturas; ninguna escritura se vuelve lectura. El informe del contrato ya clasifica las 3 acciones web como `escritura:false` | **Aprobar baseline**; sin impacto de seguridad |
+| `muestraLab.consultarRegistrosFps`, `ensayoMuestras.calcular`, `.config` (lecturas) y `ensayoMuestras.guardar`, `filtracion.guardar` (escrituras) | acciones nuevas sin huella validada | **Cambio legítimo compatible** (altas) | Todas tienen handler web y pruebas (Fase 4e); escrituras con `analista` tomado de la sesión, no del cliente | **Aprobar la creación de las 5 huellas** |
+| `muestraLab.consultarNp`, `consultarRegistroProduccion` | Photino ya no las usa | **Diferencia histórica** | Superficie web que quedó sin uso (lecturas, sin riesgo) | Mantener hoy; retirar en una limpieza posterior (no bloqueante, reduce superficie) |
+
+**Riesgos reales de autorización/seguridad detectados: ninguno.** No se encontró error técnico inequívoco que corregir en Java.
+Decisiones tuyas: (1) aprobar baseline de `excel.guardar`, `crear`, `metodo.guardar`, `permisos.mios` y las 5 altas; (2) A o B para Excel/PDF en la web; (3) si el seam de pruebas de `GuardarExcel` se conserva.
+Java **no hace falta desplegarlo** en la ventana de Laboratorio del desktop (solo `c5fe3ce` añade las 3 dimensiones nominales).

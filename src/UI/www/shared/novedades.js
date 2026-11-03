@@ -15,6 +15,8 @@ window.Novedades = (() => {
                 { solo: "INNPACK", t: "Humedad, Espesor, Gramaje, Cobb, RCT, FCT, ECT y BCT se registran ahora por muestra, con todas sus determinaciones, como en el REG-LAB-04." },
                 { solo: "INNPACK", t: "Los resultados y promedios se calculan mientras escribes. Puedes guardar sin finalizar y continuar después." },
                 { solo: "INNPACK", t: "El informe imprimible incluye cada muestra, sus determinaciones y su promedio. Las correcciones conservan el valor original." },
+                { solo: "INNPACK", t: "RCT y Cobb permiten de 1 a 20 probetas. Ahora puedes ingresar las dimensiones nominales del producto a mano." },
+                { solo: "INNPACK", t: "Nuevos botones para exportar el REG-LAB-04 completo en Excel y en PDF, con el formato del registro físico." },
                 { solo: "FARET", t: "Esta versión trae mejoras para Laboratorio de INNPACK. En Faret no cambia nada de lo que usas." },
             ],
         },
