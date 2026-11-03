@@ -100,7 +100,9 @@
           <option value="Monotapa">Monotapa</option>
           <option value="Emplacado">Emplacado</option>
           <option value="Troquelado">Troquelado</option>
+          <option value="Termoformado">Termoformado</option>
           <option value="Pegado">Pegado</option>
+          <option value="Paletizado">Paletizado</option>
           <option value="ProductoTerminado">Producto terminado</option>
           <option value="MuestraExterna">Muestra externa</option>
           <option value="Pruebas">Pruebas</option>
@@ -155,14 +157,16 @@
       <div class="module-title" style="font-size:16px; margin-bottom:12px;">Nueva Muestra</div>
       <div class="mlb-form-row">
         <div class="mlb-form-campo">
-          <label>Origen *</label>
+          <label>Etapa productiva *</label>
           <select id="mlbNmOrigen">
             <option value="ControlRecepcion">Control de recepción</option>
             <option value="Corrugado">Corrugado</option>
             <option value="Monotapa">Monotapa</option>
             <option value="Emplacado">Emplacado</option>
             <option value="Troquelado">Troquelado</option>
+            <option value="Termoformado">Termoformado</option>
             <option value="Pegado">Pegado</option>
+            <option value="Paletizado">Paletizado</option>
             <option value="ProductoTerminado">Producto terminado</option>
             <option value="MuestraExterna">Muestra externa</option>
             <option value="Pruebas">Pruebas</option>
@@ -181,6 +185,29 @@
             <option value="AdhesivoPVA">Adhesivo PVA</option>
             <option value="AdhesivoCorrugado">Adhesivo de corrugado</option>
             <option value="Otro">Otro</option>
+          </select>
+        </div>
+      </div>
+      <!-- REG-LAB-04 v2, sección 17: origen del material, tipo de control y etapa productiva son
+           datos distintos y no comparten selector. -->
+      <div class="mlb-form-row">
+        <div class="mlb-form-campo">
+          <label>Origen del material</label>
+          <select id="mlbNmOrigenMaterial">
+            <option value="">-- No informado --</option>
+            <option value="Bobina">Bobina</option>
+            <option value="SeparacionPapeles">Separación de papeles o descape</option>
+            <option value="MaterialEnProceso">Material en proceso</option>
+            <option value="ProductoTerminado">Producto terminado</option>
+          </select>
+        </div>
+        <div class="mlb-form-campo">
+          <label>Tipo de control</label>
+          <select id="mlbNmTipoControl">
+            <option value="">-- No informado --</option>
+            <option value="Inicial">Inicial</option>
+            <option value="Contramuestra">Contramuestra</option>
+            <option value="Reensayo">Reensayo</option>
           </select>
         </div>
       </div>
@@ -274,7 +301,9 @@
               <option value="Monotapa">Monotapa</option>
               <option value="Emplacado">Emplacado</option>
               <option value="Troquelado">Troquelado</option>
+              <option value="Termoformado">Termoformado</option>
               <option value="Pegado">Pegado</option>
+              <option value="Paletizado">Paletizado</option>
               <option value="ProductoTerminado">Producto terminado</option>
               <option value="Otro">Otro</option>
             </select>

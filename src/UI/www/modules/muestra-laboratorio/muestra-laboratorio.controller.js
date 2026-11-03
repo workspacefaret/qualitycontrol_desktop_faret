@@ -768,6 +768,8 @@ if (!window.MuestraLaboratorioController) {
       document.getElementById("mlbNmMotivoSolicitud").value = ""
       document.getElementById("mlbNmEnsayosRequeridos").value = ""
       document.getElementById("mlbNmOrigen").value = "ControlRecepcion"
+      document.getElementById("mlbNmOrigenMaterial").value = ""
+      document.getElementById("mlbNmTipoControl").value = ""
       document.getElementById("mlbNmPruebaSolicitadaBloque").style.display = "none"
       document.getElementById("mlbNmMonotapaBloque").style.display = "none"
       document.getElementById("mlbNmEmplacadoBloque").style.display = "none"
@@ -1055,7 +1057,7 @@ if (!window.MuestraLaboratorioController) {
       // Origen: si sigue en el valor por defecto, se toma la etapa del registro elegido (dato de
       // FPS, no una suposición). Si el analista ya eligió otro origen (ej. Monotapa), se respeta.
       const selOrigen = document.getElementById("mlbNmOrigen")
-      const origenEtapa = { CORRUGADO: "Corrugado", EMPLACADO: "Emplacado", TROQUEL: "Troquelado", PEGADO: "Pegado" }[proceso.categoria]
+      const origenEtapa = { CORRUGADO: "Corrugado", EMPLACADO: "Emplacado", TROQUEL: "Troquelado", TERMOFORMADO: "Termoformado", PEGADO: "Pegado" }[proceso.categoria]
       if (origenEtapa && selOrigen.value === "ControlRecepcion") {
         selOrigen.value = origenEtapa
         selOrigen.dispatchEvent(new Event("change", { bubbles: true }))
@@ -1132,6 +1134,8 @@ if (!window.MuestraLaboratorioController) {
 
       const data = {
         origen: document.getElementById("mlbNmOrigen").value,
+        origenMaterial: document.getElementById("mlbNmOrigenMaterial").value || null,
+        tipoControl: document.getElementById("mlbNmTipoControl").value || null,
         tipoMuestra: document.getElementById("mlbNmTipoMuestra").value,
         np: document.getElementById("mlbNmNp").value.trim(),
         cliente: document.getElementById("mlbNmCliente").value.trim(),
@@ -1193,7 +1197,9 @@ if (!window.MuestraLaboratorioController) {
 
         document.getElementById("mlbDetId").textContent = m.id
         document.getElementById("mlbDetResumen").innerHTML = `
-          <div><b>${m.origen || "-"}</b>Origen</div>
+          <div><b>${this._esc(this._labelEtapa(m.origen))}</b>Etapa productiva</div>
+          <div><b>${this._esc(this._labelOrigenMaterial(m.origenMaterial))}</b>Origen del material</div>
+          <div><b>${this._esc(m.tipoControl || "-")}</b>Tipo de control</div>
           <div><b>${m.tipoMuestra || "-"}</b>Tipo de muestra</div>
           <div><b>${m.np || "-"}</b>NP</div>
           <div><b>${m.cliente || "-"}</b>Cliente</div>
@@ -1271,6 +1277,23 @@ if (!window.MuestraLaboratorioController) {
         ProductoTerminado: complejo,
       }
       return mapa[origen] ? [...mapa[origen], ...extra] : null // null = sin restricción (Pruebas/Otro/MuestraExterna)
+    }
+
+    // Sección 17 REG-LAB-04 v2: etiquetas de los 3 campos de identificación (valores guardados).
+    _labelEtapa(v) {
+      const mapa = {
+        ControlRecepcion: "Control de recepción", ProductoTerminado: "Producto terminado",
+        MuestraExterna: "Muestra externa",
+      }
+      return v ? (mapa[v] || v) : "-"
+    }
+
+    _labelOrigenMaterial(v) {
+      const mapa = {
+        Bobina: "Bobina", SeparacionPapeles: "Separación de papeles o descape",
+        MaterialEnProceso: "Material en proceso", ProductoTerminado: "Producto terminado",
+      }
+      return v ? (mapa[v] || v) : "-"
     }
 
     _renderFiltroEnsayosPorEtapa(origen) {
@@ -1633,7 +1656,9 @@ if (!window.MuestraLaboratorioController) {
       const tipoOndaNombre = this._catalogos.tiposOnda.find(x => x.id === m.tipoOndaId)?.nombre
 
       const resumen = [
-        { label: "Origen", valor: m.origen || "-" },
+        { label: "Etapa productiva", valor: this._labelEtapa(m.origen) },
+        { label: "Origen del material", valor: this._labelOrigenMaterial(m.origenMaterial) },
+        { label: "Tipo de control", valor: m.tipoControl || "-" },
         { label: "Tipo de muestra", valor: m.tipoMuestra || "-" },
         { label: "NP", valor: m.np || "-" },
         { label: "Cliente", valor: m.cliente || "-" },

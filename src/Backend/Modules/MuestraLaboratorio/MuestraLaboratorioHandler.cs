@@ -62,6 +62,9 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     var request = new
                     {
                         Origen = GetString(jsonData, "origen"),
+                        // REG-LAB-04 v2, sección 17: campos propios, distintos de la etapa (Origen).
+                        OrigenMaterial = GetString(jsonData, "origenMaterial"),
+                        TipoControl = GetString(jsonData, "tipoControl"),
                         TipoMuestra = GetString(jsonData, "tipoMuestra"),
                         Np = GetString(jsonData, "np"),
                         Cliente = GetString(jsonData, "cliente"),
