@@ -3,18 +3,18 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.25";
+    const ID = "1.8.26";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
         {
-            titulo: "Trazabilidad y Laboratorio, de nuevo al 100%",
-            icono: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+            titulo: "Nuevo filtro: Operador en No Conformidades",
+            icono: '<path d="M3 5h18l-7 8v6l-4-2v-4z"/>',
             puntos: [
-                { t: "Corregimos el error de «token no válido» al consultar una NP en Trazabilidad." },
-                { t: "En Laboratorio - Muestras, la búsqueda de la NP vuelve a autocompletar cliente, código y proceso." },
-                { t: "No tienes que hacer nada: si ves esta ventana, ya está actualizado." },
+                { t: "En No Conformidades ahora puedes filtrar por Operador, junto a Cliente, Área y los demás filtros." },
+                { t: "El Excel, el reporte imprimible y los indicadores respetan el mismo filtro." },
+                { t: "También puedes hacer clic en una barra del gráfico «Operadores involucrados» para filtrar por ese operador." },
             ],
         },
     ];
