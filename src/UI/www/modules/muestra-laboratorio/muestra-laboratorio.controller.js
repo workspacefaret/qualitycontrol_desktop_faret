@@ -58,6 +58,13 @@ if (!window.MuestraLaboratorioController) {
       return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     }
 
+    // Unidades en español SOLO para mostrar (pedido REG-LAB-04 v2): lo guardado en la BD y lo que
+    // viaja a la API sigue igual ("lb/in", "in"...). lbf, kgf, psi, g/m², mm y % no se tocan.
+    _u(u) {
+      if (u === null || u === undefined) return ""
+      return String(u).replace(/(?<![A-Za-z])(lbf?)\/in(²?)(?![A-Za-z])/g, "$1/pulg$2").replace(/(^|[\s(\[])in(²?)(?=$|[\s)\]·,.;])/g, "$1pulg$2")
+    }
+
     // Para valores dentro de atributos (value="..."): además escapa las comillas.
     _escAttr(v) {
       return this._esc(v).replace(/"/g, "&quot;")
@@ -1510,16 +1517,16 @@ if (!window.MuestraLaboratorioController) {
       }
 
       body.innerHTML = ensayos.map(e => {
-        let resultado = e.resultadoValor != null ? `${e.resultadoValor} ${e.resultadoUnidad || ""}` : "-"
+        let resultado = e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)}` : "-"
         // REG-LAB-04 v2: un ensayo con varias muestras puede no tener consolidado (muestras no
         // comparables); el detalle por muestra se ve con "Ver muestras".
         if (e.modeloMuestras) {
           const n = (e.muestras || []).filter(m => !m.eliminada).length
-          resultado = `${e.resultadoValor != null ? `${e.resultadoValor} ${e.resultadoUnidad || ""} · ` : ""}${n} muestra${n === 1 ? "" : "s"}`
+          resultado = `${e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)} · ` : ""}${n} muestra${n === 1 ? "" : "s"}`
         }
         const enEnsayo = e.modeloMuestras && e.estado === "En ensayo"
         const spec = (e.especificacionMin != null || e.especificacionMax != null)
-          ? `${e.especificacionMin ?? ""} - ${e.especificacionMax ?? ""} ${e.especificacionUnidad || ""}`
+          ? `${e.especificacionMin ?? ""} - ${e.especificacionMax ?? ""} ${this._u(e.especificacionUnidad)}`
           : "-"
         const puedeAnular = e.estado !== "Anulado"
         const puedeCorregir = e.estado === "Finalizado" && !!this._tipoEnsayoConfig(e.tipoEnsayo)
@@ -1566,13 +1573,13 @@ if (!window.MuestraLaboratorioController) {
         cursor = cursor.ensayoReemplazaId ? lista.find(x => x.id === cursor.ensayoReemplazaId) : null
       }
 
-      const fmtUno = e => e.resultadoValor != null ? `${e.resultadoValor} ${e.resultadoUnidad || ""}`.trim() : "-"
+      const fmtUno = e => e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)}`.trim() : "-"
       // REG-LAB-04 v2: además del consolidado, el promedio de cada muestra vigente (los valores
       // completos de un ensayo anulado se siguen viendo con "Ver muestras").
       const fmt = e => {
         if (!e.modeloMuestras) return fmtUno(e)
         const porMuestra = (e.muestras || []).filter(m => !m.eliminada)
-          .map(m => `M${m.numero} ${m.promedio != null ? `${m.promedio} ${m.unidad || ""}`.trim() : "incompleta"}`)
+          .map(m => `M${m.numero} ${m.promedio != null ? `${m.promedio} ${this._u(m.unidad)}`.trim() : "incompleta"}`)
         return `${fmtUno(e)}${porMuestra.length ? ` (${porMuestra.join("; ")})` : ""}`
       }
       const lineas = cadena.map((e, i) => {
@@ -1725,7 +1732,7 @@ if (!window.MuestraLaboratorioController) {
     // sección lleva la metadata del ensayo (método/analista/fecha/resultado/cumplimiento/estado).
 
     _metaEnsayo(e) {
-      const resultado = e.resultadoValor != null ? `${e.resultadoValor} ${e.resultadoUnidad || ""}`.trim() : "-"
+      const resultado = e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)}`.trim() : "-"
       const partes = [
         `#${e.id}`, `Método: ${e.metodo || "-"}`, `Analista: ${e.analistaNombre || "-"}`, `Fecha: ${e.fecha || "-"}`,
         `Resultado: ${resultado}`, `Cumplimiento: ${e.cumplimiento || "-"}`, `Estado: ${this._labelEstado(e.estado)}`
@@ -1747,8 +1754,8 @@ if (!window.MuestraLaboratorioController) {
       const resultados = (cfg.resultados || []).filter(r => !codigosEntrada.has(r.codigo))
       const fmt = (v, dec) => (v === null || v === undefined ? "-" : this._emFormato(v, dec))
       const columnas = ["Muestra", "Identificación", "Determinación",
-        ...entradas.map(x => esc(`${x.etiqueta}${x.unidad ? ` (${x.unidad})` : ""}`)),
-        ...resultados.map(x => esc(`${x.etiqueta}${x.unidad ? ` (${x.unidad})` : ""}`)),
+        ...entradas.map(x => esc(`${x.etiqueta}${x.unidad ? ` (${this._u(x.unidad)})` : ""}`)),
+        ...resultados.map(x => esc(`${x.etiqueta}${x.unidad ? ` (${this._u(x.unidad)})` : ""}`)),
         "Validez"]
       const vacias = () => Array(columnas.length - 3).fill("")
       const filas = []
@@ -1781,7 +1788,7 @@ if (!window.MuestraLaboratorioController) {
         ]))
         if (dets.length === 0) filas.push([`N.º ${mu.numero}`, esc(ident.join(" · ") || "-"), "Sin determinaciones", ...vacias()])
         const promedio = mu.completa && mu.promedio !== null && mu.promedio !== undefined
-          ? `Promedio muestra N.º ${mu.numero}: ${fmt(mu.promedio, cfg.decimales ?? 2)} ${mu.unidad || cfg.unidad || ""}`
+          ? `Promedio muestra N.º ${mu.numero}: ${fmt(mu.promedio, cfg.decimales ?? 2)} ${this._u(mu.unidad || cfg.unidad)}`
           : `Muestra N.º ${mu.numero} incompleta (sin promedio)`
         filas.push(["", "", `<b>${esc(promedio)}</b>${mu.completa ? this._emTextoOtros(cfg, mu.otrosPromedios) : ""}`, ...vacias().slice(0, -1), esc(`Cumplimiento: ${mu.cumplimiento || "-"}`)])
       }
@@ -1883,7 +1890,7 @@ if (!window.MuestraLaboratorioController) {
         filas: [
           ["Lote de bobina de origen", ...cols.map(c => c.p?.bobina || "-")],
           ["Fuerza (lbf)", ...cols.map(c => c.p?.force ?? "-")],
-          [`Resistencia (${d.strengthUnidad || "lbf/m"})`, ...cols.map(c => c.p?.strength ?? "-")],
+          [`Resistencia (${this._u(d.strengthUnidad || "lbf/m")})`, ...cols.map(c => c.p?.strength ?? "-")],
         ]
       }
     }
@@ -1897,7 +1904,7 @@ if (!window.MuestraLaboratorioController) {
         columnas: ["", ...probetas.map((_, i) => `M${i + 1}`)],
         filas: [
           ["Fuerza (lbf)", ...probetas.map(p => p.force ?? "-")],
-          [`Resistencia (${d.strengthUnidad || "psi"})`, ...probetas.map(p => p.strength ?? "-")],
+          [`Resistencia (${this._u(d.strengthUnidad || "psi")})`, ...probetas.map(p => p.strength ?? "-")],
         ]
       }
     }
@@ -1906,7 +1913,7 @@ if (!window.MuestraLaboratorioController) {
       const d = e.detalle || {}
       const probetas = [d.p1, d.p2, d.p3, d.p4, d.p5].filter(Boolean)
       return {
-        titulo: `4. ECT (lbf) — ${this._metaEnsayo(e)} · Promedio fuerza: ${d.promedioForce ?? "-"} · Promedio resistencia: ${d.promedioStrengthLbfM ?? "-"} lbf/m (${d.promedioStrengthLbIn ?? "-"} lb/in)`,
+        titulo: `4. ECT (lbf) — ${this._metaEnsayo(e)} · Promedio fuerza: ${d.promedioForce ?? "-"} · Promedio resistencia: ${d.promedioStrengthLbfM ?? "-"} lbf/m (${d.promedioStrengthLbIn ?? "-"} lb/pulg)`,
         columnas: ["", ...probetas.map((_, i) => `M${i + 1}`)],
         filas: [
           ["Fuerza (lbf)", ...probetas.map(p => p.force ?? "-")],
@@ -2005,9 +2012,9 @@ if (!window.MuestraLaboratorioController) {
         valorTexto: "Valor / rango", colorObservado: "Color observado",
         puntoMuestra: "Punto de muestra", coloracion: "Coloración", resultado: "Resultado", interpretacion: "Interpretación",
         cumplimiento: "Cumplimiento",
-        ectLbfM: "ECT usado (lbf/m)", ectLbIn: "ECT usado (lb/in)", espesorMm: "Espesor usado (mm)",
-        espesorIn: "Espesor usado (in)", largoMm: "Largo interno (mm)", anchoMm: "Ancho interno (mm)",
-        perimetroIn: "Perímetro (in)", bctTeoricoLbf: "BCT teórico (lbf)", bctTeoricoKgf: "BCT teórico (kgf)",
+        ectLbfM: "ECT usado (lbf/m)", ectLbIn: "ECT usado (lb/pulg)", espesorMm: "Espesor usado (mm)",
+        espesorIn: "Espesor usado (pulg)", largoMm: "Largo interno (mm)", anchoMm: "Ancho interno (mm)",
+        perimetroIn: "Perímetro (pulg)", bctTeoricoLbf: "BCT teórico (lbf)", bctTeoricoKgf: "BCT teórico (kgf)",
         aviso: "Aviso",
       }
       const excluir = new Set(["bobinas", "ectEnsayoId", "espesorEnsayoId", "largoIn", "anchoIn", "d1", "d2", "d3"])
@@ -2280,8 +2287,8 @@ if (!window.MuestraLaboratorioController) {
 
       const selEct = document.getElementById("mlbBctTeoEct")
       const selEsp = document.getElementById("mlbBctTeoEspesor")
-      selEct.innerHTML = ects.map(x => `<option value="${x.id}">Ensayo #${x.id} - ${x.resultadoValor} ${x.resultadoUnidad} (${x.fecha})</option>`).join("")
-      selEsp.innerHTML = espesores.map(x => `<option value="${x.id}">Ensayo #${x.id} - ${x.resultadoValor} ${x.resultadoUnidad} (${x.fecha})</option>`).join("")
+      selEct.innerHTML = ects.map(x => `<option value="${x.id}">Ensayo #${x.id} - ${x.resultadoValor} ${this._u(x.resultadoUnidad)} (${x.fecha})</option>`).join("")
+      selEsp.innerHTML = espesores.map(x => `<option value="${x.id}">Ensayo #${x.id} - ${x.resultadoValor} ${this._u(x.resultadoUnidad)} (${x.fecha})</option>`).join("")
 
       if (d.ectEnsayoId) selEct.value = String(d.ectEnsayoId)
       if (d.espesorEnsayoId) selEsp.value = String(d.espesorEnsayoId)
@@ -2439,7 +2446,7 @@ if (!window.MuestraLaboratorioController) {
       if (estado) estado.textContent = ""
       const formula = panel?.querySelector(".mlb-em-formula")
       if (formula) {
-        formula.textContent = cfg.formula ? `Fórmula: ${cfg.formula}` : ""
+        formula.textContent = cfg.formula ? `Fórmula: ${this._u(cfg.formula)}` : ""
         formula.style.display = cfg.formula ? "" : "none"
       }
       this._emRender()
@@ -2476,7 +2483,7 @@ if (!window.MuestraLaboratorioController) {
 
     _emTextoOtros(cfg, otros) {
       return (otros || []).filter(o => o.valor !== null && o.valor !== undefined)
-        .map(o => ` · ${this._esc(o.etiqueta)}: ${this._emFormato(o.valor, this._emDecimales(cfg, o.codigo))}${o.unidad ? ` ${this._esc(o.unidad)}` : ""}`)
+        .map(o => ` · ${this._esc(o.etiqueta)}: ${this._emFormato(o.valor, this._emDecimales(cfg, o.codigo))}${o.unidad ? ` ${this._esc(this._u(o.unidad))}` : ""}`)
         .join("")
     }
 
@@ -2486,7 +2493,7 @@ if (!window.MuestraLaboratorioController) {
       const cfg = this._em.cfg
       if (this._em.soloLectura) {
         if (!m.completaGuardada || m.promedioGuardado === null) return `<span class="mlb-em-incompleta">Incompleta</span>`
-        const unidad = m.unidad || cfg.unidad || ""
+        const unidad = this._u(m.unidad || cfg.unidad)
         return `Promedio: ${this._emFormato(m.promedioGuardado, cfg.decimales ?? 2)} ${this._esc(unidad)}${this._emTextoOtros(cfg, m.otrosGuardados)}${m.cumplimientoGuardado ? ` · ${this._esc(m.cumplimientoGuardado)}` : ""}`
       }
       const c = m.calculo
@@ -2496,7 +2503,7 @@ if (!window.MuestraLaboratorioController) {
       if (!c.completa || c.promedio === null || c.promedio === undefined) {
         return `<span class="mlb-em-incompleta">Incompleta: ${this._esc(c.faltante || "faltan datos")}</span>`
       }
-      return `Promedio: ${this._emFormato(c.promedio, cfg.decimales ?? 2)} ${this._esc(c.unidad || cfg.unidad || "")}${this._emTextoOtros(cfg, c.otrosPromedios)}`
+      return `Promedio: ${this._emFormato(c.promedio, cfg.decimales ?? 2)} ${this._esc(this._u(c.unidad || cfg.unidad))}${this._emTextoOtros(cfg, c.otrosPromedios)}`
     }
 
     // Resultados calculados de una determinación (solo los que no son el mismo valor ingresado).
@@ -2506,7 +2513,7 @@ if (!window.MuestraLaboratorioController) {
       const entradas = new Set((cfg.entradas || []).map(x => x.codigo))
       return (cfg.resultados || [])
         .filter(r => !entradas.has(r.codigo) && d.resultados?.[r.codigo] !== null && d.resultados?.[r.codigo] !== undefined)
-        .map(r => `${this._esc(r.etiqueta)}: ${this._emFormato(d.resultados[r.codigo], r.decimales ?? 2)}${r.unidad ? ` ${this._esc(r.unidad)}` : ""}`)
+        .map(r => `${this._esc(r.etiqueta)}: ${this._emFormato(d.resultados[r.codigo], r.decimales ?? 2)}${r.unidad ? ` ${this._esc(this._u(r.unidad))}` : ""}`)
         .join(" · ")
     }
 
@@ -2517,7 +2524,7 @@ if (!window.MuestraLaboratorioController) {
         return `<div class="mlb-em-det-fila mlb-em-eliminada">${etiqueta}: se eliminará al guardar. <button type="button" class="btn-secondary mlb-em-det-deshacer" ${attrs}>Deshacer</button></div>`
       }
       const entradas = (cfg.entradas || []).map(en => `
-          <div class="mlb-form-campo"><label>${this._esc(en.etiqueta)}${en.unidad ? ` (${this._esc(en.unidad)})` : ""}${en.obligatoria === false ? " (opcional)" : ""}</label>
+          <div class="mlb-form-campo"><label>${this._esc(en.etiqueta)}${en.unidad ? ` (${this._esc(this._u(en.unidad))})` : ""}${en.obligatoria === false ? " (opcional)" : ""}</label>
             <input type="number" step="any" class="mlb-em-det" ${attrs} data-codigo="${this._escAttr(en.codigo)}" value="${this._escAttr(d.valores[en.codigo] ?? "")}" ${ro}></div>`).join("")
       const quitar = !ro && d.numero > cfg.determinacionesMinimas
         ? `<button type="button" class="btn-secondary mlb-em-det-quitar" ${attrs}>Quitar</button>` : ""
@@ -3299,8 +3306,8 @@ if (!window.MuestraLaboratorioController) {
         return
       }
 
-      selEct.innerHTML = ects.map(e => `<option value="${e.id}">Ensayo #${e.id} - ${e.resultadoValor} ${e.resultadoUnidad} (${e.fecha})</option>`).join("")
-      selEsp.innerHTML = espesores.map(e => `<option value="${e.id}">Ensayo #${e.id} - ${e.resultadoValor} ${e.resultadoUnidad} (${e.fecha})</option>`).join("")
+      selEct.innerHTML = ects.map(e => `<option value="${e.id}">Ensayo #${e.id} - ${e.resultadoValor} ${this._u(e.resultadoUnidad)} (${e.fecha})</option>`).join("")
+      selEsp.innerHTML = espesores.map(e => `<option value="${e.id}">Ensayo #${e.id} - ${e.resultadoValor} ${this._u(e.resultadoUnidad)} (${e.fecha})</option>`).join("")
 
       document.getElementById("mlbBctTeoLargo").value = ""
       document.getElementById("mlbBctTeoAncho").value = ""
