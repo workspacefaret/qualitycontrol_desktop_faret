@@ -48,7 +48,10 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
         private static XLWorkbook ConstruirLibro(JsonElement m, string? tipoOndaNombre, byte[]? logo)
         {
             var ensayos = Arr(m, "ensayos").ToList();
-            var vigentes = ensayos.Where(e => Str(e, "estado") != "Anulado").ToList();
+            // M10: las hojas de formato REG-LAB-04 llevan solo ensayos Finalizados (igual que el informe en
+            // pantalla); los borradores "En ensayo" y los anulados quedan únicamente en "Resultados del
+            // sistema", con su estado a la vista.
+            var vigentes = ensayos.Where(e => Str(e, "estado") == "Finalizado").ToList();
             var origen = Str(m, "origen");
 
             var sustrato = new List<JsonElement>();
@@ -266,7 +269,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             var variantes = humedad.Select(e => Str(e, "variante")).ToHashSet();
             h.Fila(new[] { 4, 2, 3, 2, 3 }, new object?[] {
                 "1. HUMEDAD DEL COMPLEJO (%)", "Método",
-                $"{Marca(variantes.Contains("Horno"))} Horno   {Marca(variantes.Contains("Termobalanza") || variantes.Contains("Higrometro"))} Termobalanza",
+                $"{Marca(variantes.Contains("Horno"))} Horno   {Marca(variantes.Contains("Termobalanza"))} Termobalanza   {Marca(variantes.Contains("Higrometro"))} Higrómetro",
                 "Probeta", Probetas(probetas) }, seccion: 0, etiquetas: new[] { 1, 3 }, ajustar: true, alto: 22);
             var sp1 = new[] { 2, 2, 2, 2, 2, 2, 2 };
             h.Fila(sp1, new object?[] { "Número de muestra", "Punto izquierdo (%)", "Centro (%)", "Punto derecho (%)", "Peso inicial (g)", "Peso final (g)", "Resultado (%)" }, cabecera: true);

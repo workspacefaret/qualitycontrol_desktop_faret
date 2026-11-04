@@ -13,6 +13,10 @@ if (!window.MuestraLaboratorioController) {
       this._fpsRegistrosVisibles = []
       this._fpsSnapshot = null
       this._fpsAutollenado = null
+      this._fpsConsultaSeq = 0
+      this._fpsNpConsultada = null
+      this._fpsNpEnConsulta = null
+      this._fpsClienteAuto = null
     }
 
     async init() {
@@ -58,16 +62,16 @@ if (!window.MuestraLaboratorioController) {
       return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     }
 
+    // Para valores dentro de atributos HTML (title="…", value="…"): además de & < > escapa comillas.
+    _escAttr(v) {
+      return this._esc(v).replace(/"/g, "&quot;").replace(/'/g, "&#39;")
+    }
+
     // Unidades en español SOLO para mostrar (pedido REG-LAB-04 v2): lo guardado en la BD y lo que
     // viaja a la API sigue igual ("lb/in", "in"...). lbf, kgf, psi, g/m², mm y % no se tocan.
     _u(u) {
       if (u === null || u === undefined) return ""
       return String(u).replace(/(?<![A-Za-z])(lbf?)\/in(²?)(?![A-Za-z])/g, "$1/pulg$2").replace(/(^|[\s(\[])in(²?)(?=$|[\s)\]·,.;])/g, "$1pulg$2")
-    }
-
-    // Para valores dentro de atributos (value="..."): además escapa las comillas.
-    _escAttr(v) {
-      return this._esc(v).replace(/"/g, "&quot;")
     }
 
     // Solo etiqueta visible — el valor real guardado en BD (m.estado) no cambia, para no migrar
@@ -125,6 +129,22 @@ if (!window.MuestraLaboratorioController) {
       `
     }
 
+    // A5: protección común contra doble envío de TODOS los guardados de este módulo (nuevos e
+    // históricos). Un solo guardado a la vez: una segunda orden mientras hay uno en curso se ignora, y el
+    // botón queda deshabilitado hasta terminar. El bloqueo se libera SIEMPRE (finally), incluso si el
+    // guardado lanza un error, para que el usuario pueda reintentar.
+    async _conGuardado(btn, fn) {
+      if (this._guardando) return
+      this._guardando = true
+      if (btn) btn.disabled = true
+      try {
+        return await fn()
+      } finally {
+        this._guardando = false
+        if (btn) btn.disabled = false
+      }
+    }
+
     bindEvents() {
       if (this._clickHandler) return
 
@@ -134,7 +154,7 @@ if (!window.MuestraLaboratorioController) {
         if (id === "mlbBtnMetodos") return this.abrirMetodos()
         if (id === "mlbMetodoCerrar") return this.cerrarModal("mlbModalMetodos")
         if (id === "mlbMetodoLimpiar") return this.limpiarFormMetodo()
-        if (id === "mlbMetodoGuardar") return this.guardarMetodo()
+        if (id === "mlbMetodoGuardar") return this._conGuardado(e.target, () => this.guardarMetodo())
         if (e.target.classList?.contains("mlb-metodo-editar-btn")) {
           return this.editarMetodo(JSON.parse(e.target.dataset.metodo))
         }
@@ -145,7 +165,7 @@ if (!window.MuestraLaboratorioController) {
         if (id === "mlbBtnEspecificaciones") return this.abrirEspecificaciones()
         if (id === "mlbEspecCerrar") return this.cerrarModal("mlbModalEspecificaciones")
         if (id === "mlbEspecLimpiar") return this.limpiarFormEspecificacion()
-        if (id === "mlbEspecGuardar") return this.guardarEspecificacion()
+        if (id === "mlbEspecGuardar") return this._conGuardado(e.target, () => this.guardarEspecificacion())
         if (e.target.classList?.contains("mlb-espec-editar-btn")) {
           return this.editarEspecificacion(JSON.parse(e.target.dataset.espec))
         }
@@ -155,7 +175,7 @@ if (!window.MuestraLaboratorioController) {
 
         if (id === "mlbBtnNuevaMuestra") return this.abrirNuevaMuestra()
         if (id === "mlbNmCancelar") return this.cerrarModal("mlbModalNuevaMuestra")
-        if (id === "mlbNmGuardar") return this.guardarNuevaMuestra()
+        if (id === "mlbNmGuardar") return this._conGuardado(e.target, () => this.guardarNuevaMuestra())
         if (id === "mlbNmBtnConsultarNp") return this._consultarNp()
         if (e.target.classList?.contains("mlb-btn-resolver-bobina")) {
           return this._resolverBobina(e.target.dataset.input, e.target.dataset.info)
@@ -186,7 +206,7 @@ if (!window.MuestraLaboratorioController) {
         }
         if (id === "mlbNmBtnBuscarMonotapa") return this._buscarMonotapaRelacionada()
         if (id === "mlbEditarFechaCancelar") return this._cerrarEditarFecha()
-        if (id === "mlbEditarFechaGuardar") return this._guardarFechaEnsayo()
+        if (id === "mlbEditarFechaGuardar") return this._conGuardado(e.target, () => this._guardarFechaEnsayo())
         if (id === "mlbBtnCrearNc") return this.crearNoConformidad()
 
         if (id === "mlbBtnNuevoHumedad") {
@@ -194,8 +214,8 @@ if (!window.MuestraLaboratorioController) {
           return this.abrirModal("mlbModalHumedad")
         }
         if (id === "mlbHumCancelar") return this.cerrarModal("mlbModalHumedad")
-        if (id === "mlbHumGuardar") return this.guardarHumedad()
-        if (id === "mlbHumGuardarBorrador") return this._guardarEnsayoMuestras("mlbModalHumedad", false)
+        if (id === "mlbHumGuardar") return this._conGuardado(e.target, () => this.guardarHumedad())
+        if (id === "mlbHumGuardarBorrador") return this._conGuardado(e.target, () => this._guardarEnsayoMuestras("mlbModalHumedad", false))
 
         // REG-LAB-04 v2: muestras y determinaciones
         if (e.target.classList?.contains("mlb-em-agregar")) return this._emAgregarMuestra()
@@ -205,62 +225,62 @@ if (!window.MuestraLaboratorioController) {
         if (e.target.classList?.contains("mlb-em-det-quitar")) return this._emQuitarDeterminacion(parseInt(e.target.dataset.idx, 10), parseInt(e.target.dataset.di, 10))
         if (e.target.classList?.contains("mlb-em-det-deshacer")) return this._emDeshacerQuitarDeterminacion(parseInt(e.target.dataset.idx, 10), parseInt(e.target.dataset.di, 10))
         if (id === "mlbEmCancelar") return this.cerrarModal("mlbModalEnsayoMuestras")
-        if (id === "mlbEmGuardar") return this._guardarEnsayoMuestras("mlbModalEnsayoMuestras", true)
-        if (id === "mlbEmGuardarBorrador") return this._guardarEnsayoMuestras("mlbModalEnsayoMuestras", false)
+        if (id === "mlbEmGuardar") return this._conGuardado(e.target, () => this._guardarEnsayoMuestras("mlbModalEnsayoMuestras", true))
+        if (id === "mlbEmGuardarBorrador") return this._conGuardado(e.target, () => this._guardarEnsayoMuestras("mlbModalEnsayoMuestras", false))
         if (e.target.classList?.contains("mlb-em-continuar-btn")) return this.abrirEnsayoMuestras(parseInt(e.target.dataset.id, 10), false)
         if (e.target.classList?.contains("mlb-em-ver-btn")) return this.abrirEnsayoMuestras(parseInt(e.target.dataset.id, 10), true)
 
         if (id === "mlbBtnNuevoGramaje") return this._nuevoEnsayo("GRAMAJE", () => this.abrirModal("mlbModalGramaje"))
         if (id === "mlbGraCancelar") return this.cerrarModal("mlbModalGramaje")
-        if (id === "mlbGraGuardar") return this.guardarGramaje()
+        if (id === "mlbGraGuardar") return this._conGuardado(e.target, () => this.guardarGramaje())
 
         if (id === "mlbBtnNuevoCobb") return this._nuevoEnsayo("COBB", () => this.abrirModal("mlbModalCobb"))
         if (id === "mlbCobbCancelar") return this.cerrarModal("mlbModalCobb")
-        if (id === "mlbCobbGuardar") return this.guardarCobb()
+        if (id === "mlbCobbGuardar") return this._conGuardado(e.target, () => this.guardarCobb())
 
         if (id === "mlbBtnNuevoEspesor") return this._nuevoEnsayo("ESPESOR", () => this.abrirModal("mlbModalEspesor"))
         if (id === "mlbEspCancelar") return this.cerrarModal("mlbModalEspesor")
-        if (id === "mlbEspGuardar") return this.guardarEspesor()
+        if (id === "mlbEspGuardar") return this._conGuardado(e.target, () => this.guardarEspesor())
 
         if (id === "mlbBtnNuevoRct") return this._nuevoEnsayo("RCT", () => this.abrirModal("mlbModalRct"))
         if (id === "mlbRctCancelar") return this.cerrarModal("mlbModalRct")
-        if (id === "mlbRctGuardar") return this.guardarRct()
+        if (id === "mlbRctGuardar") return this._conGuardado(e.target, () => this.guardarRct())
 
         if (id === "mlbBtnNuevoFct") return this._nuevoEnsayo("FCT", () => this.abrirModal("mlbModalFct"))
         if (id === "mlbFctCancelar") return this.cerrarModal("mlbModalFct")
-        if (id === "mlbFctGuardar") return this.guardarFct()
+        if (id === "mlbFctGuardar") return this._conGuardado(e.target, () => this.guardarFct())
 
         if (id === "mlbBtnNuevoEct") return this._nuevoEnsayo("ECT", () => this.abrirModal("mlbModalEct"))
         if (id === "mlbEctCancelar") return this.cerrarModal("mlbModalEct")
-        if (id === "mlbEctGuardar") return this.guardarEct()
+        if (id === "mlbEctGuardar") return this._conGuardado(e.target, () => this.guardarEct())
 
         if (id === "mlbBtnNuevoBctMedido") return this._nuevoEnsayo("BCT_MEDIDO", () => this.abrirModalBctMedido())
         if (id === "mlbBctMedCancelar") return this.cerrarModal("mlbModalBctMedido")
-        if (id === "mlbBctMedGuardar") return this.guardarBctMedido()
+        if (id === "mlbBctMedGuardar") return this._conGuardado(e.target, () => this.guardarBctMedido())
 
         if (id === "mlbBtnNuevoBctTeorico") return this.abrirModalBctTeorico()
         if (id === "mlbBctTeoCancelar") return this.cerrarModal("mlbModalBctTeorico")
-        if (id === "mlbBctTeoGuardar") return this.guardarBctTeorico()
+        if (id === "mlbBctTeoGuardar") return this._conGuardado(e.target, () => this.guardarBctTeorico())
 
         if (id === "mlbBtnNuevoViscosidad") return this.abrirModal("mlbModalViscosidad")
         if (id === "mlbViscCancelar") return this.cerrarModal("mlbModalViscosidad")
-        if (id === "mlbViscGuardar") return this.guardarViscosidad()
+        if (id === "mlbViscGuardar") return this._conGuardado(e.target, () => this.guardarViscosidad())
 
         if (id === "mlbBtnNuevoPh") return this.abrirModal("mlbModalPh")
         if (id === "mlbPhCancelar") return this.cerrarModal("mlbModalPh")
-        if (id === "mlbPhGuardar") return this.guardarPh()
+        if (id === "mlbPhGuardar") return this._conGuardado(e.target, () => this.guardarPh())
 
         if (id === "mlbBtnNuevoSolidos") return this.abrirModal("mlbModalSolidos")
         if (id === "mlbSolCancelar") return this.cerrarModal("mlbModalSolidos")
-        if (id === "mlbSolGuardar") return this.guardarSolidos()
+        if (id === "mlbSolGuardar") return this._conGuardado(e.target, () => this.guardarSolidos())
 
         if (id === "mlbBtnNuevoFiltracion") return this.abrirFiltracion()
         if (id === "mlbFilCancelar") return this.cerrarModal("mlbModalFiltracion")
-        if (id === "mlbFilGuardar") return this.guardarFiltracion()
+        if (id === "mlbFilGuardar") return this._conGuardado(e.target, () => this.guardarFiltracion())
 
         if (id === "mlbBtnNuevoLugol") return this.abrirModal("mlbModalLugol")
         if (id === "mlbLugolCancelar") return this.cerrarModal("mlbModalLugol")
-        if (id === "mlbLugolGuardar") return this.guardarLugol()
+        if (id === "mlbLugolGuardar") return this._conGuardado(e.target, () => this.guardarLugol())
 
         if (e.target.classList?.contains("mlb-anular-btn")) {
           return this.anularEnsayo(parseInt(e.target.dataset.id, 10))
@@ -296,6 +316,11 @@ if (!window.MuestraLaboratorioController) {
           this._refrescarMetodoAuto("HUMEDAD", "mlbHumMetodo", e.target.value)
         }
         if (e.target.id === "mlbBctMedCajas") this.renderBctMedCajas()
+        if (e.target.id === "mlbNmNp") {
+          // M8b: NP de la consulta ya hecha o en curso; si el analista lo cambia, esa consulta deja de valer.
+          const npRef = this._fpsNpConsultada ?? this._fpsNpEnConsulta
+          if (npRef !== null && npRef !== undefined && e.target.value.trim() !== npRef) this._limpiarSeleccionFps()
+        }
         if (e.target.id === "mlbNmOrdenFps") this._onCambiarOrdenFps()
         if (e.target.id === "mlbNmItemFps" || e.target.id === "mlbNmEtapaFps") this._renderRegistrosFps()
         if (e.target.name === "mlbNmRegistroRadio") this._onSeleccionarRegistroProduccion(e.target.value)
@@ -507,15 +532,15 @@ if (!window.MuestraLaboratorioController) {
         body.innerHTML = items.map(m => `
           <tr>
             <td>${m.id}</td>
-            <td>${m.fechaIngreso || "-"}</td>
-            <td>${m.origen || "-"}</td>
-            <td>${m.tipoMuestra || "-"}</td>
-            <td>${m.np || "-"}</td>
-            <td>${m.cliente || "-"}</td>
-            <td>${m.codigoProducto || "-"}</td>
-            <td>${m.totalEnsayos}</td>
-            <td>${this._labelEstado(m.estado)}</td>
-            <td>${m.evaluacion || "-"}</td>
+            <td>${this._esc(m.fechaIngreso || "-")}</td>
+            <td>${this._esc(m.origen || "-")}</td>
+            <td>${this._esc(m.tipoMuestra || "-")}</td>
+            <td>${this._esc(m.np || "-")}</td>
+            <td>${this._esc(m.cliente || "-")}</td>
+            <td>${this._esc(m.codigoProducto || "-")}</td>
+            <td>${this._esc(m.totalEnsayos)}</td>
+            <td>${this._esc(this._labelEstado(m.estado))}</td>
+            <td>${this._esc(m.evaluacion || "-")}</td>
             <td>
               <button class="btn-secondary mlb-ver-btn" data-id="${m.id}">Ver</button>
               <button class="btn-danger mlb-eliminar-btn" data-id="${m.id}">Eliminar</button>
@@ -524,7 +549,7 @@ if (!window.MuestraLaboratorioController) {
         `).join("")
       } catch (err) {
         console.error(err)
-        body.innerHTML = `<tr><td colspan="11" style="text-align:center;">${err.message}</td></tr>`
+        body.innerHTML = `<tr><td colspan="11" style="text-align:center;">${this._esc(err.message)}</td></tr>`
       }
     }
 
@@ -569,12 +594,12 @@ if (!window.MuestraLaboratorioController) {
 
         body.innerHTML = items.map(m => `
           <tr>
-            <td>${m.tipoEnsayo}</td>
-            <td>${m.variante || "-"}</td>
+            <td>${this._esc(m.tipoEnsayo)}</td>
+            <td>${this._esc(m.variante || "-")}</td>
             <td>${this._esc(m.nombre)}${m.cara || m.tiempoSegundos ? `<br><small>Cara: ${this._esc(m.cara || "la elige el analista")} · Tiempo: ${m.tiempoSegundos ? `${m.tiempoSegundos} s` : "lo elige el analista"}</small>` : ""}</td>
             <td>${this._esc(m.codigo || "-")}</td>
             <td>${this._esc(m.version || "-")}</td>
-            <td>${this._esc(m.unidad || "-")}</td>
+            <td>${this._esc(this._u(m.unidad) || "-")}</td>
             <td>${m.activo ? "Sí" : "No"}</td>
             <td>
               <button class="btn-secondary mlb-metodo-editar-btn" data-metodo='${JSON.stringify(m).replace(/'/g, "&apos;")}'>Editar</button>
@@ -583,7 +608,7 @@ if (!window.MuestraLaboratorioController) {
           </tr>
         `).join("")
       } catch (err) {
-        body.innerHTML = `<tr><td colspan="8" style="text-align:center;">${err.message}</td></tr>`
+        body.innerHTML = `<tr><td colspan="8" style="text-align:center;">${this._esc(err.message)}</td></tr>`
       }
 
       // Refresca los catálogos en memoria para que los modales de ensayo reflejen el cambio
@@ -682,12 +707,12 @@ if (!window.MuestraLaboratorioController) {
 
         body.innerHTML = items.map(s => `
           <tr>
-            <td>${s.tipoMuestra}</td>
-            <td>${s.tipoEnsayo}</td>
-            <td>${s.codigoProducto || "(todos)"}</td>
-            <td>${s.limiteMin ?? "-"}</td>
-            <td>${s.limiteMax ?? "-"}</td>
-            <td>${s.unidad || "-"}</td>
+            <td>${this._esc(s.tipoMuestra)}</td>
+            <td>${this._esc(s.tipoEnsayo)}</td>
+            <td>${this._esc(s.codigoProducto || "(todos)")}</td>
+            <td>${this._esc(s.limiteMin ?? "-")}</td>
+            <td>${this._esc(s.limiteMax ?? "-")}</td>
+            <td>${this._esc(this._u(s.unidad) || "-")}</td>
             <td>${s.activo ? "Sí" : "No"}</td>
             <td>
               <button class="btn-secondary mlb-espec-editar-btn" data-espec='${JSON.stringify(s).replace(/'/g, "&apos;")}'>Editar</button>
@@ -696,7 +721,7 @@ if (!window.MuestraLaboratorioController) {
           </tr>
         `).join("")
       } catch (err) {
-        body.innerHTML = `<tr><td colspan="8" style="text-align:center;">${err.message}</td></tr>`
+        body.innerHTML = `<tr><td colspan="8" style="text-align:center;">${this._esc(err.message)}</td></tr>`
       }
     }
 
@@ -854,14 +879,14 @@ if (!window.MuestraLaboratorioController) {
             <td>${this._esc(c.fechaEnsayo || c.fechaIngreso)}</td>
             <td>${this._esc(c.maquina || "-")}</td>
             <td>${this._esc(c.turno || "-")}</td>
-            <td>${this._labelEstado(c.estado)}</td>
+            <td>${this._esc(this._labelEstado(c.estado))}</td>
             <td>${this._esc(c.evaluacion || "-")}</td>
-            <td>${c.totalEnsayos}</td>
+            <td>${this._esc(c.totalEnsayos)}</td>
             <td><button class="btn-secondary mlb-regprod-ver-btn" data-id="${c.id}">${c.id === m.id ? "(actual)" : "Ver"}</button></td>
           </tr>
         `).join("")
       } catch (err) {
-        body.innerHTML = `<tr><td colspan="9" style="text-align:center;">${err.message}</td></tr>`
+        body.innerHTML = `<tr><td colspan="9" style="text-align:center;">${this._esc(err.message)}</td></tr>`
       }
     }
 
@@ -875,16 +900,21 @@ if (!window.MuestraLaboratorioController) {
       if (!/^[0-9]+$/.test(np)) return alert("La NP debe ser numérica (Faret o Innpack)")
 
       this._limpiarSeleccionFps()
+      const seq = ++this._fpsConsultaSeq
+      this._fpsNpEnConsulta = np
       const btn = document.getElementById("mlbNmBtnConsultarNp")
       btn.disabled = true
       try {
         const res = await window.PhotinoBridge.send({ action: "muestraLab.consultarRegistrosFps", data: { np } })
+        // M8b: si mientras tanto se cambió el NP o se limpió la selección, esta respuesta ya no vale.
+        if (seq !== this._fpsConsultaSeq) return
         if (!res || res.ok === false) throw new Error(res?.error || "No se pudo consultar la NP en FPS")
 
         const datos = res.data || {}
         const ordenes = datos.ordenes || []
         if (ordenes.length === 0) throw new Error(`No se encontró la NP ${np} en FPS`)
         this._fpsDatos = { ordenes, procesos: datos.procesos || [], registros: datos.registros || [] }
+        this._fpsNpConsultada = np
 
         const selOrden = document.getElementById("mlbNmOrdenFps")
         const coincide = o => [o.coincideNpFaret ? "NP Faret" : null, o.coincideNpInnpack ? "NP Innpack" : null].filter(Boolean).join(" y ")
@@ -893,13 +923,16 @@ if (!window.MuestraLaboratorioController) {
         document.getElementById("mlbNmOrdenWrap").style.display = ""
         this._onCambiarOrdenFps()
       } catch (err) {
-        alert(err.message)
+        if (seq === this._fpsConsultaSeq) alert(err.message)
       } finally {
         btn.disabled = false
       }
     }
 
     _limpiarSeleccionFps() {
+      this._fpsConsultaSeq++
+      this._fpsNpConsultada = null
+      this._fpsNpEnConsulta = null
       this._soltarRegistroFps()
       this._fpsDatos = null
       this._fpsRegistrosVisibles = []
@@ -908,7 +941,7 @@ if (!window.MuestraLaboratorioController) {
       })
       document.getElementById("mlbNmTablaRegistrosBody").innerHTML = ""
       this._ponerDatosNotaVentaFps(null)
-      document.getElementById("mlbNmCliente").disabled = false
+      this._soltarClienteFps()
       document.getElementById("mlbNmCodigo").disabled = false
       document.getElementById("mlbNmDescripcion").disabled = false
     }
@@ -935,6 +968,15 @@ if (!window.MuestraLaboratorioController) {
         origen.value = "ControlRecepcion"
         origen.dispatchEvent(new Event("change", { bubbles: true }))
       }
+    }
+
+    // M8: el cliente que puso la orden FPS se borra (y el campo se rehabilita) cuando ya no hay orden
+    // elegida; si el analista lo cambió a mano, no se toca.
+    _soltarClienteFps() {
+      const cliente = document.getElementById("mlbNmCliente")
+      if (this._fpsClienteAuto !== null && this._fpsClienteAuto !== undefined && cliente.value === this._fpsClienteAuto) cliente.value = ""
+      this._fpsClienteAuto = null
+      cliente.disabled = false
     }
 
     // REG-LAB-04 v2, sección 16 ("de FPS, en la nota de venta sale la información"): formato y
@@ -981,10 +1023,14 @@ if (!window.MuestraLaboratorioController) {
       const orden = this._ordenFpsActual()
       if (!orden) {
         ;["mlbNmItemWrap", "mlbNmEtapaWrap", "mlbNmRegistroWrap"].forEach(id => { document.getElementById(id).style.display = "none" })
+        // M8: sin orden elegida no quedan cliente, formato ni antecedentes de la orden anterior.
+        this._ponerDatosNotaVentaFps(null)
+        this._soltarClienteFps()
         return
       }
 
       document.getElementById("mlbNmCliente").value = orden.cliente || ""
+      this._fpsClienteAuto = orden.cliente || ""
       document.getElementById("mlbNmCliente").disabled = true
       this._ponerDatosNotaVentaFps(orden)
 
@@ -995,9 +1041,9 @@ if (!window.MuestraLaboratorioController) {
       etapas.sort((a, b) => ordenEtapas.indexOf(a) - ordenEtapas.indexOf(b))
 
       document.getElementById("mlbNmItemFps").innerHTML = '<option value="">Todos</option>' +
-        items.map(i => `<option value="${this._esc(i)}">${i ? `Ítem ${this._esc(i)}` : "Sin ítem"}</option>`).join("")
+        items.map(i => `<option value="${this._escAttr(i)}">${i ? `Ítem ${this._esc(i)}` : "Sin ítem"}</option>`).join("")
       document.getElementById("mlbNmEtapaFps").innerHTML = '<option value="">Todos</option>' +
-        etapas.map(c => `<option value="${this._esc(c)}">${this._esc(this._etapaLaboratorio(c))}</option>`).join("")
+        etapas.map(c => `<option value="${this._escAttr(c)}">${this._esc(this._etapaLaboratorio(c))}</option>`).join("")
       document.getElementById("mlbNmItemWrap").style.display = ""
       document.getElementById("mlbNmEtapaWrap").style.display = ""
       this._renderRegistrosFps()
@@ -1040,13 +1086,13 @@ if (!window.MuestraLaboratorioController) {
         ].join(" ")
         return `
           <tr>
-            <td><input type="radio" name="mlbNmRegistroRadio" value="${r.recordKey}"></td>
-            <td>${r.recordKey}</td>
+            <td><input type="radio" name="mlbNmRegistroRadio" value="${this._escAttr(r.recordKey)}"></td>
+            <td>${this._esc(r.recordKey)}</td>
             <td>${this._esc(orden.npFaret || "-")}</td>
             <td>${this._esc(orden.npInnpack || "-")}</td>
             <td>${this._esc(p.item || "-")}</td>
-            <td title="${this._esc(p.nombreProceso || "")}">${this._esc(this._etapaLaboratorio(p.categoria))}</td>
-            <td title="${this._esc(r.maquinaDescripcion || "")}">${this._esc(r.maquina || r.maquinaDescripcion || "-")}</td>
+            <td title="${this._escAttr(p.nombreProceso || "")}">${this._esc(this._etapaLaboratorio(p.categoria))}</td>
+            <td title="${this._escAttr(r.maquinaDescripcion || "")}">${this._esc(r.maquina || r.maquinaDescripcion || "-")}</td>
             <td>${this._esc(r.operador || "-")}</td>
             <td>${fIni}</td>
             <td>${hIni}</td>
@@ -1179,6 +1225,10 @@ if (!window.MuestraLaboratorioController) {
       const tipoOndaSel = document.getElementById("mlbNmTipoOnda")
       const maquinaNombre = maquinaSel.selectedOptions[0]?.textContent || ""
       const registro = this._fpsSnapshot?.registro
+      // M8b: el NP guardado debe ser el del registro FPS elegido (nunca uno editado después).
+      if (this._fpsSnapshot && document.getElementById("mlbNmNp").value.trim() !== this._fpsNpConsultada) {
+        return alert("El NP cambió después de elegir el registro de FPS. Vuelve a consultar la NP y selecciona el registro.")
+      }
 
       const data = {
         origen: document.getElementById("mlbNmOrigen").value,
@@ -1253,21 +1303,21 @@ if (!window.MuestraLaboratorioController) {
           <div><b>${this._esc(this._labelEtapa(m.origen))}</b>Etapa productiva</div>
           <div><b>${this._esc(this._labelOrigenMaterial(m.origenMaterial))}</b>Origen del material</div>
           <div><b>${this._esc(m.tipoControl || "-")}</b>Tipo de control</div>
-          <div><b>${m.tipoMuestra || "-"}</b>Tipo de muestra</div>
-          <div><b>${m.np || "-"}</b>NP</div>
-          <div><b>${m.cliente || "-"}</b>Cliente</div>
-          <div><b>${m.codigoProducto || "-"}</b>Código</div>
-          <div><b>${this._labelEstado(m.estado)}</b>Estado</div>
-          <div><b>${m.evaluacion || "-"}</b>Evaluación</div>
-          <div><b>${maquinaNombre || m.maquina || "-"}</b>Máquina</div>
-          <div><b>${tipoOndaNombre || "-"}</b>Tipo de onda</div>
+          <div><b>${this._esc(m.tipoMuestra || "-")}</b>Tipo de muestra</div>
+          <div><b>${this._esc(m.np || "-")}</b>NP</div>
+          <div><b>${this._esc(m.cliente || "-")}</b>Cliente</div>
+          <div><b>${this._esc(m.codigoProducto || "-")}</b>Código</div>
+          <div><b>${this._esc(this._labelEstado(m.estado))}</b>Estado</div>
+          <div><b>${this._esc(m.evaluacion || "-")}</b>Evaluación</div>
+          <div><b>${this._esc(maquinaNombre || m.maquina || "-")}</b>Máquina</div>
+          <div><b>${this._esc(tipoOndaNombre || "-")}</b>Tipo de onda</div>
           <div><b>${this._esc(m.formatoFps || "-")}</b>Formato (FPS)</div>
           <div><b>${this._esc(this._textoDimensiones(m) || "-")}</b>Dimensiones nominales</div>
           ${m.antecedentesFps ? `<div style="grid-column:1/-1;white-space:pre-line;"><b>${this._esc(m.antecedentesFps)}</b>Antecedentes técnicos de la nota de venta (FPS)</div>` : ""}
           ${m.registroProduccionRecordKey ? `
-            <div><b>${m.registroProduccionRecordKey}</b>Registro de producción (FPS)</div>
-            <div><b>${m.operadorTexto || "-"}</b>Operador (FPS)</div>
-            <div><b>${m.fechaProduccionFps || "-"}</b>Fecha producción (FPS)</div>
+            <div><b>${this._esc(m.registroProduccionRecordKey)}</b>Registro de producción (FPS)</div>
+            <div><b>${this._esc(m.operadorTexto || "-")}</b>Operador (FPS)</div>
+            <div><b>${this._esc(m.fechaProduccionFps || "-")}</b>Fecha producción (FPS)</div>
           ` : ""}
         `
 
@@ -1369,11 +1419,11 @@ if (!window.MuestraLaboratorioController) {
         monotapaDiv.style.display = "block"
         monotapaDiv.innerHTML = `
           <div class="module-title" style="font-size:13px;">Control de Monotapa</div>
-          <div><b>${m.pesoOndaExtendida ?? "-"}</b> Peso onda extendida (g) &nbsp; · &nbsp;
-               <b>${m.pesoRecorte10x10 ?? "-"}</b> Peso recorte 10×10 (g) &nbsp; · &nbsp;
-               <b>${m.gramajeRecorte ?? "-"}</b> Gramaje recorte (g/m²) &nbsp; · &nbsp;
-               <b>${m.longitudOndaExtendida ?? "-"}</b> Longitud onda extendida (mm) &nbsp; · &nbsp;
-               <b>${m.alturaOnda ?? "-"}</b> Altura de onda (mm)</div>
+          <div><b>${this._esc(m.pesoOndaExtendida ?? "-")}</b> Peso onda extendida (g) &nbsp; · &nbsp;
+               <b>${this._esc(m.pesoRecorte10x10 ?? "-")}</b> Peso recorte 10×10 (g) &nbsp; · &nbsp;
+               <b>${this._esc(m.gramajeRecorte ?? "-")}</b> Gramaje recorte (g/m²) &nbsp; · &nbsp;
+               <b>${this._esc(m.longitudOndaExtendida ?? "-")}</b> Longitud onda extendida (mm) &nbsp; · &nbsp;
+               <b>${this._esc(m.alturaOnda ?? "-")}</b> Altura de onda (mm)</div>
         `
       } else {
         monotapaDiv.style.display = "none"
@@ -1430,7 +1480,7 @@ if (!window.MuestraLaboratorioController) {
       if (m.evaluacion !== "No cumple") return ""
 
       if (m.ncId) {
-        return `<div class="subtitle" style="margin-top:8px;">No Conformidad vinculada: <b>${m.ncCodigo || `#${m.ncId}`}</b> (gestiónala desde el módulo No Conformidades).</div>`
+        return `<div class="subtitle" style="margin-top:8px;">No Conformidad vinculada: <b>${this._esc(m.ncCodigo || `#${m.ncId}`)}</b> (gestiónala desde el módulo No Conformidades).</div>`
       }
 
       return `
@@ -1567,8 +1617,8 @@ if (!window.MuestraLaboratorioController) {
         const contenedor = document.getElementById("mlbAdjuntoContenido")
         const dataUri = `data:${res.data.tipoMime};base64,${res.data.contenidoBase64}`
         contenedor.innerHTML = res.data.tipoMime.startsWith("image/")
-          ? `<img src="${dataUri}" style="max-width:100%; max-height:60vh;">`
-          : `<iframe src="${dataUri}" style="width:100%; height:60vh; border:0;"></iframe>`
+          ? `<img src="${this._escAttr(dataUri)}" style="max-width:100%; max-height:60vh;">`
+          : `<iframe src="${this._escAttr(dataUri)}" style="width:100%; height:60vh; border:0;"></iframe>`
         this.abrirModal("mlbModalAdjunto")
       } catch (err) {
         alert(err.message)
@@ -1613,21 +1663,26 @@ if (!window.MuestraLaboratorioController) {
           : "-"
         const puedeAnular = e.estado !== "Anulado"
         const puedeCorregir = e.estado === "Finalizado" && !!this._tipoEnsayoConfig(e.tipoEnsayo)
-        const motivoAnulTitle = e.estado === "Anulado" && e.motivoAnulacion ? ` title="${e.motivoAnulacion}"` : ""
+        const motivoAnulTitle = e.estado === "Anulado" && e.motivoAnulacion ? ` title="${this._escAttr(e.motivoAnulacion)}"` : ""
+        // A3: quién anuló el ensayo y cuándo (lo registra la API con el usuario del token). Las
+        // anulaciones anteriores a 1.8.28 no tienen el dato: no se muestra nada extra.
+        const anulInfo = e.estado === "Anulado" && (e.anuladoPor || e.fechaAnulacion)
+          ? `<br><small>Anulado por ${this._esc(e.anuladoPor || "-")} el ${this._esc(e.fechaAnulacion || "-")}</small>`
+          : ""
         const corrigeBadge = e.ensayoReemplazaId
           ? ` <button type="button" class="mlb-historial-btn" data-id="${e.id}" title="Ver historial de valores (Punto 36)" style="border:none;background:none;cursor:pointer;font-size:14px;">&#9998;</button>`
           : ""
 
         return `
           <tr>
-            <td>${e.tipoEnsayo}</td>
-            <td>${e.metodo || "-"}</td>
-            <td>${e.analistaNombre || "-"}</td>
-            <td>${e.fecha || "-"}</td>
-            <td>${resultado}</td>
-            <td>${spec}</td>
-            <td>${e.cumplimiento}</td>
-            <td${motivoAnulTitle}>${e.estado}${e.observacion ? ` <span title="${e.observacion}">&#9432;</span>` : ""}${corrigeBadge}</td>
+            <td>${this._esc(e.tipoEnsayo)}</td>
+            <td>${this._esc(e.metodo || "-")}</td>
+            <td>${this._esc(e.analistaNombre || "-")}</td>
+            <td>${this._esc(e.fecha || "-")}</td>
+            <td>${this._esc(resultado)}</td>
+            <td>${this._esc(spec)}</td>
+            <td>${this._esc(e.cumplimiento)}</td>
+            <td${motivoAnulTitle}>${this._esc(e.estado)}${anulInfo}${e.observacion ? ` <span title="${this._escAttr(e.observacion)}">&#9432;</span>` : ""}${corrigeBadge}</td>
             <td>
               ${enEnsayo ? `<button class="btn-primary mlb-em-continuar-btn" data-id="${e.id}">Continuar</button>` : ""}
               ${e.modeloMuestras && !enEnsayo ? `<button class="btn-secondary mlb-em-ver-btn" data-id="${e.id}">Ver muestras</button>` : ""}
@@ -1851,12 +1906,12 @@ if (!window.MuestraLaboratorioController) {
         .forEach(tipo => { if (!cubiertos.has(tipo)) porTipo(tipo).forEach(e => tablas.push(e.modeloMuestras ? this._tablaEnsayoMuestras(e, tipo) : this._tablaGenerica(e))) })
 
       window.PrintExporter.printReport({
-        titulo: `Informe de Laboratorio - Muestra #${m.id}`,
+        titulo: this._esc(`Informe de Laboratorio - Muestra #${m.id}`),
         empresa: "INNPACK",
-        subtitulo: m.observacion ? `Observación general: ${m.observacion}` : "",
+        subtitulo: m.observacion ? this._esc(`Observación general: ${m.observacion}`) : "",
         totalRegistros: ensayos.length,
-        resumen,
-        tablas
+        resumen: resumen.map(r => ({ label: this._esc(r.label), valor: this._esc(r.valor) })),
+        tablas: tablas.map(t => this._escaparTablaInforme(t))
       })
     }
 
@@ -1927,7 +1982,16 @@ if (!window.MuestraLaboratorioController) {
           : `Muestra N.º ${mu.numero} incompleta (sin promedio)`
         filas.push(["", "", `<b>${esc(promedio)}</b>${mu.completa ? this._emTextoOtros(cfg, mu.otrosPromedios) : ""}`, ...vacias().slice(0, -1), esc(`Cumplimiento: ${mu.cumplimiento || "-"}`)])
       }
-      return { titulo: `${titulo || e.tipoEnsayo} — ${this._metaEnsayo(e)}`, columnas, filas }
+      // preescapada: celdas y columnas ya salen escapadas (algunas llevan <b> legítimo); el título se escapa acá.
+      return { titulo: esc(`${titulo || e.tipoEnsayo} — ${this._metaEnsayo(e)}`), columnas, filas, preescapada: true }
+    }
+
+    // PrintExporter.printReport inserta todo como HTML crudo: se escapa acá, una sola vez, todo dato
+    // de usuario/FPS. Las tablas ya marcadas como preescapadas (_tablaEnsayoMuestras) no se tocan.
+    _escaparTablaInforme(t) {
+      if (t.preescapada) return t
+      const esc = v => this._esc(v)
+      return { titulo: esc(t.titulo), columnas: t.columnas.map(esc), filas: t.filas.map(f => f.map(esc)) }
     }
 
     // Agrupa las bobinas muestreadas (Punto 11) en las 3 columnas fijas del REG-LAB-04
@@ -2424,8 +2488,8 @@ if (!window.MuestraLaboratorioController) {
 
       const selEct = document.getElementById("mlbBctTeoEct")
       const selEsp = document.getElementById("mlbBctTeoEspesor")
-      selEct.innerHTML = ects.map(x => `<option value="${x.id}">Ensayo #${x.id} - ${x.resultadoValor} ${this._u(x.resultadoUnidad)} (${x.fecha})</option>`).join("")
-      selEsp.innerHTML = espesores.map(x => `<option value="${x.id}">Ensayo #${x.id} - ${x.resultadoValor} ${this._u(x.resultadoUnidad)} (${x.fecha})</option>`).join("")
+      selEct.innerHTML = ects.map(x => `<option value="${x.id}">Ensayo #${x.id} - ${this._esc(x.resultadoValor)} ${this._esc(this._u(x.resultadoUnidad))} (${this._esc(x.fecha)})</option>`).join("")
+      selEsp.innerHTML = espesores.map(x => `<option value="${x.id}">Ensayo #${x.id} - ${this._esc(x.resultadoValor)} ${this._esc(this._u(x.resultadoUnidad))} (${this._esc(x.fecha)})</option>`).join("")
 
       if (d.ectEnsayoId) selEct.value = String(d.ectEnsayoId)
       if (d.espesorEnsayoId) selEsp.value = String(d.espesorEnsayoId)
@@ -3461,8 +3525,8 @@ if (!window.MuestraLaboratorioController) {
         return
       }
 
-      selEct.innerHTML = ects.map(e => `<option value="${e.id}">Ensayo #${e.id} - ${e.resultadoValor} ${this._u(e.resultadoUnidad)} (${e.fecha})</option>`).join("")
-      selEsp.innerHTML = espesores.map(e => `<option value="${e.id}">Ensayo #${e.id} - ${e.resultadoValor} ${this._u(e.resultadoUnidad)} (${e.fecha})</option>`).join("")
+      selEct.innerHTML = ects.map(e => `<option value="${e.id}">Ensayo #${e.id} - ${this._esc(e.resultadoValor)} ${this._esc(this._u(e.resultadoUnidad))} (${this._esc(e.fecha)})</option>`).join("")
+      selEsp.innerHTML = espesores.map(e => `<option value="${e.id}">Ensayo #${e.id} - ${this._esc(e.resultadoValor)} ${this._esc(this._u(e.resultadoUnidad))} (${this._esc(e.fecha)})</option>`).join("")
 
       document.getElementById("mlbBctTeoLargo").value = ""
       document.getElementById("mlbBctTeoAncho").value = ""
@@ -3686,6 +3750,7 @@ if (!window.MuestraLaboratorioController) {
 
     destroy() {
       console.log("DESTROY MUESTRA LABORATORIO")
+      this._guardando = false
       if (this._clickHandler) {
         document.removeEventListener("click", this._clickHandler)
         this._clickHandler = null

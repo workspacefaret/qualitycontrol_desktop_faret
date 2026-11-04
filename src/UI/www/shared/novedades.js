@@ -3,20 +3,19 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.27";
+    const ID = "1.8.28";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
         {
-            titulo: "Laboratorio - Muestras: varias muestras por ensayo",
+            titulo: "Laboratorio - Muestras: correcciones de la versión 1.8.27",
             icono: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>',
             puntos: [
-                { solo: "INNPACK", t: "Humedad, Espesor, Gramaje, Cobb, RCT, FCT, ECT y BCT se registran ahora por muestra, con todas sus determinaciones, como en el REG-LAB-04." },
-                { solo: "INNPACK", t: "Los resultados y promedios se calculan mientras escribes. Puedes guardar sin finalizar y continuar después." },
-                { solo: "INNPACK", t: "El informe imprimible incluye cada muestra, sus determinaciones y su promedio. Las correcciones conservan el valor original." },
-                { solo: "INNPACK", t: "RCT y Cobb permiten de 1 a 20 probetas. Ahora puedes ingresar las dimensiones nominales del producto a mano." },
-                { solo: "INNPACK", t: "Nuevos botones para exportar el REG-LAB-04 completo en Excel y en PDF, con el formato del registro físico." },
+                { solo: "INNPACK", t: "Al finalizar un ensayo con sustrato, ahora el sustrato de cada muestra es obligatorio." },
+                { solo: "INNPACK", t: "Si quitas la orden de FPS o cambias el NP, se limpian los datos autocompletados y no se mezclan con otra orden." },
+                { solo: "INNPACK", t: "El Excel y el PDF del REG-LAB-04 incluyen solo ensayos finalizados en las hojas de formato. Las unidades se muestran en español (pulg, lb/pulg)." },
+                { solo: "INNPACK", t: "Se evita el doble guardado por doble clic y se validan valores fuera de rango. Las anulaciones registran quién y cuándo." },
                 { solo: "FARET", t: "Esta versión trae mejoras para Laboratorio de INNPACK. En Faret no cambia nada de lo que usas." },
             ],
         },
