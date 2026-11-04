@@ -117,7 +117,7 @@ window.NcInternasController = class NcInternasController {
         if (!select) return;
         const actual = select.value;
         select.innerHTML = `<option value="">${placeholder}</option>` +
-            valores.map(v => `<option value="${this._esc(v)}">${this._esc(v)}</option>`).join("");
+            valores.map(v => `<option value="${this._esc(v)}">${this._esc(this._etiquetaSelect(selectId, v))}</option>`).join("");
         if (actual) this._setSelectValue(select, actual);
     }
 
@@ -126,7 +126,7 @@ window.NcInternasController = class NcInternasController {
     _setSelectValue(select, valor) {
         if (!valor) { select.value = ""; return; }
         if (![...select.options].some(o => o.value === valor)) {
-            select.insertAdjacentHTML("beforeend", `<option value="${this._esc(valor)}">${this._esc(valor)}</option>`);
+            select.insertAdjacentHTML("beforeend", `<option value="${this._esc(valor)}">${this._esc(this._etiquetaSelect(select.id, valor))}</option>`);
         }
         select.value = valor;
     }
@@ -238,7 +238,7 @@ window.NcInternasController = class NcInternasController {
                 <td>${this._esc(nc.npNv ?? "-")}</td>
                 <td>${this._esc(nc.cliente ?? "-")}</td>
                 <td>${this._esc(nc.area ?? "-")}${nc.areasSecundarias ? `<div class="nci-nota">+ ${this._esc(nc.areasSecundarias)}</div>` : ""}</td>
-                <td>${this._esc(nc.categoriaDefecto ?? "-")}</td>
+                <td>${this._esc(window.NciTipoDesviacion.etiqueta(nc.categoriaDefecto ?? "-"))}</td>
                 <td>${this._esc(nc.proceso ?? "-")}</td>
                 <td>${this._badge(this._labelEstadoGestion(nc.estadoGestion), this._colorEstadoGestion(nc.estadoGestion))}</td>
                 <td class="nci-acciones-celda">
@@ -955,7 +955,7 @@ window.NcInternasController = class NcInternasController {
         const partes = [];
         if (f.cliente) partes.push(`Cliente: ${f.cliente}`);
         if (f.area) partes.push(`Área: ${f.area}`);
-        if (f.categoriaDefecto) partes.push(`Tipo: ${f.categoriaDefecto}`);
+        if (f.categoriaDefecto) partes.push(`Tipo: ${window.NciTipoDesviacion.etiqueta(f.categoriaDefecto)}`);
         if (f.estadoGestion) partes.push(`Estado gestión: ${this._labelEstadoGestion(f.estadoGestion)}`);
         if (f.fechaDesde) partes.push(`Desde: ${this._fecha(f.fechaDesde)}`);
         if (f.fechaHasta) partes.push(`Hasta: ${this._fecha(f.fechaHasta)}`);
@@ -969,6 +969,7 @@ window.NcInternasController = class NcInternasController {
                 tableSelector: "#nci-tabla-export-temp",
                 fileName: `nc_internas_innpack_${Date.now()}.xlsx`,
                 sheetName: "NC Internas",
+                maxColWidth: 44, // la descripción ampliada del tipo (hasta 40 caracteres) debe verse completa
                 title: "QCC - NC Internas INNPACK",
             });
             tabla.remove();
@@ -981,7 +982,7 @@ window.NcInternasController = class NcInternasController {
         const cols = [
             ["Código", nc => nc.codigo], ["Fecha", nc => this._fecha(nc.fechaDeteccion)], ["NP/NV", nc => nc.npNv],
             ["Cliente", nc => nc.cliente], ["Área responsable", nc => nc.area], ["Otras áreas", nc => nc.areasSecundarias],
-            ["Tipo de desviación", nc => nc.categoriaDefecto], ["Etapa que detecta", nc => nc.proceso],
+            ["Tipo de desviación", nc => window.NciTipoDesviacion.etiqueta(nc.categoriaDefecto)], ["Etapa que detecta", nc => nc.proceso],
             ["Descripción", nc => nc.descripcion],
             ["Observación", nc => nc.observacion], ["Estado gestión", nc => this._labelEstadoGestion(nc.estadoGestion)],
             ["Responsable", nc => nc.responsable], ["Fecha cierre", nc => this._fecha(nc.fechaCierre)], ["Cerrado por", nc => nc.cerradoPor],
@@ -995,6 +996,11 @@ window.NcInternasController = class NcInternasController {
             `<tbody>${items.map(nc => `<tr>${cols.map(([, f]) => `<td>${this._esc(f(nc) ?? "")}</td>`).join("")}</tr>`).join("")}</tbody>`;
         document.body.appendChild(tabla);
         return tabla;
+    }
+
+    // Descripción ampliada del tipo de desviación: solo presentación; el valor (value) sigue siendo el original.
+    _etiquetaSelect(selectId, valor) {
+        return selectId.endsWith("-tipo") ? window.NciTipoDesviacion.etiqueta(valor) : valor;
     }
 
     // ---------- Indicadores ----------
@@ -1168,7 +1174,7 @@ window.NcInternasController = class NcInternasController {
         const chart = new Chart(ctx, {
             type: "bar",
             data: {
-                labels: rows.map(r => r.defecto || "-"),
+                labels: rows.map(r => window.NciTipoDesviacion.etiqueta(r.defecto || "-")),
                 datasets: [
                     {
                         label: "Frecuencia",
@@ -1194,7 +1200,7 @@ window.NcInternasController = class NcInternasController {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: { position: "bottom", labels: { font: { size: 11 } } },
-                    tooltip: { callbacks: { title: items => (items[0] ? rows[items[0].dataIndex]?.defecto || "" : "") } },
+                    tooltip: { callbacks: { title: items => (items[0] ? window.NciTipoDesviacion.etiqueta(rows[items[0].dataIndex]?.defecto || "") : "") } },
                 },
                 ...this._opcionesClic(canvasId, rows, "defecto"),
                 scales: {
@@ -1406,7 +1412,7 @@ window.NcInternasController = class NcInternasController {
                 {
                     titulo: "Pareto por tipo de desviación",
                     columnas: ["Tipo", "Frecuencia", "% Acumulado"],
-                    filas: this._aplicarTopNOtros(ind.pareto).map(r => [r.defecto, r.frecuencia, `${r.porcentajeAcumulado}%`]),
+                    filas: this._aplicarTopNOtros(ind.pareto).map(r => [window.NciTipoDesviacion.etiqueta(r.defecto), r.frecuencia, `${r.porcentajeAcumulado}%`]),
                 },
                 { titulo: "Etapa que detecta", columnas: ["Etapa", "Total"], filas: ind.porEtapa.map(r => [r.categoria, r.total]) },
                 { titulo: "Clientes con más NC internas", columnas: ["Cliente", "Total"], filas: ind.porCliente.map(r => [r.categoria, r.total]) },

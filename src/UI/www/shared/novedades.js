@@ -19,6 +19,14 @@ window.Novedades = (() => {
                 { solo: "FARET", t: "Esta versión trae mejoras para Laboratorio de INNPACK. En Faret no cambia nada de lo que usas." },
             ],
         },
+        {
+            titulo: "NC Internas: descripciones ampliadas",
+            icono: '<path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+            puntos: [
+                { t: "Algunos tipos de desviación muestran ahora una aclaración, por ejemplo «Color (Disminución)». Se aplica también a los registros anteriores." },
+                { t: "Los filtros, el Pareto, el Excel y el informe imprimible usan el mismo texto. Las estadísticas históricas no cambian." },
+            ],
+        },
     ];
 
     let abierto = null;

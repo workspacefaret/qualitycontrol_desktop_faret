@@ -4,7 +4,8 @@ window.ExcelExporter = {
             tableSelector,
             fileName,
             sheetName = "Datos",
-            title = "Exportación QCC"
+            title = "Exportación QCC",
+            maxColWidth = 38
         } = options
 
         const table = document.querySelector(tableSelector)
@@ -51,7 +52,7 @@ window.ExcelExporter = {
                 ...aoa.map(row => String(row[colIndex] || "").length)
             )
 
-            return { wch: Math.min(Math.max(maxLen + 2, 12), 38) }
+            return { wch: Math.min(Math.max(maxLen + 2, 12), maxColWidth) }
         })
 
         ws["!freeze"] = { xSplit: 0, ySplit: 4 }

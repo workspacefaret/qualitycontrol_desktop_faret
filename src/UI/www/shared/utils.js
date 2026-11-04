@@ -931,3 +931,27 @@ window.QccImagenes = {
         return original;
     }
 };
+
+// NC Internas (Faret e INNPACK): descripción ampliada de algunos tipos de desviación (pedido de Pedro).
+// SOLO PRESENTACIÓN y exportación: el valor guardado en la base y usado en filtros/Pareto no cambia, por lo
+// que los registros históricos se ven (y exportan) con la descripción ampliada sin dividir estadísticas.
+// PENDIENTE de confirmación textual por Pedro: las 5 aclaraciones de abajo.
+window.NciTipoDesviacion = (function () {
+    const AMPLIACIONES = [
+        ["Código SAP/Perfil", "Visual"],
+        ["Color", "Disminución"],
+        ["GMG/Carta Color/IGT", "Diferencias"],
+        ["Barniz/Folia/Serigrafía", "Descontinuados"],
+        ["Arte incorrecto", "Arte antiguo"],
+    ];
+    // Tolera mayúsculas y espacios alrededor de "/" (el catálogo tiene "GMG/ Carta Color/ IGT").
+    const norm = v => String(v ?? "").trim().toLowerCase().replace(/\s*\/\s*/g, "/").replace(/\s+/g, " ");
+    const mapa = new Map(AMPLIACIONES.map(([base, ampliacion]) => [norm(base), ampliacion]));
+    function etiqueta(valor) {
+        if (valor === null || valor === undefined) return valor;
+        const texto = String(valor).trim();
+        const ampliacion = mapa.get(norm(texto));
+        return ampliacion ? `${texto} (${ampliacion})` : valor;
+    }
+    return { etiqueta, AMPLIACIONES };
+})();
