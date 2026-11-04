@@ -51,6 +51,11 @@ Versión 1.8.28 en `.csproj` (Version/AssemblyVersion/FileVersion), `.iss` (AppV
 - SQL: normalmente no se revierte; solo con el script de rollback si no hay anulaciones auditadas.
 - Clientes ya actualizados a 1.8.28 con API anterior: funcionan (campos aditivos), sin auditoría de anulación visible.
 
-## 7. Artefactos locales generados (04-11-2026, sin publicar)
-- Instalador `C:\Installers\QualityControlCenter_Setup_v1.8.28.exe`: 58.820.661 bytes, SHA-256 `cbcb4dacb13f345dbd982a40f858525863fa7b67805c26a2ce09b00ac9a36986`. `QCC.Updater.exe` incluido: 67.527.732 bytes (single-file correcto; el tamaño difiere del 67.523.636 histórico porque el bundling no es reproducible). Recalcular el hash antes de publicar si se regenera.
-- API (staging fuera del repo, carpeta `api_staging_1.8.28` del scratchpad): `QualityControlInnpack.Api.dll` SHA-256 `6fcc1f37…3993f1b`, `.pdb` `5487826c…b19ceb`. Se regeneran en el momento del despliegue; estos hashes sirven de referencia.
+## 7. Artefactos locales (regenerados el 04-11-2026 tras el ajuste de NC Internas; sin publicar)
+- Instalador `C:\Installers\QualityControlCenter_Setup_v1.8.28.exe`: 58.831.701 bytes, SHA-256 `8e808028c13d1f64e58b812f5450ac528127718437bff5fd124ed3687f20674f`, FileVersion 1.8.28. **Reemplaza al hash anterior (`cbcb4dac…`)**. `QCC.Updater.exe` incluido: 67.527.732 bytes.
+- API: ya DESPLEGADA en producción (commit `1cac256`, DLL `BDE8B59A…A1D3`). El ajuste de NC Internas es solo de frontend: la API no se vuelve a desplegar.
+
+## 8. Ajuste NC Internas: descripciones ampliadas del tipo de desviación (pedido de Pedro)
+- Solo presentación y exportación, para registros nuevos e históricos: `window.NciTipoDesviacion` (`shared/utils.js`) agrega la aclaración entre paréntesis sin cambiar el valor guardado, los filtros, el Pareto ni el catálogo. Aplicado en `nc-internas` y `faret-nc-internas` (selectores, filtros, tabla, resumen de filtros, Excel, gráfico Pareto, informe imprimible). `ExcelExporter` acepta `maxColWidth` (38 por defecto; NC Internas usa 44 para que «Barniz/Folia/Serigrafía (Descontinuados)» se vea completo).
+- **Redacciones PENDIENTES DE CONFIRMACIÓN TEXTUAL por Pedro (antes de activar `latest.json`):** Código SAP/Perfil (Visual); Color (Disminución); GMG/Carta Color/IGT (Diferencias); Barniz/Folia/Serigrafía (Descontinuados); Arte incorrecto (Arte antiguo). Si cambian, se edita la lista `AMPLIACIONES` y se regenera el instalador.
+- Validado con las 171 NC internas históricas reales (135 Faret, 36 INNPACK; lectura por API, sin modificar nada): las frecuencias del Pareto son idénticas antes y después, las categorías internas y las mostradas coinciden (13 y 9), y el cálculo no modifica los datos. Los valores históricos antiguos «Color / GMG / Muestras» y «Perfil no indicado en NV / carpeta» no están en la lista de Pedro y se muestran sin cambio. NO comprobado: generación real del `.xlsx` y abrir el informe en la ventana Photino.
