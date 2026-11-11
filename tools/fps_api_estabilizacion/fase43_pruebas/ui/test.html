@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Arnés UI Fase 43</title>
+<link rel="stylesheet" href="/core/styles.css">
+<link rel="stylesheet" href="/modules/evaluacion-operadores/evaluacion-operadores.css">
+<style>body{zoom:0.9;margin:0} .main{margin-left:0!important}</style>
+</head><body>
+<div class="main" id="main-layout"><div class="workspace"><div id="app-content"></div></div></div>
+<script>
+// Puente simulado: mismo contrato que PhotinoBridge.send (devuelve la respuesta {ok,data,error} ya parseada).
+const q = new URLSearchParams(location.search);
+window.__nivel = q.get('nivel') || 'EDITAR';
+window.__errores = [];
+window.addEventListener('error', e => window.__errores.push(String(e.message)));
+window.addEventListener('unhandledrejection', e => window.__errores.push('promesa: ' + e.reason));
+window.PhotinoBridge = {
+  send: async payload => { const r = await fetch('/bridge?nivel=' + window.__nivel, { method: 'POST', body: JSON.stringify(payload) }); return await r.json(); }
+};
+window.__montar = async () => {
+  const html = await (await fetch('/modules/faret-evaluacion-operadores/faret-evaluacion-operadores.view.html')).text();
+  document.getElementById('app-content').innerHTML = html;
+  if (!window.FaretEvaluacionOperadoresController) { await new Promise((ok, no) => { const s = document.createElement('script'); s.src = '/modules/faret-evaluacion-operadores/faret-evaluacion-operadores.controller.js'; s.onload = ok; s.onerror = no; document.body.appendChild(s); }); }
+  window.ctl = new window.FaretEvaluacionOperadoresController();
+  window.__init = window.ctl.init();   // sin await: el test observa el estado de carga
+};
+window.__desmontar = () => { window.ctl?.destroy(); document.getElementById('app-content').innerHTML = ''; };
+if (q.get('auto') !== '0') window.__montar();
+</script></body></html>

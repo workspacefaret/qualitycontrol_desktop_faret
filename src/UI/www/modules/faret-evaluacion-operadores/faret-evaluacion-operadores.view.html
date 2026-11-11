@@ -1,0 +1,135 @@
+<div class="module evop-module fevf-module">
+    <style>
+        .fevf-module .fevf-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .fevf-module .fevf-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .fevf-module .fevf-tab { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+        .fevf-module .fevf-tab[aria-selected="true"] { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+        .fevf-module .fevf-dist { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+        .fevf-module .fevf-est { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+        .fevf-module .fevf-est-CONFIRMADA_TECNICA { background: #dcfce7; color: #166534; }
+        .fevf-module .fevf-est-PROBABLE { background: #e0f2fe; color: #075985; }
+        .fevf-module .fevf-est-AMBIGUA { background: #fef3c7; color: #92400e; }
+        .fevf-module .fevf-est-DISCREPANCIA { background: #fee2e2; color: #991b1b; }
+        .fevf-module .fevf-est-SIN_ATRIBUCION { background: #e5e7eb; color: #374151; }
+        .fevf-module .fevf-evidencia td { background: #f8fafc; }
+        .fevf-module .fevf-evidencia ul { margin: 4px 0 8px 18px; padding: 0; }
+        .fevf-module .fevf-sub { font-size: 12px; color: #475569; }
+        .fevf-module .fevf-link { background: none; border: none; color: #1d4ed8; cursor: pointer; text-decoration: underline; padding: 0; font: inherit; }
+        .fevf-module .fevf-tabla-mini td, .fevf-module .fevf-tabla-mini th { padding: 4px 8px; font-size: 12px; }
+    </style>
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">Evaluación de Calidad por Operador</div>
+            <div class="subtitle">FARET · PNC de Data cruzadas con las sesiones reales de producción de FPS</div>
+        </div>
+        <div style="text-align:right;">
+            <button type="button" id="fevf-actualizar" class="btn-secondary" title="Vuelve a consultar Data y FPS (los filtros no lo hacen)">Actualizar datos</button>
+            <div id="fevf-cache" class="fevf-sub" style="margin-top:4px;"></div>
+        </div>
+    </div>
+
+    <div class="evop-aviso-oficial" role="note">
+        <strong>Atribución técnica, no responsabilidad.</strong>
+        Cada PNC se cruza con FPS: documento (NP/NV) → máquina → día de fabricación → personas registradas en esa sesión.
+        "Confirmada técnicamente" significa que <strong>una única persona</strong> figuraba en FPS en ese documento, máquina y día;
+        <strong>no demuestra que haya causado el defecto</strong>: la responsabilidad la confirma Calidad.
+        Cuando participan varias personas, la PNC <strong>no se asigna a ninguna</strong>.
+        Los puntos (Crítico 10 · Mayor 5 · Menor 1) son <strong>provisionales</strong> y solo se suman en PNC confirmadas.
+        No hay nota, porcentaje, ranking ni sanciones. El operador escrito en la PNC solo se compara con FPS.
+    </div>
+    <div id="fevf-privacidad" class="evop-privacidad" style="display:none;" role="note">
+        Nombres ocultos: con permiso de solo vista las personas se muestran como códigos (OP-xxxxxx) y no se muestra el operador escrito en la PNC.
+    </div>
+
+    <div class="card evop-filtros">
+        <div class="filters evop-filtros-row">
+            <div class="evop-campo"><label for="fevf-anio">Año (fabricación)</label>
+                <select id="fevf-anio"><option value="">Todos</option></select></div>
+            <div class="evop-campo"><label for="fevf-mes">Mes</label>
+                <select id="fevf-mes">
+                    <option value="">Todos</option>
+                    <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+                    <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+                    <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+                    <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+                </select></div>
+            <div class="evop-campo"><label for="fevf-maquina">Máquina</label>
+                <select id="fevf-maquina"><option value="">Todas</option></select></div>
+            <div class="evop-campo"><label for="fevf-area">Área</label>
+                <select id="fevf-area"><option value="">Todas</option></select></div>
+            <div class="evop-campo"><label for="fevf-turno">Turno (estimado)</label>
+                <select id="fevf-turno"><option value="">Todos</option><option value="A">A (07–15)</option><option value="B">B (15–23)</option><option value="C">C (23–07)</option></select></div>
+            <div class="evop-campo"><label for="fevf-operador">Persona (FPS)</label>
+                <select id="fevf-operador"><option value="">Todas</option></select></div>
+            <div class="evop-campo evop-acciones">
+                <button id="fevf-limpiar" class="btn-secondary" type="button">Limpiar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="fevf-estado" class="evop-estado" style="display:none;" role="status"></div>
+
+    <div id="fevf-contenido" style="display:none;">
+        <div class="fevf-kpis">
+            <div class="kpi-card"><div class="kpi-label">PNC filtradas <small id="fevf-k-universo"></small></div><div class="kpi-value" id="fevf-k-filtradas">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Confirmadas técnicamente</div><div class="kpi-value" id="fevf-k-conf">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Probables</div><div class="kpi-value" id="fevf-k-prob">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Ambiguas <small>(varias personas)</small></div><div class="kpi-value" id="fevf-k-amb">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Discrepancias</div><div class="kpi-value" id="fevf-k-disc">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Sin atribución</div><div class="kpi-value" id="fevf-k-sin">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Personas FPS involucradas</div><div class="kpi-value" id="fevf-k-ops">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Puntos provisionales <small>(solo confirmadas)</small></div><div class="kpi-value" id="fevf-k-puntos">0</div></div>
+        </div>
+        <div id="fevf-fuente" class="fevf-sub" style="margin-bottom:12px;"></div>
+
+        <div class="card">
+            <h3>Personas registradas en FPS <small>(orden alfabético · no es un ranking)</small></h3>
+            <div class="table-container">
+                <table class="table" id="fevf-tabla-ops">
+                    <thead><tr>
+                        <th>Persona (FPS)</th><th class="num">Confirmadas</th><th class="num">Críticas</th><th class="num">Mayores</th><th class="num">Menores</th>
+                        <th class="num">Puntos provisionales</th><th class="num">Probables</th><th class="num">Ambiguas (participa)</th>
+                        <th class="num">Declarado distinto</th><th>Máquinas</th><th></th>
+                    </tr></thead>
+                    <tbody id="fevf-tbody-ops"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="fevf-detalle-op" class="card" style="display:none;"></div>
+
+        <div class="card">
+            <h3>PNC por estado de atribución <small>(cada lista por separado, nunca mezcladas)</small></h3>
+            <div class="fevf-tabs" role="tablist">
+                <button class="fevf-tab" role="tab" data-fevf-tab="conf" aria-selected="true">Confirmadas técnicamente (<span id="fevf-t-conf">0</span>)</button>
+                <button class="fevf-tab" role="tab" data-fevf-tab="pa" aria-selected="false">Probables y ambiguas (<span id="fevf-t-pa">0</span>)</button>
+                <button class="fevf-tab" role="tab" data-fevf-tab="sin" aria-selected="false">Discrepancias y sin atribución (<span id="fevf-t-sin">0</span>)</button>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead><tr>
+                        <th>Id Data</th><th>NP/NV</th><th>Nivel</th><th>Fecha fab.</th><th>Máquina PNC → FPS</th>
+                        <th>Estado</th><th>Personas FPS</th><th>Operador declarado</th><th class="num">Puntos prov.</th><th></th>
+                    </tr></thead>
+                    <tbody id="fevf-tbody-pnc"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Distribución <small>(PNC filtradas)</small></h3>
+            <div class="fevf-dist">
+                <div><h4>Por máquina</h4><div id="fevf-d-maquina"></div></div>
+                <div><h4>Por proceso (FPS)</h4><div id="fevf-d-proceso"></div></div>
+                <div><h4>Por período de fabricación</h4><div id="fevf-d-periodo"></div></div>
+                <div><h4>Por turno estimado</h4><div id="fevf-d-turno"></div></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Operador declarado en la PNC vs. FPS <small>(solo informativo, no cambia el estado técnico)</small></h3>
+            <div id="fevf-declarado"></div>
+        </div>
+    </div>
+</div>

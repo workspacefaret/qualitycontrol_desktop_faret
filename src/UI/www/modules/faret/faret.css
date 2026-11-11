@@ -179,3 +179,35 @@
 .home-module.faret-planta canvas {
     height: 340px !important;
 }
+
+/* Edición de inspecciones (shared/inspecciones-edicion.js): modal, historial y celda "Última edición". */
+.fie-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.fie-modal { background: #fff; border-radius: 12px; width: min(980px, 100%); max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3); }
+.fie-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 20px 10px; border-bottom: 1px solid #E2E8F0; }
+.fie-titulo { font-size: 17px; font-weight: 700; color: #0F172A; }
+.fie-sub { font-size: 12px; color: #64748B; margin-top: 2px; }
+.fie-x { border: none; background: transparent; font-size: 24px; line-height: 1; cursor: pointer; color: #64748B; }
+.fie-body { padding: 14px 20px; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px 16px; align-content: start; }
+.fie-body > .fie-error, .fie-body > .fie-ancho, .fie-body > .fie-motivo, .fie-body > .fie-seccion { grid-column: 1 / -1; }
+.fie-body:not(.fie-body-grid) { }
+.fie-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 20px 16px; border-top: 1px solid #E2E8F0; }
+.fie-campo { display: flex; flex-direction: column; gap: 4px; }
+.fie-campo label { font-size: 12px; font-weight: 700; color: #334155; }
+.fie-campo input[type="text"], .fie-campo input[type="number"], .fie-campo select, .fie-campo textarea { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #CBD5E1; border-radius: 6px; font: inherit; font-size: 13px; }
+.fie-campo textarea { resize: vertical; }
+.fie-req { color: #B91C1C; }
+.fie-error { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; border-radius: 6px; padding: 8px 10px; font-size: 13px; }
+.fie-seccion { border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; }
+.fie-seccion-titulo { font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px; }
+.fie-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 4px 14px; max-height: 220px; overflow: auto; }
+.fie-chk { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; padding: 2px 0; }
+.fie-nota { font-size: 11.5px; color: #64748B; }
+.fie-ultima { font-size: 11px; color: #64748B; margin-top: 3px; white-space: nowrap; }
+.fie-hist { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fie-hist th, .fie-hist td { border: 1px solid #E2E8F0; padding: 5px 7px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.fie-hist th { background: #F1F5F9; }
+#fie-modal-historial .fie-body { display: block; }
+.fie-chk-resp { display: grid; grid-template-columns: 1fr 170px; gap: 6px 10px; align-items: center; border-bottom: 1px dashed #E2E8F0; padding: 5px 0; }
+.fie-chk-resp .fie-obs { grid-column: 1 / -1; }
+.fie-chk-resp { font-size: 13px; color: #1E293B; }
+.fie-chk-resp select, .fie-chk-resp input[type="text"] { box-sizing: border-box; width: 100%; padding: 6px 8px; border: 1px solid #CBD5E1; border-radius: 6px; font: inherit; font-size: 12.5px; }

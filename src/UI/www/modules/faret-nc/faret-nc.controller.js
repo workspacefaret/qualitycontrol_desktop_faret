@@ -1497,7 +1497,7 @@ window.FaretNcController = class FaretNcController {
                         : nc.sistemaOrigen === "INSPECCION_FARET" && nc.origenId ? `Inspección #${nc.origenId}`
                         : "Manual"
                     }</div>
-                    <div><strong>Fecha creación:</strong> ${nc.fechaCreacion ? new Date(nc.fechaCreacion).toLocaleString("es-CL") : "-"}</div>
+                    <div><strong>Fecha creación:</strong> ${nc.fechaCreacion && !String(nc.fechaCreacion).startsWith("0001") ? new Date(nc.fechaCreacion).toLocaleString("es-CL") : "Sin dato (no registrada por la API)"}</div>
                 </div>
                 <div class="fnc-detalle-titulo"><strong>Título:</strong> ${nc.titulo ?? "-"}</div>
                 <div class="fnc-detalle-descripcion"><strong>Descripción:</strong><br>${nc.descripcion ?? "-"}</div>

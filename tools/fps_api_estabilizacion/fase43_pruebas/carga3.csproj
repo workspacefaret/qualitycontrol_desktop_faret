@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Services/FpsApi/FpsApiClient.cs" Link="FpsApiClient.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Services/FpsApi/FpsApiSettings.cs" Link="FpsApiSettings.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Services/FpsApi/FpsSesionesApiService.cs" Link="FpsSesionesApiService.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Services/FaretApi/FaretApiClient.cs" Link="FaretApiClient.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Services/FaretApi/FaretApiSettings.cs" Link="FaretApiSettings.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Services/FaretApi/FaretImportacionApiService.cs" Link="FaretImportacionApiService.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Modules/EvaluacionOperadores/FaretAtribucionFps.cs" Link="FaretAtribucionFps.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Modules/EvaluacionOperadores/FaretEvaluacionFpsResumen.cs" Link="FaretEvaluacionFpsResumen.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Modules/EvaluacionOperadores/EvaluacionOperadoresCalculator.cs" Link="EvaluacionOperadoresCalculator.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Modules/EvaluacionOperadores/FaretEvaluacionOperadoresParser.cs" Link="FaretEvaluacionOperadoresParser.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Modules/EvaluacionOperadores/FaretUniversoCache.cs" Link="FaretUniversoCache.cs" />
+    <Compile Include="C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/Backend/Modules/EvaluacionOperadores/FaretEvaluacionOperadoresHandler.cs" Link="FaretEvaluacionOperadoresHandler.cs" />
+  </ItemGroup>
+</Project>

@@ -46,7 +46,7 @@ namespace QualityControlCenter.Modules.Faret
             _importacion = new FaretImportacionApiService(client);
             _usuarios = new FaretUsuariosApiService(client);
             _noConformidades = new FaretNoConformidadesApiService(mcClient);
-            _dashboard = new FaretDashboardService(_noConformidades);
+            _dashboard = new FaretDashboardService(_noConformidades, _importacion, () => _client.HasToken);
             _inspecciones = new FaretInspeccionesApiService(calidadClient);
             _inspeccionesPallet = new FaretInspeccionesPalletApiService(calidadClient);
             _maquinas = new FaretMaquinasApiService(calidadClient);
@@ -119,9 +119,14 @@ namespace QualityControlCenter.Modules.Faret
                 "faret.inspecciones.resumen" => await HandleInspeccionesResumen(data),
                 "faret.inspecciones.adjuntos" => await HandleInspeccionesAdjuntos(data),
                 "faret.inspecciones.eliminar" => await HandleInspeccionesEliminar(data),
+                "faret.inspecciones.actualizar" => await HandleInspeccionesActualizar(data, pallet: false),
+                "faret.inspecciones.auditoria" => await HandleInspeccionesAuditoria(data, pallet: false),
+                "faret.inspecciones.catalogoEventos" => await HandleInspeccionesCatalogoEventos(),
                 "faret.inspeccionesPallet.list" => await HandleInspeccionesPalletList(data),
                 "faret.inspeccionesPallet.get" => await HandleInspeccionesPalletGet(data),
                 "faret.inspeccionesPallet.eliminar" => await HandleInspeccionesPalletEliminar(data),
+                "faret.inspeccionesPallet.actualizar" => await HandleInspeccionesActualizar(data, pallet: true),
+                "faret.inspeccionesPallet.auditoria" => await HandleInspeccionesAuditoria(data, pallet: true),
                 "faret.maquinas.resumen" => await HandleMaquinasResumen(data),
                 "faret.talleresExternos.list" => await HandleTalleresExternosList(data),
                 "faret.talleresExternos.resumen" => await HandleTalleresExternosResumen(data),
@@ -624,6 +629,55 @@ namespace QualityControlCenter.Modules.Faret
             return Ok(JsonSerializer.Deserialize<object>(payload.GetRawText()));
         }
 
+        // Edición de una inspección (Calidad o Pallet/Papel). El payload viaja tal cual a la API `calidad`, que valida rol
+        // (ADMIN/ADMIN_TI/INSPECTOR), motivo obligatorio y reglas de negocio, y deja la auditoría. Solo se quitan claves internas.
+        private async Task<string> HandleInspeccionesActualizar(Dictionary<string, object> data, bool pallet)
+        {
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("id es requerido");
+            if (!TryGetString(data, "motivo", out var motivo) || string.IsNullOrWhiteSpace(motivo))
+                return Error("El motivo del cambio es obligatorio");
+
+            var payload = new Dictionary<string, object>();
+            foreach (var kv in data)
+            {
+                if (kv.Key == "id" || kv.Key.StartsWith("_"))
+                    continue;
+                payload[kv.Key] = kv.Value;
+            }
+
+            var (ok, body) = pallet
+                ? await _inspeccionesPallet.ActualizarAsync(id, payload)
+                : await _inspecciones.ActualizarAsync(id, payload);
+            if (!TryUnwrapApiResponse(body, out var result, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(result.GetRawText()));
+        }
+
+        private async Task<string> HandleInspeccionesCatalogoEventos()
+        {
+            var (ok, body) = await _inspecciones.GetCatalogoEventosAsync();
+            if (!TryUnwrapApiResponse(body, out var result, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(result.GetRawText()));
+        }
+
+        private async Task<string> HandleInspeccionesAuditoria(Dictionary<string, object> data, bool pallet)
+        {
+            if (!TryGetInt(data, "id", out var id) || id <= 0)
+                return Error("id es requerido");
+
+            var (ok, body) = pallet
+                ? await _inspeccionesPallet.GetAuditoriaAsync(id)
+                : await _inspecciones.GetAuditoriaAsync(id);
+            if (!TryUnwrapApiResponse(body, out var result, out var error) || !ok)
+                return Error(error);
+
+            return Ok(JsonSerializer.Deserialize<object>(result.GetRawText()));
+        }
+
         // API `calidad` (backend Node.js) sin autenticación — igual que Inspecciones Calidad.
         private async Task<string> HandleInspeccionesPalletList(Dictionary<string, object> data)
         {
@@ -711,6 +765,7 @@ namespace QualityControlCenter.Modules.Faret
             TryGetString(data, "maquina", out var maquina);
             TryGetString(data, "presentaDefectos", out var presentaDefectos);
             TryGetString(data, "nvFaret", out var nvFaret);
+            TryGetString(data, "criticidad", out var criticidad);
 
             filtros["fechaDesde"] = fechaDesde;
             filtros["fechaHasta"] = fechaHasta;
@@ -719,6 +774,7 @@ namespace QualityControlCenter.Modules.Faret
             filtros["maquina"] = maquina;
             filtros["presentaDefectos"] = presentaDefectos;
             filtros["nvFaret"] = nvFaret;
+            filtros["criticidad"] = criticidad;
 
             return filtros;
         }

@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace QualityControlCenter.Backend.Services.FpsApi
@@ -22,12 +23,12 @@ namespace QualityControlCenter.Backend.Services.FpsApi
 
         public bool IsConfigured => _settings.UseApi && !string.IsNullOrEmpty(_settings.BaseUrl);
 
-        public async Task<(bool ok, string body)> GetAsync(string path)
+        public async Task<(bool ok, string body)> GetAsync(string path, CancellationToken ct = default)
         {
             var url = BuildUrl(path);
             try
             {
-                var response = await _http.GetAsync(url);
+                var response = await _http.GetAsync(url, ct);
                 var body = await response.Content.ReadAsStringAsync();
                 var status = (int)response.StatusCode;
 
@@ -44,6 +45,10 @@ namespace QualityControlCenter.Backend.Services.FpsApi
                 }
 
                 return (true, body);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw; // cancelación pedida por QCC (no es un timeout de FPS)
             }
             catch (TaskCanceledException)
             {

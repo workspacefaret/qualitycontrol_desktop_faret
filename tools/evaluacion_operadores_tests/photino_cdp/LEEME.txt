@@ -1,0 +1,4 @@
+Pruebas en la ventana Photino real por CDP (WebView2). Requieren: la app iniciada con la variable WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333 y Node 22 o superior. Sin credenciales.
+- smoke.mjs: abre cada modulo y registra errores JS.
+- realtest.mjs: filtros/estados con respuestas simuladas del calculador (JSON generados con el proyecto de pruebas y la opcion --dump). Usa rutas de trabajo temporales.
+- cdp.mjs: evalua una expresion y/o captura pantalla.

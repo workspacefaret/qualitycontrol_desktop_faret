@@ -12,12 +12,43 @@ namespace QualityControlCenter.Backend.Models.FaretApi
         public List<FaretDashboardCategoriaDto> EstadoAcciones { get; set; } = new();
         public List<FaretDashboardNcResumenDto> UltimasNc { get; set; } = new();
         public List<FaretDashboardAlertaDto> Alertas { get; set; } = new();
+
+        // Detalle verificable de las PNC críticas abiertas (para el popover/tooltip del Inicio).
+        public List<FaretDashboardCriticaDto> CriticasAbiertasDetalle { get; set; } = new();
+    }
+
+    public class FaretDashboardCriticaDto
+    {
+        public long DataId { get; set; }
+        public string Codigo { get; set; } = "";
+        public string NpNv { get; set; } = "";
+        public string Cliente { get; set; } = "";
+        public string TipoPnc { get; set; } = "";
+        public string EstadoGestion { get; set; } = "";
+        public string FechaIngreso { get; set; } = "";
     }
 
     public class FaretDashboardKpisDto
     {
         public int NcRegistradasHoy { get; set; }
+
+        // NC con gestión (mejora-continua) cuyo estado_gestion no es CERRADA. Excluye NC vinculadas a
+        // registros de Data eliminados (cuando Data está disponible para comprobarlo).
         public int NcAbiertas { get; set; }
+        public int NcCerradas { get; set; }
+
+        // Campos que dependen de Data (importacion_pnc, API qualitycontrol). null = Data no
+        // disponible: la pantalla muestra "Sin información", nunca 0.
+        public bool DataDisponible { get; set; }
+        public int? PncSinGestion { get; set; }
+        public int? PncPendientesCierre { get; set; }
+        public int? CriticasAbiertas { get; set; }
+        public int? CriticasEnGestion { get; set; }
+        public int? CriticasSinGestion { get; set; }
+        public int? NcVinculadasAEliminados { get; set; }
+
+        // NC creadas tras el cambio a SQL Server sin fecha_creacion: se fechan con fecha_deteccion.
+        public int NcSinFechaCreacion { get; set; }
         public int AccionesPendientes { get; set; }
         public int AccionesVencidas { get; set; }
         public decimal PorcentajeAccionesCompletadas { get; set; }

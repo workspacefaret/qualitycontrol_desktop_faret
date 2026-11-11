@@ -103,6 +103,15 @@
                     <option value="false">No</option>
                 </select>
             </div>
+            <div class="fi-filtro-campo">
+                <label for="fi-filtro-criticidad">Criticidad</label>
+                <select id="fi-filtro-criticidad">
+                    <option value="">Todas</option>
+                    <option value="Critico">Crítico</option>
+                    <option value="Mayor">Mayor</option>
+                    <option value="Menor">Menor</option>
+                </select>
+            </div>
             <div class="fi-filtro-divisor"></div>
             <div class="fi-filtro-acciones">
                 <button id="fi-filtrar-btn" class="btn-primary">Filtrar</button>
@@ -132,13 +141,17 @@
                         <th class="fi-th-ordenable" data-campo="operador">Operador Máquina <span class="fi-sort-icon">↕</span></th>
                         <th>¿Defectos?</th>
                         <th>Defectos</th>
+                        <th>ID evento</th>
+                        <th>Criticidad</th>
+                        <th>Criticidad máx.</th>
                         <th>Acción correctiva</th>
                         <th>Adjuntos</th>
+                        <th>Última edición</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="fi-tbody">
-                    <tr><td colspan="13" class="faret-empty">Cargando...</td></tr>
+                    <tr><td colspan="16" class="faret-empty">Cargando...</td></tr>
                 </tbody>
             </table>
         </div>

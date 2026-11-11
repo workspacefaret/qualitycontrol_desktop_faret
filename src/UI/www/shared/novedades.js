@@ -3,28 +3,28 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.28";
+    const ID = "1.8.30";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
         {
-            titulo: "Laboratorio - Muestras: correcciones de la versión 1.8.27",
-            icono: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>',
+            titulo: "Inicio Faret: no conformidades sin cerrar",
+            icono: '<path d="M3 3v18h18M7 15l4-4 3 3 5-6"/>',
             puntos: [
-                { solo: "INNPACK", t: "Al finalizar un ensayo con sustrato, ahora el sustrato de cada muestra es obligatorio." },
-                { solo: "INNPACK", t: "Si quitas la orden de FPS o cambias el NP, se limpian los datos autocompletados y no se mezclan con otra orden." },
-                { solo: "INNPACK", t: "El Excel y el PDF del REG-LAB-04 incluyen solo ensayos finalizados en las hojas de formato. Las unidades se muestran en español (pulg, lb/pulg)." },
-                { solo: "INNPACK", t: "Se evita el doble guardado por doble clic y se validan valores fuera de rango. Las anulaciones registran quién y cuándo." },
-                { solo: "FARET", t: "Esta versión trae mejoras para Laboratorio de INNPACK. En Faret no cambia nada de lo que usas." },
+                { solo: "FARET", t: "La tarjeta de no conformidades ahora cuenta según el estado de gestión real: NC en gestión sin cerrar más PNC de Data aún sin gestionar." },
+                { solo: "FARET", t: "El Resumen general muestra las PNC sin gestión y las críticas sin cerrar, con su detalle." },
+                { solo: "FARET", t: "Si una fuente no responde, verás \"Sin información\" en lugar de un cero." },
+                { solo: "INNPACK", t: "Esta versión trae cambios para Faret. En INNPACK no cambia nada de lo que usas." },
             ],
         },
         {
-            titulo: "NC Internas: descripciones ampliadas",
-            icono: '<path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+            titulo: "Faret: Evaluación de Calidad por Operador",
+            icono: '<path d="M16 11a4 4 0 1 0-8 0M4 21a8 8 0 0 1 16 0"/>',
             puntos: [
-                { t: "Algunos tipos de desviación muestran ahora una aclaración, por ejemplo «Color (Disminución)». Se aplica también a los registros anteriores." },
-                { t: "Los filtros, el Pareto, el Excel y el informe imprimible usan el mismo texto. Las estadísticas históricas no cambian." },
+                { solo: "FARET", t: "Indicador descriptivo de PNC por operador, máquina, área y fecha de fabricación, con filtro y detalle por NP/NV." },
+                { solo: "FARET", t: "No es una evaluación oficial: no hay nota ni ranking y ninguna responsabilidad queda confirmada." },
+                { solo: "FARET", t: "Solo lo ven los usuarios habilitados por Gestión de Usuarios." },
             ],
         },
     ];
@@ -98,7 +98,7 @@ window.Novedades = (() => {
         const slides = SLIDES.slice(0, 3).map(s => ({
             ...s,
             puntos: s.puntos.filter(p => !p.solo || p.solo === empresa),
-        }));
+        })).filter(s => s.puntos.length > 0);
 
         const el = document.createElement("div");
         el.className = "nov-overlay";

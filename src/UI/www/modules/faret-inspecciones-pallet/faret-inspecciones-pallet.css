@@ -267,3 +267,22 @@
         width: 100%;
     }
 }
+
+/* Líneas verticales entre columnas, filas alternadas y resaltado al pasar el mouse: cada dato se asocia a su encabezado. */
+.faret-inspecciones-pallet-module #fip-tabla th,
+.faret-inspecciones-pallet-module #fip-tabla td {
+    border-right: 1px solid #CBD5E1;
+}
+.faret-inspecciones-pallet-module #fip-tabla th {
+    border-right-color: rgba(255, 255, 255, 0.25);
+}
+.faret-inspecciones-pallet-module #fip-tabla th:last-child,
+.faret-inspecciones-pallet-module #fip-tabla td:last-child {
+    border-right: none;
+}
+.faret-inspecciones-pallet-module #fip-tabla tbody tr:nth-child(even) td {
+    background: #F8FAFC;
+}
+.faret-inspecciones-pallet-module #fip-tabla tbody tr:hover td {
+    background: #EFF6FF;
+}

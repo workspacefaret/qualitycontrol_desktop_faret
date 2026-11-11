@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace QualityControlCenter.Backend.Services.FaretApi
@@ -31,8 +32,8 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public Task<(bool ok, string body)> EliminarPncAsync(long id) =>
             _client.DeleteAsync($"api/importaciones/pnc/{id}");
 
-        public Task<(bool ok, string body)> GetPncListAsync(Dictionary<string, string?> filtros) =>
-            _client.GetAsync($"api/importaciones/pnc?{BuildQueryString(filtros)}");
+        public Task<(bool ok, string body)> GetPncListAsync(Dictionary<string, string?> filtros, CancellationToken ct = default) =>
+            _client.GetAsync($"api/importaciones/pnc?{BuildQueryString(filtros)}", ct);
 
         public Task<(bool ok, string body)> GetPncResumenAsync(Dictionary<string, string?> filtros) =>
             _client.GetAsync($"api/importaciones/pnc/resumen?{BuildQueryString(filtros)}");

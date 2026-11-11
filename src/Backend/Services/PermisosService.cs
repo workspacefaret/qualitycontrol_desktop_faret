@@ -34,6 +34,8 @@ namespace QualityControlCenter.Services
             ["registros-produccion"] = new("INNPACK", new[] { "registrosProduccion" }),
             ["no-conformidades"] = new("INNPACK", new[] { "noConformidades" }),
             ["nc-internas"] = new("INNPACK", new[] { "noConformidades" }),
+            // Solo lectura (sin prefijos de escritura). Por defecto SIN_ACCESO salvo ADMIN_TI o permiso personalizado.
+            ["evaluacion-operadores"] = new("INNPACK", Array.Empty<string>()),
             ["control-documental"] = new("INNPACK", new[] { "controlDocumental" }),
             ["maquinas-seguimiento"] = new("INNPACK", Array.Empty<string>()),
             ["registros-control"] = new("INNPACK", new[] { "registrosControl" }),
@@ -54,6 +56,8 @@ namespace QualityControlCenter.Services
             ["faret-despachos-diarios"] = new("FARET", Array.Empty<string>()),
             ["faret-nc"] = new("FARET", new[] { "faret.nc", "faret.pncCatalogos", "faret.catalogos" }),
             ["faret-nc-internas"] = new("FARET", new[] { "noConformidades" }),
+            // Solo lectura, mismo criterio que evaluacion-operadores (INNPACK): oculto salvo ADMIN_TI o VER/EDITAR personalizado.
+            ["faret-evaluacion-operadores"] = new("FARET", Array.Empty<string>()),
             ["faret-control-documental"] = new("FARET", new[] { "controlDocumental" }),
             ["faret-talleres-externos"] = new("FARET", new[] { "faret.talleresExternos" }),
             ["faret-importacion"] = new("FARET", new[] { "faret.importacion" }),
@@ -90,6 +94,7 @@ namespace QualityControlCenter.Services
         private static readonly HashSet<string> AccionesLectura = new()
         {
             "certificadosLiberacion.buscar",
+            "faret.evaluacionOperadores.cancelar", // solo cancela la carga en curso de QCC; no escribe nada
             "certificadosLiberacion.pdf.descargar",
             "certificadosLiberacion.calidadPdf.descargar",
             "controlDocumental.adjunto.abrir",
@@ -103,6 +108,9 @@ namespace QualityControlCenter.Services
             "faret.catalogos.maquinas",
             "faret.catalogos.operadores",
             "faret.inspecciones.adjuntos",
+            "faret.inspecciones.auditoria",
+            "faret.inspecciones.catalogoEventos",
+            "faret.inspeccionesPallet.auditoria",
             "faret.nc.adjuntos.abrir",
             "faret.talleresExternos.catalogos",
             "formularios.abrirPdf",
@@ -210,6 +218,19 @@ namespace QualityControlCenter.Services
                         return "Acceso no autorizado: solo ADMIN_TI puede administrar usuarios.";
                 }
 
+                // Evaluación por Operador: dato sensible. Se exige acceso al módulo venga de donde venga la
+                // acción (una lectura enviada con el _modulo de otro módulo no debe saltarse el permiso).
+                if (action.StartsWith("evaluacionOperadores."))
+                {
+                    if (_empresa != "INNPACK" || NivelEfectivoSinLock("evaluacion-operadores") == SinAcceso)
+                        return "No tienes acceso a este módulo.";
+                }
+                if (action.StartsWith("faret.evaluacionOperadores."))
+                {
+                    if (_empresa != "FARET" || NivelEfectivoSinLock("faret-evaluacion-operadores") == SinAcceso)
+                        return "No tienes acceso a este módulo.";
+                }
+
                 // Eliminar formularios (borrado físico, irreversible): solo ADMIN_TI.
                 if (action == "formularios.eliminar" && !EsAdminTiSinLock())
                     return "Acceso no autorizado: solo ADMIN_TI puede eliminar formularios.";
@@ -294,6 +315,10 @@ namespace QualityControlCenter.Services
                 ? personalizado
                 : NivelPorRol(_empresa, _rol, modulo);
 
+            // Defensa en profundidad: un nivel desconocido nunca concede acceso.
+            if (nivel != Ver && nivel != Editar)
+                nivel = SinAcceso;
+
             if (nivel == SinAcceso && ModulosInicio.Contains(modulo))
                 return Ver;
 
@@ -370,6 +395,10 @@ namespace QualityControlCenter.Services
         // refreshSidebarState en core/app.js): visible = EDITAR, oculto = SIN_ACCESO.
         private static string NivelPorRol(string? empresa, string rolUsuario, string modulo)
         {
+            // Dato sensible por persona: nadie lo ve por rol; solo ADMIN_TI o un permiso personalizado.
+            if (modulo is "evaluacion-operadores" or "faret-evaluacion-operadores")
+                return SinAcceso;
+
             if (empresa != "FARET")
                 return Editar;
 

@@ -26,7 +26,7 @@
                 <div class="home-module-card-title">🛡️ PNC INGRESADAS (HOY)</div>
                 <div class="home-module-card-value" id="fh-kpi-nc-hoy">0</div>
                 <div class="home-module-card-label">
-                    <span id="fh-kpi-nc-abiertas">0</span> abiertas
+                    <span id="fh-kpi-nc-abiertas">0</span> sin cerrar
                 </div>
             </div>
         </div>
@@ -96,9 +96,19 @@
                 <strong id="fh-resumen-nc-hoy">0</strong>
             </div>
 
-            <div class="activity-item">
-                <span>NC abiertas</span>
+            <div class="activity-item" title="NC con gestión en Mejora Continua cuyo estado de gestión no es Cerrada">
+                <span>NC abiertas (en gestión)</span>
                 <strong id="fh-resumen-nc-abiertas">0</strong>
+            </div>
+
+            <div class="activity-item" title="Registros de Data (PNC) que aún no tienen gestión iniciada en No Conformidades">
+                <span>PNC sin gestión</span>
+                <strong id="fh-resumen-pnc-sin-gestion">-</strong>
+            </div>
+
+            <div class="activity-item" title="PNC de nivel Crítico sin cerrar (en gestión o sin gestión)">
+                <span>PNC críticas sin cerrar</span>
+                <strong id="fh-resumen-criticas-abiertas">-</strong>
             </div>
 
             <div class="activity-item">

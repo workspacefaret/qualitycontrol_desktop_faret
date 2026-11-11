@@ -346,3 +346,30 @@
         width: 100%;
     }
 }
+
+/* Líneas verticales entre columnas, filas alternadas y resaltado al pasar el mouse: cada dato se asocia a su encabezado. */
+.faret-inspecciones-module #fi-tabla th,
+.faret-inspecciones-module #fi-tabla td {
+    border-right: 1px solid #CBD5E1;
+}
+.faret-inspecciones-module #fi-tabla th {
+    border-right-color: rgba(255, 255, 255, 0.25);
+}
+.faret-inspecciones-module #fi-tabla th:last-child,
+.faret-inspecciones-module #fi-tabla td:last-child {
+    border-right: none;
+}
+.faret-inspecciones-module #fi-tabla tbody tr:nth-child(even) td {
+    background: #F8FAFC;
+}
+.faret-inspecciones-module #fi-tabla tbody tr:hover td {
+    background: #EFF6FF;
+}
+.faret-inspecciones-module #fi-tabla .fi-linea {
+    padding: 3px 0;
+    border-bottom: 1px dashed #CBD5E1;
+    white-space: nowrap;
+}
+.faret-inspecciones-module #fi-tabla .fi-linea:last-child {
+    border-bottom: none;
+}

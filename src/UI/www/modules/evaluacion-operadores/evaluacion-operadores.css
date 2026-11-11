@@ -1,0 +1,55 @@
+.evop-module .evop-aviso-oficial { background:#fff8e1; border:1px solid #f0d98a; color:#5c4a00; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; }
+.evop-module .evop-filtros-row { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+.evop-module .evop-campo { display:flex; flex-direction:column; gap:4px; min-width:160px; }
+.evop-module .evop-estado { padding:14px; border-radius:8px; margin:12px 0; background:#f1f5f9; color:#334155; }
+.evop-module .evop-estado.evop-error { background:#fee2e2; color:#7f1d1d; }
+.evop-module .evop-advertencias { display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+.evop-module .evop-adv { background:#fff8e1; border-left:4px solid #e0a800; padding:8px 12px; border-radius:4px; font-size:13px; color:#5c4a00; }
+.evop-module .evop-adv.evop-adv-fuerte { background:#fdecea; border-left-color:#c0392b; color:#7f1d1d; }
+.evop-module .evop-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+.evop-module .kpi-label small { display:block; font-weight:400; opacity:.75; }
+.evop-module .evop-graficos { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px; margin:12px 0; }
+.evop-module .evop-canvas { position:relative; height:240px; }
+.evop-module h3 small { font-weight:400; opacity:.7; font-size:12px; }
+.evop-module { min-width:0; max-width:100%; }
+.evop-module .card { min-width:0; }
+.evop-module .table-container { overflow-x:auto; max-width:100%; }
+.evop-module .table { min-width:0; width:100%; }
+.evop-module .evop-privacidad { background:#eef2ff; border:1px solid #c7d2fe; color:#312e81; border-radius:8px; padding:8px 14px; margin-bottom:12px; font-size:13px; }
+.evop-module .evop-auditoria { margin-top:16px; }
+.evop-module .evop-auditoria h4 { margin:14px 0 6px; }
+.evop-module .evop-auditoria h4 small { font-weight:400; opacity:.7; }
+.evop-module .evop-chip { display:inline-block; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:600; background:#e2e8f0; color:#334155; }
+.evop-module .evop-chip-CONFIRMADA { background:#dcfce7; color:#14532d; }
+.evop-module .evop-chip-PROBABLE { background:#fef3c7; color:#78350f; }
+.evop-module .evop-chip-NO_ATRIBUIBLE { background:#fee2e2; color:#7f1d1d; }
+.evop-module .evop-motivo { font-size:12px; max-width:320px; }
+.evop-module .table-container { overflow-x:auto; max-width:100%; }
+.evop-module table.evop-tabla-sep, .evop-module #evop-tabla { border-collapse:collapse; }
+.evop-module table.evop-tabla-sep th, .evop-module table.evop-tabla-sep td, .evop-module #evop-tabla th, .evop-module #evop-tabla td { border-right:1px solid rgba(148,163,184,.35); border-bottom:1px solid rgba(148,163,184,.30); padding:8px 12px; }
+.evop-module table.evop-tabla-sep th:last-child, .evop-module table.evop-tabla-sep td:last-child, .evop-module #evop-tabla th:last-child, .evop-module #evop-tabla td:last-child { border-right:0; }
+.evop-module table.evop-tabla-sep thead th, .evop-module #evop-tabla thead th { border-bottom:2px solid rgba(148,163,184,.6); }
+.evop-module .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.evop-module .evop-fila-nc { cursor:pointer; }
+.evop-module .evop-fila-nc:hover, .evop-module .evop-fila-nc:focus { background:rgba(99,102,241,.08); outline:none; }
+.evop-module .evop-esc-1 { background:#dbeafe; color:#1e3a8a; }
+.evop-module .evop-esc-2 { background:#e0e7ff; color:#312e81; }
+.evop-module .evop-esc-3 { background:#fef3c7; color:#78350f; }
+.evop-module .evop-esc-4 { background:#e2e8f0; color:#334155; }
+.evop-module .evop-traza-detalle { border:1px solid rgba(148,163,184,.4); border-radius:8px; padding:10px 14px; margin:10px 0; }
+.evop-module .evop-grid-det { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; font-size:13px; }
+.evop-module .evop-det-col { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; font-size:13px; }
+.evop-module .evop-eq-EXACTA, .evop-module .evop-eq-VALIDADA { background:#dcfce7; color:#14532d; }
+.evop-module .evop-eq-SUGERIDA { background:#fef3c7; color:#78350f; }
+.evop-module .evop-eq-NINGUNA { background:#e2e8f0; color:#334155; }
+.evop-module .evop-est-PROPUESTO { background:#dbeafe; color:#1e3a8a; }
+.evop-module .evop-est-EXCLUIDO { background:#f1f5f9; color:#475569; }
+.evop-module .evop-est-CONTEXTO { background:#e2e8f0; color:#334155; }
+.evop-module .evop-decl-CORROBORADO { background:#dcfce7; color:#14532d; }
+.evop-module .evop-decl-NO_ENCONTRADO, .evop-module .evop-decl-FUERA_DE_MAQUINA { background:#fee2e2; color:#7f1d1d; }
+.evop-module .evop-decl-AMBIGUO, .evop-module .evop-decl-SIN_DECLARAR, .evop-module .evop-decl-DECLARADO { background:#e2e8f0; color:#334155; }
+.evop-module .evop-conc-CONFIRMADA { background:#dcfce7; color:#14532d; }
+.evop-module .evop-conc-PROBABLE { background:#fef3c7; color:#78350f; }
+.evop-module .evop-conc-DISCREPANCIA { background:#fee2e2; color:#7f1d1d; }
+.evop-module .evop-conc-INSUFICIENTE { background:#e2e8f0; color:#334155; }
+.evop-module .evop-decl-FUERA_DE_PRODUCTO { background:#fee2e2; color:#7f1d1d; }

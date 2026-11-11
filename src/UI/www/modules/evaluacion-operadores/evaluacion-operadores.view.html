@@ -1,0 +1,80 @@
+<div class="module evop-module">
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">Evaluación de Calidad por Operador</div>
+            <div class="subtitle">Indicador descriptivo de no conformidades de producto por fecha de fabricación</div>
+        </div>
+    </div>
+
+    <div class="evop-aviso-oficial" role="note">
+        <strong>Indicador descriptivo, no es una evaluación oficial de desempeño.</strong>
+        Las ponderaciones (Crítico 10 · Mayor 5 · Menor 1) son <strong>provisionales</strong>, pendientes de validación formal de Calidad.
+        No hay nota, porcentaje ni ranking: menos puntos no significa mejor desempeño (no se considera volumen de producción, turnos ni órdenes).
+        <strong>Ningún operador está penalizado:</strong> el operador de cada NC es texto libre y hoy no existe ninguna atribución confirmada contra producción (ver "Auditoría histórica FPS").
+    </div>
+    <div id="evop-privacidad" class="evop-privacidad" style="display:none;" role="note">
+        Nombres ocultos: con permiso de solo vista los operadores se muestran como códigos (OP-xxxxxx). Los nombres requieren permiso de edición del módulo.
+    </div>
+
+    <div class="card evop-filtros">
+        <div class="filters evop-filtros-row">
+            <div class="evop-campo"><label for="evop-anio">Año (fabricación)</label>
+                <select id="evop-anio"><option value="">Todos</option></select></div>
+            <div class="evop-campo"><label for="evop-mes">Mes</label>
+                <select id="evop-mes">
+                    <option value="">Todos</option>
+                    <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+                    <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+                    <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+                    <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+                </select></div>
+            <div class="evop-campo"><label for="evop-maquina">Máquina</label>
+                <select id="evop-maquina"><option value="">Todas</option></select></div>
+            <div class="evop-campo"><label for="evop-operador">Operador</label>
+                <select id="evop-operador"><option value="">Todos</option></select></div>
+            <div class="evop-campo evop-acciones">
+                <button id="evop-limpiar" class="btn-secondary" type="button">Limpiar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="evop-estado" class="evop-estado" style="display:none;" role="status"></div>
+
+    <div id="evop-contenido" style="display:none;">
+        <div id="evop-advertencias" class="evop-advertencias"></div>
+
+        <div class="kpi-row evop-kpis">
+            <div class="kpi-card"><div class="kpi-label">NC del período <small>(registros)</small></div><div class="kpi-value" id="evop-k-registradas">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">NC evaluables <small>(registros)</small></div><div class="kpi-value" id="evop-k-evaluables">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Excluidas / sin atribución <small>(registros)</small></div><div class="kpi-value" id="evop-k-excluidas">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Críticas <small>(registros)</small></div><div class="kpi-value" id="evop-k-criticas">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Mayores <small>(registros)</small></div><div class="kpi-value" id="evop-k-mayores">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Menores <small>(registros)</small></div><div class="kpi-value" id="evop-k-menores">0</div></div>
+            <div class="kpi-card evop-kpi-puntos"><div class="kpi-label">Puntos de severidad <small>(puntos de las NC, no penalizan a personas)</small></div><div class="kpi-value" id="evop-k-puntos">0</div></div>
+        </div>
+
+        <div class="evop-graficos">
+            <div class="card"><h3>Distribución por nivel <small>(registros evaluables)</small></h3><div class="evop-canvas"><canvas id="evop-chart-nivel"></canvas></div></div>
+            <div class="card"><h3>Evolución mensual <small>(puntos y registros, por fecha de fabricación)</small></h3><div class="evop-canvas"><canvas id="evop-chart-mes"></canvas></div></div>
+            <div class="card"><h3>Distribución por máquina <small>(registros del período)</small></h3><div class="evop-canvas"><canvas id="evop-chart-maquina"></canvas></div></div>
+        </div>
+
+        <div class="card">
+            <h3>Operador declarado en la NC <small>(no confirmado · solo NC evaluables · orden alfabético, no es un ranking)</small></h3>
+            <div class="table-container">
+                <table class="table" id="evop-tabla">
+                    <thead><tr>
+                        <th>Operador</th><th>NC evaluables</th><th>Críticas</th><th>Mayores</th><th>Menores</th>
+                        <th>Puntos de severidad (no penaliza)</th><th>Máquinas</th><th>Meses</th>
+                    </tr></thead>
+                    <tbody id="evop-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="evop-detalle" class="card" style="display:none;"></div>
+
+    <div id="evop-auditoria" class="evop-auditoria card" style="display:none;"></div>
+</div>

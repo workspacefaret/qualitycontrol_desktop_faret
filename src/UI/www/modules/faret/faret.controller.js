@@ -153,7 +153,16 @@ window.FaretController = class FaretController {
         this._setText("fh-kpi-inspecciones-hoy", this._numero(inspecciones.inspeccionesHoy));
         this._setText("fh-kpi-inspecciones-defectos", this._numero(inspecciones.conDefectos));
 
-        this._setText("fh-kpi-nc-abiertas", this._numero(kpis.ncAbiertas));
+        // "Sin cerrar" = NC en gestión no cerradas + PNC de Data sin gestión. Sin Data disponible
+        // no se conoce el segundo término: se informa "Sin información", nunca un 0 o un parcial.
+        const pendientes = kpis.dataDisponible ? kpis.pncPendientesCierre : null;
+        this._setText("fh-kpi-nc-abiertas", this._numeroOSinInfo(pendientes));
+        const kpiAbiertas = document.getElementById("fh-kpi-nc-abiertas");
+        if (kpiAbiertas) {
+            kpiAbiertas.title = kpis.dataDisponible
+                ? `${this._numero(kpis.ncAbiertas)} en gestión · ${this._numero(kpis.pncSinGestion)} sin gestión`
+                : "Data (registros PNC) no disponible";
+        }
 
         this._setText("fh-kpi-acciones-vencidas", this._numero(kpis.accionesVencidas));
         this._setText("fh-kpi-acciones-pct", `${this._numero(kpis.porcentajeAccionesCompletadas)}%`);
@@ -206,7 +215,15 @@ window.FaretController = class FaretController {
 
     _renderResumen(kpis, inspecciones, maquinas, indicadoresCalidad) {
         this._setText("fh-resumen-nc-hoy", this._numero(indicadoresCalidad.pncHoy));
-        this._setText("fh-resumen-nc-abiertas", this._numero(kpis.ncAbiertas));
+        this._setText("fh-resumen-nc-abiertas", kpis.ncAbiertas == null ? "Sin información" : this._numero(kpis.ncAbiertas));
+        this._setText("fh-resumen-pnc-sin-gestion", this._numeroOSinInfo(kpis.dataDisponible ? kpis.pncSinGestion : null));
+        this._setText("fh-resumen-criticas-abiertas", this._numeroOSinInfo(kpis.dataDisponible ? kpis.criticasAbiertas : null));
+        const criticas = document.getElementById("fh-resumen-criticas-abiertas");
+        if (criticas) {
+            const detalle = (this._datos?.dashboard?.criticasAbiertasDetalle || [])
+                .map(c => `${c.codigo} · ${c.tipoPnc || "-"} · ${c.cliente || "-"} · ${this._labelGestion(c.estadoGestion)}`);
+            criticas.title = detalle.length ? detalle.join(" | ") : "";
+        }
         this._setText("fh-resumen-acciones-pendientes", this._numero(kpis.accionesPendientes));
         this._setText("fh-resumen-acciones-vencidas", this._numero(kpis.accionesVencidas));
         this._setText("fh-resumen-acciones-pct", `${this._numero(kpis.porcentajeAccionesCompletadas)}%`);
@@ -466,6 +483,18 @@ window.FaretController = class FaretController {
 
     _numero(value) {
         return Number(value || 0).toLocaleString("es-CL");
+    }
+
+    _numeroOSinInfo(value) {
+        return value === null || value === undefined ? "Sin información" : this._numero(value);
+    }
+
+    _labelGestion(estado) {
+        const e = (estado || "").toUpperCase();
+        if (e === "SIN_GESTION") return "Sin gestión";
+        if (e === "EN_PROCESO") return "En proceso";
+        if (e === "PENDIENTE") return "Pendiente";
+        return estado || "-";
     }
 
     _escape(value) {

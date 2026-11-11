@@ -28,6 +28,17 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         public Task<(bool ok, string body)> EliminarAsync(int registroId) =>
             _client.DeleteAsync($"calidad-faret/registros/{registroId}");
 
+        // Edición (ADMIN, ADMIN_TI, INSPECTOR; la API lo valida con el JWT de la sesión). Exige "motivo" en el payload.
+        public Task<(bool ok, string body)> ActualizarAsync(int registroId, object payload) =>
+            _client.PutJsonAsync($"calidad-faret/registros/{registroId}", payload);
+
+        // Catálogo maestro de eventos (áreas -> eventos con criticidad) para elegir defectos al editar.
+        public Task<(bool ok, string body)> GetCatalogoEventosAsync() =>
+            _client.GetAsync("calidad-faret/catalogo-eventos");
+
+        public Task<(bool ok, string body)> GetAuditoriaAsync(int registroId) =>
+            _client.GetAsync($"calidad-faret/registros/{registroId}/auditoria");
+
         private static string BuildQueryString(Dictionary<string, string?> filtros) =>
             string.Join(
                 "&",

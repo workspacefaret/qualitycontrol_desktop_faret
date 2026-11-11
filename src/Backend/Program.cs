@@ -66,6 +66,8 @@ namespace QualityControlCenter
                     else faretCalidadClient.SetToken(token);
                 }
                 faretApiClient.TokenChanged += ReenviarTokenACalidad;
+                // Evaluación por Operador: no conservar el universo (Data+FPS) de una sesión anterior (otro usuario/permiso/token vencido).
+                faretApiClient.TokenChanged += _ => QualityControlCenter.Modules.EvaluacionOperadores.FaretUniversoCache.Instancia.Invalidar();
                 innpackApiClient.TokenChanged += ReenviarTokenACalidad;
 
                 // =========================
@@ -105,7 +107,8 @@ namespace QualityControlCenter
                     planificacionApiClient,
                     sapRecepcionApiClient,
                     fpsRegistroProduccionApiService,
-                    new PermisosService()
+                    new PermisosService(),
+                    new FpsSesionesApiService(fpsApiClient)
                 );
 
                 // =========================

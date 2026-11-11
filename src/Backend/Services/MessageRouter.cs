@@ -17,6 +17,7 @@ using QualityControlCenter.Modules.Faret;
 using QualityControlCenter.Modules.Home;
 using QualityControlCenter.Modules.LiberacionCalidad;
 using QualityControlCenter.Modules.MaquinasSeguimiento;
+using QualityControlCenter.Modules.EvaluacionOperadores;
 using QualityControlCenter.Modules.NoConformidades;
 using QualityControlCenter.Modules.ProductoTerminado;
 using QualityControlCenter.Modules.RegistrosControl;
@@ -46,6 +47,7 @@ namespace QualityControlCenter.Services
         private readonly PlanificacionApiClient _planificacionClient;
         private readonly SapRecepcionApiClient _sapRecepcionClient;
         private readonly FpsRegistroProduccionApiService _fpsRegistroProduccion;
+        private readonly FpsSesionesApiService? _fpsSesiones;
         private readonly PermisosService _permisos;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -66,7 +68,8 @@ namespace QualityControlCenter.Services
             PlanificacionApiClient planificacionClient,
             SapRecepcionApiClient sapRecepcionClient,
             FpsRegistroProduccionApiService fpsRegistroProduccion,
-            PermisosService permisos
+            PermisosService permisos,
+            FpsSesionesApiService? fpsSesiones = null
         )
         {
             _db = db;
@@ -82,6 +85,7 @@ namespace QualityControlCenter.Services
             _sapRecepcionClient = sapRecepcionClient;
             _fpsRegistroProduccion = fpsRegistroProduccion;
             _permisos = permisos;
+            _fpsSesiones = fpsSesiones;
         }
 
         public async Task<string> Handle(string payloadJson)
@@ -187,6 +191,11 @@ namespace QualityControlCenter.Services
                     var handler = new MaquinasSeguimientoHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
+                else if (action.StartsWith("evaluacionOperadores"))
+                {
+                    var handler = new EvaluacionOperadoresHandler(_innpackClient, _permisos.NivelEfectivo("evaluacion-operadores") == "EDITAR");
+                    rawResult = await handler.Handle(action, data);
+                }
                 else if (action.StartsWith("noConformidades"))
                 {
                     var handler = new NoConformidadesHandler(_innpackClient);
@@ -247,6 +256,16 @@ namespace QualityControlCenter.Services
                 else if (action.StartsWith("recepcion"))
                 {
                     var handler = new RecepcionCalidadHandler(_innpackClient, _sapRecepcionClient, _session);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("faret.evaluacionOperadores."))
+                {
+                    // OJO: antes de la rama "faret" genérica. Solo lectura: Data (JWT de la sesión) + sesiones FPS (fps-api).
+                    var handler = new FaretEvaluacionOperadoresHandler(
+                        _faretClient,
+                        _fpsSesiones,
+                        _permisos.NivelEfectivo("faret-evaluacion-operadores") == "EDITAR"
+                    );
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("faretLab"))
