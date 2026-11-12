@@ -69,6 +69,8 @@ namespace QualityControlCenter
                 // Evaluación por Operador: no conservar el universo (Data+FPS) de una sesión anterior (otro usuario/permiso/token vencido).
                 faretApiClient.TokenChanged += _ => QualityControlCenter.Modules.EvaluacionOperadores.FaretUniversoCache.Instancia.Invalidar();
                 innpackApiClient.TokenChanged += ReenviarTokenACalidad;
+                // Evaluación por Máquina: el universo de inspecciones se guarda en memoria; se descarta al cambiar la sesión/token.
+                faretCalidadClient.TokenChanged += _ => QualityControlCenter.Modules.EvaluacionMaquinas.FaretEvaluacionMaquinasHandler.InvalidarCache();
 
                 // =========================
                 // 🏭 API FPS (Talleres Externos INNPACK, ver contex.md)

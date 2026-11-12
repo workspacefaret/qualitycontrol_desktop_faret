@@ -182,6 +182,12 @@ console.log("🔥 APP INICIO");
                     if (mainLayout) mainLayout.style.marginLeft = "260px";
                     refreshSidebarState();
                 }
+                // Marca en el sidebar el módulo en el que se está (clase .active ya estilizada en styles.css).
+                document.querySelectorAll(".menu button[data-module]").forEach(b => {
+                    const activo = b.dataset.module === moduleName;
+                    b.classList.toggle("active", activo);
+                    if (activo) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+                });
                 // 🔥 cargar HTML
                 const html = loadHtml(`./modules/${moduleName}/${moduleName}.view.html`);
 

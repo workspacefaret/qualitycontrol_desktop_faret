@@ -48,6 +48,8 @@ namespace QualityControlCenter.Services
             ["trazabilidad"] = new("INNPACK", Array.Empty<string>()),
             ["formularios"] = new("INNPACK", new[] { "formularios" }),
             ["usuarios"] = new("INNPACK", new[] { "usuarios" }),
+            // Administración de planta (operadores, inspectores, máquinas, áreas): oculto por rol; solo ADMIN_TI o permiso personalizado.
+            ["admin-planta"] = new("INNPACK", new[] { "adminPlanta" }),
             ["faret"] = new("FARET", Array.Empty<string>()),
             ["faret-inspecciones"] = new("FARET", new[] { "faret.inspecciones" }),
             ["faret-inspecciones-pallet"] = new("FARET", new[] { "faret.inspeccionesPallet" }),
@@ -58,6 +60,7 @@ namespace QualityControlCenter.Services
             ["faret-nc-internas"] = new("FARET", new[] { "noConformidades" }),
             // Solo lectura, mismo criterio que evaluacion-operadores (INNPACK): oculto salvo ADMIN_TI o VER/EDITAR personalizado.
             ["faret-evaluacion-operadores"] = new("FARET", Array.Empty<string>()),
+            ["faret-evaluacion-maquinas"] = new("FARET", Array.Empty<string>()),
             ["faret-control-documental"] = new("FARET", new[] { "controlDocumental" }),
             ["faret-talleres-externos"] = new("FARET", new[] { "faret.talleresExternos" }),
             ["faret-importacion"] = new("FARET", new[] { "faret.importacion" }),
@@ -68,6 +71,7 @@ namespace QualityControlCenter.Services
             ["faret-laboratorio"] = new("FARET", new[] { "faretLab" }),
             ["faret-recepcion-calidad"] = new("FARET", new[] { "recepcion" }),
             ["faret-usuarios"] = new("FARET", new[] { "faret.usuarios" }),
+            ["faret-admin-planta"] = new("FARET", new[] { "adminPlanta" }),
         };
 
         // Módulos que nunca bajan de VER.
@@ -95,6 +99,7 @@ namespace QualityControlCenter.Services
         {
             "certificadosLiberacion.buscar",
             "faret.evaluacionOperadores.cancelar", // solo cancela la carga en curso de QCC; no escribe nada
+            "faret.evaluacionMaquinas.coberturaFps", // diagnóstico de solo lectura (además exige ADMIN_TI y flag de config)
             "certificadosLiberacion.pdf.descargar",
             "certificadosLiberacion.calidadPdf.descargar",
             "controlDocumental.adjunto.abrir",
@@ -150,6 +155,11 @@ namespace QualityControlCenter.Services
         private string? _empresa;
         private string _rol = "";
         private Dictionary<string, string> _personalizados = new();
+
+        public string? Empresa
+        {
+            get { lock (_lock) return _empresa; }
+        }
 
         public bool HaySesion
         {
@@ -229,6 +239,14 @@ namespace QualityControlCenter.Services
                 {
                     if (_empresa != "FARET" || NivelEfectivoSinLock("faret-evaluacion-operadores") == SinAcceso)
                         return "No tienes acceso a este módulo.";
+                }
+                // Evaluación por Máquina: relaciona máquina, operador e inspector; mismo criterio de dato sensible.
+                if (action.StartsWith("faret.evaluacionMaquinas."))
+                {
+                    if (_empresa != "FARET" || NivelEfectivoSinLock("faret-evaluacion-maquinas") == SinAcceso)
+                        return "No tienes acceso a este módulo.";
+                    if (action == "faret.evaluacionMaquinas.coberturaFps" && !EsAdminTiSinLock())
+                        return "Acceso no autorizado: solo ADMIN_TI puede ejecutar la auditoría de cobertura FPS.";
                 }
 
                 // Eliminar formularios (borrado físico, irreversible): solo ADMIN_TI.
@@ -396,7 +414,7 @@ namespace QualityControlCenter.Services
         private static string NivelPorRol(string? empresa, string rolUsuario, string modulo)
         {
             // Dato sensible por persona: nadie lo ve por rol; solo ADMIN_TI o un permiso personalizado.
-            if (modulo is "evaluacion-operadores" or "faret-evaluacion-operadores")
+            if (modulo is "evaluacion-operadores" or "faret-evaluacion-operadores" or "faret-evaluacion-maquinas" or "admin-planta" or "faret-admin-planta")
                 return SinAcceso;
 
             if (empresa != "FARET")

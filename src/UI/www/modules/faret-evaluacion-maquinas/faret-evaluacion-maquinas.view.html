@@ -1,0 +1,129 @@
+<div class="module evop-module evmq-module">
+    <style>
+        .evmq-module .evmq-sub { font-size: 12px; color: #475569; }
+        .evmq-module .evmq-fila { cursor: pointer; }
+        .evmq-module .evmq-fila:hover, .evmq-module .evmq-fila:focus { background: rgba(99,102,241,.08); outline: none; }
+    </style>
+
+    <div class="module-header">
+        <div>
+            <div class="module-title">Evaluación por Máquina</div>
+            <div class="subtitle">FARET · Inspecciones de Calidad y Pallet/Papel, por máquina y operador de máquina</div>
+        </div>
+    </div>
+
+    <div class="evop-aviso-oficial" role="note">
+        <strong>Indicador descriptivo, no es una evaluación oficial de desempeño.</strong>
+        Las ponderaciones (Crítico 10 · Mayor 5 · Menor 1) son <strong>provisionales</strong>, pendientes de validación formal de Calidad.
+        No hay nota, porcentaje global ni ranking: el orden es alfabético y no sugiere mejor ni peor desempeño.
+        El <strong>operador de máquina</strong> es el declarado en la inspección (texto libre, sin confirmación contra producción) y es una persona distinta del <strong>inspector de calidad</strong>.
+        <strong>Ningún operador queda penalizado</strong> ni se le atribuyen defectos de forma definitiva.
+        Una inspección <strong>sin defectos</strong> (conforme) no es lo mismo que una <strong>no evaluable</strong> (falta criticidad, máquina o fecha, o el origen no registra criticidad): estas últimas no suman puntos ni se tratan como cero.
+    </div>
+    <div id="evmq-privacidad" class="evop-privacidad" style="display:none;" role="note">
+        Nombres ocultos: con permiso de solo vista, operadores e inspectores se muestran como códigos (OP-xxxxxx). Los nombres requieren permiso de edición del módulo.
+    </div>
+
+    <div class="card evop-filtros">
+        <div class="filters evop-filtros-row">
+            <div class="evop-campo"><label for="evmq-anio">Año</label>
+                <select id="evmq-anio"><option value="">Todos</option></select></div>
+            <div class="evop-campo"><label for="evmq-mes">Mes</label>
+                <select id="evmq-mes">
+                    <option value="">Todos</option>
+                    <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+                    <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+                    <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+                    <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+                </select></div>
+            <div class="evop-campo"><label for="evmq-origen">Tipo de inspección</label>
+                <select id="evmq-origen"><option value="">Todos</option></select></div>
+            <div class="evop-campo"><label for="evmq-area">Área de control</label>
+                <select id="evmq-area"><option value="">Todas</option></select></div>
+            <div class="evop-campo"><label for="evmq-maquina">Máquina</label>
+                <select id="evmq-maquina"><option value="">Todas</option></select></div>
+            <div class="evop-campo"><label for="evmq-operador">Operador de máquina</label>
+                <select id="evmq-operador"><option value="">Todos</option></select></div>
+            <div class="evop-campo evop-acciones">
+                <button id="evmq-limpiar" class="btn-secondary" type="button">Limpiar</button>
+                <button id="evmq-actualizar" class="btn-secondary" type="button">Actualizar datos</button>
+            </div>
+        </div>
+        <div id="evmq-cache" class="evmq-sub" style="margin-top:6px;"></div>
+    </div>
+
+    <div id="evmq-estado" class="evop-estado" style="display:none;" role="status"></div>
+
+    <div id="evmq-contenido" style="display:none;">
+        <div id="evmq-advertencias" class="evop-advertencias"></div>
+
+        <div class="kpi-row evop-kpis">
+            <div class="kpi-card"><div class="kpi-label">Inspecciones <small>(del período)</small></div><div class="kpi-value" id="evmq-k-insp">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Conformes <small>(sin defectos)</small></div><div class="kpi-value" id="evmq-k-conf">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">No conformes <small>(con defectos / no cumple)</small></div><div class="kpi-value" id="evmq-k-noconf">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Evaluables <small>(con criticidad completa)</small></div><div class="kpi-value" id="evmq-k-eval">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">No evaluables <small>(sin puntaje posible)</small></div><div class="kpi-value" id="evmq-k-noeval">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Críticos <small>(defectos)</small></div><div class="kpi-value" id="evmq-k-crit">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Mayores <small>(defectos)</small></div><div class="kpi-value" id="evmq-k-may">0</div></div>
+            <div class="kpi-card"><div class="kpi-label">Menores <small>(defectos)</small></div><div class="kpi-value" id="evmq-k-men">0</div></div>
+            <div class="kpi-card evop-kpi-puntos"><div class="kpi-label">Puntos de severidad <small>(no penalizan a personas)</small></div><div class="kpi-value" id="evmq-k-pts">0</div></div>
+            <div class="kpi-card evop-kpi-puntos"><div class="kpi-label">Puntos por inspección evaluable</div><div class="kpi-value" id="evmq-k-ppi">—</div></div>
+        </div>
+        <div id="evmq-noeval-motivos" class="evmq-sub" style="margin-bottom:10px;"></div>
+
+        <div class="evop-graficos">
+            <div class="card"><h3>Evolución mensual <small>(inspecciones conformes / no conformes y puntos)</small></h3><div class="evop-canvas"><canvas id="evmq-chart-mes"></canvas></div></div>
+        </div>
+
+        <div class="card">
+            <h3>Por tipo de inspección <small>(cada fuente se muestra con lo que realmente registra)</small></h3>
+            <div class="table-container"><table class="table evop-tabla-sep">
+                <thead><tr><th>Tipo</th><th class="num">Inspecciones</th><th class="num">Conformes</th><th class="num">No conformes</th><th class="num">Evaluables</th><th class="num">Puntos</th><th>Criticidad por defecto</th><th>Operador de máquina</th></tr></thead>
+                <tbody id="evmq-tbody-origen"></tbody>
+            </table></div>
+        </div>
+
+        <div class="card">
+            <h3>Por área de control</h3>
+            <div class="table-container"><table class="table evop-tabla-sep">
+                <thead><tr><th>Área</th><th class="num">Inspecciones</th><th class="num">Conformes</th><th class="num">No conformes</th><th class="num">Evaluables</th><th class="num">Puntos</th><th class="num">Puntos / insp. evaluable</th></tr></thead>
+                <tbody id="evmq-tbody-area"></tbody>
+            </table></div>
+        </div>
+
+        <div class="card">
+            <h3>Por máquina <small>(orden alfabético, no es un ranking · clic en una fila para ver sus inspecciones y operadores)</small></h3>
+            <div class="table-container"><table class="table evop-tabla-sep" id="evmq-tabla-maquina">
+                <thead><tr><th>Máquina</th><th class="num">Inspecciones</th><th class="num">Conformes</th><th class="num">No conformes</th><th class="num">Evaluables</th><th class="num">No evaluables</th>
+                    <th class="num">Críticos</th><th class="num">Mayores</th><th class="num">Menores</th><th class="num">Puntos</th><th class="num">Puntos / insp. evaluable</th>
+                    <th class="num">Operadores</th><th class="num">Inspectores</th><th>Tipos</th><th>Nota</th></tr></thead>
+                <tbody id="evmq-tbody-maquina"></tbody>
+            </table></div>
+        </div>
+
+        <div class="card">
+            <h3>Máquina × operador de máquina <small>(operador declarado en la inspección · solo inspecciones con operador identificable · no confirma responsabilidad)</small></h3>
+            <div class="table-container"><table class="table evop-tabla-sep">
+                <thead><tr><th>Máquina</th><th>Operador de máquina</th><th class="num">Inspecciones</th><th class="num">Conformes</th><th class="num">No conformes</th><th class="num">Evaluables</th>
+                    <th class="num">Críticos</th><th class="num">Mayores</th><th class="num">Menores</th><th class="num">Puntos</th><th class="num">Puntos / insp. evaluable</th><th>Tipos</th><th>Nota</th></tr></thead>
+                <tbody id="evmq-tbody-mo"></tbody>
+            </table></div>
+        </div>
+
+        <div id="evmq-detalle" class="card" style="display:none;"></div>
+
+        <div id="evmq-cobertura" class="card" style="display:none;">
+            <h3>Auditoría de cobertura de sesiones FPS <small>(solo ADMIN_TI · Pallet/Papel · diagnóstico, no atribuye operadores ni asigna puntajes)</small></h3>
+            <div class="evmq-sub" style="margin-bottom:8px;">
+                Cuenta cuántas inspecciones Pallet/Papel podrían relacionarse con la sesión de máquina de FPS (máquina + fecha y hora; sin depender del NP).
+                Solo se consideran las máquinas con equivalencia verificada. El operador de turno en la máquina no es necesariamente quien fabricó el pallet inspeccionado.
+            </div>
+            <div class="filters evop-filtros-row">
+                <div class="evop-campo"><label for="evmq-cob-desde">Desde</label><input type="date" id="evmq-cob-desde"></div>
+                <div class="evop-campo"><label for="evmq-cob-hasta">Hasta</label><input type="date" id="evmq-cob-hasta"></div>
+                <div class="evop-campo evop-acciones"><button id="evmq-cob-ejecutar" class="btn-secondary" type="button">Medir cobertura</button></div>
+            </div>
+            <div id="evmq-cob-resultado" class="evmq-sub" style="margin-top:8px;"></div>
+        </div>
+    </div>
+</div>

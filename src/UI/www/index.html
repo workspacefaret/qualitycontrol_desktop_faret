@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="modules/faret-data/faret-data.css">
     <link rel="stylesheet" href="modules/faret-importacion/faret-importacion.css">
     <link rel="stylesheet" href="modules/faret-usuarios/faret-usuarios.css">
+    <link rel="stylesheet" href="modules/admin-planta/admin-planta.css">
     <link rel="stylesheet" href="modules/faret-nc/faret-nc.css">
     <link rel="stylesheet" href="modules/faret-nc-internas/faret-nc-internas.css">
     <link rel="stylesheet" href="modules/faret-inspecciones/faret-inspecciones.css">
@@ -194,6 +195,17 @@
                     <span>Evaluación de Calidad por Operador</span>
                 </button>
 
+                <button data-module="faret-evaluacion-maquinas" data-empresa="FARET">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <rect x="3" y="9" width="18" height="10" rx="2"></rect>
+                            <path d="M7 9V5h6v4"></path>
+                            <path d="M7 14h2M12 14h2M17 14h.01"></path>
+                        </svg>
+                    </span>
+                    <span>Evaluación por Máquina</span>
+                </button>
+
                 <button data-module="faret-control-documental" data-empresa="FARET">
                     <span class="menu-icon">
                         <svg viewBox="0 0 24 24">
@@ -286,6 +298,16 @@
                         </svg>
                     </span>
                     <span>Gestión de Usuarios</span>
+                </button>
+
+                <button data-module="faret-admin-planta" data-empresa="FARET">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
+                            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>
+                        </svg>
+                    </span>
+                    <span>Administración de planta</span>
                 </button>
 
                 <button data-module="dashboard" data-empresa="INNPACK">
@@ -472,6 +494,16 @@
                     <span>Formularios</span>
                 </button>
 
+                <button data-module="admin-planta" data-empresa="INNPACK">
+                    <span class="menu-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
+                            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>
+                        </svg>
+                    </span>
+                    <span>Administración de planta</span>
+                </button>
+
                 <button id="btn-usuarios" data-module="usuarios" data-empresa="INNPACK" style="display: none;">
                     <span class="menu-icon">
                         <svg viewBox="0 0 24 24">
@@ -499,7 +531,7 @@
                 </button>
             </div>
 
-            <div class="version">Version 1.8.30</div>
+            <div class="version">Version 1.8.32</div>
         </div>
     </div>
 
@@ -600,7 +632,9 @@
     <script src="shared/inspecciones-edicion.js"></script>
     <script src="shared/novedades.js"></script>
     <script src="shared/formularios-base.js"></script>
+    <script src="shared/admin-planta-base.js"></script>
     <script src="shared/evaluacion-operadores-base.js"></script>
+    <script src="shared/evaluacion-maquinas-base.js"></script>
     <script src="shared/despachos-diarios-base.js"></script>
     <script src="core/app.js"></script>
 

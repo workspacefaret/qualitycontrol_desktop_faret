@@ -3,11 +3,30 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.30";
+    const ID = "1.8.32";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
+        {
+            titulo: "Administración de planta",
+            icono: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+            puntos: [
+                { t: "Nuevo módulo para dar de alta, editar o dar de baja operadores de máquina, inspectores, máquinas y áreas, sin pedir cambios a TI." },
+                { t: "Cada cambio queda auditado (quién, cuándo y qué) y no borra el historial: las bajas se pueden reactivar." },
+                { t: "Solo lo ven los usuarios habilitados por Gestión de Usuarios." },
+            ],
+        },
+        {
+            titulo: "Faret: Evaluación por Máquina",
+            icono: '<path d="M3 3v18h18M7 15l4-4 3 3 5-6"/>',
+            puntos: [
+                { solo: "FARET", t: "Nuevo módulo de solo lectura: inspecciones de Calidad y Pallet/Papel por máquina, área y operador de máquina declarado, con evolución mensual y detalle por máquina." },
+                { solo: "FARET", t: "Indicador descriptivo, sin nota ni ranking: las inspecciones sin criticidad no suman puntos y no se tratan como cero." },
+                { solo: "FARET", t: "Solo lo ven los usuarios habilitados por Gestión de Usuarios." },
+                { solo: "INNPACK", t: "Esta versión trae cambios para Faret. En INNPACK no cambia nada de lo que usas." },
+            ],
+        },
         {
             titulo: "Inicio Faret: no conformidades sin cerrar",
             icono: '<path d="M3 3v18h18M7 15l4-4 3 3 5-6"/>',
@@ -16,15 +35,6 @@ window.Novedades = (() => {
                 { solo: "FARET", t: "El Resumen general muestra las PNC sin gestión y las críticas sin cerrar, con su detalle." },
                 { solo: "FARET", t: "Si una fuente no responde, verás \"Sin información\" en lugar de un cero." },
                 { solo: "INNPACK", t: "Esta versión trae cambios para Faret. En INNPACK no cambia nada de lo que usas." },
-            ],
-        },
-        {
-            titulo: "Faret: Evaluación de Calidad por Operador",
-            icono: '<path d="M16 11a4 4 0 1 0-8 0M4 21a8 8 0 0 1 16 0"/>',
-            puntos: [
-                { solo: "FARET", t: "Indicador descriptivo de PNC por operador, máquina, área y fecha de fabricación, con filtro y detalle por NP/NV." },
-                { solo: "FARET", t: "No es una evaluación oficial: no hay nota ni ranking y ninguna responsabilidad queda confirmada." },
-                { solo: "FARET", t: "Solo lo ven los usuarios habilitados por Gestión de Usuarios." },
             ],
         },
     ];

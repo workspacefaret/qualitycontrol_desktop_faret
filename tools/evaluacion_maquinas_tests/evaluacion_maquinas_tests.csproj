@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pruebas autocontenidas (sin paquetes nuevos) del módulo Evaluación por Máquina.
+       Enlazan el código real del backend; datos 100% sintéticos y un servidor HTTP local simulado. Ejecutar con dotnet run en esta carpeta. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Backend\Modules\EvaluacionMaquinas\EvaluacionMaquinasCalculator.cs" />
+    <Compile Include="..\..\src\Backend\Modules\EvaluacionMaquinas\FaretEvaluacionMaquinasParser.cs" />
+    <Compile Include="..\..\src\Backend\Modules\EvaluacionMaquinas\FaretEvaluacionMaquinasHandler.cs" />
+    <Compile Include="..\..\src\Backend\Modules\EvaluacionMaquinas\PalletMaquinaEquivalencias.cs" />
+    <Compile Include="..\..\src\Backend\Modules\EvaluacionMaquinas\PalletAtribucionFps.cs" />
+    <Compile Include="..\..\src\Backend\Modules\EvaluacionOperadores\FaretAtribucionFps.cs" />
+    <Compile Include="..\..\src\Backend\Services\FpsApi\FpsApiClient.cs" />
+    <Compile Include="..\..\src\Backend\Services\FpsApi\FpsApiSettings.cs" />
+    <Compile Include="..\..\src\Backend\Services\FpsApi\FpsSesionesApiService.cs" />
+    <Compile Include="..\..\src\Backend\Modules\EvaluacionOperadores\EvaluacionOperadoresCalculator.cs" />
+    <Compile Include="..\..\src\Backend\Modules\EvaluacionOperadores\EvaluacionOperadoresAuditoria.cs" />
+    <Compile Include="..\..\src\Backend\Services\PermisosService.cs" />
+    <Compile Include="..\..\src\Backend\Services\FaretApi\FaretApiClient.cs" />
+    <Compile Include="..\..\src\Backend\Services\FaretApi\FaretApiSettings.cs" />
+    <Compile Include="..\..\src\Backend\Services\FaretApi\FaretInspeccionesApiService.cs" />
+    <Compile Include="..\..\src\Backend\Services\FaretApi\FaretInspeccionesPalletApiService.cs" />
+  </ItemGroup>
+
+</Project>

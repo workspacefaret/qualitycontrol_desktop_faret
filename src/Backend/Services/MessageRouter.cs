@@ -16,7 +16,9 @@ using QualityControlCenter.Modules.Dashboard;
 using QualityControlCenter.Modules.Faret;
 using QualityControlCenter.Modules.Home;
 using QualityControlCenter.Modules.LiberacionCalidad;
+using QualityControlCenter.Modules.AdminPlanta;
 using QualityControlCenter.Modules.MaquinasSeguimiento;
+using QualityControlCenter.Modules.EvaluacionMaquinas;
 using QualityControlCenter.Modules.EvaluacionOperadores;
 using QualityControlCenter.Modules.NoConformidades;
 using QualityControlCenter.Modules.ProductoTerminado;
@@ -191,6 +193,12 @@ namespace QualityControlCenter.Services
                     var handler = new MaquinasSeguimientoHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
+                else if (action.StartsWith("adminPlanta."))
+                {
+                    // Datos compartidos en la API `calidad` (JWT de la sesión); la empresa sale de la sesión, no del frontend.
+                    var handler = new AdminPlantaHandler(_faretCalidadClient, _permisos.Empresa ?? "");
+                    rawResult = await handler.Handle(action, data);
+                }
                 else if (action.StartsWith("evaluacionOperadores"))
                 {
                     var handler = new EvaluacionOperadoresHandler(_innpackClient, _permisos.NivelEfectivo("evaluacion-operadores") == "EDITAR");
@@ -265,6 +273,16 @@ namespace QualityControlCenter.Services
                         _faretClient,
                         _fpsSesiones,
                         _permisos.NivelEfectivo("faret-evaluacion-operadores") == "EDITAR"
+                    );
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("faret.evaluacionMaquinas."))
+                {
+                    // OJO: antes de la rama "faret" genérica. Solo lectura: inspecciones Calidad y Pallet/Papel (API calidad, JWT de la sesión).
+                    var handler = new FaretEvaluacionMaquinasHandler(
+                        _faretCalidadClient,
+                        _permisos.NivelEfectivo("faret-evaluacion-maquinas") == "EDITAR",
+                        _fpsSesiones
                     );
                     rawResult = await handler.Handle(action, data);
                 }
