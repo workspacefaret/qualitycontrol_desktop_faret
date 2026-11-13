@@ -21,6 +21,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
         public const string SapNoDisponible = "SAP_NO_DISPONIBLE";
         public const string FpsNoDisponible = "FPS_NO_DISPONIBLE";
         public const string NpNoEncontrada = "NP_NO_ENCONTRADA";
+        public const string NoDisponible = "NO_DISPONIBLE";
 
         private const int MaxConcurrencia = 4;
 
@@ -29,7 +30,16 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             public long Np { get; set; }
             public long IdProcesoFps { get; set; }
             public List<string> Articulos { get; set; } = new();
+
+            // Ítem de la NV → artículo, sin repetir el mismo par (orden por número de ítem).
+            public List<ItemArticulo> Items { get; set; } = new();
             public string Estado { get; set; } = "";
+        }
+
+        public sealed class ItemArticulo
+        {
+            public string Item { get; set; } = "";
+            public string Articulo { get; set; } = "";
         }
 
         public delegate Task<(bool ok, RegistrosLaboratorioFpsDto? datos, string? error)> Consulta(long np, bool completo);
@@ -77,6 +87,11 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             if (!liviano.ok || liviano.datos == null)
             {
                 r.Estado = (liviano.error ?? "").Contains("No se encontró", StringComparison.OrdinalIgnoreCase) ? NpNoEncontrada : FpsNoDisponible;
+                return r;
+            }
+            if (!liviano.datos.ArticulosInnpackDisponible)
+            {
+                r.Estado = NoDisponible;
                 return r;
             }
             if (!string.IsNullOrEmpty(liviano.datos.ArticulosInnpackError))
@@ -133,8 +148,19 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
 
             foreach (var o in ordenes.Where(o => (o.NpInnpack ?? "").Trim() == nvElegida))
                 foreach (var a in o.ArticulosInnpack)
+                {
                     if (!r.Articulos.Contains(a.ItemCode))
                         r.Articulos.Add(a.ItemCode);
+                    foreach (var item in a.Items.DefaultIfEmpty(""))
+                        if (!r.Items.Exists(x => x.Item == item && x.Articulo == a.ItemCode))
+                            r.Items.Add(new ItemArticulo { Item = item, Articulo = a.ItemCode });
+                }
+
+            // Ítems numéricos primero y en orden; sin número de ítem, al final.
+            r.Items = r.Items
+                .OrderBy(x => int.TryParse(x.Item, out var n) ? n : int.MaxValue)
+                .ThenBy(x => x.Articulo, StringComparer.Ordinal)
+                .ToList();
 
             r.Estado = r.Articulos.Count > 0 ? Ok : SinArticulos;
             return r;

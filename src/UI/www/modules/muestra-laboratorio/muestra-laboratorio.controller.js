@@ -581,7 +581,7 @@ if (!window.MuestraLaboratorioController) {
         SAP_NO_DISPONIBLE: "SAP no respondió; intenta más tarde",
         FPS_NO_DISPONIBLE: "FPS no respondió; intenta más tarde",
         NP_NO_ENCONTRADA: "La NP no existe en FPS",
-        NO_DISPONIBLE: "Artículos no disponibles en este momento",
+        NO_DISPONIBLE: "Artículos aún no disponibles: FPS API todavía no los entrega",
       }[estado] || "Sin dato"
     }
 
@@ -589,8 +589,19 @@ if (!window.MuestraLaboratorioController) {
     _celdaArticulos(r, np) {
       if (!this._npValida(np)) return "-"
       if (!r) return '<span style="color:#94A3B8;">…</span>'
-      if (r.estado === "OK" && r.articulos?.length) return this._esc(r.articulos.join(", "))
+      if (r.estado === "OK" && r.articulos?.length) return this._htmlItemsArticulos(r.items, r.articulos)
       return `<span title="${this._escAttr(this._motivoArticulos(r.estado))}">-</span>`
+    }
+
+    // Una línea por relación ítem → artículo de la NV ("Ítem 2: 4637007530603"). Sin número de ítem, solo el artículo.
+    _textosItemsArticulos(items, articulos) {
+      const pares = (items || []).filter(p => p && p.articulo)
+      if (!pares.length) return (articulos || []).filter(Boolean)
+      return pares.map(p => (p.item ? `Ítem ${p.item}: ${p.articulo}` : p.articulo))
+    }
+
+    _htmlItemsArticulos(items, articulos) {
+      return this._textosItemsArticulos(items, articulos).map(t => `<div style="white-space:nowrap;">${this._esc(t)}</div>`).join("")
     }
 
     // Resuelve las NP del listado en lotes (sin repetir NP ya consultadas en esta sesión) y
@@ -613,7 +624,7 @@ if (!window.MuestraLaboratorioController) {
         for (const np of lote) {
           const r = resultados.find(x => String(x.np) === np && !(Number(x.idProcesoFps) > 0))
           // Solo se recuerdan los resultados definitivos; un fallo temporal se reintenta al recargar.
-          const definitivo = r && !["SAP_NO_DISPONIBLE", "FPS_NO_DISPONIBLE"].includes(r.estado)
+          const definitivo = r && !["SAP_NO_DISPONIBLE", "FPS_NO_DISPONIBLE", "NO_DISPONIBLE"].includes(r.estado)
           if (definitivo) this._articulosCache.set(this._claveArticulos(np, 0), r)
           if (seq !== this._articulosSeq) continue
           this._pintarCeldasArticulos(np, r || { estado: "NO_DISPONIBLE", articulos: [] })
@@ -647,7 +658,7 @@ if (!window.MuestraLaboratorioController) {
         } catch (err) {
           console.error("Artículos NV INNPACK:", err)
         }
-        if (r && !["SAP_NO_DISPONIBLE", "FPS_NO_DISPONIBLE"].includes(r.estado)) this._articulosCache.set(clave, r)
+        if (r && !["SAP_NO_DISPONIBLE", "FPS_NO_DISPONIBLE", "NO_DISPONIBLE"].includes(r.estado)) this._articulosCache.set(clave, r)
       }
       // Si mientras tanto se abrió otra muestra, no se pisa su dato.
       if (document.getElementById("mlbDetId")?.textContent !== String(m.id)) return
@@ -1099,8 +1110,16 @@ if (!window.MuestraLaboratorioController) {
 
       // Artículos de la NV INNPACK de la orden elegida (solo informativo, no se guarda).
       const wrapArt = document.getElementById("mlbNmArticulosWrap")
-      const articulos = [...new Set((orden?.articulosInnpack || []).map(a => a.itemCode).filter(Boolean))]
-      document.getElementById("mlbNmArticulosTexto").textContent = articulos.length ? articulos.join(", ")
+      const pares = []
+      for (const a of orden?.articulosInnpack || []) {
+        if (!a?.itemCode) continue
+        for (const item of (a.items?.length ? a.items : [""])) {
+          if (!pares.some(p => p.item === item && p.articulo === a.itemCode)) pares.push({ item, articulo: a.itemCode })
+        }
+      }
+      pares.sort((x, y) => (parseInt(x.item, 10) || Infinity) - (parseInt(y.item, 10) || Infinity))
+      const textos = this._textosItemsArticulos(pares, [])
+      document.getElementById("mlbNmArticulosTexto").textContent = textos.length ? textos.join(" · ")
         : !orden?.npInnpack ? "la orden no tiene nota de venta INNPACK" : "sin dato en SAP"
       // Sin el campo (backend anterior, p. ej. la web) no se afirma nada: el bloque queda oculto.
       wrapArt.style.display = orden && Array.isArray(orden.articulosInnpack) ? "" : "none"
@@ -1424,8 +1443,8 @@ if (!window.MuestraLaboratorioController) {
           <div><b>${this._esc(m.tipoMuestra || "-")}</b>Tipo de muestra</div>
           <div><b>${this._esc(m.np || "-")}</b>NP</div>
           <div><b>${this._esc(m.cliente || "-")}</b>Cliente</div>
-          <div><b id="mlbDetArticulos">-</b>Artículo(s) NV INNPACK</div>
-          <div><b>${this._esc(m.codigoProducto || "-")}</b>Código registrado</div>
+          <div><b id="mlbDetArticulos">-</b>Ítem / Artículo (NV INNPACK)</div>
+          <div><b>${this._esc(m.codigoProducto || "-")}</b>Cód. producción (registrado)</div>
           <div><b>${this._esc(this._labelEstado(m.estado))}</b>Estado</div>
           <div><b>${this._esc(m.evaluacion || "-")}</b>Evaluación</div>
           <div><b>${this._esc(maquinaNombre || m.maquina || "-")}</b>Máquina</div>

@@ -107,6 +107,8 @@ namespace QualityControlCenter.Backend.Services.FpsApi
                     });
                 }
 
+                // fps-api anterior no trae este campo: los artículos quedan "no disponibles" (no "sin datos").
+                resultado.ArticulosInnpackDisponible = data.TryGetProperty("articulosInnpackError", out _);
                 resultado.ArticulosInnpackError = GetString(data, "articulosInnpackError");
 
                 foreach (var row in EnumerarArreglo(data, "procesos"))
@@ -240,6 +242,9 @@ namespace QualityControlCenter.Backend.Services.FpsApi
 
         // "" = artículos resueltos (o la orden no tiene NV INNPACK); "SAP_NO_DISPONIBLE" = SAP falló.
         public string ArticulosInnpackError { get; set; } = "";
+
+        // false = fps-api anterior, que todavía no entrega artículos.
+        public bool ArticulosInnpackDisponible { get; set; }
     }
 
     public class ArticuloInnpackFpsDto

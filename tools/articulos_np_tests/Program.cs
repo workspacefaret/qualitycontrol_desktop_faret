@@ -19,8 +19,10 @@ var respuestas = new Dictionary<string, (int status, string body)>
 {
     // 1 artículo
     ["4124"] = (200, Ok(Orden(1, "23001", "4124", $"[{Art("4820011000001", "1")}]"))),
-    // varios artículos; el mismo código repetido entre dos órdenes de la misma NV
-    ["4006"] = (200, Ok(Orden(1, null, "4006", $"[{Art("A", "1")},{Art("B", "2")}]") + "," + Orden(2, null, "4006", $"[{Art("B", "2")},{Art("A", "1")}]"))),
+    // varios artículos; el mismo código repetido entre dos órdenes de la misma NV; B en los ítems 2 y 10
+    ["4006"] = (200, Ok(Orden(1, null, "4006", $"[{Art("A", "1")},{Art("B", "10", "2")}]") + "," + Orden(2, null, "4006", $"[{Art("B", "2")},{Art("A", "1")}]"))),
+    // artículo sin número de ítem
+    ["4500"] = (200, Ok(Orden(1, null, "4500", $"[{Art("S")}]"))),
     // orden solo FARET (sin NV INNPACK)
     ["23259"] = (200, Ok(Orden(1, "23259", null))),
     // NV INNPACK sin líneas en SAP
@@ -73,7 +75,8 @@ var (ok1, d1, _) = await servicio.ObtenerRegistrosLaboratorioAsync(4124);
 CheckL("parser: 1 artículo leído de la orden", ok1 && d1!.Ordenes[0].ArticulosInnpack.Count == 1 && d1.Ordenes[0].ArticulosInnpack[0].ItemCode == "4820011000001" && d1.Ordenes[0].ArticulosInnpack[0].Items.SequenceEqual(new[] { "1" }));
 CheckL("parser: campos existentes intactos", d1!.Ordenes[0].Cliente == "C" && d1.Ordenes[0].NpInnpack == "4124" && d1.ArticulosInnpackError == "");
 var (_, d2, _) = await servicio.ObtenerRegistrosLaboratorioAsync(4400);
-CheckL("parser: fps-api anterior sin el campo → lista vacía, sin error", d2!.Ordenes[0].ArticulosInnpack.Count == 0 && d2.ArticulosInnpackError == "");
+CheckL("parser: fps-api anterior sin el campo → lista vacía y marcada no disponible", d2!.Ordenes[0].ArticulosInnpack.Count == 0 && !d2.ArticulosInnpackDisponible);
+CheckL("parser: fps-api nuevo → disponible", d1.ArticulosInnpackDisponible);
 var (_, d3, _) = await servicio.ObtenerRegistrosLaboratorioAsync(4300);
 CheckL("parser: articulosInnpackError de SAP se conserva", d3!.ArticulosInnpackError == "SAP_NO_DISPONIBLE");
 lock (pedidos) pedidos.Clear();
@@ -85,7 +88,12 @@ async Task<List<ArticulosNpResolver.Resultado>> Resolver(params (long np, long i
     await ArticulosNpResolver.ResolverAsync(p, (np, completo) => servicio.ObtenerRegistrosLaboratorioAsync(np, soloArticulos: !completo));
 string Fmt(ArticulosNpResolver.Resultado r) => $"{r.Estado}:{string.Join(",", r.Articulos)}";
 
-var res = await Resolver((4124, 0), (4006, 0), (23259, 0), (4200, 0), (4300, 0), (777, 0), (999, 0), (500, 0));
+var res = await Resolver((4124, 0), (4006, 0), (23259, 0), (4200, 0), (4300, 0), (777, 0), (999, 0), (500, 0), (4400, 0), (4500, 0));
+string Pares(ArticulosNpResolver.Resultado r) => string.Join(",", r.Items.Select(x => $"{x.Item}:{x.Articulo}"));
+CheckL("ítem→artículo: un ítem", Pares(res[0]) == "1:4820011000001", Pares(res[0]));
+CheckL("ítem→artículo: todos los pares, sin repetir, ordenados por ítem (2 antes que 10)", Pares(res[1]) == "1:A,2:B,10:B", Pares(res[1]));
+CheckL("fps-api anterior → NO_DISPONIBLE (no afirma que SAP no tenga datos)", Fmt(res[8]) == "NO_DISPONIBLE:", Fmt(res[8]));
+CheckL("artículo sin número de ítem → par con ítem vacío", Pares(res[9]) == ":S" && Fmt(res[9]) == "OK:S", Pares(res[9]));
 CheckL("un artículo", Fmt(res[0]) == "OK:4820011000001", Fmt(res[0]));
 CheckL("varios artículos, sin duplicados entre líneas/órdenes", Fmt(res[1]) == "OK:A,B", Fmt(res[1]));
 CheckL("orden solo FARET: sin artículos (no usa la NV FARET)", Fmt(res[2]) == "SIN_NV_INNPACK:", Fmt(res[2]));
