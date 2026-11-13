@@ -7,11 +7,11 @@ using QualityControlCenter.Backend.Services.FpsApi;
 
 namespace QualityControlCenter.Modules.MuestraLaboratorio
 {
-    // Artículos (números de artículo de la NV INNPACK en SAP) de una muestra de Laboratorio, a partir
-    // de su NP. Regla: la NP es inequívoca si todas las órdenes FPS en que aparece (como NP Faret o
-    // NP Innpack) apuntan a UNA sola NV INNPACK. Si apuntan a varias, se usa el proceso FPS guardado
-    // en la muestra (idProcesoFps) para saber su orden; sin él, no se muestra nada. Nunca se usan NV
-    // FARET ni se deduce una relación que FPS no tenga.
+    // Ítem / artículo (número de artículo de la NV INNPACK en SAP) de una muestra de Laboratorio.
+    // Solo se muestra el ítem que el usuario eligió al crear la muestra: el proceso FPS guardado
+    // (idProcesoFps) indica su orden (→ NV INNPACK) y su número de ítem, y de los artículos de esa NV
+    // se deja únicamente la línea de ese ítem. Sin proceso FPS guardado no hay ítem elegido y no se
+    // muestra nada. Nunca se usan NV FARET ni se deduce una relación que FPS no tenga.
     public static class ArticulosNpResolver
     {
         public const string Ok = "OK";
@@ -22,6 +22,9 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
         public const string FpsNoDisponible = "FPS_NO_DISPONIBLE";
         public const string NpNoEncontrada = "NP_NO_ENCONTRADA";
         public const string NoDisponible = "NO_DISPONIBLE";
+        public const string SinItemElegido = "SIN_ITEM_ELEGIDO";
+        public const string ProcesoNoEncontrado = "PROCESO_NO_ENCONTRADO";
+        public const string ItemNoEnNv = "ITEM_NO_EN_NV";
 
         private const int MaxConcurrencia = 4;
 
@@ -31,7 +34,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             public long IdProcesoFps { get; set; }
             public List<string> Articulos { get; set; } = new();
 
-            // Ítem de la NV → artículo, sin repetir el mismo par (orden por número de ítem).
+            // Ítem elegido → artículo(s) de la NV INNPACK (normalmente uno).
             public List<ItemArticulo> Items { get; set; } = new();
             public string Estado { get; set; } = "";
         }
@@ -46,18 +49,18 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
 
         public static async Task<List<Resultado>> ResolverAsync(IReadOnlyList<(long np, long idProceso)> pedidos, Consulta consultar)
         {
-            // Una sola consulta por NP (y modo) aunque varias muestras compartan NP.
-            var cache = new Dictionary<(long, bool), Task<(bool ok, RegistrosLaboratorioFpsDto? datos, string? error)>>();
+            // Una sola consulta por NP aunque varias muestras compartan NP.
+            var cache = new Dictionary<long, Task<(bool ok, RegistrosLaboratorioFpsDto? datos, string? error)>>();
             using var limite = new SemaphoreSlim(MaxConcurrencia);
 
-            Task<(bool ok, RegistrosLaboratorioFpsDto? datos, string? error)> Obtener(long np, bool completo)
+            Task<(bool ok, RegistrosLaboratorioFpsDto? datos, string? error)> Obtener(long np)
             {
                 lock (cache)
                 {
-                    if (!cache.TryGetValue((np, completo), out var t))
+                    if (!cache.TryGetValue(np, out var t))
                     {
-                        t = ConLimite(limite, () => consultar(np, completo));
-                        cache[(np, completo)] = t;
+                        t = ConLimite(limite, () => consultar(np, true));
+                        cache[np] = t;
                     }
                     return t;
                 }
@@ -74,95 +77,78 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
             finally { limite.Release(); }
         }
 
+        // "1" y "01" son el mismo ítem; si alguno no es numérico se compara el texto.
+        public static bool MismoItem(string? a, string? b)
+        {
+            a = (a ?? "").Trim();
+            b = (b ?? "").Trim();
+            if (int.TryParse(a, out var na) && int.TryParse(b, out var nb))
+                return na == nb;
+            return a.Length > 0 && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+        }
+
         private static async Task<Resultado> ResolverUno(
             long np,
             long idProceso,
-            Func<long, bool, Task<(bool ok, RegistrosLaboratorioFpsDto? datos, string? error)>> obtener)
+            Func<long, Task<(bool ok, RegistrosLaboratorioFpsDto? datos, string? error)>> obtener)
         {
             var r = new Resultado { Np = np, IdProcesoFps = idProceso };
-            (bool ok, RegistrosLaboratorioFpsDto? datos, string? error) liviano;
-            try { liviano = await obtener(np, false); }
-            catch { r.Estado = FpsNoDisponible; return r; }
-
-            if (!liviano.ok || liviano.datos == null)
+            if (idProceso <= 0)
             {
-                r.Estado = (liviano.error ?? "").Contains("No se encontró", StringComparison.OrdinalIgnoreCase) ? NpNoEncontrada : FpsNoDisponible;
+                r.Estado = SinItemElegido;
                 return r;
             }
-            if (!liviano.datos.ArticulosInnpackDisponible)
+
+            (bool ok, RegistrosLaboratorioFpsDto? datos, string? error) consulta;
+            try { consulta = await obtener(np); }
+            catch { r.Estado = FpsNoDisponible; return r; }
+
+            if (!consulta.ok || consulta.datos == null)
+            {
+                r.Estado = (consulta.error ?? "").Contains("No se encontró", StringComparison.OrdinalIgnoreCase) ? NpNoEncontrada : FpsNoDisponible;
+                return r;
+            }
+            var datos = consulta.datos;
+            if (!datos.ArticulosInnpackDisponible)
             {
                 r.Estado = NoDisponible;
                 return r;
             }
-            if (!string.IsNullOrEmpty(liviano.datos.ArticulosInnpackError))
+            if (!string.IsNullOrEmpty(datos.ArticulosInnpackError))
             {
                 r.Estado = SapNoDisponible;
                 return r;
             }
 
-            var ordenes = liviano.datos.Ordenes;
-            var nvs = ordenes.Select(o => (o.NpInnpack ?? "").Trim()).Where(nv => nv.Length > 0 && nv != "0").Distinct().ToList();
-            if (nvs.Count == 0)
+            var proceso = datos.Procesos.FirstOrDefault(p => p.IdProceso == idProceso);
+            var orden = proceso == null ? null : datos.Ordenes.FirstOrDefault(o => o.OrdenTrabajo == proceso.OrdenTrabajo);
+            if (proceso == null || orden == null)
+            {
+                r.Estado = ProcesoNoEncontrado;
+                return r;
+            }
+            var nv = (orden.NpInnpack ?? "").Trim();
+            if (nv.Length == 0 || nv == "0")
             {
                 r.Estado = SinNvInnpack;
                 return r;
             }
 
-            string? nvElegida = nvs.Count == 1 ? nvs[0] : null;
-            if (nvElegida == null)
-            {
-                if (idProceso <= 0)
-                {
-                    r.Estado = Ambiguo;
-                    return r;
-                }
-                // Varias NV INNPACK: la orden del proceso FPS que se guardó con la muestra lo resuelve.
-                (bool ok, RegistrosLaboratorioFpsDto? datos, string? error) completo;
-                try { completo = await obtener(np, true); }
-                catch { r.Estado = FpsNoDisponible; return r; }
-                if (!completo.ok || completo.datos == null)
-                {
-                    r.Estado = FpsNoDisponible;
-                    return r;
-                }
-                if (!string.IsNullOrEmpty(completo.datos.ArticulosInnpackError))
-                {
-                    r.Estado = SapNoDisponible;
-                    return r;
-                }
-                var proceso = completo.datos.Procesos.FirstOrDefault(p => p.IdProceso == idProceso);
-                var orden = proceso == null ? null : completo.datos.Ordenes.FirstOrDefault(o => o.OrdenTrabajo == proceso.OrdenTrabajo);
-                if (orden == null)
-                {
-                    r.Estado = Ambiguo;
-                    return r;
-                }
-                nvElegida = (orden.NpInnpack ?? "").Trim();
-                if (nvElegida.Length == 0 || nvElegida == "0")
-                {
-                    r.Estado = SinNvInnpack;
-                    return r;
-                }
-                ordenes = completo.datos.Ordenes;
-            }
-
-            foreach (var o in ordenes.Where(o => (o.NpInnpack ?? "").Trim() == nvElegida))
+            var hayArticulos = false;
+            foreach (var o in datos.Ordenes.Where(o => (o.NpInnpack ?? "").Trim() == nv))
                 foreach (var a in o.ArticulosInnpack)
                 {
-                    if (!r.Articulos.Contains(a.ItemCode))
-                        r.Articulos.Add(a.ItemCode);
-                    foreach (var item in a.Items.DefaultIfEmpty(""))
+                    hayArticulos = true;
+                    foreach (var item in a.Items.Where(i => MismoItem(i, proceso.Item)))
+                    {
+                        if (!r.Articulos.Contains(a.ItemCode))
+                            r.Articulos.Add(a.ItemCode);
                         if (!r.Items.Exists(x => x.Item == item && x.Articulo == a.ItemCode))
                             r.Items.Add(new ItemArticulo { Item = item, Articulo = a.ItemCode });
+                    }
                 }
 
-            // Ítems numéricos primero y en orden; sin número de ítem, al final.
-            r.Items = r.Items
-                .OrderBy(x => int.TryParse(x.Item, out var n) ? n : int.MaxValue)
-                .ThenBy(x => x.Articulo, StringComparer.Ordinal)
-                .ToList();
-
-            r.Estado = r.Articulos.Count > 0 ? Ok : SinArticulos;
+            r.Estado = r.Articulos.Count > 0 ? Ok : hayArticulos ? ItemNoEnNv : SinArticulos;
             return r;
         }
     }

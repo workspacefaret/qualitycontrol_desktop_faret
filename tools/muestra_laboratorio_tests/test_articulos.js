@@ -1,5 +1,6 @@
-// Pruebas breves de "Ítem / Artículo" (NV INNPACK) en Laboratorio - Muestras (Registros, Ver muestra y
-// Nueva muestra). Puente simulado: no consulta FPS ni SAP. Uso: node tools/muestra_laboratorio_tests/test_articulos.js
+// Pruebas breves de "Ítem / Artículo" (NV INNPACK) en Laboratorio - Muestras: solo el ítem que el usuario
+// eligió al crear la muestra (proceso FPS guardado). Puente simulado: no consulta FPS ni SAP.
+// Uso: node tools/muestra_laboratorio_tests/test_articulos.js
 const fs = require("fs"), path = require("path");
 const base = path.join(__dirname, "../../src/UI/www/modules/muestra-laboratorio/");
 let fallos = 0; const ok = (n, v) => { console.log((v ? "PASS " : "FAIL ") + n); if (!v) fallos++; };
@@ -14,7 +15,7 @@ ok("Ver muestra: 'Ítem / Artículo (NV INNPACK)' separado de 'Cód. producción
 
 // DOM mínimo
 const els = {}, celdas = [];
-const el = id => els[id] || (els[id] = { id, value: "", textContent: "", innerHTML: "", style: { display: "" }, readOnly: false, disabled: false });
+const el = id => els[id] || (els[id] = { id, value: "", textContent: "", innerHTML: "", style: { display: "" }, readOnly: false, disabled: false, closest: () => null });
 global.window = {};
 global.performance = { now: () => 0 };
 global.document = {
@@ -24,84 +25,92 @@ global.document = {
 eval(ctrl);
 const c = new window.MuestraLaboratorioController();
 
-// Respuestas simuladas del backend (mismo formato que ArticulosNpResolver, datos reales de SAP INNPACK)
+// Respuestas simuladas del backend por (np, idProcesoFps), formato de ArticulosNpResolver (datos reales SAP INNPACK).
 const par = (item, articulo) => ({ item, articulo });
 const resp = {
-  "4124": { estado: "OK", articulos: ["4820011000001"], items: [par("1", "4820011000001")] },
-  "4137": { estado: "OK", articulos: ["4487011602196", "4487012602196", "4487008602196"],
-    items: [par("1", "4487011602196"), par("2", "4487012602196"), par("3", "4487008602196")] },
-  "23259": { estado: "SIN_NV_INNPACK", articulos: [], items: [] },
-  "777": { estado: "AMBIGUO", articulos: [], items: [] },
-  "4300": { estado: "SAP_NO_DISPONIBLE", articulos: [], items: [] },
-  "4400": { estado: "NO_DISPONIBLE", articulos: [], items: [] },
+  "4137|701": { estado: "OK", articulos: ["4487012602196"], items: [par("2", "4487012602196")] },
+  "4137|702": { estado: "OK", articulos: ["4487008602196"], items: [par("3", "4487008602196")] },
+  "4124|801": { estado: "OK", articulos: ["4820011000001"], items: [par("1", "4820011000001")] },
+  "23259|901": { estado: "SIN_NV_INNPACK", articulos: [], items: [] },
+  "4300|902": { estado: "SAP_NO_DISPONIBLE", articulos: [], items: [] },
+  "4500|903": { estado: "ITEM_NO_EN_NV", articulos: [], items: [] },
 };
 const llamadas = [];
 let caido = false;
 window.PhotinoBridge = {
   send: async ({ action, data }) => {
     if (action !== "muestraLab.articulosNp") return { ok: true, data: [] };
-    llamadas.push(data.muestras.map(m => m.np + (m.idProcesoFps ? "#" + m.idProcesoFps : "")));
+    llamadas.push(data.muestras.map(m => m.np + "#" + m.idProcesoFps));
     if (caido) return { ok: false, error: "Acción no soportada" };
-    return { ok: true, data: data.muestras.map(m => ({ np: Number(m.np), idProcesoFps: m.idProcesoFps || 0,
-      ...(m.idProcesoFps === 501 ? { estado: "OK", articulos: ["X"], items: [par("2", "X")] } : resp[m.np] || { estado: "NP_NO_ENCONTRADA", articulos: [], items: [] }) })) };
+    return { ok: true, data: data.muestras.map(m => ({ np: Number(m.np), idProcesoFps: m.idProcesoFps,
+      ...(resp[m.np + "|" + m.idProcesoFps] || { estado: "PROCESO_NO_ENCONTRADO", articulos: [], items: [] }) })) };
   },
 };
 const lineas = html => [...html.matchAll(/<div[^>]*>([^<]*)<\/div>/g)].map(m => m[1]);
 
 // Celda
-ok("Celda: un ítem → 'Ítem 1: artículo'", lineas(c._celdaArticulos(resp["4124"], "4124")).join("|") === "Ítem 1: 4820011000001");
-ok("Celda: varios ítems, una línea por ítem con su artículo (NV 4137)",
-  lineas(c._celdaArticulos(resp["4137"], "4137")).join("|") === "Ítem 1: 4487011602196|Ítem 2: 4487012602196|Ítem 3: 4487008602196");
-ok("Celda: sin ítems (backend anterior) → solo los artículos", lineas(c._celdaArticulos({ estado: "OK", articulos: ["A", "B"] }, "1")).join("|") === "A|B");
-ok("Celda: relación ambigua → '-' con motivo", /title="[^"]*más de una nota de venta[^"]*">-</.test(c._celdaArticulos(resp["777"], "777")));
-ok("Celda: FPS API sin actualizar → 'aún no disponibles', sin afirmar que SAP no tenga datos",
-  /aún no disponibles: FPS API todavía no los entrega">-</.test(c._celdaArticulos(resp["4400"], "4400")) && !/no tiene artículos/.test(c._celdaArticulos(resp["4400"], "4400")));
-ok("Celda: NP no numérica (recepción/manual) → '-' sin consultar", c._celdaArticulos(undefined, "") === "-" && c._celdaArticulos(undefined, "ABC") === "-");
+ok("Celda: solo el ítem elegido → 'Ítem 2: artículo'", lineas(c._celdaArticulos(resp["4137|701"], "4137")).join("|") === "Ítem 2: 4487012602196");
+ok("Celda: muestra sin proceso FPS → '-' 'Sin ítem elegido', sin consultar",
+  /title="Sin ítem elegido[^"]*">-</.test(c._celdaArticulos(c._articulosDe({ np: "4137", idProcesoFps: null }), "4137")));
+ok("Celda: ítem que no está en la NV → '-' con motivo", /no figura en la nota de venta INNPACK">-</.test(c._celdaArticulos(resp["4500|903"], "4500")));
+ok("Celda: NP no numérica (recepción/manual) → '-'", c._celdaArticulos(undefined, "") === "-" && c._celdaArticulos(undefined, "ABC") === "-");
 
 (async () => {
-  // Registros: una celda por fila; NP repetida y NP vacía
-  const filas = ["4124", "4137", "4124", "23259", "", "777", "4300", "4400"];
-  filas.forEach(np => celdas.push({ dataset: { np }, innerHTML: "" }));
-  const items = filas.map((np, i) => ({ id: i + 1, np }));
+  // Registros: misma NP con dos ítems distintos, una repetida, una sin proceso, una sin NP
+  const items = [
+    { id: 1, np: "4137", idProcesoFps: 701 }, { id: 2, np: "4137", idProcesoFps: 702 }, { id: 3, np: "4137", idProcesoFps: 701 },
+    { id: 4, np: "4124", idProcesoFps: 801 }, { id: 5, np: "4137", idProcesoFps: null }, { id: 6, np: "", idProcesoFps: null },
+    { id: 7, np: "23259", idProcesoFps: 901 }, { id: 8, np: "4300", idProcesoFps: 902 },
+  ];
+  items.forEach(m => celdas.push({ dataset: { clave: c._claveArticulos(m.np, m.idProcesoFps) }, innerHTML: c._celdaArticulos(c._articulosDe(m), m.np) }));
   await c._resolverArticulosLista(items);
-  ok("Registros: una sola llamada, cada NP una vez y sin NP vacía", llamadas.length === 1 && llamadas[0].join() === "4124,4137,23259,777,4300,4400");
-  ok("Registros: celdas con todos los ítems y artículos", lineas(celdas[1].innerHTML).length === 3 && lineas(celdas[2].innerHTML)[0] === "Ítem 1: 4820011000001");
-  ok("Registros: FARET/ambigua/SAP caído/FPS sin actualizar → '-'", [3, 5, 6, 7].every(i => />-</.test(celdas[i].innerHTML)) && celdas[4].innerHTML === "");
+  ok("Registros: una llamada; cada (NP, proceso) una vez; sin consultar las que no tienen proceso",
+    llamadas.length === 1 && llamadas[0].join() === "4124#801,4137#701,4137#702,4300#902,23259#901");
+  ok("Registros: misma NP, cada fila con SOLO su ítem",
+    lineas(celdas[0].innerHTML).join("|") === "Ítem 2: 4487012602196" && lineas(celdas[1].innerHTML).join("|") === "Ítem 3: 4487008602196"
+    && lineas(celdas[2].innerHTML).join("|") === "Ítem 2: 4487012602196" && lineas(celdas[3].innerHTML).join("|") === "Ítem 1: 4820011000001");
+  ok("Registros: sin proceso / sin NP / FARET / SAP caído → '-'",
+    /Sin ítem elegido[^"]*">-</.test(celdas[4].innerHTML) && celdas[5].innerHTML === "-" && [6, 7].every(i => />-</.test(celdas[i].innerHTML)));
 
   llamadas.length = 0;
   await c._resolverArticulosLista(items);
-  ok("Recarga: no repite NP resueltas; reintenta SAP caído y FPS sin actualizar", llamadas.length === 1 && llamadas[0].join() === "4300,4400");
+  ok("Recarga: no repite lo resuelto; reintenta SAP caído", llamadas.length === 1 && llamadas[0].join() === "4300#902");
 
-  // Lotes de 50
   llamadas.length = 0;
-  await c._resolverArticulosLista(Array.from({ length: 120 }, (_, i) => ({ id: i, np: String(5000 + i) })));
-  ok("120 NP nuevas → 3 lotes (50/50/20)", llamadas.map(l => l.length).join() === "50,50,20");
+  await c._resolverArticulosLista(Array.from({ length: 120 }, (_, i) => ({ id: i, np: String(5000 + i), idProcesoFps: 1 })));
+  ok("120 muestras nuevas → 3 lotes (50/50/20)", llamadas.map(l => l.length).join() === "50,50,20");
 
-  // Backend sin la acción (p. ej. la web): la tabla sigue funcionando con '-'
-  caido = true; celdas.length = 0; celdas.push({ dataset: { np: "9001" }, innerHTML: "" });
-  await c._resolverArticulosLista([{ id: 1, np: "9001" }]);
+  caido = true; celdas.length = 0; celdas.push({ dataset: { clave: c._claveArticulos("9001", 5) }, innerHTML: "" });
+  await c._resolverArticulosLista([{ id: 1, np: "9001", idProcesoFps: 5 }]);
   ok("Acción no disponible → '-' sin romper la tabla", />-</.test(celdas[0].innerHTML));
   caido = false;
 
   // Ver muestra
   llamadas.length = 0;
   el("mlbDetId").textContent = "33";
-  await c._mostrarArticulosDetalle({ id: 33, np: "777", idProcesoFps: 501 });
-  ok("Ver: NP ambigua + proceso FPS → su ítem y artículo", lineas(el("mlbDetArticulos").innerHTML).join("|") === "Ítem 2: X" && llamadas[0].join() === "777#501");
+  await c._mostrarArticulosDetalle({ id: 33, np: "4137", idProcesoFps: 702 });
+  ok("Ver: solo el ítem elegido (desde caché, sin nueva consulta)", lineas(el("mlbDetArticulos").innerHTML).join("|") === "Ítem 3: 4487008602196" && llamadas.length === 0);
   el("mlbDetId").textContent = "34";
   await c._mostrarArticulosDetalle({ id: 34, np: "4137", idProcesoFps: null });
-  ok("Ver: muestra antigua sin proceso, NP inequívoca → todos los ítems (desde caché)", lineas(el("mlbDetArticulos").innerHTML).length === 3 && llamadas.length === 1);
+  ok("Ver: muestra sin proceso FPS → '-' sin consultar", /Sin ítem elegido[^"]*">-</.test(el("mlbDetArticulos").innerHTML) && llamadas.length === 0);
   el("mlbDetId").textContent = "35";
   await c._mostrarArticulosDetalle({ id: 35, np: "", idProcesoFps: null });
   ok("Ver: sin NP → '-'", el("mlbDetArticulos").textContent === "-");
 
   // Nueva muestra: orden elegida (formato de fps-api: articulosInnpack con items)
-  c._ponerDatosNotaVentaFps({ npInnpack: "4006", articulosInnpack: [
-    { itemCode: "4637007530603", items: ["2"] }, { itemCode: "4637007530602", items: ["1"] }, { itemCode: "4637007530602", items: ["1"] }] });
-  ok("Nueva muestra: ítems ordenados y sin duplicar",
-    el("mlbNmArticulosTexto").textContent === "Ítem 1: 4637007530602 · Ítem 2: 4637007530603" && el("mlbNmArticulosWrap").style.display === "");
+  const orden = { npInnpack: "4137", articulosInnpack: [
+    { itemCode: "4487011602196", items: ["1"] }, { itemCode: "4487012602196", items: ["2"] }, { itemCode: "4487008602196", items: ["3"] }] };
+  c._ponerDatosNotaVentaFps(orden);
+  ok("Nueva muestra: sin registro elegido → todos los ítems de la orden",
+    el("mlbNmArticulosTexto").textContent === "Ítem 1: 4487011602196 · Ítem 2: 4487012602196 · Ítem 3: 4487008602196" && el("mlbNmArticulosWrap").style.display === "");
+  c._pintarArticulosNm("02");
+  ok("Nueva muestra: registro del ítem 2 → solo 'Ítem 2' (\"02\" = \"2\")", el("mlbNmArticulosTexto").textContent === "Ítem 2: 4487012602196");
+  c._pintarArticulosNm("7");
+  ok("Nueva muestra: ítem que no está en la NV → aviso, sin inventar", el("mlbNmArticulosTexto").textContent === "el ítem 7 no figura en la nota de venta INNPACK");
+  c._soltarRegistroFps();
+  ok("Nueva muestra: al soltar el registro vuelven todos los ítems", el("mlbNmArticulosTexto").textContent.split(" · ").length === 3);
   c._ponerDatosNotaVentaFps({ npInnpack: "", articulosInnpack: [] });
-  ok("Nueva muestra: orden sin NV INNPACK → aviso, sin inventar", el("mlbNmArticulosTexto").textContent === "la orden no tiene nota de venta INNPACK");
+  ok("Nueva muestra: orden sin NV INNPACK → aviso", el("mlbNmArticulosTexto").textContent === "la orden no tiene nota de venta INNPACK");
   c._ponerDatosNotaVentaFps(null);
   ok("Nueva muestra: sin orden → oculto", el("mlbNmArticulosWrap").style.display === "none");
   c._ponerDatosNotaVentaFps({ npInnpack: "4006" });

@@ -538,7 +538,7 @@ if (!window.MuestraLaboratorioController) {
             <td>${this._esc(m.np || "-")}</td>
             <td>${this._esc(m.cliente || "-")}</td>
             <td>${this._esc(m.codigoProducto || "-")}</td>
-            <td class="mlb-articulos" data-np="${this._escAttr(String(m.np || "").trim())}">${this._celdaArticulos(this._articulosCache.get(this._claveArticulos(m.np, 0)), m.np)}</td>
+            <td class="mlb-articulos" data-clave="${this._escAttr(this._claveArticulos(m.np, m.idProcesoFps))}">${this._celdaArticulos(this._articulosDe(m), m.np)}</td>
             <td>${this._esc(m.totalEnsayos)}</td>
             <td>${this._esc(this._labelEstado(m.estado))}</td>
             <td>${this._esc(m.evaluacion || "-")}</td>
@@ -557,8 +557,9 @@ if (!window.MuestraLaboratorioController) {
 
     // =====================================================================
     // ARTÍCULOS (números de artículo de la NV INNPACK en SAP, vía fps-api)
-    // Se resuelven al mostrar, a partir de la NP guardada: no se guardan ni reemplazan el código
-    // registrado. Si la relación NP → NV INNPACK no es inequívoca, se muestra "-".
+    // Se resuelven al mostrar, a partir de la NP y del proceso FPS guardados: solo el ítem que el
+    // usuario eligió al crear la muestra. No se guardan ni reemplazan el código registrado; sin
+    // proceso FPS (o si el ítem no está en la NV INNPACK) se muestra "-" con el motivo.
     // =====================================================================
     get _articulosCache() {
       if (!this.__articulosCache) this.__articulosCache = new Map()
@@ -582,7 +583,22 @@ if (!window.MuestraLaboratorioController) {
         FPS_NO_DISPONIBLE: "FPS no respondió; intenta más tarde",
         NP_NO_ENCONTRADA: "La NP no existe en FPS",
         NO_DISPONIBLE: "Artículos aún no disponibles: FPS API todavía no los entrega",
+        SIN_ITEM_ELEGIDO: "Sin ítem elegido: la muestra no se creó desde un registro FPS",
+        PROCESO_NO_ENCONTRADO: "El proceso FPS guardado con la muestra ya no aparece en FPS",
+        ITEM_NO_EN_NV: "El ítem elegido no figura en la nota de venta INNPACK",
       }[estado] || "Sin dato"
+    }
+
+    // Resultado ya conocido de una muestra: sin proceso FPS guardado no hay ítem elegido (no se consulta).
+    _articulosDe(m) {
+      if (!(Number(m.idProcesoFps) > 0)) return { estado: "SIN_ITEM_ELEGIDO", articulos: [] }
+      return this._articulosCache.get(this._claveArticulos(m.np, m.idProcesoFps))
+    }
+
+    _mismoItem(a, b) {
+      a = String(a ?? "").trim(); b = String(b ?? "").trim()
+      if (/^\d+$/.test(a) && /^\d+$/.test(b)) return Number(a) === Number(b)
+      return a !== "" && a.toLowerCase() === b.toLowerCase()
     }
 
     // r = resultado del backend ({estado, articulos}) o undefined si aún no se consulta.
@@ -604,49 +620,62 @@ if (!window.MuestraLaboratorioController) {
       return this._textosItemsArticulos(items, articulos).map(t => `<div style="white-space:nowrap;">${this._esc(t)}</div>`).join("")
     }
 
-    // Resuelve las NP del listado en lotes (sin repetir NP ya consultadas en esta sesión) y
-    // actualiza solo la celda Artículo(s); la tabla no se vuelve a pintar. Un error deja "-".
+    // Resuelve el ítem elegido de cada muestra del listado (NP + proceso FPS guardado), en lotes y sin
+    // repetir lo ya consultado en esta sesión; actualiza solo la celda. Un error deja "-".
     async _resolverArticulosLista(items) {
       const seq = this._articulosSeq = (this._articulosSeq || 0) + 1
-      const nps = [...new Set(items.map(m => String(m.np || "").trim()))]
-        .filter(np => this._npValida(np) && !this._articulosCache.has(this._claveArticulos(np, 0)))
+      const vistos = new Set()
+      const pedidos = []
+      for (const m of items) {
+        const np = String(m.np || "").trim()
+        const idProcesoFps = Number(m.idProcesoFps) > 0 ? Number(m.idProcesoFps) : 0
+        const clave = this._claveArticulos(np, idProcesoFps)
+        if (!this._npValida(np) || !idProcesoFps || vistos.has(clave) || this._articulosCache.has(clave)) continue
+        vistos.add(clave)
+        pedidos.push({ np, idProcesoFps, clave })
+      }
+      // Mismas NP juntas: el backend consulta FPS una vez por NP dentro de cada lote.
+      pedidos.sort((a, b) => Number(a.np) - Number(b.np))
       const LOTE = 50
       const t0 = performance.now()
-      for (let i = 0; i < nps.length; i += LOTE) {
-        const lote = nps.slice(i, i + LOTE)
+      for (let i = 0; i < pedidos.length; i += LOTE) {
+        const lote = pedidos.slice(i, i + LOTE)
         let resultados = []
         try {
-          const res = await window.PhotinoBridge.send({ action: "muestraLab.articulosNp", data: { muestras: lote.map(np => ({ np })) } })
+          const res = await window.PhotinoBridge.send({
+            action: "muestraLab.articulosNp",
+            data: { muestras: lote.map(p => ({ np: p.np, idProcesoFps: p.idProcesoFps })) },
+          })
           if (res && res.ok !== false) resultados = res.data || []
         } catch (err) {
           console.error("Artículos NV INNPACK:", err)
         }
-        for (const np of lote) {
-          const r = resultados.find(x => String(x.np) === np && !(Number(x.idProcesoFps) > 0))
+        for (const p of lote) {
+          const r = resultados.find(x => String(x.np) === p.np && Number(x.idProcesoFps) === p.idProcesoFps)
           // Solo se recuerdan los resultados definitivos; un fallo temporal se reintenta al recargar.
           const definitivo = r && !["SAP_NO_DISPONIBLE", "FPS_NO_DISPONIBLE", "NO_DISPONIBLE"].includes(r.estado)
-          if (definitivo) this._articulosCache.set(this._claveArticulos(np, 0), r)
+          if (definitivo) this._articulosCache.set(p.clave, r)
           if (seq !== this._articulosSeq) continue
-          this._pintarCeldasArticulos(np, r || { estado: "NO_DISPONIBLE", articulos: [] })
+          this._pintarCeldasArticulos(p.clave, p.np, r || { estado: "NO_DISPONIBLE", articulos: [] })
         }
         if (seq !== this._articulosSeq) return
       }
-      if (nps.length) console.log(`[Laboratorio] Artículos de ${nps.length} NP en ${Math.round(performance.now() - t0)} ms`)
+      if (pedidos.length) console.log(`[Laboratorio] Ítem/artículo de ${pedidos.length} muestras en ${Math.round(performance.now() - t0)} ms`)
     }
 
-    _pintarCeldasArticulos(np, r) {
+    _pintarCeldasArticulos(clave, np, r) {
       document.querySelectorAll("#mlbMuestrasBody td.mlb-articulos").forEach(td => {
-        if (td.dataset.np === np) td.innerHTML = this._celdaArticulos(r, np)
+        if (td.dataset.clave === clave) td.innerHTML = this._celdaArticulos(r, np)
       })
     }
 
-    // Ver muestra: con idProcesoFps se resuelven también las NP con varias NV INNPACK.
+    // Ver muestra: solo el ítem elegido al crearla (proceso FPS guardado).
     async _mostrarArticulosDetalle(m) {
       const el = document.getElementById("mlbDetArticulos")
       if (!el) return
       if (!this._npValida(m.np)) { el.textContent = "-"; return }
       const clave = this._claveArticulos(m.np, m.idProcesoFps)
-      let r = this._articulosCache.get(clave)
+      let r = this._articulosDe(m)
       if (!r) {
         el.innerHTML = '<span style="color:#94A3B8;">Consultando…</span>'
         try {
@@ -1067,6 +1096,7 @@ if (!window.MuestraLaboratorioController) {
       this._fpsAutollenado = null
       document.getElementById("mlbNmFpsInfo").style.display = "none"
       this._mostrarCampoMaquina(true)
+      if (this._nmOrdenArticulos) this._pintarArticulosNm(null)
       if (!auto) return
       document.getElementById("mlbNmCodigo").value = ""
       document.getElementById("mlbNmDescripcion").value = ""
@@ -1108,19 +1138,29 @@ if (!window.MuestraLaboratorioController) {
       antecedentes.value = lineas.join("\n")
       antecedentes.readOnly = lineas.length > 0 // si FPS no trae nada, el analista puede escribirlos
 
-      // Artículos de la NV INNPACK de la orden elegida (solo informativo, no se guarda).
+      this._nmOrdenArticulos = orden
+      this._pintarArticulosNm(null)
+    }
+
+    // Ítem / artículo de la NV INNPACK de la orden elegida (solo informativo, no se guarda). Sin registro
+    // FPS elegido (item = null) se ven todos los ítems de la orden; con registro, solo el ítem de ese registro.
+    _pintarArticulosNm(item) {
+      const orden = this._nmOrdenArticulos
       const wrapArt = document.getElementById("mlbNmArticulosWrap")
       const pares = []
       for (const a of orden?.articulosInnpack || []) {
         if (!a?.itemCode) continue
-        for (const item of (a.items?.length ? a.items : [""])) {
-          if (!pares.some(p => p.item === item && p.articulo === a.itemCode)) pares.push({ item, articulo: a.itemCode })
+        for (const it of (a.items?.length ? a.items : [""])) {
+          if (item !== null && !this._mismoItem(it, item)) continue
+          if (!pares.some(p => p.item === it && p.articulo === a.itemCode)) pares.push({ item: it, articulo: a.itemCode })
         }
       }
       pares.sort((x, y) => (parseInt(x.item, 10) || Infinity) - (parseInt(y.item, 10) || Infinity))
       const textos = this._textosItemsArticulos(pares, [])
       document.getElementById("mlbNmArticulosTexto").textContent = textos.length ? textos.join(" · ")
-        : !orden?.npInnpack ? "la orden no tiene nota de venta INNPACK" : "sin dato en SAP"
+        : !orden?.npInnpack ? "la orden no tiene nota de venta INNPACK"
+        : item !== null && (orden.articulosInnpack || []).length ? `el ítem ${item || "(sin número)"} no figura en la nota de venta INNPACK`
+        : "sin dato en SAP"
       // Sin el campo (backend anterior, p. ej. la web) no se afirma nada: el bloque queda oculto.
       wrapArt.style.display = orden && Array.isArray(orden.articulosInnpack) ? "" : "none"
     }
@@ -1262,6 +1302,7 @@ if (!window.MuestraLaboratorioController) {
         fechaConsultaFps: new Date().toISOString(),
       }
 
+      this._pintarArticulosNm(proceso.item || "")
       document.getElementById("mlbNmCodigo").value = proceso.itemCode || ""
       document.getElementById("mlbNmDescripcion").value = proceso.itemName || ""
       document.getElementById("mlbNmCodigo").disabled = true
