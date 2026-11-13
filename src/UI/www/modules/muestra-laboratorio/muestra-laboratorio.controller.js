@@ -954,6 +954,7 @@ if (!window.MuestraLaboratorioController) {
       this._fpsSnapshot = null
       this._fpsAutollenado = null
       document.getElementById("mlbNmFpsInfo").style.display = "none"
+      this._mostrarCampoMaquina(true)
       if (!auto) return
       document.getElementById("mlbNmCodigo").value = ""
       document.getElementById("mlbNmDescripcion").value = ""
@@ -1170,8 +1171,16 @@ if (!window.MuestraLaboratorioController) {
         if (match) {
           document.getElementById("mlbNmMaquina").value = match.id
           this._fpsAutollenado.maquina = String(match.id)
+          // La máquina ya se ve en el registro FPS elegido: el selector de abajo se oculta (conserva
+          // su valor para guardar). Si no hubo coincidencia, queda visible para elegirla a mano.
+          this._mostrarCampoMaquina(false)
         }
       }
+    }
+
+    _mostrarCampoMaquina(visible) {
+      const campo = document.getElementById("mlbNmMaquina")?.closest(".mlb-form-campo")
+      if (campo) campo.style.display = visible ? "" : "none"
     }
 
     // FPS entrega hora local como texto: se toma hh:mm directo del texto.
