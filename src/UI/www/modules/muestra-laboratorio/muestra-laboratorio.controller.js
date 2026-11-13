@@ -2008,7 +2008,7 @@ if (!window.MuestraLaboratorioController) {
       }
     }
 
-    generarInforme() {
+    async generarInforme() {
       const m = this._muestraActualDetalle
       if (!m) return
 
@@ -2104,14 +2104,287 @@ if (!window.MuestraLaboratorioController) {
       ;["HUMEDAD", "GRAMAJE", "ESPESOR", "COBB", "RCT", "FCT", "ECT", "BCT_MEDIDO", "BCT_TEORICO", "VISCOSIDAD", "PH", "SOLIDOS", "LUGOL", "FILTRACION"]
         .forEach(tipo => { if (!cubiertos.has(tipo)) porTipo(tipo).forEach(e => tablas.push(e.modeloMuestras ? this._tablaEnsayoMuestras(e, tipo) : this._tablaGenerica(e))) })
 
-      window.PrintExporter.printReport({
-        titulo: this._esc(`Informe de Laboratorio - Muestra #${m.id}`),
-        empresa: "INNPACK",
-        subtitulo: m.observacion ? this._esc(`Observación general: ${m.observacion}`) : "",
-        totalRegistros: ensayos.length,
-        resumen: resumen.map(r => ({ label: this._esc(r.label), valor: this._esc(r.valor) })),
-        tablas: tablas.map(t => this._escaparTablaInforme(t))
-      })
+      // Diseño propio de este informe (no usa PrintExporter, compartido con otros módulos). La
+      // trazabilidad FPS/SAP (ítem elegido → artículo) va en su propio bloque, así que esos datos
+      // no se repiten en la ficha de la muestra.
+      const enTrazabilidad = new Set(["NP", "Código", "N.º de registro de producción", "Proceso (FPS)", "Operador (FPS)", "Fecha producción (FPS)", "Estado", "Evaluación", "Analista", "Fecha ensayo"])
+      const finalizados = ensayos.filter(e => e.estado === "Finalizado")
+      const btn = document.getElementById("mlbBtnInforme")
+      if (btn) btn.disabled = true
+      try {
+        const traz = await this._datosTrazabilidadInforme(m)
+        const html = this._htmlInformeLab({
+          m,
+          traz,
+          ficha: resumen.filter(r => !enTrazabilidad.has(r.label)),
+          tablas: tablas.map(t => this._escaparTablaInforme(t)),
+          kpis: {
+            ensayos: finalizados.length,
+            cumple: finalizados.filter(e => e.cumplimiento === "Cumple").length,
+            noCumple: finalizados.filter(e => e.cumplimiento === "No cumple").length,
+          },
+        })
+        await this._imprimirHtmlInforme(html)
+      } catch (err) {
+        alert(err?.message || "No se pudo generar el informe")
+      } finally {
+        if (btn) btn.disabled = false
+      }
+    }
+
+    // ---------- Informe "Generar informe": trazabilidad + diseño ----------
+
+    // NP → NV INNPACK/FARET, orden, proceso FPS, ítem elegido y artículo SAP. Solo lecturas ya
+    // existentes (muestraLab.articulosNp y muestraLab.consultarRegistrosFps); si una falla, el dato
+    // queda "-" con su motivo y el informe se imprime igual. Nunca se deduce un ítem que FPS no tenga.
+    async _datosTrazabilidadInforme(m) {
+      const idProceso = Number(m.idProcesoFps) > 0 ? Number(m.idProcesoFps) : 0
+      const t = {
+        np: m.np || "-", nvInnpack: "-", nvFaret: "-", ordenTrabajo: "-",
+        idProceso: idProceso ? String(idProceso) : "-", proceso: m.procesoTextoFps || "-", etapa: "-",
+        item: "-", articulo: "-", motivo: "",
+        codigo: m.codigoProducto || "-", registro: m.registroProduccionRecordKey || m.lote || "-",
+        operador: m.operadorTexto || "-", fechaProduccion: m.fechaProduccionFps || "-",
+      }
+      if (!this._npValida(m.np)) {
+        t.motivo = "Muestra sin NP de producción (no proviene de FPS)"
+        return t
+      }
+
+      let r = this._articulosDe(m)
+      if (!r) {
+        try {
+          const res = await window.PhotinoBridge.send({
+            action: "muestraLab.articulosNp",
+            data: { muestras: [{ np: String(m.np).trim(), idProcesoFps: idProceso || null }] },
+          })
+          r = res && res.ok !== false
+            ? (res.data || []).find(x => String(x.np) === String(m.np).trim() && Number(x.idProcesoFps || 0) === idProceso)
+            : null
+        } catch (err) {
+          console.error("Informe - artículos NV INNPACK:", err)
+        }
+        if (r && !["SAP_NO_DISPONIBLE", "FPS_NO_DISPONIBLE", "NO_DISPONIBLE"].includes(r.estado))
+          this._articulosCache.set(this._claveArticulos(m.np, m.idProcesoFps), r)
+      }
+      if (r?.estado === "OK" && r.articulos?.length) {
+        const items = [...new Set((r.items || []).map(p => p.item).filter(Boolean))]
+        if (items.length) t.item = items.join(", ")
+        t.articulo = r.articulos.join(" / ")
+      } else {
+        t.motivo = this._motivoArticulos(r?.estado || "NO_DISPONIBLE")
+      }
+
+      if (idProceso) {
+        try {
+          const res = await window.PhotinoBridge.send({ action: "muestraLab.consultarRegistrosFps", data: { np: String(m.np).trim() } })
+          const d = res && res.ok !== false ? res.data : null
+          const proc = d?.procesos?.find(p => Number(p.idProceso) === idProceso)
+          const orden = proc && d.ordenes?.find(o => o.ordenTrabajo === proc.ordenTrabajo)
+          if (proc) {
+            t.etapa = this._etapaLaboratorio(proc.categoria)
+            if (proc.nombreProceso) t.proceso = proc.nombreProceso
+            if (t.item === "-" && proc.item) t.item = proc.item
+          }
+          if (orden) {
+            t.nvInnpack = orden.npInnpack || "-"
+            t.nvFaret = orden.npFaret || "-"
+            t.ordenTrabajo = orden.ordenTrabajo ?? "-"
+          }
+        } catch (err) {
+          console.error("Informe - datos FPS:", err)
+        }
+      }
+      return t
+    }
+
+    // Texto plano de una celda ya escapada (para medir su largo).
+    _largoTextoInforme(html) {
+      return String(html ?? "").replace(/<[^>]*>/g, "").replace(/&[a-z#0-9]+;/gi, "x").length
+    }
+
+    // Tamaño de letra según cuánto dato trae el valor: así nada se corta ni desborda la hoja.
+    _claseLargoInforme(html, corto, largo) {
+      const n = this._largoTextoInforme(html)
+      return n > largo ? " txt-xs" : n > corto ? " txt-sm" : ""
+    }
+
+    _claseCumplimientoInforme(valor) {
+      const v = String(valor || "").trim().toLowerCase()
+      if (v === "cumple") return "ok"
+      if (v === "no cumple") return "bad"
+      return "neutral"
+    }
+
+    // Arma el HTML completo del informe. Todo dato llega ya escapado (ficha/trazabilidad se escapan
+    // acá; las tablas vienen de _escaparTablaInforme / _tablaEnsayoMuestras).
+    _htmlInformeLab({ m, traz, ficha, tablas, kpis }) {
+      const esc = v => this._esc(v)
+      const ahora = new Date().toLocaleString("es-CL")
+      const usuario = sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("codigoUsuario") || ""
+      const logo = new URL("logo.png", document.baseURI).href
+      const evalClase = this._claseCumplimientoInforme(m.evaluacion)
+
+      const campoTraz = (label, valor, extra = "") =>
+        `<div class="tz-campo${extra}"><span>${esc(label)}</span><strong class="${this._claseLargoInforme(esc(valor), 18, 34).trim()}">${esc(valor ?? "-")}</strong></div>`
+
+      const fichaHtml = ficha.map(r => {
+        const v = esc(r.valor ?? "-")
+        return `<div class="fi-campo${this._claseLargoInforme(v, 45, 140)}"><span>${esc(r.label)}</span><div>${v}</div></div>`
+      }).join("")
+
+      const esNumero = v => /^-?[\d.,]+(\s?[%a-zA-Z²³/°·]{0,8})?$/.test(String(v).replace(/<[^>]*>/g, "").trim())
+      const tablasHtml = tablas.map(t => {
+        const [nombre, ...resto] = String(t.titulo).split(" — ")
+        const meta = resto.join(" — ").split(" · ").filter(Boolean)
+        const chips = meta.map(p => {
+          const cumple = /^Cumplimiento: (.*)$/.exec(p)
+          return cumple
+            ? `<span class="chip ${this._claseCumplimientoInforme(cumple[1])}">${p}</span>`
+            : `<span class="chip">${p}</span>`
+        }).join("")
+        const nCols = t.columnas.length
+        const densidad = nCols >= 9 ? " t-xs" : nCols >= 6 ? " t-sm" : ""
+        return `
+          <section class="ensayo">
+            <div class="ensayo-head"><h3>${nombre}</h3>${chips ? `<div class="chips">${chips}</div>` : ""}</div>
+            <table class="tabla${densidad}">
+              <thead><tr>${t.columnas.map(c => `<th>${c}</th>`).join("")}</tr></thead>
+              <tbody>${t.filas.map(f => `<tr>${f.map(v => `<td class="${(esNumero(v) ? "num" : "") + this._claseLargoInforme(v, 70, 160)}">${v ?? ""}</td>`).join("")}</tr>`).join("")}</tbody>
+            </table>
+          </section>`
+      }).join("")
+
+      const sinArticulo = traz.articulo === "-"
+      return `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>${esc(`Informe Laboratorio - Muestra ${m.id}${m.np ? ` - NP ${m.np}` : ""}`)}</title>
+<style>
+  @page { size: A4 portrait; margin: 11mm 11mm 14mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #0F172A; font-size: 9pt; }
+  .head { display: flex; align-items: stretch; border-radius: 8px; overflow: hidden; background: #0B2545; color: #fff; }
+  .head .logo { background: #fff; display: flex; align-items: center; justify-content: center; padding: 8px 14px; min-width: 120px; }
+  .head .logo img { max-height: 44px; max-width: 120px; }
+  .head .tit { flex: 1; padding: 10px 14px; }
+  .head .tit small { display: block; font-size: 7.5pt; letter-spacing: .14em; text-transform: uppercase; color: #93C5FD; }
+  .head .tit h1 { margin: 2px 0 0; font-size: 15pt; font-weight: 700; }
+  .head .tit p { margin: 3px 0 0; font-size: 8pt; color: #CBD5E1; }
+  .head .id { padding: 10px 14px; text-align: right; background: #13315C; min-width: 150px; }
+  .head .id span { display: block; font-size: 7pt; text-transform: uppercase; letter-spacing: .1em; color: #93C5FD; }
+  .head .id strong { display: block; font-size: 13pt; }
+  .estado { display: flex; gap: 6px; margin: 7px 0 9px; flex-wrap: wrap; }
+  .pill { padding: 3px 10px; border-radius: 999px; font-size: 8pt; font-weight: 600; border: 1px solid #CBD5E1; background: #F1F5F9; color: #334155; }
+  .pill.ok { background: #DCFCE7; border-color: #86EFAC; color: #166534; }
+  .pill.bad { background: #FEE2E2; border-color: #FCA5A5; color: #991B1B; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 9px; }
+  .kpi { border: 1px solid #E2E8F0; border-radius: 6px; padding: 6px 9px; background: #F8FAFC; }
+  .kpi span { display: block; font-size: 7pt; color: #64748B; text-transform: uppercase; letter-spacing: .05em; }
+  .kpi strong { font-size: 14pt; color: #0B2545; }
+  .kpi.ok strong { color: #15803D; } .kpi.bad strong { color: #B91C1C; }
+  h2 { font-size: 9pt; text-transform: uppercase; letter-spacing: .1em; color: #0B2545; margin: 10px 0 5px; padding-bottom: 3px; border-bottom: 2px solid #0B2545; }
+  .traz { border: 1px solid #BFDBFE; border-left: 5px solid #2563EB; border-radius: 6px; background: #F8FBFF; padding: 7px 9px; break-inside: avoid; }
+  .tz-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px 10px; }
+  .tz-campo span { display: block; font-size: 6.8pt; color: #64748B; text-transform: uppercase; letter-spacing: .04em; }
+  .tz-campo strong { display: block; font-size: 9pt; overflow-wrap: anywhere; }
+  .tz-campo.destacado { grid-column: span 2; background: #fff; border: 1px solid #93C5FD; border-radius: 5px; padding: 4px 7px; }
+  .tz-campo.destacado strong { font-size: 11pt; color: #1D4ED8; }
+  .tz-campo.sin strong { color: #94A3B8; font-size: 9pt; }
+  .tz-campo strong.txt-sm { font-size: 7.8pt; } .tz-campo strong.txt-xs { font-size: 7pt; }
+  .tz-nota { margin-top: 5px; font-size: 7pt; color: #64748B; }
+  .ficha { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-flow: row dense; border: 1px solid #E2E8F0; border-radius: 6px; overflow: hidden; }
+  .fi-campo { padding: 4px 8px; border-bottom: 1px solid #EEF2F7; border-right: 1px solid #EEF2F7; break-inside: avoid; }
+  .fi-campo span { display: block; font-size: 6.8pt; color: #64748B; text-transform: uppercase; letter-spacing: .04em; }
+  .fi-campo div { font-size: 8.8pt; font-weight: 600; overflow-wrap: anywhere; }
+  .fi-campo.txt-sm { grid-column: span 2; } .fi-campo.txt-sm div { font-size: 7.8pt; font-weight: 500; }
+  .fi-campo.txt-xs { grid-column: 1 / -1; } .fi-campo.txt-xs div { font-size: 7pt; font-weight: 400; line-height: 1.35; }
+  .obs { margin-top: 6px; border-left: 4px solid #F59E0B; background: #FFFBEB; padding: 5px 9px; font-size: 8pt; border-radius: 4px; }
+  .ensayo { margin-top: 9px; break-inside: avoid; }
+  .ensayo-head { background: #EFF6FF; border: 1px solid #BFDBFE; border-bottom: 0; border-radius: 6px 6px 0 0; padding: 5px 8px; }
+  .ensayo-head h3 { margin: 0; font-size: 9.5pt; color: #0B2545; }
+  .chips { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+  .chip { font-size: 6.8pt; padding: 1px 6px; border-radius: 999px; background: #fff; border: 1px solid #CBD5E1; color: #334155; }
+  .chip.ok { background: #DCFCE7; border-color: #86EFAC; color: #166534; font-weight: 700; }
+  .chip.bad { background: #FEE2E2; border-color: #FCA5A5; color: #991B1B; font-weight: 700; }
+  .tabla { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 8.5pt; }
+  .tabla.t-sm { font-size: 7.8pt; } .tabla.t-xs { font-size: 7pt; }
+  .tabla thead { display: table-header-group; }
+  .tabla th { background: #1E3A5F; color: #fff; font-weight: 600; text-align: left; padding: 4px 5px; border: 1px solid #1E3A5F; }
+  .tabla td { padding: 3px 5px; border: 1px solid #E2E8F0; vertical-align: top; overflow-wrap: anywhere; }
+  .tabla tbody tr:nth-child(even) td { background: #F8FAFC; }
+  .tabla tr { break-inside: avoid; }
+  .tabla td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tabla td.txt-sm { font-size: 92%; } .tabla td.txt-xs { font-size: 82%; line-height: 1.3; }
+  .vacio { padding: 10px; text-align: center; color: #64748B; border: 1px dashed #CBD5E1; border-radius: 6px; margin-top: 8px; }
+  .pie { position: fixed; bottom: -9mm; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 7pt; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 3px; }
+</style></head>
+<body>
+  <div class="head">
+    <div class="logo"><img src="${this._escAttr(logo)}" alt="INNPACK"></div>
+    <div class="tit"><small>INNPACK · Laboratorio de Calidad</small><h1>Informe de Laboratorio</h1><p>${esc(this._labelEtapa(m.origen))} · ${esc(m.tipoMuestra || "-")}${m.cliente ? ` · ${esc(m.cliente)}` : ""}</p></div>
+    <div class="id"><span>Muestra</span><strong>N.º ${esc(m.id)}</strong><span style="margin-top:4px;">NP</span><strong>${esc(m.np || "-")}</strong></div>
+  </div>
+  <div class="estado">
+    <span class="pill">Estado: ${esc(this._labelEstado(m.estado))}</span>
+    <span class="pill ${evalClase}">Evaluación: ${esc(m.evaluacion || "Pendiente")}</span>
+    <span class="pill">Fecha ensayo: ${esc(m.fechaEnsayo || "-")}</span>
+    <span class="pill">Analista: ${esc(m.analistaNombre || "-")}</span>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><span>Ensayos finalizados</span><strong>${kpis.ensayos}</strong></div>
+    <div class="kpi ok"><span>Cumplen</span><strong>${kpis.cumple}</strong></div>
+    <div class="kpi bad"><span>No cumplen</span><strong>${kpis.noCumple}</strong></div>
+    <div class="kpi"><span>Sin especificación</span><strong>${kpis.ensayos - kpis.cumple - kpis.noCumple}</strong></div>
+  </div>
+
+  <h2>Trazabilidad de producción</h2>
+  <div class="traz">
+    <div class="tz-grid">
+      ${campoTraz("NP", traz.np)}
+      ${campoTraz("NV INNPACK", traz.nvInnpack)}
+      ${campoTraz("NV FARET", traz.nvFaret)}
+      ${campoTraz("Orden de trabajo", traz.ordenTrabajo)}
+      ${campoTraz("Ítem elegido", traz.item)}
+      ${campoTraz("Artículo SAP (NV INNPACK)", traz.articulo, sinArticulo ? " destacado sin" : " destacado")}
+      ${campoTraz("Cód. producción (registrado)", traz.codigo)}
+      ${campoTraz("Proceso FPS", traz.idProceso)}
+      ${campoTraz("Etapa / proceso", traz.etapa !== "-" ? `${traz.etapa} · ${traz.proceso}` : traz.proceso)}
+      ${campoTraz("Registro de producción", traz.registro)}
+      ${campoTraz("Operador", traz.operador)}
+      ${campoTraz("Fecha producción", traz.fechaProduccion)}
+    </div>
+    <div class="tz-nota">${sinArticulo && traz.motivo
+      ? `Artículo no disponible: ${esc(traz.motivo)}.`
+      : "Artículo SAP = línea de la nota de venta INNPACK correspondiente al ítem elegido al crear la muestra (proceso FPS). El código de producción registrado se conserva sin cambios."}</div>
+  </div>
+
+  <h2>Datos de la muestra</h2>
+  <div class="ficha">${fichaHtml}</div>
+  ${m.observacion ? `<div class="obs"><b>Observación general:</b> ${esc(m.observacion)}</div>` : ""}
+
+  <h2>Resultados de ensayos</h2>
+  ${tablasHtml || '<div class="vacio">La muestra no tiene ensayos finalizados.</div>'}
+
+  <div class="pie"><span>Quality Control Center · Informe de Laboratorio INNPACK · Muestra N.º ${esc(m.id)}</span><span>Generado ${esc(ahora)}${usuario ? ` por ${esc(usuario)}` : ""}</span></div>
+</body></html>`
+    }
+
+    // Imprime el HTML en un iframe oculto (diálogo del sistema → Guardar como PDF), esperando el logo.
+    async _imprimirHtmlInforme(html) {
+      const iframe = document.createElement("iframe")
+      iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0"
+      document.body.appendChild(iframe)
+      const doc = iframe.contentDocument
+      doc.open()
+      doc.write(html)
+      doc.close()
+      const limpiar = () => iframe.remove()
+      iframe.contentWindow.onafterprint = limpiar
+      setTimeout(limpiar, 120000)
+      const imgs = Array.from(doc.querySelectorAll("img"))
+      await Promise.all(imgs.map(i => (i.complete ? null : new Promise(r => { i.onload = i.onerror = r }))))
+      imgs.filter(i => !(i.naturalWidth > 0)).forEach(i => i.remove())
+      iframe.contentWindow.focus()
+      iframe.contentWindow.print()
     }
 
     // ---------- Punto 37 REG-LAB-04: secciones del informe con el layout del formulario físico ----------
