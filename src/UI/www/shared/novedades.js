@@ -3,28 +3,18 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.33";
+    const ID = "1.8.34";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
         {
-            titulo: "Inicio Faret: alertas activas",
-            icono: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/>',
-            puntos: [
-                { solo: "FARET", t: "El panel de alertas ahora avisa solo de lo que requiere atención: PNC críticas pendientes, NC internas abiertas hace más de 15 días y documentos con revisión vencida." },
-                { solo: "FARET", t: "Cada aviso indica cuántos casos hay y tiene un botón \"Ver\" que te lleva al módulo. Los documentos vencidos se listan uno por uno con un botón Revisar que abre el documento: al registrar su nueva versión con próxima revisión, el aviso desaparece. Solo ves los avisos de los módulos a los que tienes acceso." },
-                { solo: "FARET", t: "Si no hay problemas, el panel lo indica; si un dato no se puede calcular, se avisa en vez de mostrar un cero. Además, las tarjetas de Inicio ya navegan al hacer clic." },
-                { solo: "FARET", t: "El tiempo de cierre de NC ahora es la mediana de los últimos 90 días e indica cuántas NC se cerraron dentro del plazo de 15 días." },
-            ],
-        },
-        {
             titulo: "Laboratorio - Muestras",
             icono: '<path d="M9 3h6M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3M7.5 15h9"/>',
             puntos: [
-                { solo: "INNPACK", t: "Nueva columna \"Ítem / Artículo\" en Registros y en Ver muestra: muestra cada ítem de la nota de venta INNPACK con su número de artículo, separado del código de producción registrado." },
-                { solo: "INNPACK", t: "Nuevo tipo de muestra \"Caja extendida\"." },
-                { solo: "INNPACK", t: "Al elegir un registro de FPS en Nueva muestra, la máquina se toma automáticamente de ese registro y ya no hay que seleccionarla." },
+                { solo: "INNPACK", t: "La columna \"Ítem / Artículo\" de Registros y Ver muestra ahora muestra solo el ítem que se eligió al crear la muestra (el del registro FPS), con su número de artículo de la nota de venta INNPACK." },
+                { solo: "INNPACK", t: "Las muestras creadas sin registro FPS muestran \"-\": no se adivina a qué ítem corresponden." },
+                { solo: "INNPACK", t: "\"Generar informe\" tiene un diseño nuevo: cabecera con estado y evaluación, resumen de ensayos, bloque de trazabilidad (NP, nota de venta, orden, proceso FPS, ítem y artículo SAP) y letra que se ajusta cuando hay mucho texto." },
             ],
         },
     ];
@@ -99,6 +89,12 @@ window.Novedades = (() => {
             ...s,
             puntos: s.puntos.filter(p => !p.solo || p.solo === empresa),
         })).filter(s => s.puntos.length > 0);
+
+        // Versión sin novedades para esta empresa: se marca como vista y no se abre un modal vacío.
+        if (!slides.length) {
+            marcarVisto();
+            return;
+        }
 
         const el = document.createElement("div");
         el.className = "nov-overlay";
