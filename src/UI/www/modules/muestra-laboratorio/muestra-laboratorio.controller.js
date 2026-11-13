@@ -1641,6 +1641,25 @@ if (!window.MuestraLaboratorioController) {
       }
     }
 
+    // Solo visualización (Registros → Ver): número con exactamente 2 decimales y coma decimal; null si
+    // no hay valor numérico. No cambia lo guardado ni el informe impreso (que usa sus propias funciones).
+    _num2(v) {
+      if (v === null || v === undefined || v === "") return null
+      const n = Number(v)
+      return Number.isFinite(n) ? this._emFormato(n, 2) : null
+    }
+
+    // Texto de la columna "Resultado" de la tabla de Ensayos. ECT muestra el promedio de fuerza real de
+    // la muestra ("Promedio fuerza: 112,02 lbf"); el resto, su valor consolidado con 2 decimales.
+    _resultadoPantalla(e) {
+      if (e.tipoEnsayo === "ECT") {
+        const fuerza = this._num2(e.detalle?.promedioForce)
+        if (fuerza !== null) return `Promedio fuerza: ${fuerza} lbf`
+      }
+      const valor = this._num2(e.resultadoValor)
+      return valor !== null ? `${valor} ${this._u(e.resultadoUnidad)}` : "-"
+    }
+
     renderEnsayos(ensayos) {
       const body = document.getElementById("mlbEnsayosBody")
       if (!ensayos || ensayos.length === 0) {
@@ -1649,12 +1668,12 @@ if (!window.MuestraLaboratorioController) {
       }
 
       body.innerHTML = ensayos.map(e => {
-        let resultado = e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)}` : "-"
+        let resultado = this._resultadoPantalla(e)
         // REG-LAB-04 v2: un ensayo con varias muestras puede no tener consolidado (muestras no
         // comparables); el detalle por muestra se ve con "Ver muestras".
         if (e.modeloMuestras) {
           const n = (e.muestras || []).filter(m => !m.eliminada).length
-          resultado = `${e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)} · ` : ""}${n} muestra${n === 1 ? "" : "s"}`
+          resultado = `${e.resultadoValor != null ? `${resultado} · ` : ""}${n} muestra${n === 1 ? "" : "s"}`
         }
         if (e.tipoEnsayo === "FILTRACION" && e.detalle?.resultado) resultado = `${e.detalle.resultado} · ${e.detalle.tiempoMinutos} min`
         const enEnsayo = e.modeloMuestras && e.estado === "En ensayo"
@@ -1711,13 +1730,13 @@ if (!window.MuestraLaboratorioController) {
         cursor = cursor.ensayoReemplazaId ? lista.find(x => x.id === cursor.ensayoReemplazaId) : null
       }
 
-      const fmtUno = e => e.resultadoValor != null ? `${e.resultadoValor} ${this._u(e.resultadoUnidad)}`.trim() : (e.detalle?.resultado || "-")
+      const fmtUno = e => e.resultadoValor != null ? this._resultadoPantalla(e).trim() : (e.detalle?.resultado || "-")
       // REG-LAB-04 v2: además del consolidado, el promedio de cada muestra vigente (los valores
       // completos de un ensayo anulado se siguen viendo con "Ver muestras").
       const fmt = e => {
         if (!e.modeloMuestras) return fmtUno(e)
         const porMuestra = (e.muestras || []).filter(m => !m.eliminada)
-          .map(m => `M${m.numero} ${m.promedio != null ? `${m.promedio} ${this._u(m.unidad)}`.trim() : "incompleta"}`)
+          .map(m => `M${m.numero} ${m.promedio != null ? `${this._num2(m.promedio) ?? m.promedio} ${this._u(m.unidad)}`.trim() : "incompleta"}`)
         return `${fmtUno(e)}${porMuestra.length ? ` (${porMuestra.join("; ")})` : ""}`
       }
       const lineas = cadena.map((e, i) => {
@@ -2690,9 +2709,10 @@ if (!window.MuestraLaboratorioController) {
       return def?.decimales ?? cfg.decimales ?? 2
     }
 
-    _emTextoOtros(cfg, otros) {
+    // dosDecimales: solo en la vista de lectura (Registros → Ver); el informe impreso no lo pasa y conserva su formato.
+    _emTextoOtros(cfg, otros, dosDecimales = false) {
       return (otros || []).filter(o => o.valor !== null && o.valor !== undefined)
-        .map(o => ` · ${this._esc(o.etiqueta)}: ${this._emFormato(o.valor, this._emDecimales(cfg, o.codigo))}${o.unidad ? ` ${this._esc(this._u(o.unidad))}` : ""}`)
+        .map(o => ` · ${this._esc(o.etiqueta)}: ${this._emFormato(o.valor, dosDecimales ? 2 : this._emDecimales(cfg, o.codigo))}${o.unidad ? ` ${this._esc(this._u(o.unidad))}` : ""}`)
         .join("")
     }
 
@@ -2703,7 +2723,7 @@ if (!window.MuestraLaboratorioController) {
       if (this._em.soloLectura) {
         if (!m.completaGuardada || m.promedioGuardado === null) return `<span class="mlb-em-incompleta">Incompleta</span>`
         const unidad = this._u(m.unidad || cfg.unidad)
-        return `Promedio: ${this._emFormato(m.promedioGuardado, cfg.decimales ?? 2)} ${this._esc(unidad)}${this._emTextoOtros(cfg, m.otrosGuardados)}${m.cumplimientoGuardado ? ` · ${this._esc(m.cumplimientoGuardado)}` : ""}`
+        return `Promedio: ${this._emFormato(m.promedioGuardado, 2)} ${this._esc(unidad)}${this._emTextoOtros(cfg, m.otrosGuardados, true)}${m.cumplimientoGuardado ? ` · ${this._esc(m.cumplimientoGuardado)}` : ""}`
       }
       const c = m.calculo
       if (this._em.calculoError) return `<span class="mlb-em-incompleta">${this._esc(this._em.calculoError)}</span>`
@@ -2730,7 +2750,7 @@ if (!window.MuestraLaboratorioController) {
       const entradas = new Set((cfg.entradas || []).map(x => x.codigo))
       return (cfg.resultados || [])
         .filter(r => !entradas.has(r.codigo) && d.resultados?.[r.codigo] !== null && d.resultados?.[r.codigo] !== undefined)
-        .map(r => `${this._esc(r.etiqueta)}: ${this._emFormato(d.resultados[r.codigo], r.decimales ?? 2)}${r.unidad ? ` ${this._esc(this._u(r.unidad))}` : ""}`)
+        .map(r => `${this._esc(r.etiqueta)}: ${this._emFormato(d.resultados[r.codigo], this._em?.soloLectura ? 2 : (r.decimales ?? 2))}${r.unidad ? ` ${this._esc(this._u(r.unidad))}` : ""}`)
         .join(" · ")
     }
 

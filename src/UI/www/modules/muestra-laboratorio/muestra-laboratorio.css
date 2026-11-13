@@ -236,3 +236,9 @@
 .muestra-laboratorio-module .mlb-em-det-agregar {
     margin-bottom: 8px;
 }
+
+/* Detalle de la muestra (Registros → Ver): líneas verticales discretas entre columnas. Solo visual. */
+#mlbModalDetalle .table th + th,
+#mlbModalDetalle .table td + td {
+    border-left: 1px solid #D8DEE9;
+}
