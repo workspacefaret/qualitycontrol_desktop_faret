@@ -143,135 +143,234 @@
 .admin-planta-module .table th.ap-col-acc { text-align: right; }
 
 /* =====================================================
-   FARET: apariencia moderna (solo visual). Todo scoped a .ap-faret, que solo lleva la vista de
-   Faret: INNPACK comparte HTML/JS/CSS base pero NO recibe estas reglas. Misma paleta y lenguaje
-   visual que faret-data (tarjetas redondeadas, sombra suave, borde #E5E9F0).
+   FARET: aspecto de dashboard corporativo (solo visual). Todo scoped a .ap-faret, que solo lleva la
+   vista de Faret: INNPACK comparte HTML/JS/CSS base pero NO recibe estas reglas.
+   Orden visual (solo CSS, el HTML/JS no cambia): cabecera oscura, tarjetas KPI, pestañas y tarjeta
+   de listado (filtros arriba, tabla, pie).
 ===================================================== */
 
-/* Pestañas: control segmentado */
-.admin-planta-module.ap-faret .ap-tabs {
-    gap: 4px;
-    padding: 4px;
-    border-bottom: none;
-    border-radius: 12px;
-    background: #F1F5F9;
-    width: fit-content;
-    max-width: 100%;
+.admin-planta-module.ap-faret {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
-.admin-planta-module.ap-faret .ap-tab {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 9px;
-    font-size: 13px;
-    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+/* El contenedor dinámico no genera caja: sus hijos (KPI y tarjeta) se ordenan junto al resto. */
+.admin-planta-module.ap-faret #ap-contenido { display: contents; }
+
+.admin-planta-module.ap-faret .module-header { order: 0; }
+.admin-planta-module.ap-faret .ap-kpis { order: 1; }
+.admin-planta-module.ap-faret .ap-tabs { order: 2; }
+.admin-planta-module.ap-faret #ap-contenido > .card { order: 3; }
+
+/* Cabecera azul oscuro */
+.admin-planta-module.ap-faret .module-header {
+    margin: 0;
+    padding: 20px 26px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #0B1F4D 0%, #1E3A8A 100%);
+    box-shadow: 0 8px 22px rgba(11, 31, 77, 0.22);
 }
 
-.admin-planta-module.ap-faret .ap-tab:hover { background: rgba(255, 255, 255, 0.6); }
+.admin-planta-module.ap-faret .module-title { color: #FFFFFF; font-size: 22px; font-weight: 700; }
+.admin-planta-module.ap-faret .module-header .subtitle { color: #BFD0F5; font-size: 13px; max-width: 760px; }
 
-.admin-planta-module.ap-faret .ap-tab.active {
+.admin-planta-module.ap-faret .module-actions .btn-primary {
+    padding: 10px 18px;
+    border-radius: 10px;
     background: #FFFFFF;
-    color: #1D4ED8;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+    color: #1E3A8A;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    transition: background 0.15s ease, transform 0.1s ease;
 }
 
-.admin-planta-module.ap-faret .ap-tab-historial { margin-left: 12px; }
+.admin-planta-module.ap-faret .module-actions .btn-primary:hover { background: #E8EEFF; }
+.admin-planta-module.ap-faret .module-actions .btn-primary:active { transform: scale(0.98); }
 
-/* Tarjetas KPI (las 3 existentes) */
-.admin-planta-module.ap-faret .ap-kpis { gap: 16px; }
+/* Tarjetas KPI blancas con icono discreto (el icono es un fondo CSS: no agrega HTML ni datos) */
+.admin-planta-module.ap-faret .ap-kpis { gap: 16px; margin: 0; }
 
 .admin-planta-module.ap-faret .kpi-card {
-    padding: 18px 20px;
+    position: relative;
+    min-height: 0;
+    padding: 16px 18px 16px 74px;
     border: 1px solid #E5E9F0;
-    border-top: 3px solid #3B82F6;
-    border-radius: 16px;
+    border-radius: 14px;
     background: #FFFFFF;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(15, 23, 42, 0.05);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(15, 23, 42, 0.05);
 }
 
-.admin-planta-module.ap-faret .kpi-card:nth-child(2) { border-top-color: #22C55E; }
-.admin-planta-module.ap-faret .kpi-card:nth-child(3) { border-top-color: #EF4444; }
+.admin-planta-module.ap-faret .kpi-card::before {
+    content: "";
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    width: 42px;
+    height: 42px;
+    transform: translateY(-50%);
+    border-radius: 12px;
+    background-color: #EFF6FF;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 22px 22px;
+    /* Total: lista */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563EB' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01'/></svg>");
+}
 
-.admin-planta-module.ap-faret .kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(15, 23, 42, 0.05), 0 16px 32px rgba(15, 23, 42, 0.09);
+.admin-planta-module.ap-faret .kpi-card:nth-child(2)::before {
+    background-color: #ECFDF3;
+    /* Activos: check en círculo */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2316A34A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9'/><path d='M8 12.5l2.7 2.7L16 9.5'/></svg>");
+}
+
+.admin-planta-module.ap-faret .kpi-card:nth-child(3)::before {
+    background-color: #FEF2F2;
+    /* De baja: círculo tachado */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23DC2626' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9'/><path d='M5.6 5.6l12.8 12.8'/></svg>");
 }
 
 .admin-planta-module.ap-faret .kpi-label {
     font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     color: #64748B;
 }
 
-.admin-planta-module.ap-faret .kpi-value {
-    margin-top: 4px;
-    font-size: 28px;
-    font-weight: 700;
-    line-height: 1.1;
+.admin-planta-module.ap-faret .kpi-value { margin-top: 2px; font-size: 28px; font-weight: 700; line-height: 1.1; }
+
+/* Pestañas: sección propia, control segmentado azul oscuro */
+.admin-planta-module.ap-faret .ap-tabs {
+    gap: 6px;
+    margin: 0;
+    padding: 6px;
+    border: 1px solid #E5E9F0;
+    border-radius: 14px;
+    background: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-/* Contenedor, filtros y campos */
-.admin-planta-module.ap-faret .card {
-    padding: 20px 22px;
+.admin-planta-module.ap-faret .ap-tab {
+    padding: 8px 18px;
+    border: none;
+    border-radius: 10px;
+    font-size: 13px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-planta-module.ap-faret .ap-tab:hover { background: #F1F5F9; color: #0F172A; }
+
+.admin-planta-module.ap-faret .ap-tab.active {
+    background: #1E3A8A;
+    color: #FFFFFF;
+    box-shadow: 0 2px 6px rgba(30, 58, 138, 0.35);
+}
+
+.admin-planta-module.ap-faret .ap-tab-historial { margin-left: auto; }
+
+/* Tarjeta de listado: filtros como barra superior, tabla sin marco propio, pie */
+.admin-planta-module.ap-faret #ap-contenido > .card {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
     border: 1px solid #E5E9F0;
-    border-radius: 16px;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(15, 23, 42, 0.05);
+    border-radius: 14px;
+    background: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(15, 23, 42, 0.05);
 }
 
 .admin-planta-module.ap-faret .ap-filtros {
-    padding-bottom: 16px;
-    margin-bottom: 16px;
-    border-bottom: 1px solid #EEF2F7;
+    margin: 0;
+    padding: 14px 20px;
+    border-bottom: 1px solid #E5E9F0;
+    background: #F8FAFC;
 }
+
+.admin-planta-module.ap-faret .ap-campo label { letter-spacing: 0.02em; }
 
 .admin-planta-module.ap-faret .ap-campo input,
 .admin-planta-module.ap-faret .ap-campo select {
-    height: 40px;
+    height: 38px;
     border-color: #D8DEE9;
     border-radius: 10px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.admin-planta-module.ap-faret .ap-campo label { letter-spacing: 0.02em; }
-
-/* Tabla: cabecera clara, filas aireadas */
 .admin-planta-module.ap-faret .ap-tabla {
-    border: 1px solid #E5E9F0;
-    border-radius: 12px;
+    max-height: none;
+    overflow-y: visible;
+    border: none;
+    border-radius: 0;
 }
 
+/* El .table global fuerza min-width:1400px (tablas anchas de otros módulos): aquí las columnas son pocas y deben caber sin scroll horizontal. */
+.admin-planta-module.ap-faret .ap-tabla .table { min-width: 0; }
+
 .admin-planta-module.ap-faret .table thead th {
-    padding: 12px 14px;
-    background: #F8FAFC;
+    padding: 11px 14px;
+    background: #F1F5F9;
     color: #475569;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    border-bottom: 1px solid #E5E9F0;
+    border-bottom: 1px solid #E2E8F0;
 }
 
 .admin-planta-module.ap-faret .table td {
-    padding: 12px 14px;
+    padding: 8px 14px;
     border-bottom: 1px solid #EEF2F7;
 }
 
-.admin-planta-module.ap-faret .table tbody tr:last-child td { border-bottom: none; }
-.admin-planta-module.ap-faret .table tbody tr:hover { background: #F8FAFC; }
+.admin-planta-module.ap-faret .table th:first-child,
+.admin-planta-module.ap-faret .table td:first-child { padding-left: 20px; }
+.admin-planta-module.ap-faret .table th:last-child,
+.admin-planta-module.ap-faret .table td:last-child { padding-right: 20px; }
 
-/* Botones de fila y estados */
+.admin-planta-module.ap-faret .table tbody tr:last-child td { border-bottom: none; }
+.admin-planta-module.ap-faret .table tbody tr:hover { background: #F5F8FF; }
+
+.admin-planta-module.ap-faret .ap-pie {
+    margin: 0;
+    padding: 10px 20px;
+    border-top: 1px solid #EEF2F7;
+    background: #FAFBFD;
+}
+
+.admin-planta-module.ap-faret .ap-pill { padding: 3px 12px; letter-spacing: 0.01em; }
+
+/* Acciones de fila: contorno con color según la acción */
 .admin-planta-module.ap-faret .ap-btn {
-    padding: 6px 14px;
+    padding: 5px 14px;
+    border: 1px solid transparent;
     border-radius: 8px;
     font-weight: 600;
-    transition: background 0.15s ease, transform 0.1s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
 .admin-planta-module.ap-faret .ap-btn:active { transform: scale(0.97); }
 
-.admin-planta-module.ap-faret .ap-pill { padding: 3px 12px; letter-spacing: 0.01em; }
+.admin-planta-module.ap-faret .ap-btn[data-acc="editar"] {
+    background: #EFF6FF;
+    border-color: #BFDBFE;
+    color: #1D4ED8;
+}
+.admin-planta-module.ap-faret .ap-btn[data-acc="editar"]:hover { background: #DBEAFE; }
+
+.admin-planta-module.ap-faret .ap-btn.btn-danger {
+    background: #FFFFFF;
+    border-color: #FECACA;
+    color: #DC2626;
+}
+.admin-planta-module.ap-faret .ap-btn.btn-danger:hover { background: #FEF2F2; }
+
+.admin-planta-module.ap-faret .ap-btn[data-acc="estado"].btn-secondary {
+    background: #ECFDF3;
+    border-color: #BBF7D0;
+    color: #15803D;
+}
+.admin-planta-module.ap-faret .ap-btn[data-acc="estado"].btn-secondary:hover { background: #DCFCE7; }
 
 /* Modal de alta/edición (cuelga de la misma raíz) */
 .ap-faret .ap-modal {
@@ -279,15 +378,15 @@
     box-shadow: 0 24px 60px rgba(15, 23, 42, 0.32);
 }
 
-/* Ventanas más angostas: filtros y tarjetas en una columna, pestañas con desplazamiento */
+/* Ventanas más angostas */
 @media (max-width: 900px) {
     .admin-planta-module.ap-faret .ap-filtros { grid-template-columns: 1fr 1fr; }
-    .admin-planta-module.ap-faret .ap-tabs { flex-wrap: nowrap; overflow-x: auto; width: 100%; }
+    .admin-planta-module.ap-faret .ap-tabs { flex-wrap: nowrap; overflow-x: auto; }
     .admin-planta-module.ap-faret .ap-tab { white-space: nowrap; }
+    .admin-planta-module.ap-faret .module-header { padding: 16px 18px; }
 }
 
 @media (max-width: 640px) {
     .admin-planta-module.ap-faret .ap-filtros { grid-template-columns: 1fr; }
-    .admin-planta-module.ap-faret .ap-kpis { grid-template-columns: 1fr 1fr; }
-    .admin-planta-module.ap-faret .card { padding: 16px; }
+    .admin-planta-module.ap-faret .ap-kpis { grid-template-columns: 1fr; }
 }
