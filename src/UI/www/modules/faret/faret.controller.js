@@ -26,7 +26,7 @@ window.FaretController = class FaretController {
         document.querySelectorAll(".home-module-card").forEach(card => {
             card.addEventListener("click", () => {
                 const target = card.dataset.moduleTarget;
-                if (target && window.app?.loadModule) window.app.loadModule(target);
+                if (target && window.App?.loadModule) window.App.loadModule(target);
             });
         });
     }
@@ -47,6 +47,10 @@ window.FaretController = class FaretController {
 
         this._datos = { dashboard, inspecciones, maquinas, indicadoresCalidad, productoTerminado, talleresExternos, ncList, dataMes };
         this._renderTodo();
+
+        // Los avisos que necesitan consultas propias (NC internas, documentos) se cargan después
+        // del primer render: Inicio no espera por ellos.
+        this._cargarAlertasAsync();
     }
 
     // Dibuja todo desde los datos ya cargados (`_datos`): sirve para cambiar el período de los
@@ -58,7 +62,7 @@ window.FaretController = class FaretController {
 
         this._renderKpis(dashboard?.kpis || {}, inspecciones || {}, maquinas || {});
         this._renderCharts(dashboard || {}, inspecciones || {});
-        this._renderAlertas(dashboard?.alertas || []);
+        this._renderAlertas();
         this._renderMaquinas(maquinas?.maquinas || []);
         this._renderResumen(dashboard?.kpis || {}, inspecciones || {}, maquinas || {}, indicadoresCalidad || {});
         this._renderIndicadoresCalidad(indicadoresCalidad || {});
@@ -178,20 +182,177 @@ window.FaretController = class FaretController {
         this._chartBarHorizontal("fh-chart-nc-proceso", ncPorProceso, "categoria", "total", "NC");
     }
 
-    _renderAlertas(alertas) {
+    // ---------- Alertas activas (máx. 3, solo si hay un problema real) ----------
+    // 1) PNC críticas pendientes (sin límite de antigüedad), 2) NC internas abiertas > 15 días,
+    // 3) documentos con revisión vencida. Cada una solo si el usuario tiene acceso a su módulo.
+    // this._alertas = { pnc, nci, doc }: objeto {cantidad, detalle, modulo} | null (sin problema u
+    // omitida) | "error" (no se pudo calcular: nunca se informa como "0").
+
+    _puedeVer(modulo) {
+        return !window.App?.nivelModulo || window.App.nivelModulo(modulo) !== "SIN_ACCESO";
+    }
+
+    _isoHaceDias(dias) {
+        const d = new Date();
+        d.setDate(d.getDate() - dias);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    // yyyy-MM-dd de una fecha válida (año >= 2000: la API serializa fechas NULL como 0001-01-01); null si no.
+    _fechaIso(valor) {
+        const m = String(valor || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m && Number(m[1]) >= 2000 ? `${m[1]}-${m[2]}-${m[3]}` : null;
+    }
+
+    // Texto "hace D días" desde una fecha dd-MM-yyyy o yyyy-MM-dd; "" si no se puede interpretar.
+    _haceDias(valor) {
+        const t = String(valor || "");
+        let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        let f = m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+        if (!f) {
+            m = t.match(/^(\d{2})-(\d{2})-(\d{4})/);
+            f = m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;
+        }
+        if (!f || isNaN(f)) return null;
+        const hoy = new Date();
+        const dias = Math.floor((new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()) - f) / 86400000);
+        return dias >= 0 ? dias : null;
+    }
+
+    _alertaPnc() {
+        if (!this._puedeVer("faret-nc")) return null;
+        const kpis = this._datos?.dashboard?.kpis;
+        // Sin dashboard o sin Data disponible no se conoce el dato real: no se informa un parcial.
+        if (!kpis || !kpis.dataDisponible) return "error";
+        // Criterio real "Nivel = Crítico" (registros de Data, no cerrados o sin gestión): son las
+        // filas del detalle con dataId. Las NC manuales por severidad ALTA (sin dataId) no cuentan,
+        // igual que el filtro Nivel=Crítico + Estado≠Cerrada de No Conformidades.
+        const detalle = (this._datos.dashboard.criticasAbiertasDetalle || []).filter(c => Number(c.dataId) > 0);
+        const total = detalle.length;
+        if (total <= 0) return null;
+
+        const dias = detalle.map(c => this._haceDias(c.fechaIngreso)).filter(d => d !== null);
+        const masAntigua = dias.length ? Math.max(...dias) : null;
+        const sinGestion = detalle.filter(c => c.estadoGestion === "SIN_GESTION").length;
+        return {
+            cantidad: total,
+            texto: `${total} PNC crítica${total === 1 ? "" : "s"} pendiente${total === 1 ? "" : "s"}`
+                + ` (${sinGestion} sin gestión${masAntigua !== null ? `, la más antigua hace ${masAntigua} días` : ""})`,
+            modulo: "faret-nc",
+        };
+    }
+
+    async _alertaNcInternas() {
+        if (!this._puedeVer("faret-nc-internas")) return null;
+        const res = await this._fetch("noConformidades.list", { page: 1, pageSize: 999999, ambito: "INTERNA", empresa: "FARET" });
+        if (!res || !Array.isArray(res.items)) return "error";
+
+        // Más de 15 días: fecha de detección válida y anterior a (hoy - 15 días), es decir, ≥ 16 días.
+        const limite = this._isoHaceDias(15);
+        const vencidas = res.items.filter(nc =>
+            String(nc.estadoGestion || "").toUpperCase() !== "CERRADA"
+            && this._fechaIso(nc.fechaDeteccion) !== null
+            && this._fechaIso(nc.fechaDeteccion) < limite
+        );
+        if (!vencidas.length) return null;
+        return {
+            cantidad: vencidas.length,
+            texto: `${vencidas.length} NC interna${vencidas.length === 1 ? "" : "s"} abierta${vencidas.length === 1 ? "" : "s"} hace más de 15 días`,
+            modulo: "faret-nc-internas",
+        };
+    }
+
+    async _alertaDocumentos() {
+        if (!this._puedeVer("faret-control-documental")) return null;
+        // El filtro de alcance es igualdad exacta: se piden FARET y AMBAS por separado.
+        const pedir = alcance => this._fetch("controlDocumental.list", { page: 1, pageSize: 999999, alcanceEmpresa: alcance });
+        const [faret, ambas] = await Promise.all([pedir("FARET"), pedir("AMBAS")]);
+        if (!faret || !ambas || !Array.isArray(faret.items) || !Array.isArray(ambas.items)) return "error";
+
+        const hoy = window.DateUtils.hoyISO();
+        const vencidos = [...faret.items, ...ambas.items].filter(d =>
+            String(d.estado || "").toUpperCase() !== "OBSOLETO"
+            && this._fechaIso(d.versionProximaRevision) !== null
+            && this._fechaIso(d.versionProximaRevision) < hoy
+        );
+        if (!vencidos.length) return null;
+
+        // Más atrasados primero; cada uno con su fecha y días de atraso para actuar sobre él.
+        const filas = vencidos
+            .map(d => ({ id: d.id, codigo: d.codigoBase || "-", nombre: d.nombre || "", fecha: this._fechaIso(d.versionProximaRevision) }))
+            .sort((a, b) => a.fecha.localeCompare(b.fecha))
+            .map(f => ({ ...f, dias: this._haceDias(f.fecha) }));
+        return {
+            cantidad: vencidos.length,
+            texto: `${vencidos.length} documento${vencidos.length === 1 ? "" : "s"} con revisión vencida`,
+            modulo: "faret-control-documental",
+            filas,
+        };
+    }
+
+    async _cargarAlertasAsync() {
+        this._alertas = { pnc: this._alertaPnc(), nci: undefined, doc: undefined };
+        this._renderAlertas();
+
+        const seguro = fn => fn().catch(() => "error");
+        const [nci, doc] = await Promise.all([seguro(() => this._alertaNcInternas()), seguro(() => this._alertaDocumentos())]);
+        // El usuario pudo salir de Inicio mientras tanto.
+        if (!document.getElementById("fh-alertas-activas")) return;
+        this._alertas.nci = nci;
+        this._alertas.doc = doc;
+        this._renderAlertas();
+    }
+
+    _renderAlertas() {
         const container = document.getElementById("fh-alertas-activas");
         if (!container) return;
 
-        if (!alertas.length) {
-            container.innerHTML = `<div class="alert-ok">✔ Sistema sin alertas activas</div>`;
+        const a = this._alertas;
+        if (!a) {
+            container.innerHTML = `<div class="alert-item"><div>Cargando alertas...</div></div>`;
             return;
         }
 
-        container.innerHTML = alertas.map(a => `
-            <div class="alert-item">
-                <div>${a.tipo === "success" ? "✔" : "⚠"} ${this._escape(a.mensaje || "-")}</div>
+        const lista = [a.pnc, a.nci, a.doc];
+        const avisos = lista.filter(x => x && x !== "error");
+        const fallidas = lista.filter(x => x === "error").length;
+        const pendientes = a.nci === undefined || a.doc === undefined;
+
+        // Con `filas` (documentos vencidos) se lista cada uno, con su botón "Revisar" que abre ese
+        // documento; el aviso se apaga solo cuando queda con una próxima revisión futura.
+        let html = avisos.map(x => `
+            <div class="alert-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <div>⚠ ${this._escape(x.texto)}</div>
+                <button type="button" class="btn-secondary fh-alerta-ver" data-modulo="${this._escape(x.modulo)}">Ver</button>
             </div>
+            ${(x.filas || []).slice(0, 5).map(f => `
+            <div class="alert-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding-left:24px;font-size:13px;">
+                <div><strong>${this._escape(f.codigo)}</strong>${f.nombre ? ` · ${this._escape(f.nombre)}` : ""}
+                    <span style="opacity:.75;"> — vencido el ${this._escape(window.DateUtils.formatear(f.fecha))}${f.dias !== null ? ` (hace ${f.dias} día${f.dias === 1 ? "" : "s"})` : ""}</span></div>
+                <button type="button" class="btn-primary fh-alerta-revisar" data-doc-id="${Number(f.id)}">Revisar</button>
+            </div>`).join("")}
+            ${(x.filas || []).length > 5 ? `<div class="alert-item" style="padding-left:24px;font-size:13px;opacity:.75;">y ${x.filas.length - 5} más en Control Documental</div>` : ""}
         `).join("");
+
+        if (!avisos.length) {
+            html = pendientes
+                ? `<div class="alert-item"><div>Cargando alertas...</div></div>`
+                : fallidas
+                    ? ""
+                    : `<div class="alert-ok">✔ Sistema sin alertas activas</div>`;
+        }
+        if (fallidas && !pendientes) {
+            html += `<div class="alert-item"><div style="opacity:.7;font-size:12px;">No se pudieron calcular ${fallidas} aviso${fallidas === 1 ? "" : "s"}. Reintenta más tarde.</div></div>`;
+        }
+
+        container.innerHTML = html;
+        container.querySelectorAll(".fh-alerta-ver").forEach(btn =>
+            btn.addEventListener("click", () => window.App?.loadModule?.(btn.dataset.modulo)));
+        container.querySelectorAll(".fh-alerta-revisar").forEach(btn =>
+            btn.addEventListener("click", () => {
+                try { sessionStorage.setItem("fcdAbrirDocumento", btn.dataset.docId); } catch { /* abre el listado */ }
+                window.App?.loadModule?.("faret-control-documental");
+            }));
     }
 
     _renderMaquinas(maquinas) {

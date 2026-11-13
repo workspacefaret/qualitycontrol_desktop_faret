@@ -39,6 +39,15 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
         });
 
         this._loadLista();
+
+        // Acceso directo desde la alerta "revisión vencida" de Inicio Faret: abre ese documento
+        // (donde se agrega la nueva versión con su próxima revisión). La clave se lee y borra una vez.
+        let docId = null;
+        try {
+            docId = Number(sessionStorage.getItem("fcdAbrirDocumento")) || null;
+            sessionStorage.removeItem("fcdAbrirDocumento");
+        } catch { /* sin sessionStorage: se abre el listado normal */ }
+        if (docId) this._verDetalle(docId);
     }
 
     destroy() {
