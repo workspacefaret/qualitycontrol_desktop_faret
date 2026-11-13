@@ -128,6 +128,7 @@ namespace QualityControlCenter.Services
             "muestraLab.consultarNp",
             "muestraLab.consultarRegistroProduccion",
             "muestraLab.consultarRegistrosFps",
+            "muestraLab.articulosNp", // solo lee artículos de la NV INNPACK (fps-api)
             "muestraLab.ensayoMuestras.calcular",
             "muestraLab.ensayoMuestras.config",
             "muestraLab.exportarExcel", "muestraLab.exportarPdf",

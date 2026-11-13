@@ -270,6 +270,37 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     return Ok(datos);
                 }
 
+                // Artículos (NV INNPACK en SAP, vía fps-api) de varias muestras: Registros (np) y Ver
+                // muestra (np + idProcesoFps). Solo se devuelven cuando la relación NP → NV INNPACK es
+                // inequívoca; si no, lista vacía con el motivo (nunca se adivina).
+                if (action == "muestraLab.articulosNp")
+                {
+                    if (!_fpsRegistroProduccion.IsConfigured)
+                        return Error("FPS no está configurado en este equipo.");
+                    if (!jsonData.TryGetProperty("muestras", out var muestrasJson) || muestrasJson.ValueKind != JsonValueKind.Array)
+                        return Error("Falta la lista de muestras.");
+
+                    var pedidos = new List<(long np, long idProceso)>();
+                    foreach (var m in muestrasJson.EnumerateArray())
+                    {
+                        var npTexto = GetString(m, "np")?.Trim();
+                        if (string.IsNullOrEmpty(npTexto) || !long.TryParse(npTexto, out var npNum) || npNum <= 0 || npNum > 999999999)
+                            continue;
+                        long idProc = 0;
+                        if (m.TryGetProperty("idProcesoFps", out var ip) && ip.ValueKind == JsonValueKind.Number)
+                            ip.TryGetInt64(out idProc);
+                        if (!pedidos.Contains((npNum, idProc)))
+                            pedidos.Add((npNum, idProc));
+                        if (pedidos.Count >= 60)
+                            break;
+                    }
+
+                    var resultados = await ArticulosNpResolver.ResolverAsync(
+                        pedidos,
+                        (np, completo) => _fpsRegistroProduccion.ObtenerRegistrosLaboratorioAsync(np, soloArticulos: !completo));
+                    return Ok(resultados);
+                }
+
                 // Resuelve un número de bobina/lote contra SAP (apisapfaret, mismo endpoint que ya
                 // usa la app móvil Flutter para el escaneo de bobinas en Registros de Control).
                 if (action == "muestraLab.resolverBobina")

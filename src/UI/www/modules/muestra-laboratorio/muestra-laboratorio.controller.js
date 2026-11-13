@@ -495,7 +495,7 @@ if (!window.MuestraLaboratorioController) {
 
     async cargarLista() {
       const body = document.getElementById("mlbMuestrasBody")
-      body.innerHTML = '<tr><td colspan="11" style="text-align:center;">Cargando...</td></tr>'
+      body.innerHTML = '<tr><td colspan="12" style="text-align:center;">Cargando...</td></tr>'
 
       try {
         const estado = this.deepLinkEstado || document.getElementById("mlbFiltroEstado")?.value || ""
@@ -525,7 +525,7 @@ if (!window.MuestraLaboratorioController) {
         this.renderDeepLinkBanner(items.length)
 
         if (items.length === 0) {
-          body.innerHTML = '<tr><td colspan="11" style="text-align:center;">Sin muestras registradas</td></tr>'
+          body.innerHTML = '<tr><td colspan="12" style="text-align:center;">Sin muestras registradas</td></tr>'
           return
         }
 
@@ -538,6 +538,7 @@ if (!window.MuestraLaboratorioController) {
             <td>${this._esc(m.np || "-")}</td>
             <td>${this._esc(m.cliente || "-")}</td>
             <td>${this._esc(m.codigoProducto || "-")}</td>
+            <td class="mlb-articulos" data-np="${this._escAttr(String(m.np || "").trim())}">${this._celdaArticulos(this._articulosCache.get(this._claveArticulos(m.np, 0)), m.np)}</td>
             <td>${this._esc(m.totalEnsayos)}</td>
             <td>${this._esc(this._labelEstado(m.estado))}</td>
             <td>${this._esc(m.evaluacion || "-")}</td>
@@ -547,10 +548,110 @@ if (!window.MuestraLaboratorioController) {
             </td>
           </tr>
         `).join("")
+        this._resolverArticulosLista(items)
       } catch (err) {
         console.error(err)
-        body.innerHTML = `<tr><td colspan="11" style="text-align:center;">${this._esc(err.message)}</td></tr>`
+        body.innerHTML = `<tr><td colspan="12" style="text-align:center;">${this._esc(err.message)}</td></tr>`
       }
+    }
+
+    // =====================================================================
+    // ARTÍCULOS (números de artículo de la NV INNPACK en SAP, vía fps-api)
+    // Se resuelven al mostrar, a partir de la NP guardada: no se guardan ni reemplazan el código
+    // registrado. Si la relación NP → NV INNPACK no es inequívoca, se muestra "-".
+    // =====================================================================
+    get _articulosCache() {
+      if (!this.__articulosCache) this.__articulosCache = new Map()
+      return this.__articulosCache
+    }
+
+    _claveArticulos(np, idProcesoFps) {
+      return `${String(np || "").trim()}|${Number(idProcesoFps) > 0 ? Number(idProcesoFps) : 0}`
+    }
+
+    _npValida(np) {
+      return /^[0-9]{1,9}$/.test(String(np || "").trim()) && Number(np) > 0
+    }
+
+    _motivoArticulos(estado) {
+      return {
+        SIN_NV_INNPACK: "La NP no tiene nota de venta INNPACK asociada en FPS",
+        SIN_ARTICULOS: "La nota de venta INNPACK no tiene artículos en SAP",
+        AMBIGUO: "La NP corresponde a más de una nota de venta INNPACK; no se puede determinar cuál",
+        SAP_NO_DISPONIBLE: "SAP no respondió; intenta más tarde",
+        FPS_NO_DISPONIBLE: "FPS no respondió; intenta más tarde",
+        NP_NO_ENCONTRADA: "La NP no existe en FPS",
+        NO_DISPONIBLE: "Artículos no disponibles en este momento",
+      }[estado] || "Sin dato"
+    }
+
+    // r = resultado del backend ({estado, articulos}) o undefined si aún no se consulta.
+    _celdaArticulos(r, np) {
+      if (!this._npValida(np)) return "-"
+      if (!r) return '<span style="color:#94A3B8;">…</span>'
+      if (r.estado === "OK" && r.articulos?.length) return this._esc(r.articulos.join(", "))
+      return `<span title="${this._escAttr(this._motivoArticulos(r.estado))}">-</span>`
+    }
+
+    // Resuelve las NP del listado en lotes (sin repetir NP ya consultadas en esta sesión) y
+    // actualiza solo la celda Artículo(s); la tabla no se vuelve a pintar. Un error deja "-".
+    async _resolverArticulosLista(items) {
+      const seq = this._articulosSeq = (this._articulosSeq || 0) + 1
+      const nps = [...new Set(items.map(m => String(m.np || "").trim()))]
+        .filter(np => this._npValida(np) && !this._articulosCache.has(this._claveArticulos(np, 0)))
+      const LOTE = 50
+      const t0 = performance.now()
+      for (let i = 0; i < nps.length; i += LOTE) {
+        const lote = nps.slice(i, i + LOTE)
+        let resultados = []
+        try {
+          const res = await window.PhotinoBridge.send({ action: "muestraLab.articulosNp", data: { muestras: lote.map(np => ({ np })) } })
+          if (res && res.ok !== false) resultados = res.data || []
+        } catch (err) {
+          console.error("Artículos NV INNPACK:", err)
+        }
+        for (const np of lote) {
+          const r = resultados.find(x => String(x.np) === np && !(Number(x.idProcesoFps) > 0))
+          // Solo se recuerdan los resultados definitivos; un fallo temporal se reintenta al recargar.
+          const definitivo = r && !["SAP_NO_DISPONIBLE", "FPS_NO_DISPONIBLE"].includes(r.estado)
+          if (definitivo) this._articulosCache.set(this._claveArticulos(np, 0), r)
+          if (seq !== this._articulosSeq) continue
+          this._pintarCeldasArticulos(np, r || { estado: "NO_DISPONIBLE", articulos: [] })
+        }
+        if (seq !== this._articulosSeq) return
+      }
+      if (nps.length) console.log(`[Laboratorio] Artículos de ${nps.length} NP en ${Math.round(performance.now() - t0)} ms`)
+    }
+
+    _pintarCeldasArticulos(np, r) {
+      document.querySelectorAll("#mlbMuestrasBody td.mlb-articulos").forEach(td => {
+        if (td.dataset.np === np) td.innerHTML = this._celdaArticulos(r, np)
+      })
+    }
+
+    // Ver muestra: con idProcesoFps se resuelven también las NP con varias NV INNPACK.
+    async _mostrarArticulosDetalle(m) {
+      const el = document.getElementById("mlbDetArticulos")
+      if (!el) return
+      if (!this._npValida(m.np)) { el.textContent = "-"; return }
+      const clave = this._claveArticulos(m.np, m.idProcesoFps)
+      let r = this._articulosCache.get(clave)
+      if (!r) {
+        el.innerHTML = '<span style="color:#94A3B8;">Consultando…</span>'
+        try {
+          const res = await window.PhotinoBridge.send({
+            action: "muestraLab.articulosNp",
+            data: { muestras: [{ np: String(m.np).trim(), idProcesoFps: Number(m.idProcesoFps) > 0 ? Number(m.idProcesoFps) : null }] },
+          })
+          r = res && res.ok !== false ? (res.data || [])[0] : null
+        } catch (err) {
+          console.error("Artículos NV INNPACK:", err)
+        }
+        if (r && !["SAP_NO_DISPONIBLE", "FPS_NO_DISPONIBLE"].includes(r.estado)) this._articulosCache.set(clave, r)
+      }
+      // Si mientras tanto se abrió otra muestra, no se pisa su dato.
+      if (document.getElementById("mlbDetId")?.textContent !== String(m.id)) return
+      el.innerHTML = this._celdaArticulos(r || { estado: "NO_DISPONIBLE", articulos: [] }, m.np)
     }
 
     // Borrado lógico (columna `eliminado`, distinto de "Anular" — que solo cambia el estado del
@@ -995,6 +1096,14 @@ if (!window.MuestraLaboratorioController) {
       const antecedentes = document.getElementById("mlbNmAntecedentesFps")
       antecedentes.value = lineas.join("\n")
       antecedentes.readOnly = lineas.length > 0 // si FPS no trae nada, el analista puede escribirlos
+
+      // Artículos de la NV INNPACK de la orden elegida (solo informativo, no se guarda).
+      const wrapArt = document.getElementById("mlbNmArticulosWrap")
+      const articulos = [...new Set((orden?.articulosInnpack || []).map(a => a.itemCode).filter(Boolean))]
+      document.getElementById("mlbNmArticulosTexto").textContent = articulos.length ? articulos.join(", ")
+        : !orden?.npInnpack ? "la orden no tiene nota de venta INNPACK" : "sin dato en SAP"
+      // Sin el campo (backend anterior, p. ej. la web) no se afirma nada: el bloque queda oculto.
+      wrapArt.style.display = orden && Array.isArray(orden.articulosInnpack) ? "" : "none"
     }
 
     _numeroONull(id) {
@@ -1315,7 +1424,8 @@ if (!window.MuestraLaboratorioController) {
           <div><b>${this._esc(m.tipoMuestra || "-")}</b>Tipo de muestra</div>
           <div><b>${this._esc(m.np || "-")}</b>NP</div>
           <div><b>${this._esc(m.cliente || "-")}</b>Cliente</div>
-          <div><b>${this._esc(m.codigoProducto || "-")}</b>Código</div>
+          <div><b id="mlbDetArticulos">-</b>Artículo(s) NV INNPACK</div>
+          <div><b>${this._esc(m.codigoProducto || "-")}</b>Código registrado</div>
           <div><b>${this._esc(this._labelEstado(m.estado))}</b>Estado</div>
           <div><b>${this._esc(m.evaluacion || "-")}</b>Evaluación</div>
           <div><b>${this._esc(maquinaNombre || m.maquina || "-")}</b>Máquina</div>
@@ -1329,6 +1439,7 @@ if (!window.MuestraLaboratorioController) {
             <div><b>${this._esc(m.fechaProduccionFps || "-")}</b>Fecha producción (FPS)</div>
           ` : ""}
         `
+        this._mostrarArticulosDetalle(m)
 
         const auditoriaFecha = document.getElementById("mlbDetAuditoriaFecha")
         if (m.fechaEnsayoModificadaPor) {

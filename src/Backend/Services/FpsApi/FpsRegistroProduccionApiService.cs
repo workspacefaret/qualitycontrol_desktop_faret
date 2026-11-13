@@ -65,9 +65,11 @@ namespace QualityControlCenter.Backend.Services.FpsApi
         // laboratorio (Corrugado/Emplacado/Troquel/Termoformado/Pegado) y TODAS sus sesiones.
         // Las fechas llegan ya como texto local "aaaa-mm-dd hh:mm:ss" (sin zona horaria): no
         // convertirlas con DateTime/Date, se muestran tal cual.
-        public async Task<(bool ok, RegistrosLaboratorioFpsDto? datos, string? error)> ObtenerRegistrosLaboratorioAsync(long np)
+        // soloArticulos = true: variante liviana de fps-api (órdenes + artículos INNPACK, sin procesos ni
+        // sesiones) para resolver los artículos de varias NP en un listado.
+        public async Task<(bool ok, RegistrosLaboratorioFpsDto? datos, string? error)> ObtenerRegistrosLaboratorioAsync(long np, bool soloArticulos = false)
         {
-            var (ok, body) = await _client.GetAsync($"laboratorio/registros?np={np}");
+            var (ok, body) = await _client.GetAsync($"laboratorio/registros?np={np}{(soloArticulos ? "&soloArticulos=1" : "")}");
             if (!ok)
                 return (false, null, ExtraerMensaje(body));
 
@@ -101,8 +103,11 @@ namespace QualityControlCenter.Backend.Services.FpsApi
                         Formato = GetString(row, "Formato"),
                         Sustrato = GetString(row, "Sustrato"),
                         GuiaTecnica = GetString(row, "GuiaTecnica"),
+                        ArticulosInnpack = LeerArticulosInnpack(row),
                     });
                 }
+
+                resultado.ArticulosInnpackError = GetString(data, "articulosInnpackError");
 
                 foreach (var row in EnumerarArreglo(data, "procesos"))
                 {
@@ -144,6 +149,26 @@ namespace QualityControlCenter.Backend.Services.FpsApi
             {
                 return (false, null, $"Respuesta inválida de FPS: {ex.Message}");
             }
+        }
+
+        // Artículos de la NV INNPACK de la orden (SAP vía fps-api). Ausente (fps-api anterior) = lista vacía.
+        private static List<ArticuloInnpackFpsDto> LeerArticulosInnpack(JsonElement orden)
+        {
+            var lista = new List<ArticuloInnpackFpsDto>();
+            foreach (var a in EnumerarArreglo(orden, "ArticulosInnpack"))
+            {
+                var codigo = GetString(a, "ItemCode").Trim();
+                if (codigo.Length == 0 || lista.Exists(x => x.ItemCode == codigo))
+                    continue;
+                var items = new List<string>();
+                foreach (var i in EnumerarArreglo(a, "Items"))
+                {
+                    var t = i.ValueKind == JsonValueKind.String ? i.GetString() : i.ValueKind == JsonValueKind.Number ? i.ToString() : null;
+                    if (!string.IsNullOrWhiteSpace(t)) items.Add(t.Trim());
+                }
+                lista.Add(new ArticuloInnpackFpsDto { ItemCode = codigo, Descripcion = GetString(a, "Descripcion"), Items = items });
+            }
+            return lista;
         }
 
         private static IEnumerable<JsonElement> EnumerarArreglo(JsonElement obj, string prop)
@@ -212,6 +237,16 @@ namespace QualityControlCenter.Backend.Services.FpsApi
         public List<OrdenLaboratorioFpsDto> Ordenes { get; set; } = new();
         public List<ProcesoLaboratorioFpsDto> Procesos { get; set; } = new();
         public List<RegistroLaboratorioFpsDto> Registros { get; set; } = new();
+
+        // "" = artículos resueltos (o la orden no tiene NV INNPACK); "SAP_NO_DISPONIBLE" = SAP falló.
+        public string ArticulosInnpackError { get; set; } = "";
+    }
+
+    public class ArticuloInnpackFpsDto
+    {
+        public string ItemCode { get; set; } = "";
+        public string Descripcion { get; set; } = "";
+        public List<string> Items { get; set; } = new();
     }
 
     public class OrdenLaboratorioFpsDto
@@ -231,6 +266,10 @@ namespace QualityControlCenter.Backend.Services.FpsApi
         public string Formato { get; set; } = "";
         public string Sustrato { get; set; } = "";
         public string GuiaTecnica { get; set; } = "";
+
+        // Artículos de la NV INNPACK asociada a esta orden (NpInnpack), sin repetidos. Vacía si la
+        // orden no tiene NV INNPACK, si SAP no la tiene o si SAP no respondió.
+        public List<ArticuloInnpackFpsDto> ArticulosInnpack { get; set; } = new();
     }
 
     public class ProcesoLaboratorioFpsDto

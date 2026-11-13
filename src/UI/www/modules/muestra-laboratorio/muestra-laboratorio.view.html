@@ -137,7 +137,8 @@
             <th>Tipo Muestra</th>
             <th>NP</th>
             <th>Cliente</th>
-            <th>Código</th>
+            <th>Código registrado</th>
+            <th title="Números de artículo de la nota de venta INNPACK (SAP) asociada a la NP">Artículo(s)</th>
             <th>Ensayos</th>
             <th>Estado</th>
             <th>Evaluación</th>
@@ -145,7 +146,7 @@
           </tr>
         </thead>
         <tbody id="mlbMuestrasBody">
-          <tr><td colspan="11" style="text-align:center;">Cargando...</td></tr>
+          <tr><td colspan="12" style="text-align:center;">Cargando...</td></tr>
         </tbody>
       </table>
     </div>
@@ -272,6 +273,9 @@
       <div class="mlb-form-row">
         <div class="mlb-form-campo"><label>Cliente</label><input type="text" id="mlbNmCliente"></div>
         <div class="mlb-form-campo"><label>Código producto</label><input type="text" id="mlbNmCodigo"></div>
+      </div>
+      <div class="mlb-form-campo mlb-form-campo-full" id="mlbNmArticulosWrap" style="display:none;">
+        <small>Artículo(s) de la NV INNPACK (SAP): <b id="mlbNmArticulosTexto"></b></small>
       </div>
       <div class="mlb-form-campo mlb-form-campo-full">
         <label>Descripción</label><input type="text" id="mlbNmDescripcion">
