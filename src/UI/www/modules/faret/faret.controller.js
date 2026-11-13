@@ -511,18 +511,7 @@ window.FaretController = class FaretController {
 
         this._setText("fh-kpi-taller-atrasados", this._numero(taller.atrasados));
 
-        const cerradas = (ncList || []).filter(n =>
-            (n.estadoGestion || "").toUpperCase() === "CERRADA" && n.fechaDeteccion && n.fechaCierre
-        );
-        let promedioDias = null;
-        if (cerradas.length) {
-            const totalDias = cerradas.reduce((acc, n) => {
-                const dias = (new Date(n.fechaCierre) - new Date(n.fechaDeteccion)) / 86400000;
-                return acc + Math.max(0, dias);
-            }, 0);
-            promedioDias = totalDias / cerradas.length;
-        }
-        this._setText("fh-kpi-nc-tiempo-cierre", promedioDias !== null ? promedioDias.toFixed(1) : "-");
+        this._renderTiempoCierreNc(ncList || []);
 
         const conRecuperacion = (dataMes || []).filter(r => r.pctRecuperacion !== null && r.pctRecuperacion !== undefined && r.pctRecuperacion !== "");
         let pctPromedio = null;
@@ -546,6 +535,59 @@ window.FaretController = class FaretController {
 
         this._setText("fh-resumen-pt-unidades-nc", this._numero(pt.unidadesNoConformes));
         this._setText("fh-resumen-taller-atrasados", this._numero(taller.atrasados));
+    }
+
+    // Días corridos entre dos fechas yyyy-MM-dd (por componentes, sin pasar por el parser UTC de Date).
+    _diasEntre(desdeIso, hastaIso) {
+        const p = s => { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d); };
+        return Math.round((p(hastaIso) - p(desdeIso)) / 86400000);
+    }
+
+    // Tiempo de cierre de NC: MEDIANA de las NC cerradas en los últimos 90 días (según su fecha de
+    // cierre), medida desde la fecha de detección. La mediana no se distorsiona por cierres masivos
+    // de rezago; la ventana deja fuera el histórico antiguo sin borrarlo (sigue en los módulos).
+    // También informa el % cerrado dentro del plazo del procedimiento (15 días). Con pocos casos
+    // se avisa "información limitada"; sin casos válidos, "-" (nunca un 0 engañoso).
+    _calcularTiempoCierreNc(ncList, hoyIso) {
+        const VENTANA_DIAS = 90;
+        const PLAZO_DIAS = 15;
+        const MIN_CASOS = 5;
+
+        const dias = [];
+        for (const n of ncList) {
+            if (String(n.estadoGestion || "").toUpperCase() !== "CERRADA") continue;
+            const det = this._fechaIso(n.fechaDeteccion);
+            const cie = this._fechaIso(n.fechaCierre);
+            if (!det || !cie) continue;
+            const desdeCierre = this._diasEntre(cie, hoyIso);
+            if (desdeCierre < 0 || desdeCierre > VENTANA_DIAS) continue; // fuera de la ventana
+            const d = this._diasEntre(det, cie);
+            if (d < 0) continue; // cierre anterior a la detección: dato inconsistente, no se usa
+            dias.push(d);
+        }
+        if (!dias.length) return { n: 0, mediana: null, pctEnPlazo: null, limitada: true };
+
+        dias.sort((a, b) => a - b);
+        const mid = Math.floor(dias.length / 2);
+        const mediana = dias.length % 2 ? dias[mid] : (dias[mid - 1] + dias[mid]) / 2;
+        const enPlazo = dias.filter(d => d <= PLAZO_DIAS).length;
+        return { n: dias.length, mediana, pctEnPlazo: Math.round((enPlazo / dias.length) * 100), enPlazo, limitada: dias.length < MIN_CASOS };
+    }
+
+    _renderTiempoCierreNc(ncList) {
+        const r = this._calcularTiempoCierreNc(ncList, window.DateUtils.hoyISO());
+        this._setText("fh-kpi-nc-tiempo-cierre", r.mediana === null ? "-" : String(Number.isInteger(r.mediana) ? r.mediana : r.mediana.toFixed(1)));
+
+        let detalle;
+        if (r.n === 0) {
+            detalle = "Sin NC cerradas en los últimos 90 días";
+        } else {
+            detalle = `días (mediana) · ${r.n} cerrada${r.n === 1 ? "" : "s"} · ${r.pctEnPlazo}% en ≤15 días`
+                + (r.limitada ? " · información limitada" : "");
+        }
+        this._setText("fh-kpi-nc-cierre-detalle", detalle);
+        const card = document.getElementById("fh-kpi-nc-tiempo-cierre");
+        if (card) card.title = "Mediana de días entre la detección y el cierre de las NC cerradas en los últimos 90 días. Plazo del procedimiento: 15 días.";
     }
 
     _chartBarAgrupada(canvasId, rows, labelKey, series) {

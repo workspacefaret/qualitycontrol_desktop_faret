@@ -15,6 +15,7 @@ window.Novedades = (() => {
                 { solo: "FARET", t: "El panel de alertas ahora avisa solo de lo que requiere atención: PNC críticas pendientes, NC internas abiertas hace más de 15 días y documentos con revisión vencida." },
                 { solo: "FARET", t: "Cada aviso indica cuántos casos hay y tiene un botón \"Ver\" que te lleva al módulo. Los documentos vencidos se listan uno por uno con un botón Revisar que abre el documento: al registrar su nueva versión con próxima revisión, el aviso desaparece. Solo ves los avisos de los módulos a los que tienes acceso." },
                 { solo: "FARET", t: "Si no hay problemas, el panel lo indica; si un dato no se puede calcular, se avisa en vez de mostrar un cero. Además, las tarjetas de Inicio ya navegan al hacer clic." },
+                { solo: "FARET", t: "El tiempo de cierre de NC ahora es la mediana de los últimos 90 días e indica cuántas NC se cerraron dentro del plazo de 15 días." },
                 { solo: "INNPACK", t: "Esta versión trae cambios para Faret. En INNPACK no cambia nada de lo que usas." },
             ],
         },
