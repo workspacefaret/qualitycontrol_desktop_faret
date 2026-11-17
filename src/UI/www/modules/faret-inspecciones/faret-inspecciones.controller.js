@@ -252,7 +252,7 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         const tbody = document.getElementById("fi-tbody");
 
         if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="16">${this._emptyStateHtml()}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="14">${this._emptyStateHtml()}</td></tr>`;
             this._filasFijas?.refrescar();
             return;
         }
@@ -270,10 +270,8 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
                 <td>${(() => { const d = this._detalleDefectos(i); return d.length ? this._lineas(d.map(x => this._escape(x.defecto))) : this._escape(i.defectos ?? "-"); })()}</td>
                 <td>${(() => { const d = this._detalleDefectos(i); return d.length ? this._lineas(d.map(x => this._escape(x.idEvento || "—"))) : "-"; })()}</td>
                 <td>${(() => { const d = this._detalleDefectos(i); return d.length ? this._lineas(d.map(x => this._chipCriticidad(x.criticidad))) : "-"; })()}</td>
-                <td>${i.criticidadMax ? this._chipCriticidad(i.criticidadMax) : "-"}</td>
                 <td>${this._escape(i.accionCorrectiva ?? "-")}</td>
                 <td>${this._celdaAdjuntos(i)}</td>
-                <td>${window.InspeccionesEdicion.celdaEdicion(i)}</td>
                 <td>${window.InspeccionesEdicion.puedeEditar() ? `<button class="btn-secondary fi-editar-btn" data-id="${i.id}" data-requiere-editar>Editar</button> ` : ""}<button class="btn-secondary fi-eliminar-btn" data-id="${i.id}">Eliminar</button></td>
             </tr>
         `).join("");
@@ -410,7 +408,7 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
         const sn = (b) => (b ? "Sí" : "No");
         // En el PDF (compacto) fecha y hora van juntas y cada columna tiene un ancho fijo en % para que ninguna se corte en la hoja.
         const ANCHO_PDF = { "Fecha / hora": 8, "Operador Calidad": 7, "NV Faret": 6, "Área de control": 7, "Máquina": 6, "Operador Máquina": 7, "¿Defectos?": 8,
-            "Defectos": 8, "ID evento": 7, "Criticidad": 8, "Criticidad máx.": 7, "Acción correctiva": 8, "Adjuntos": 6, "Última edición": 8 };
+            "Defectos": 12, "ID evento": 7, "Criticidad": 9, "Acción correctiva": 17, "Adjuntos": 6 };
         const cols = [
             ...(completa
                 ? [["Fecha", i => this._formatoFecha(i.fechaRegistro)], ["Hora", i => i.horaRegistro ?? "-"]]
@@ -434,10 +432,9 @@ window.FaretInspeccionesController = class FaretInspeccionesController {
             // Defectos anteriores al catálogo no tienen ID ni criticidad: si ninguno la tiene se deja "-" (no una fila de "—").
             ["ID evento", i => { const d = this._detalleDefectos(i); return d.some(x => x.idEvento) ? d.map(x => x.idEvento || "—").join("; ") : "-"; }],
             ["Criticidad", i => { const d = this._detalleDefectos(i); return d.some(x => x.criticidad) ? d.map(x => crit(x.criticidad)).join("; ") : "-"; }],
-            ["Criticidad máx.", i => (i.criticidadMax ? crit(i.criticidadMax) : "-")],
             ["Acción correctiva", i => i.accionCorrectiva ?? "-"],
             ["Adjuntos", i => i.cantidadAdjuntos ?? 0],
-            ["Última edición", i => IE.textoEdicion(i)],
+            // "Criticidad máx." y "Última edición" ocultas a pedido de Calidad (17-11-2026), también en Excel y PDF.
         ];
 
         const colgroup = completa ? "" : `<colgroup>${cols.map(c => `<col style="width:${ANCHO_PDF[c[0]] ?? 8}%">`).join("")}</colgroup>`;

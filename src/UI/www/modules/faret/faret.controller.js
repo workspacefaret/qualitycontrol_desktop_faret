@@ -13,12 +13,18 @@ window.FaretController = class FaretController {
             ?.addEventListener("change", () => this._cambiarPeriodoCalidad());
         document.getElementById("fh-planta-btn")
             ?.addEventListener("click", () => this._alternarModoPlanta());
+        document.getElementById("fh-pdf-todos-btn")
+            ?.addEventListener("click", () => this._pdfGraficos([...document.querySelectorAll(".home-module .card")]));
+        document.getElementById("fh-evol-anio")
+            ?.addEventListener("change", e => { this._evolAnio = Number(e.target.value) || null; this._renderEvolucion(); });
+        this._agregarBotonesPdf();
         this._loadDashboard();
     }
 
     destroy() {
         console.log("FaretController destruido");
         this._destroyCharts();
+        this._cerrarModalAlerta();
         window.ChartUtils.fijarEscala(1);
     }
 
@@ -51,6 +57,7 @@ window.FaretController = class FaretController {
         // Los avisos que necesitan consultas propias (NC internas, documentos) se cargan después
         // del primer render: Inicio no espera por ellos.
         this._cargarAlertasAsync();
+        this._cargarEvolucionAsync();
     }
 
     // Dibuja todo desde los datos ya cargados (`_datos`): sirve para cambiar el período de los
@@ -67,6 +74,7 @@ window.FaretController = class FaretController {
         this._renderResumen(dashboard?.kpis || {}, inspecciones || {}, maquinas || {}, indicadoresCalidad || {});
         this._renderIndicadoresCalidad(indicadoresCalidad || {});
         this._renderIndicadoresAdicionales(productoTerminado || {}, talleresExternos || {}, ncList || [], dataMes);
+        this._renderEvolucion();
     }
 
     // Período de los indicadores de calidad (la API acepta fechaDesde/fechaHasta; "todo" = sin
@@ -185,8 +193,8 @@ window.FaretController = class FaretController {
     // ---------- Alertas activas (máx. 3, solo si hay un problema real) ----------
     // 1) PNC críticas pendientes (sin límite de antigüedad), 2) NC internas abiertas > 15 días,
     // 3) documentos con revisión vencida. Cada una solo si el usuario tiene acceso a su módulo.
-    // this._alertas = { pnc, nci, doc }: objeto {cantidad, detalle, modulo} | null (sin problema u
-    // omitida) | "error" (no se pudo calcular: nunca se informa como "0").
+    // this._alertas = { pnc, nci, doc }: { tipo, modulo, nombre, items } | null (omitida, sin acceso)
+    // | "error". Cada usuario puede dar registros por revisados desde "Administrar" (se ocultan N días).
 
     _puedeVer(modulo) {
         return !window.App?.nivelModulo || window.App.nivelModulo(modulo) !== "SIN_ACCESO";
@@ -219,6 +227,10 @@ window.FaretController = class FaretController {
         return dias >= 0 ? dias : null;
     }
 
+    // Cada fuente devuelve null (sin acceso), "error" (no se pudo calcular: nunca se informa como
+    // "0") o { modulo, items } con TODOS los registros que cumplen la condición. Las revisiones del
+    // usuario (ver "Revisadas") se aplican recién al dibujar, sin volver a consultar.
+
     _alertaPnc() {
         if (!this._puedeVer("faret-nc")) return null;
         const kpis = this._datos?.dashboard?.kpis;
@@ -227,19 +239,16 @@ window.FaretController = class FaretController {
         // Criterio real "Nivel = Crítico" (registros de Data, no cerrados o sin gestión): son las
         // filas del detalle con dataId. Las NC manuales por severidad ALTA (sin dataId) no cuentan,
         // igual que el filtro Nivel=Crítico + Estado≠Cerrada de No Conformidades.
-        const detalle = (this._datos.dashboard.criticasAbiertasDetalle || []).filter(c => Number(c.dataId) > 0);
-        const total = detalle.length;
-        if (total <= 0) return null;
-
-        const dias = detalle.map(c => this._haceDias(c.fechaIngreso)).filter(d => d !== null);
-        const masAntigua = dias.length ? Math.max(...dias) : null;
-        const sinGestion = detalle.filter(c => c.estadoGestion === "SIN_GESTION").length;
-        return {
-            cantidad: total,
-            texto: `${total} PNC crítica${total === 1 ? "" : "s"} pendiente${total === 1 ? "" : "s"}`
-                + ` (${sinGestion} sin gestión${masAntigua !== null ? `, la más antigua hace ${masAntigua} días` : ""})`,
-            modulo: "faret-nc",
-        };
+        const items = (this._datos.dashboard.criticasAbiertasDetalle || [])
+            .filter(c => Number(c.dataId) > 0)
+            .map(c => ({
+                key: `pnc:${Number(c.dataId)}`,
+                titulo: c.codigo || `Data #${Number(c.dataId)}`,
+                detalle: [c.npNv && `NP/NV ${c.npNv}`, c.cliente, c.tipoPnc].filter(Boolean).join(" · "),
+                dias: this._haceDias(c.fechaIngreso),
+                sinGestion: c.estadoGestion === "SIN_GESTION",
+            }));
+        return { tipo: "pnc", modulo: "faret-nc", nombre: "PNC críticas pendientes", items };
     }
 
     async _alertaNcInternas() {
@@ -249,17 +258,19 @@ window.FaretController = class FaretController {
 
         // Más de 15 días: fecha de detección válida y anterior a (hoy - 15 días), es decir, ≥ 16 días.
         const limite = this._isoHaceDias(15);
-        const vencidas = res.items.filter(nc =>
-            String(nc.estadoGestion || "").toUpperCase() !== "CERRADA"
-            && this._fechaIso(nc.fechaDeteccion) !== null
-            && this._fechaIso(nc.fechaDeteccion) < limite
-        );
-        if (!vencidas.length) return null;
-        return {
-            cantidad: vencidas.length,
-            texto: `${vencidas.length} NC interna${vencidas.length === 1 ? "" : "s"} abierta${vencidas.length === 1 ? "" : "s"} hace más de 15 días`,
-            modulo: "faret-nc-internas",
-        };
+        const items = res.items
+            .filter(nc =>
+                String(nc.estadoGestion || "").toUpperCase() !== "CERRADA"
+                && this._fechaIso(nc.fechaDeteccion) !== null
+                && this._fechaIso(nc.fechaDeteccion) < limite)
+            .map(nc => ({
+                key: `nci:${nc.id}`,
+                titulo: nc.codigo || `NC interna #${nc.id}`,
+                detalle: [nc.area, nc.categoriaDefecto && (window.NciTipoDesviacion?.etiqueta(nc.categoriaDefecto) ?? nc.categoriaDefecto)]
+                    .filter(Boolean).join(" · "),
+                dias: this._haceDias(this._fechaIso(nc.fechaDeteccion)),
+            }));
+        return { tipo: "nci", modulo: "faret-nc-internas", nombre: "NC internas abiertas hace más de 15 días", items };
     }
 
     async _alertaDocumentos() {
@@ -270,24 +281,22 @@ window.FaretController = class FaretController {
         if (!faret || !ambas || !Array.isArray(faret.items) || !Array.isArray(ambas.items)) return "error";
 
         const hoy = window.DateUtils.hoyISO();
-        const vencidos = [...faret.items, ...ambas.items].filter(d =>
-            String(d.estado || "").toUpperCase() !== "OBSOLETO"
-            && this._fechaIso(d.versionProximaRevision) !== null
-            && this._fechaIso(d.versionProximaRevision) < hoy
-        );
-        if (!vencidos.length) return null;
-
         // Más atrasados primero; cada uno con su fecha y días de atraso para actuar sobre él.
-        const filas = vencidos
+        const items = [...faret.items, ...ambas.items]
+            .filter(d =>
+                String(d.estado || "").toUpperCase() !== "OBSOLETO"
+                && this._fechaIso(d.versionProximaRevision) !== null
+                && this._fechaIso(d.versionProximaRevision) < hoy)
             .map(d => ({ id: d.id, codigo: d.codigoBase || "-", nombre: d.nombre || "", fecha: this._fechaIso(d.versionProximaRevision) }))
             .sort((a, b) => a.fecha.localeCompare(b.fecha))
-            .map(f => ({ ...f, dias: this._haceDias(f.fecha) }));
-        return {
-            cantidad: vencidos.length,
-            texto: `${vencidos.length} documento${vencidos.length === 1 ? "" : "s"} con revisión vencida`,
-            modulo: "faret-control-documental",
-            filas,
-        };
+            .map(f => ({
+                ...f,
+                key: `doc:${f.id}`,
+                titulo: f.codigo,
+                detalle: `${f.nombre ? `${f.nombre} · ` : ""}vencido el ${window.DateUtils.formatear(f.fecha)}`,
+                dias: this._haceDias(f.fecha),
+            }));
+        return { tipo: "doc", modulo: "faret-control-documental", nombre: "Documentos con revisión vencida", items };
     }
 
     async _cargarAlertasAsync() {
@@ -303,6 +312,98 @@ window.FaretController = class FaretController {
         this._renderAlertas();
     }
 
+    // ---------- Registros revisados (silenciados) por el usuario ----------
+    // Solo silencia la vista de ESTE usuario en ESTE equipo (localStorage): no modifica ningún dato.
+    // Cada registro se silencia por N días; vuelve solo al vencer, y un registro nuevo que cumpla la
+    // condición siempre aparece. Si localStorage falla, las alertas se muestran igual que siempre.
+
+    _claveRevisadas() {
+        const usuario = String(sessionStorage.getItem("faretNombreUsuario") || "anonimo").trim().toLowerCase();
+        return `lcc_faret_alertas_revisadas_${usuario}`;
+    }
+
+    // { "pnc:123": vencimientoEpochMs, ... } solo con las vigentes (las vencidas se descartan).
+    _leerRevisadas() {
+        try {
+            const crudo = JSON.parse(localStorage.getItem(this._claveRevisadas()) || "{}");
+            const ahora = Date.now();
+            const vigentes = {};
+            Object.entries(crudo || {}).forEach(([k, v]) => { if (Number(v) > ahora) vigentes[k] = Number(v); });
+            return vigentes;
+        } catch {
+            return {};
+        }
+    }
+
+    _guardarRevisadas(mapa) {
+        try { localStorage.setItem(this._claveRevisadas(), JSON.stringify(mapa)); } catch { /* sin persistencia */ }
+    }
+
+    _marcarRevisadas(keys, dias) {
+        const mapa = this._leerRevisadas();
+        const ahora = Date.now();
+        const vence = ahora + Number(dias) * 86400000;
+        keys.forEach(k => { mapa[k] = vence; });
+        this._guardarRevisadas(mapa);
+
+        // Fecha de la última validación por registro (se muestra aunque la pausa ya haya vencido).
+        // Se descartan las de más de un año para que el registro no crezca sin límite.
+        const ultimas = this._leerUltimasValidaciones();
+        keys.forEach(k => { ultimas[k] = ahora; });
+        try { localStorage.setItem(this._claveUltimas(), JSON.stringify(ultimas)); } catch { /* sin persistencia */ }
+    }
+
+    _claveUltimas() {
+        return this._claveRevisadas().replace("_revisadas_", "_ultima_validacion_");
+    }
+
+    _leerUltimasValidaciones() {
+        try {
+            const crudo = JSON.parse(localStorage.getItem(this._claveUltimas()) || "{}");
+            const limite = Date.now() - 365 * 86400000;
+            const vigentes = {};
+            Object.entries(crudo || {}).forEach(([k, v]) => { if (Number(v) > limite) vigentes[k] = Number(v); });
+            return vigentes;
+        } catch {
+            return {};
+        }
+    }
+
+    // "Última validación: 17-11-2026" del registro (o la más reciente de varios); "" si nunca se validó.
+    _textoUltimaValidacion(keys) {
+        const ultimas = this._leerUltimasValidaciones();
+        const max = Math.max(0, ...keys.map(k => ultimas[k] || 0));
+        return max ? `Última validación: ${new Date(max).toLocaleDateString("es-CL")}` : "";
+    }
+
+    _reactivar(keys) {
+        const mapa = this._leerRevisadas();
+        keys.forEach(k => delete mapa[k]);
+        this._guardarRevisadas(mapa);
+    }
+
+    // Separa los registros de una fuente en visibles y revisados (vigentes).
+    _separar(fuente, revisadas) {
+        const items = fuente?.items || [];
+        return {
+            visibles: items.filter(i => !revisadas[i.key]),
+            revisados: items.filter(i => revisadas[i.key]),
+        };
+    }
+
+    _textoAviso(fuente, visibles) {
+        const n = visibles.length;
+        const s = n === 1 ? "" : "s";
+        if (fuente.tipo === "pnc") {
+            const dias = visibles.map(i => i.dias).filter(d => d !== null);
+            const masAntigua = dias.length ? Math.max(...dias) : null;
+            const sinGestion = visibles.filter(i => i.sinGestion).length;
+            return `${n} PNC crítica${s} pendiente${s} (${sinGestion} sin gestión${masAntigua !== null ? `, la más antigua hace ${masAntigua} días` : ""})`;
+        }
+        if (fuente.tipo === "nci") return `${n} NC interna${s} abierta${s} hace más de 15 días`;
+        return `${n} documento${s} con revisión vencida`;
+    }
+
     _renderAlertas() {
         const container = document.getElementById("fh-alertas-activas");
         if (!container) return;
@@ -314,24 +415,41 @@ window.FaretController = class FaretController {
         }
 
         const lista = [a.pnc, a.nci, a.doc];
-        const avisos = lista.filter(x => x && x !== "error");
+        const fuentes = lista.filter(x => x && x !== "error");
         const fallidas = lista.filter(x => x === "error").length;
         const pendientes = a.nci === undefined || a.doc === undefined;
 
-        // Con `filas` (documentos vencidos) se lista cada uno, con su botón "Revisar" que abre ese
-        // documento; el aviso se apaga solo cuando queda con una próxima revisión futura.
-        let html = avisos.map(x => `
+        const revisadas = this._leerRevisadas();
+        let totalRevisados = 0;
+        const avisos = [];
+        fuentes.forEach(f => {
+            const { visibles, revisados } = this._separar(f, revisadas);
+            totalRevisados += revisados.length;
+            if (visibles.length) avisos.push({ fuente: f, visibles });
+        });
+
+        // Botones "Ver" (ir al módulo) y "Administrar" (modal para dar por revisados los registros).
+        // Documentos vencidos: se lista cada uno, con "Revisar" que abre ese documento.
+        let html = avisos.map(({ fuente: x, visibles }) => `
             <div class="alert-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                <div>⚠ ${this._escape(x.texto)}</div>
-                <button type="button" class="btn-secondary fh-alerta-ver" data-modulo="${this._escape(x.modulo)}">Ver</button>
+                <div>⚠ ${this._escape(this._textoAviso(x, visibles))}
+                    ${(() => { const t = this._textoUltimaValidacion((x.items || []).map(i => i.key)); return t ? `<div style="font-size:11px;opacity:.7;">${this._escape(t)}</div>` : ""; })()}</div>
+                <div style="display:flex;gap:8px;flex-shrink:0;">
+                    <button type="button" class="btn-secondary fh-alerta-administrar" data-tipo="${x.tipo}">Administrar</button>
+                    <button type="button" class="btn-secondary fh-alerta-ver" data-modulo="${this._escape(x.modulo)}">Ver</button>
+                </div>
             </div>
-            ${(x.filas || []).slice(0, 5).map(f => `
+            ${x.tipo === "doc" ? visibles.slice(0, 5).map(f => `
             <div class="alert-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding-left:24px;font-size:13px;">
                 <div><strong>${this._escape(f.codigo)}</strong>${f.nombre ? ` · ${this._escape(f.nombre)}` : ""}
-                    <span style="opacity:.75;"> — vencido el ${this._escape(window.DateUtils.formatear(f.fecha))}${f.dias !== null ? ` (hace ${f.dias} día${f.dias === 1 ? "" : "s"})` : ""}</span></div>
-                <button type="button" class="btn-primary fh-alerta-revisar" data-doc-id="${Number(f.id)}">Revisar</button>
-            </div>`).join("")}
-            ${(x.filas || []).length > 5 ? `<div class="alert-item" style="padding-left:24px;font-size:13px;opacity:.75;">y ${x.filas.length - 5} más en Control Documental</div>` : ""}
+                    <span style="opacity:.75;"> — vencido el ${this._escape(window.DateUtils.formatear(f.fecha))}${f.dias !== null ? ` (hace ${f.dias} día${f.dias === 1 ? "" : "s"})` : ""}</span>
+                    ${(() => { const t = this._textoUltimaValidacion([f.key]); return t ? `<div style="font-size:11px;opacity:.7;">${this._escape(t)}</div>` : ""; })()}</div>
+                <div style="display:flex;gap:8px;flex-shrink:0;">
+                    <button type="button" class="btn-secondary fh-alerta-validar-doc" data-key="${this._escape(f.key)}" title="Ocultar este documento de tus alertas por 7 días">Marcar validada</button>
+                    <button type="button" class="btn-primary fh-alerta-revisar" data-doc-id="${Number(f.id)}">Revisar</button>
+                </div>
+            </div>`).join("") : ""}
+            ${x.tipo === "doc" && visibles.length > 5 ? `<div class="alert-item" style="padding-left:24px;font-size:13px;opacity:.75;">y ${visibles.length - 5} más en Control Documental</div>` : ""}
         `).join("");
 
         if (!avisos.length) {
@@ -344,15 +462,145 @@ window.FaretController = class FaretController {
         if (fallidas && !pendientes) {
             html += `<div class="alert-item"><div style="opacity:.7;font-size:12px;">No se pudieron calcular ${fallidas} aviso${fallidas === 1 ? "" : "s"}. Reintenta más tarde.</div></div>`;
         }
+        if (totalRevisados) {
+            html += `<div class="alert-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;opacity:.8;">
+                <div>${totalRevisados} registro${totalRevisados === 1 ? "" : "s"} validado${totalRevisados === 1 ? "" : "s"} (ocultos temporalmente para ti)</div>
+                <button type="button" class="btn-secondary fh-alerta-ocultas">Ver ocultas</button>
+            </div>`;
+        }
 
         container.innerHTML = html;
         container.querySelectorAll(".fh-alerta-ver").forEach(btn =>
             btn.addEventListener("click", () => window.App?.loadModule?.(btn.dataset.modulo)));
+        container.querySelectorAll(".fh-alerta-administrar").forEach(btn =>
+            btn.addEventListener("click", () => this._abrirModalAlerta(btn.dataset.tipo)));
+        container.querySelector(".fh-alerta-ocultas")
+            ?.addEventListener("click", () => this._abrirModalAlerta(null));
+        container.querySelectorAll(".fh-alerta-validar-doc").forEach(btn =>
+            btn.addEventListener("click", () => { this._marcarRevisadas([btn.dataset.key], 7); this._renderAlertas(); }));
         container.querySelectorAll(".fh-alerta-revisar").forEach(btn =>
             btn.addEventListener("click", () => {
                 try { sessionStorage.setItem("fcdAbrirDocumento", btn.dataset.docId); } catch { /* abre el listado */ }
                 window.App?.loadModule?.("faret-control-documental");
             }));
+    }
+
+    // ---------- Modal "Administrar alerta" ----------
+    // tipo = "pnc" | "nci" | "doc": registros pendientes de esa alerta (+ sus revisados).
+    // tipo = null: todos los registros ocultos, para reactivarlos.
+    // Textos de botones sin "validar"/"gestionar" a propósito: el modo "Solo vista" los ocultaría, y
+    // dar por revisado solo afecta la vista propia (no escribe datos).
+
+    _cerrarModalAlerta() {
+        document.getElementById("fh-alerta-modal")?.remove();
+        if (this._escModal) {
+            document.removeEventListener("keydown", this._escModal);
+            this._escModal = null;
+        }
+    }
+
+    _abrirModalAlerta(tipo) {
+        this._cerrarModalAlerta();
+        const a = this._alertas || {};
+        const fuentes = [a.pnc, a.nci, a.doc].filter(x => x && x !== "error" && (!tipo || x.tipo === tipo));
+        const revisadas = this._leerRevisadas();
+        const modo = tipo ? "pendientes" : "ocultas";
+
+        const fila = (i, revisado) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #E5E7EB;">
+                <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;flex:1;min-width:0;">
+                    ${revisado ? "" : `<input type="checkbox" class="fh-am-check" data-key="${this._escape(i.key)}" style="margin-top:3px;width:auto;height:auto;">`}
+                    <span style="min-width:0;">
+                        <strong>${this._escape(i.titulo)}</strong>
+                        ${i.dias !== null && i.dias !== undefined ? `<span style="opacity:.7;font-size:12px;"> · hace ${i.dias} día${i.dias === 1 ? "" : "s"}</span>` : ""}
+                        ${i.detalle ? `<div style="font-size:12px;opacity:.75;overflow-wrap:anywhere;">${this._escape(i.detalle)}</div>` : ""}
+                        ${revisado ? `<div style="font-size:12px;color:#047857;">Oculto hasta el ${this._escape(new Date(revisadas[i.key]).toLocaleDateString("es-CL"))}</div>` : ""}
+                        ${(() => { const t = this._textoUltimaValidacion([i.key]); return t ? `<div style="font-size:11px;opacity:.7;">${this._escape(t)}</div>` : ""; })()}
+                    </span>
+                </label>
+                ${revisado
+                    ? `<button type="button" class="btn-secondary fh-am-reactivar" data-key="${this._escape(i.key)}">Reactivar</button>`
+                    : `<button type="button" class="btn-secondary fh-am-uno" data-key="${this._escape(i.key)}">Marcar validada</button>`}
+            </div>`;
+
+        let cuerpo = "";
+        let hayPendientes = false;
+        fuentes.forEach(f => {
+            const { visibles, revisados } = this._separar(f, revisadas);
+            const mostrar = modo === "pendientes" ? visibles : revisados;
+            if (modo === "pendientes" && visibles.length) hayPendientes = true;
+            if (!mostrar.length && !(modo === "pendientes" && revisados.length)) return;
+            cuerpo += `<div style="font-weight:700;margin:12px 0 4px;">${this._escape(f.nombre)}</div>`;
+            cuerpo += mostrar.map(i => fila(i, modo === "ocultas")).join("");
+            if (modo === "pendientes" && revisados.length) {
+                cuerpo += `<div style="font-size:12px;opacity:.7;margin-top:6px;">${revisados.length} más ya validado${revisados.length === 1 ? "" : "s"}
+                    · <button type="button" class="btn-secondary fh-am-ver-ocultas" style="padding:2px 8px;font-size:12px;">Ver ocultas</button></div>`;
+            }
+        });
+        // Nada más que administrar (todo revisado / todo reactivado): se cierra.
+        if (!cuerpo || (modo === "pendientes" && !hayPendientes)) return;
+
+        const pie = modo === "pendientes" && hayPendientes ? `
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:14px;">
+                <label style="display:flex;gap:8px;align-items:center;font-size:13px;">Ocultar durante
+                    <select id="fh-am-dias" style="width:auto;">
+                        <option value="1">1 día</option>
+                        <option value="7" selected>7 días</option>
+                        <option value="30">30 días</option>
+                    </select>
+                </label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button type="button" class="btn-secondary" id="fh-am-seleccionadas">Marcar validadas las seleccionadas</button>
+                    <button type="button" class="btn-primary" id="fh-am-todas">Marcar todas como validadas</button>
+                </div>
+            </div>` : "";
+
+        const overlay = document.createElement("div");
+        overlay.id = "fh-alerta-modal";
+        overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;";
+        overlay.innerHTML = `
+            <div role="dialog" aria-modal="true" aria-labelledby="fh-am-titulo" style="background:#fff;color:#111827;border-radius:12px;width:min(720px,100%);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3);">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #E5E7EB;">
+                    <div>
+                        <div id="fh-am-titulo" style="font-weight:700;font-size:16px;">${modo === "pendientes" ? this._escape(fuentes[0]?.nombre || "Alerta") : "Registros ocultos"}</div>
+                        <div style="font-size:12px;opacity:.7;">${modo === "pendientes"
+                            ? "Marca como validados los registros que ya conoces: dejan de mostrarse en tus alertas por el tiempo elegido. No modifica ningún dato; si aparece un registro nuevo, la alerta vuelve."
+                            : "Registros que validaste. Reactívalos para volver a verlos en tus alertas."}</div>
+                    </div>
+                    <button type="button" class="btn-secondary" id="fh-am-cerrar" aria-label="Cerrar">✕</button>
+                </div>
+                <div style="padding:4px 20px 16px;overflow-y:auto;">${cuerpo}${pie}</div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const tras = () => {
+            this._renderAlertas();
+            this._abrirModalAlerta(tipo);
+        };
+        const dias = () => Number(document.getElementById("fh-am-dias")?.value || 7);
+
+        overlay.addEventListener("click", e => { if (e.target === overlay) this._cerrarModalAlerta(); });
+        overlay.querySelector("#fh-am-cerrar").addEventListener("click", () => this._cerrarModalAlerta());
+        this._escModal = e => { if (e.key === "Escape") this._cerrarModalAlerta(); };
+        document.addEventListener("keydown", this._escModal);
+
+        overlay.querySelectorAll(".fh-am-uno").forEach(btn =>
+            btn.addEventListener("click", () => { this._marcarRevisadas([btn.dataset.key], dias()); tras(); }));
+        overlay.querySelectorAll(".fh-am-reactivar").forEach(btn =>
+            btn.addEventListener("click", () => { this._reactivar([btn.dataset.key]); tras(); }));
+        overlay.querySelectorAll(".fh-am-ver-ocultas").forEach(btn =>
+            btn.addEventListener("click", () => this._abrirModalAlerta(null)));
+        overlay.querySelector("#fh-am-seleccionadas")?.addEventListener("click", () => {
+            const keys = [...overlay.querySelectorAll(".fh-am-check:checked")].map(c => c.dataset.key);
+            if (!keys.length) return;
+            this._marcarRevisadas(keys, dias());
+            tras();
+        });
+        overlay.querySelector("#fh-am-todas")?.addEventListener("click", () => {
+            const keys = [...overlay.querySelectorAll(".fh-am-check")].map(c => c.dataset.key);
+            this._marcarRevisadas(keys, dias());
+            tras();
+        });
     }
 
     _renderMaquinas(maquinas) {
@@ -448,34 +696,269 @@ window.FaretController = class FaretController {
         this._charts.push(chart);
     }
 
-    _chartLine(canvasId, rows, labelKey, valueKey, label) {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
+    // ---------- Evolución mensual de No Conformidades por tipo de PNC ----------
+    // Barras apiladas por mes de FECHA DE FABRICACIÓN (no de ingreso) con las 3 series que usa
+    // Calidad. Se calcula en el frontend sobre todo Data (faret.data.list paginado): la API solo
+    // filtra por fecha de ingreso. Lo que no entra (otro tipo, sin fecha de fabricación) se informa
+    // en una nota, nunca se reparte en otra serie.
 
-        const chart = new Chart(ctx, {
-            type: "line",
+    static SERIES_EVOLUCION = [
+        { tipo: "cuarentena", label: "Cuarentena Interna", color: "#2563EB" },
+        { tipo: "rechazo cliente", label: "Rechazo Cliente", color: "#C0364B" },
+        { tipo: "reclamo", label: "Reclamo (Sin Devolución)", color: "#E07B39" },
+    ];
+
+    static MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+    // Todo Data, sin filtro de fecha. null si alguna página falla (nunca un gráfico con datos parciales).
+    async _traerDataCompleta() {
+        const pageSize = 500;
+        const items = [];
+        let total = Infinity;
+        for (let page = 1; items.length < total && page <= 200; page++) {
+            const res = await window.PhotinoBridge.send({ action: "faret.data.list", page, pageSize }).catch(() => null);
+            if (!res || !res.ok) return null;
+            const lote = Array.isArray(res.data?.items) ? res.data.items : [];
+            if (!lote.length) break;
+            items.push(...lote);
+            total = res.data.totalCount ?? items.length;
+        }
+        return items;
+    }
+
+    async _cargarEvolucionAsync() {
+        this._evol = undefined;
+        const items = await this._traerDataCompleta();
+        // El usuario pudo salir de Inicio mientras tanto.
+        if (!document.getElementById("fh-chart-evolucion-tipo")) return;
+        if (!items) {
+            this._evol = null;
+            this._renderEvolucion();
+            return;
+        }
+
+        const series = FaretController.SERIES_EVOLUCION;
+        const porAnio = {};
+        const otrosPorAnio = {};
+        let sinFecha = 0;
+        items.forEach(r => {
+            const tipo = String(r.tipoPnc || "").trim().toLowerCase();
+            const s = series.findIndex(x => x.tipo === tipo);
+            const fecha = this._fechaIso(r.fechaFabricacion);
+            if (s < 0) {
+                if (fecha) otrosPorAnio[fecha.slice(0, 4)] = (otrosPorAnio[fecha.slice(0, 4)] || 0) + 1;
+                return;
+            }
+            if (!fecha) { sinFecha++; return; }
+            const anio = fecha.slice(0, 4);
+            const mes = Number(fecha.slice(5, 7)) - 1;
+            porAnio[anio] = porAnio[anio] || series.map(() => Array(12).fill(0));
+            porAnio[anio][s][mes]++;
+        });
+
+        this._evol = { porAnio, otrosPorAnio, sinFecha };
+        const anios = Object.keys(porAnio).map(Number).sort((a, b) => b - a);
+        const actual = new Date().getFullYear();
+        if (!this._evolAnio || !anios.includes(this._evolAnio)) this._evolAnio = anios.includes(actual) ? actual : (anios[0] || null);
+
+        const select = document.getElementById("fh-evol-anio");
+        if (select) {
+            select.innerHTML = anios.length
+                ? anios.map(a => `<option value="${a}"${a === this._evolAnio ? " selected" : ""}>${a}</option>`).join("")
+                : `<option value="">Sin datos</option>`;
+            select.disabled = !anios.length;
+        }
+        this._renderEvolucion();
+    }
+
+    // Meses a mostrar: año en curso → Enero hasta el mes actual (o el último con datos, si hay
+    // fechas de fabricación posteriores); años anteriores → los 12 meses.
+    _datosEvolucion() {
+        const datos = this._evol?.porAnio?.[this._evolAnio];
+        if (!datos) return null;
+        const hoy = new Date();
+        let ultimo = this._evolAnio === hoy.getFullYear() ? hoy.getMonth() : 11;
+        for (let m = 11; m > ultimo; m--) if (datos.some(serie => serie[m] > 0)) { ultimo = m; break; }
+        const meses = FaretController.MESES.slice(0, ultimo + 1);
+        return { meses, valores: datos.map(serie => serie.slice(0, ultimo + 1)) };
+    }
+
+    _subtituloEvolucion() {
+        const d = this._datosEvolucion();
+        return d ? `Basado en fecha de fabricación real · ${d.meses[0]} a ${d.meses[d.meses.length - 1]} ${this._evolAnio}`
+            : "Basado en fecha de fabricación real";
+    }
+
+    _renderEvolucion() {
+        const canvas = document.getElementById("fh-chart-evolucion-tipo");
+        if (!canvas) return;
+
+        if (this._chartEvol) {
+            try { this._chartEvol.destroy(); } catch { /* ya destruido por _destroyCharts */ }
+            this._charts = this._charts.filter(ch => ch !== this._chartEvol);
+            this._chartEvol = null;
+        }
+
+        const nota = document.getElementById("fh-evol-nota");
+        this._setText("fh-evol-sub", this._subtituloEvolucion());
+        if (this._evol === undefined) { if (nota) nota.textContent = "Cargando registros de Data..."; return; }
+        if (this._evol === null) { if (nota) nota.textContent = "No se pudieron cargar los registros de Data. Reintenta más tarde."; return; }
+
+        const d = this._datosEvolucion();
+        if (nota) {
+            const partes = [];
+            const otros = this._evol.otrosPorAnio[String(this._evolAnio)] || 0;
+            if (otros) partes.push(`${otros} PNC de otros tipos (p. ej. "Rechazo") en ${this._evolAnio}`);
+            if (this._evol.sinFecha) partes.push(`${this._evol.sinFecha} PNC sin fecha de fabricación (todos los años)`);
+            nota.textContent = !d ? "Sin PNC con fecha de fabricación." : partes.length ? `No incluye: ${partes.join(" · ")}.` : "";
+        }
+        if (!d) return;
+
+        const series = FaretController.SERIES_EVOLUCION;
+        const fuente = px => window.ChartUtils.fuente(px);
+        // Total del mes sobre cada barra (Chart.js 3.9.1 no trae etiquetas de datos).
+        const totales = {
+            id: "fhTotalesApilados",
+            afterDatasetsDraw(chart) {
+                const { ctx } = chart;
+                chart.data.labels.forEach((_, j) => {
+                    let total = 0;
+                    let tope = null;
+                    chart.data.datasets.forEach((ds, i) => {
+                        if (!chart.isDatasetVisible(i)) return;
+                        total += Number(ds.data[j] || 0);
+                        const el = chart.getDatasetMeta(i).data[j];
+                        if (el && (tope === null || el.y < tope.y)) tope = el;
+                    });
+                    if (!total || !tope) return;
+                    ctx.save();
+                    ctx.font = `700 ${fuente(12)}px "Segoe UI", Arial, sans-serif`;
+                    ctx.fillStyle = "#0F172A";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "bottom";
+                    ctx.fillText(String(total), tope.x, tope.y - 4);
+                    ctx.restore();
+                });
+            },
+        };
+
+        this._chartEvol = new Chart(canvas, {
+            type: "bar",
             data: {
-                labels: rows.map(r => r[labelKey] || "-"),
-                datasets: [{
-                    label,
-                    data: rows.map(r => Number(r[valueKey] || 0)),
-                    borderColor: "#65a30d",
-                    backgroundColor: "rgba(101, 163, 13, 0.12)",
-                    pointBackgroundColor: "#65a30d",
-                    pointRadius: 2,
-                    tension: 0.35,
-                    fill: true,
-                }],
+                labels: d.meses,
+                datasets: series.map((s, i) => ({
+                    label: s.label,
+                    data: d.valores[i],
+                    backgroundColor: s.color,
+                    hoverBackgroundColor: s.color,
+                    borderRadius: i === series.length - 1 ? { topLeft: 6, topRight: 6 } : 0,
+                    borderSkipped: false,
+                    barPercentage: 0.72,
+                    categoryPercentage: 0.85,
+                })),
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true }, x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+                layout: { padding: { top: 22 } },
+                interaction: { mode: "index", intersect: false },
+                plugins: {
+                    legend: { position: "top", align: "end", labels: { boxWidth: 12, boxHeight: 12, font: { size: fuente(11) } } },
+                    tooltip: {
+                        callbacks: {
+                            footer: items => `Total: ${items.reduce((a, it) => a + Number(it.raw || 0), 0)}`,
+                        },
+                    },
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: { font: { size: fuente(11), weight: "600" }, maxRotation: 0, autoSkip: false } },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        grace: "8%",
+                        ticks: { precision: 0, font: { size: fuente(10) } },
+                        grid: { color: "#E2E8F0" },
+                        title: { display: true, text: "Cantidad de eventos (NC)", font: { size: fuente(11), weight: "600" }, color: "#475569" },
+                    },
+                },
             },
+            plugins: [totales],
         });
+        this._charts.push(this._chartEvol);
+    }
 
-        this._charts.push(chart);
+    _tablaEvolucion() {
+        const d = this._datosEvolucion();
+        if (!d) return null;
+        const series = FaretController.SERIES_EVOLUCION;
+        const filas = d.meses.map((m, j) => {
+            const v = d.valores.map(serie => serie[j]);
+            return [m, ...v, v.reduce((a, b) => a + b, 0)];
+        });
+        const totales = series.map((_, i) => d.valores[i].reduce((a, b) => a + b, 0));
+        filas.push(["Total", ...totales, totales.reduce((a, b) => a + b, 0)]);
+        return { columnas: ["Mes", ...series.map(s => s.label), "Total"], filas };
+    }
+
+    // ---------- Descarga de gráficos en PDF ----------
+    // Botón "PDF" en el título de cada tarjeta con gráfico (se agrega por JS para no repetirlo en la
+    // vista) y "Descargar gráficos (PDF)" en la cabecera. Usa PrintExporter.printCharts.
+
+    _agregarBotonesPdf() {
+        document.querySelectorAll(".home-module .card").forEach(card => {
+            const titulo = card.querySelector(":scope > .module-title");
+            if (!card.querySelector("canvas") || !titulo || titulo.querySelector(".fh-pdf-btn")) return;
+            const texto = titulo.textContent.trim();
+            titulo.textContent = "";
+            const span = document.createElement("span");
+            span.textContent = texto;
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn-secondary fh-pdf-btn";
+            btn.title = "Descargar este gráfico en PDF";
+            btn.textContent = "PDF";
+            btn.addEventListener("click", e => { e.stopPropagation(); this._pdfGraficos([card]); });
+            titulo.classList.add("fh-card-titulo");
+            titulo.append(span, btn);
+        });
+    }
+
+    _subtituloGrafico(canvasId) {
+        const periodo = document.getElementById("fh-periodo-calidad");
+        const textoPeriodo = periodo?.selectedOptions?.[0]?.textContent?.trim();
+        const calidad = ["fh-chart-nc-severidad", "fh-chart-cuarentenas-mes", "fh-chart-rechazos-cliente-mes",
+            "fh-chart-incidentes-area", "fh-chart-incidentes-familia", "fh-chart-pareto-defectos"];
+        if (canvasId === "fh-chart-evolucion-tipo") return this._subtituloEvolucion();
+        if (calidad.includes(canvasId) && textoPeriodo) return `Período: ${textoPeriodo}`;
+        if (canvasId === "fh-chart-pt-comparacion" || canvasId === "fh-chart-top-clientes") return "Período: mes actual";
+        return "";
+    }
+
+    _pdfGraficos(cards) {
+        const graficos = cards
+            .map(card => {
+                const canvas = card.querySelector("canvas");
+                // Solo gráficos ya dibujados (uno que aún carga saldría en blanco).
+                if (!canvas || !window.Chart?.getChart?.(canvas)) return null;
+                const titulo = card.querySelector(":scope > .module-title span")?.textContent?.trim()
+                    || card.querySelector(":scope > .module-title")?.textContent?.trim() || "Gráfico";
+                return {
+                    titulo,
+                    subtitulo: this._subtituloGrafico(canvas.id),
+                    canvas,
+                    tabla: canvas.id === "fh-chart-evolucion-tipo" ? this._tablaEvolucion() : null,
+                };
+            })
+            .filter(Boolean);
+        if (!graficos.length) return;
+
+        const unico = graficos.length === 1;
+        window.PrintExporter.printCharts({
+            empresa: "FARET",
+            titulo: unico ? graficos[0].titulo : "Panel Faret — Gráficos",
+            subtitulo: unico ? "Panel Faret · Inicio" : `Panel Faret · Inicio · ${graficos.length} gráficos`,
+            graficos,
+        });
     }
 
     _renderIndicadoresCalidad(ind) {
@@ -489,7 +972,6 @@ window.FaretController = class FaretController {
         this._setText("fh-kpi-reclamos-total", this._numero(ind.totalReclamos));
 
         this._chartBarHorizontal("fh-chart-nc-severidad", ind.porNivel || [], "categoria", "total", "PNC");
-        this._chartLine("fh-chart-tendencia-nc", ind.tendenciaPnc30Dias || [], "fecha", "total", "PNC");
 
         const seriesRecuperadoDestruido = [
             { key: "recuperados", label: "Recuperados", color: "#22c55e" },

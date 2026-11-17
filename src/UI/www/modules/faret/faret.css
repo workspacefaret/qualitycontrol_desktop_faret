@@ -211,3 +211,15 @@
 .fie-chk-resp .fie-obs { grid-column: 1 / -1; }
 .fie-chk-resp { font-size: 13px; color: #1E293B; }
 .fie-chk-resp select, .fie-chk-resp input[type="text"] { box-sizing: border-box; width: 100%; padding: 6px 8px; border: 1px solid #CBD5E1; border-radius: 6px; font: inherit; font-size: 12.5px; }
+
+/* Inicio Faret: botón "PDF" por gráfico, acciones de la cabecera y gráfico de evolución mensual por tipo de PNC.
+   Todo con prefijo fh- (exclusivo de Inicio Faret); no toca .home-module/.card, que comparte el Inicio INNPACK. */
+.fh-header-acciones { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.fh-card-titulo { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.fh-pdf-btn { flex-shrink: 0; padding: 3px 10px; font-size: 11px; font-weight: 700; line-height: 1.4; border-radius: 6px; letter-spacing: .03em; }
+.fh-evol-barra { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 2px; }
+.fh-evol-sub { font-size: 12px; color: #64748B; }
+.fh-evol-barra select { width: auto; min-width: 90px; height: 30px; padding: 2px 8px; font-size: 12px; }
+.fh-evol-nota { margin-top: 6px; font-size: 11px; color: #94A3B8; min-height: 14px; }
+.home-module #fh-chart-evolucion-tipo { height: 300px !important; }
+.home-module.faret-planta #fh-chart-evolucion-tipo { height: 400px !important; }

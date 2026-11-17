@@ -5,7 +5,10 @@
             <div class="module-title">Panel Faret</div>
             <div class="subtitle">Resumen general del sistema</div>
         </div>
-        <button id="fh-planta-btn" class="btn-secondary">Modo planta</button>
+        <div class="fh-header-acciones">
+            <button id="fh-pdf-todos-btn" class="btn-secondary" title="Descargar todos los gráficos del panel en PDF">Descargar gráficos (PDF)</button>
+            <button id="fh-planta-btn" class="btn-secondary">Modo planta</button>
+        </div>
     </div>
 
     <!-- KPIs SUPERIORES -->
@@ -84,8 +87,15 @@
     <div class="home-bottom">
 
         <div class="card">
-            <div class="module-title">Tendencia PNC últimos 30 días</div>
-            <canvas id="fh-chart-tendencia-nc"></canvas>
+            <div class="module-title">Evolución mensual de No Conformidades por tipo de PNC</div>
+            <div class="fh-evol-barra">
+                <div id="fh-evol-sub" class="fh-evol-sub">Basado en fecha de fabricación real</div>
+                <select id="fh-evol-anio" title="Año de fabricación" disabled>
+                    <option value="">Cargando...</option>
+                </select>
+            </div>
+            <canvas id="fh-chart-evolucion-tipo"></canvas>
+            <div id="fh-evol-nota" class="fh-evol-nota"></div>
         </div>
 
         <div class="card">
