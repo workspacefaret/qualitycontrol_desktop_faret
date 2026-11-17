@@ -3,18 +3,26 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.34";
+    const ID = "1.8.35";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
         {
-            titulo: "Laboratorio - Muestras",
-            icono: '<path d="M9 3h6M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3M7.5 15h9"/>',
+            titulo: "Inicio: alertas y gráficos",
+            icono: '<path d="M3 3v18h18M7 15l4-4 3 3 5-6"/>',
             puntos: [
-                { solo: "INNPACK", t: "La columna \"Ítem / Artículo\" de Registros y Ver muestra ahora muestra solo el ítem que se eligió al crear la muestra (el del registro FPS), con su número de artículo de la nota de venta INNPACK." },
-                { solo: "INNPACK", t: "Las muestras creadas sin registro FPS muestran \"-\": no se adivina a qué ítem corresponden." },
-                { solo: "INNPACK", t: "\"Generar informe\" tiene un diseño nuevo: cabecera con estado y evaluación, resumen de ensayos, bloque de trazabilidad (NP, nota de venta, orden, proceso FPS, ítem y artículo SAP) y letra que se ajusta cuando hay mucho texto." },
+                { solo: "FARET", t: "Las alertas activas se administran desde el mismo Inicio: botón \"Administrar\" para marcarlas como validadas por 1, 7 o 30 días (se ocultan solo para ti) y \"Ver ocultas\" para reactivarlas." },
+                { solo: "FARET", t: "Las alertas de documentación tienen \"Marcar validada\" y muestran la fecha de la última validación." },
+                { solo: "FARET", t: "Nuevo gráfico \"Evolución mensual de No Conformidades por tipo de PNC\" (por fecha de fabricación) y todos los gráficos se pueden descargar en PDF con la fecha de generación." },
+            ],
+        },
+        {
+            titulo: "Inspecciones y Control Documental",
+            icono: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M9 14h6M9 17h4"/>',
+            puntos: [
+                { solo: "FARET", t: "Inspecciones Calidad ya no muestra las columnas \"Criticidad máx.\" y \"Última edición\", tampoco en Excel ni PDF." },
+                { t: "Control Documental: al crear o editar un documento, un código repetido, un campo vacío o un texto demasiado largo ahora muestran un mensaje claro en vez de \"Error interno del servidor\"." },
             ],
         },
     ];
