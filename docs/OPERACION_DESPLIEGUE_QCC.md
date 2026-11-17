@@ -66,7 +66,7 @@ Gotchas: `qcc_innpack_api_sql` tiene permisos **por objeto** (toda tabla nueva n
 
 ## 6. API INNPACK (SRV-API)
 
-1. **Staging fuera del repo** (SDK 9.0.318; con otra versión el DLL cambia):
+1. **Staging fuera del repo** (usar el MISMO SDK del último deploy: desde el 13-11-2026 es 10.0.404; antes 9.0.318. Verificar comparando metadatos contra el DLL productivo):
    `dotnet publish QualityControlInnpack.Api/QualityControlInnpack.Api.csproj -c Release -o <carpeta fuera del repo>`
    Solo se despliegan `QualityControlInnpack.Api.dll` y `.pdb`. No `.exe`, `web.config`, `appsettings*`, `*.rdlc`.
 2. **Fase A (sin impacto):** crear `C:\API WEB\_backups\innpack_pre_<motivo>_<ts>` y `...\nuevo\`; copiar dll/pdb productivos a la carpeta de respaldo y comparar hash; subir los nuevos a `nuevo\` con `Copy-Item -Path <staging>\<archivo> -Destination <...\nuevo\archivo> -ToSession $s` y verificar hash = staging. (No usar `-Force` sobre `C:\API WEB`: el guardián local lo bloquea.)
