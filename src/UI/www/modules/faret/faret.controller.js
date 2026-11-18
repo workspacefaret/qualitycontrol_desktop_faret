@@ -415,8 +415,22 @@ window.FaretController = class FaretController {
         return `${n} documento${s} con revisión vencida`;
     }
 
+    // Notificación breve propia (no existe un toast global en la app).
+    _toastExito(texto) {
+        try {
+            const t = document.createElement("div");
+            t.className = "fh-toast-exito";
+            t.setAttribute("role", "status");
+            t.textContent = texto;
+            t.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:10000;background:#065F46;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.25);";
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 3500);
+        } catch { /* sin notificación */ }
+    }
+
     async _alMarcar(items) {
         const fallos = await this._marcarAtendidas(items);
+        if (!fallos && items.length) this._toastExito("Alerta marcada como atendida correctamente");
         if (fallos) alert(`No se pudo registrar ${fallos} alerta${fallos === 1 ? "" : "s"} como atendida${fallos === 1 ? "" : "s"}. ${this._errorMarcar || "Reintenta en unos minutos."}`);
         this._renderAlertas();
     }
@@ -471,20 +485,16 @@ window.FaretController = class FaretController {
                 ? `<div class="alert-item"><div>Cargando alertas...</div></div>`
                 : fallidas
                     ? ""
-                    : `<div class="alert-ok">✔ No hay alertas pendientes</div>`;
+                    : "";
         }
         if (fallidas && !pendientes) {
             html += `<div class="alert-item"><div style="opacity:.7;font-size:12px;">No se pudieron calcular ${fallidas} aviso${fallidas === 1 ? "" : "s"}. Reintenta más tarde.</div></div>`;
         }
-        if (this._atendidas === null) {
-            html += `<div class="alert-item"><div style="opacity:.7;font-size:12px;">No se pudo leer el registro de alertas atendidas: se muestran todas.</div></div>`;
-        }
-        // Historial global: solo un acceso discreto (sin texto de aviso dentro de la lista de pendientes).
-        if (totalAtendidos) {
-            html += `<div style="text-align:right;margin-top:8px;"><button type="button" class="btn-secondary fh-alerta-ocultas" style="padding:2px 10px;font-size:12px;">Ver atendidas (${totalAtendidos})</button></div>`;
-        }
 
         container.innerHTML = html;
+        // Sin alertas activas el bloque completo se oculta (las atendidas no se muestran en Inicio bajo ninguna forma).
+        const tarjeta = container.closest(".card");
+        if (tarjeta) tarjeta.style.display = html.trim() ? "" : "none";
         // Los "Ver"/"Revisar" de arriba en el listado reutilizan los cargados desde `this._alertas`.
         const cargarUnicoItem = key => [this._alertas.pnc, this._alertas.nci, this._alertas.doc]
             .flatMap(f => (f && f !== "error" ? f.items : [])).filter(i => i.key === key);
@@ -492,8 +502,6 @@ window.FaretController = class FaretController {
             btn.addEventListener("click", () => window.App?.loadModule?.(btn.dataset.modulo)));
         container.querySelectorAll(".fh-alerta-administrar").forEach(btn =>
             btn.addEventListener("click", () => this._abrirModalAlerta(btn.dataset.tipo)));
-        container.querySelector(".fh-alerta-ocultas")
-            ?.addEventListener("click", () => this._abrirModalAlerta(null));
         container.querySelectorAll(".fh-alerta-atender").forEach(btn =>
             btn.addEventListener("click", () => { btn.disabled = true; this._alMarcar(cargarUnicoItem(btn.dataset.key)); }));
         container.querySelectorAll(".fh-alerta-revisar").forEach(btn =>
@@ -519,6 +527,7 @@ window.FaretController = class FaretController {
         this._cerrarModalAlerta();
         const a = this._alertas || {};
         const fuentes = [a.pnc, a.nci, a.doc].filter(x => x && x !== "error" && (!tipo || x.tipo === tipo));
+        if (!tipo) return; // Inicio no muestra alertas atendidas bajo ninguna forma
         const modo = tipo ? "pendientes" : "atendidas";
         const puedeMarcar = this._puedeMarcar(tipo);
 
@@ -545,10 +554,6 @@ window.FaretController = class FaretController {
             if (!mostrar.length && !(modo === "pendientes" && revisados.length)) return;
             cuerpo += `<div style="font-weight:700;margin:12px 0 4px;">${this._escape(f.nombre)}</div>`;
             cuerpo += mostrar.map(i => fila(i, modo === "atendidas")).join("");
-            if (modo === "pendientes" && revisados.length) {
-                cuerpo += `<div style="font-size:12px;opacity:.7;margin-top:6px;">${revisados.length} más ya atendida${revisados.length === 1 ? "" : "s"}
-                    · <button type="button" class="btn-secondary fh-am-ver-ocultas" style="padding:2px 8px;font-size:12px;">Ver atendidas</button></div>`;
-            }
         });
         if (!cuerpo || (modo === "pendientes" && !hayPendientes)) return;
 
@@ -591,8 +596,6 @@ window.FaretController = class FaretController {
 
         overlay.querySelectorAll(".fh-am-uno").forEach(btn =>
             btn.addEventListener("click", () => marcar(porClave(btn.dataset.key))));
-        overlay.querySelectorAll(".fh-am-ver-ocultas").forEach(btn =>
-            btn.addEventListener("click", () => this._abrirModalAlerta(null)));
         overlay.querySelector("#fh-am-seleccionadas")?.addEventListener("click", () => {
             const items = [...overlay.querySelectorAll(".fh-am-check:checked")].flatMap(c => porClave(c.dataset.key));
             marcar(items);

@@ -1,7 +1,7 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>harness alertas</title></head>
 <body>
-<div id="fh-alertas-activas"></div>
+<div class="card" id="fh-card"><div id="fh-alertas-activas"></div></div>
 <pre id="out">PENDIENTE</pre>
 <script src="file:///C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/UI/www/shared/utils.js"></script>
 <script src="file:///C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/UI/www/modules/faret/faret.controller.js"></script>
@@ -75,15 +75,15 @@ const botones = sel => document.querySelectorAll("#fh-alertas-activas " + sel).l
     await esperar(50);
     ok("tras marcar: queda 1 documento pendiente", /1 documento con revisión vencida/.test(txt()), txt());
     ok("el cuerpo lleva tipo/registro/huella y NO el usuario", servidor.marcarCuerpos.length === 1 && servidor.marcarCuerpos[0].tipoAlerta === "doc" && servidor.marcarCuerpos[0].registroId === "11" && servidor.marcarCuerpos[0].huella === "v5|" + ayer && servidor.marcarCuerpos[0].atendidaPor === undefined, JSON.stringify(servidor.marcarCuerpos));
-    ok("acceso Ver atendidas con conteo", /Ver atendidas \(1\)/.test(txt()), txt());
+    ok("tras marcar NO hay boton/contador/mensaje de atendidas", botones(".fh-alerta-ocultas") === 0 && !/atendida/i.test(txt().replace(/Marcar atendida/g, "")), txt());
 
     // 2. Usuario B (otra sesión, mismo servidor) NO la ve como pendiente y ve quién la atendió
     let B = usuario("beto");
     await B._cargarAlertasAsync();
     ok("B no ve PRO-1 pendiente (1 documento)", /1 documento con revisión vencida/.test(txt()), txt());
     B._abrirModalAlerta(null);
-    const modal = document.getElementById("fh-alerta-modal").innerText.replace(/\s+/g, " ");
-    ok("modal 'atendidas' muestra quién y cuándo", /PRO-1/.test(modal) && /Atendida por ana el 18-11-2026/.test(modal), modal);
+    ok("el modal de atendidas ya no existe", !document.getElementById("fh-alerta-modal"));
+
     B._cerrarModalAlerta();
 
     // 3. Idempotencia: B marca la misma (ya atendida) -> no se duplica en el servidor
@@ -125,7 +125,7 @@ const botones = sel => document.querySelectorAll("#fh-alertas-activas " + sel).l
     servidor.caeLista = true;
     let UEDIT_VERDOC = usuario("gina"); await UEDIT_VERDOC._cargarAlertasAsync();
     ok("lista caída: se muestran TODAS", /1 PNC crítica/.test(txt()) && /1 NC interna/.test(txt()) && /2 documentos/.test(txt()), txt());
-    ok("lista caída: avisa del problema", /No se pudo leer el registro de alertas atendidas/.test(txt()), txt());
+    ok("lista caida: sin ningun mensaje sobre atendidas", !/atendida/i.test(txt().replace(/Marcar atendida/g, "")), txt());
     servidor.caeLista = false;
 
     // 8. Marcar falla: la alerta sigue pendiente y se avisa al usuario
@@ -149,7 +149,7 @@ const botones = sel => document.querySelectorAll("#fh-alertas-activas " + sel).l
     document.getElementById("fh-am-todas").click();
     await esperar(120);
     ok("marcar todas: 2 marcas y 1 relectura", servidor.llamadasMarcar === 2 && servidor.llamadasList === 1, servidor.llamadasMarcar + "/" + servidor.llamadasList);
-    ok("tras marcar todas los documentos desaparecen", !/documento/.test(txt().replace(/Ver atendidas/, "")) || /atendida/.test(txt()), txt());
+    ok("tras marcar todas los documentos desaparecen", !/documento/.test(txt()), txt());
 
     // 11. Sin localStorage de alertas (ya no se usa)
     ok("no queda uso de localStorage de alertas", Object.keys(localStorage).every(k => !k.startsWith("lcc_faret_alertas")));
@@ -159,10 +159,11 @@ const botones = sel => document.querySelectorAll("#fh-alertas-activas " + sel).l
     const antesBtn = botones(".fh-alerta-atender");
     ok("hay pendientes con boton antes de marcar", antesBtn > 0 && /documentos con revisi/.test(txt()), txt());
     await VH._marcarAtendidas(VH._alertas.doc.items); VH._renderAlertas();
-    ok("tras marcar: ya no hay alerta de documentos", !/documento/.test(document.getElementById("fh-alertas-activas").innerText.replace(/Ver atendidas.*/s, "")), txt());
-    ok("sin texto residual de atendida en la lista", !/atendida\(s\)|registro compartido|alerta atendida/i.test(txt().replace(/Ver atendidas \(\d+\)/, "")), txt());
+    ok("tras marcar: ya no hay alerta de documentos", !/documento/.test(txt()), txt());
+    ok("sin texto residual de atendida en la lista", !/atendida|registro compartido/i.test(txt().replace(/Marcar atendida/g, "")), txt());
+    ok("toast de exito mostrado", [...document.querySelectorAll(".fh-toast-exito")].some(t => t.textContent === "Alerta marcada como atendida correctamente"));
     ok("sin filas rojas vacias", ![...document.querySelectorAll("#fh-alertas-activas .alert-item")].some(e => !e.innerText.trim()));
-    ok("historial accesible solo por Ver atendidas", botones(".fh-alerta-ocultas") === 1);
+    ok("no existe boton Ver atendidas ni contador", botones(".fh-alerta-ocultas") === 0 && !/Ver atendidas|\(\d+\)/.test(txt()) && !document.body.innerText.includes("Ver atendidas"));
     // relectura fallida: el estado local ya la sacó de pendientes
     const rlista = servidor.caeLista; servidor.caeLista = true; await VH._marcarAtendidas([]); VH._renderAlertas(); servidor.caeLista = rlista;
     ok("tras marcar con relectura caida sigue fuera de pendientes", !/documentos con revisi/.test(txt()), txt());
@@ -171,12 +172,12 @@ const botones = sel => document.querySelectorAll("#fh-alertas-activas " + sel).l
     ok("otro usuario no ve la de documentos al actualizar", !/documentos con revisi/.test(txt()), txt());
     // estado limpio cuando no queda nada pendiente
     await VI._marcarAtendidas([...VI._alertas.nci.items, ...VI._alertas.pnc.items]); VI._renderAlertas();
-    ok("estado limpio: No hay alertas pendientes", /No hay alertas pendientes/.test(txt()), txt());
+    ok("sin alertas activas: bloque completo oculto", document.getElementById("fh-card").style.display === "none" && txt() === "", txt());
     ok("estado limpio sin conteo de pendientes ni botones atender", botones(".fh-alerta-atender") === 0 && !/pendiente.*\d+ (PNC|NC|documento)/.test(txt()));
     // huella cambia -> vuelve a pendiente y el estado limpio desaparece
     servidor.docs[0].versionVigenteId = 9;
     let VJ = usuario("juan"); await VJ._cargarAlertasAsync();
-    ok("huella cambiada: reaparece pendiente", /documentos? con revisi|1 documento/.test(txt()) && !/No hay alertas pendientes/.test(txt()), txt());
+    ok("huella cambiada: reaparece pendiente y el bloque vuelve", /documento/.test(txt()) && document.getElementById("fh-card").style.display !== "none", txt());
 
   } catch (e) { res.push("FAIL excepción: " + e.stack); }
   document.getElementById("out").textContent = res.join("\n") + "\nTOTAL " + res.filter(x => x.startsWith("PASS")).length + " PASS / " + res.filter(x => x.startsWith("FAIL")).length + " FAIL";
