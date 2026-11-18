@@ -353,14 +353,17 @@ window.FaretController = class FaretController {
         this._marcando = true;
         let fallos = 0;
         try {
-            const por = String(sessionStorage.getItem("faretNombreUsuario") || "").trim();
+            this._errorMarcar = "";
             for (const i of items) {
                 const [tipo, ...resto] = i.key.split(":");
                 const res = await window.PhotinoBridge.send({
                     action: "alertasAtendidas.marcar",
-                    data: { tipoAlerta: tipo, registroId: resto.join(":"), huella: i.huella, atendidaPor: por },
+                    data: { tipoAlerta: tipo, registroId: resto.join(":"), huella: i.huella },
                 }).catch(() => null);
-                if (!res?.ok) fallos++;
+                if (!res?.ok) {
+                    fallos++;
+                    if (!this._errorMarcar && res?.error) this._errorMarcar = String(res.error);
+                }
             }
             const nuevo = await this._cargarAtendidas();
             if (nuevo) this._atendidas = nuevo;
@@ -405,7 +408,7 @@ window.FaretController = class FaretController {
 
     async _alMarcar(items) {
         const fallos = await this._marcarAtendidas(items);
-        if (fallos) alert(`No se pudo registrar ${fallos} alerta${fallos === 1 ? "" : "s"} como atendida${fallos === 1 ? "" : "s"}. Reintenta en unos minutos.`);
+        if (fallos) alert(`No se pudo registrar ${fallos} alerta${fallos === 1 ? "" : "s"} como atendida${fallos === 1 ? "" : "s"}. ${this._errorMarcar || "Reintenta en unos minutos."}`);
         this._renderAlertas();
     }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
+using QualityControlCenter.Backend.Services.FaretApi;
 using QualityControlCenter.Backend.Services.InnpackApi;
 
 namespace QualityControlCenter.Modules.AlertasAtendidas
@@ -9,7 +10,9 @@ namespace QualityControlCenter.Modules.AlertasAtendidas
     // Alertas globales (Inicio Faret): registro central de alertas atendidas en api/alertas-atendidas de la API INNPACK
     // (tabla alertas_atendidas). Passthrough delgado: la API guarda quién/cuándo/qué huella y es idempotente. Marcar una
     // alerta NUNCA modifica el registro de negocio (no cierra NC, no aprueba documentos). `atendidaPor` lo informa el
-    // frontend (usuario real de la sesión Faret, igual que creadoPor/actualizadoPor); la API usa el JWT si no viene.
+    // NO se envía: la API verifica la identidad real. En sesión Faret se reenvía el JWT del usuario en X-Faret-User-Token
+    // (la API lo valida contra la API Faret y exige EDITAR sobre el módulo de la alerta); en sesión INNPACK basta el JWT propio.
+    // La empresa sale de la SESIÓN, nunca del frontend.
     public class AlertasAtendidasHandler
     {
         private const string Base = "api/alertas-atendidas";
@@ -17,23 +20,30 @@ namespace QualityControlCenter.Modules.AlertasAtendidas
         private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         private readonly InnpackApiClient _client;
+        private readonly FaretApiClient _faret;
+        private readonly string _empresa;
 
-        public AlertasAtendidasHandler(InnpackApiClient client)
+        public AlertasAtendidasHandler(InnpackApiClient client, FaretApiClient faret, string? empresa)
         {
             _client = client;
+            _faret = faret;
+            _empresa = (empresa ?? "").ToUpperInvariant();
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
         {
             try
             {
+                if (_empresa != "FARET" && _empresa != "INNPACK")
+                    return Error("Sesión no válida: inicia sesión nuevamente.");
                 var d = data.TryGetValue("data", out var raw) && raw is JsonElement e ? e : default;
                 switch (action)
                 {
                     case "alertasAtendidas.list":
                     {
                         var tipos = GetString(d, "tipos");
-                        var (ok, body) = await _client.GetAsync(tipos.Length > 0 ? $"{Base}?tipos={Uri.EscapeDataString(tipos)}" : Base);
+                        var url = $"{Base}?empresa={_empresa}" + (tipos.Length > 0 ? $"&tipos={Uri.EscapeDataString(tipos)}" : "");
+                        var (ok, body) = await _client.GetAsync(url);
                         return Forward(ok, body);
                     }
                     case "alertasAtendidas.marcar":
@@ -49,10 +59,15 @@ namespace QualityControlCenter.Modules.AlertasAtendidas
                             ["registroId"] = GetString(d, "registroId"),
                             ["huella"] = GetString(d, "huella"),
                         };
-                        var por = GetString(d, "atendidaPor");
-                        if (por.Length > 0)
-                            cuerpo["atendidaPor"] = por;
-                        var (ok, body) = await _client.PostJsonAsync(Base, cuerpo);
+                        IReadOnlyDictionary<string, string>? cab = null;
+                        if (_empresa == "FARET")
+                        {
+                            var tok = _faret.CurrentToken;
+                            if (string.IsNullOrEmpty(tok))
+                                return Error("Sesión Faret expirada. Vuelve a iniciar sesión.");
+                            cab = new Dictionary<string, string> { ["X-Faret-User-Token"] = tok };
+                        }
+                        var (ok, body) = await _client.PostJsonAsync(Base, cuerpo, cab);
                         return Forward(ok, body);
                     }
                     default:

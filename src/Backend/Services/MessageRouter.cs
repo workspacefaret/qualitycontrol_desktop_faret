@@ -251,7 +251,7 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("alertasAtendidas"))
                 {
-                    var handler = new AlertasAtendidasHandler(_innpackClient);
+                    var handler = new AlertasAtendidasHandler(_innpackClient, _faretClient, _permisos.Empresa);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("calidadNp"))

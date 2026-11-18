@@ -152,7 +152,7 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             }
         }
 
-        public async Task<(bool ok, string body)> GetAsync(string path)
+        public async Task<(bool ok, string body)> GetAsync(string path, IReadOnlyDictionary<string, string>? headers = null)
         {
             await EnsureAuthenticatedAsync(path);
 
@@ -160,7 +160,11 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             Console.WriteLine($"[InnpackApi] GET  {url}");
             try
             {
-                var response = await _http.GetAsync(url);
+                var getReq = new HttpRequestMessage(HttpMethod.Get, url);
+                if (headers != null)
+                    foreach (var h in headers)
+                        getReq.Headers.TryAddWithoutValidation(h.Key, h.Value);
+                var response = await _http.SendAsync(getReq);
                 var body = await response.Content.ReadAsStringAsync();
                 var status = (int)response.StatusCode;
                 Console.WriteLine($"[InnpackApi] GET  {url} → {status}");
@@ -189,8 +193,8 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             }
         }
 
-        public Task<(bool ok, string body)> PostJsonAsync(string path, object payload) =>
-            Discard(SendJsonAsync(HttpMethod.Post, path, payload));
+        public Task<(bool ok, string body)> PostJsonAsync(string path, object payload, IReadOnlyDictionary<string, string>? headers = null) =>
+            Discard(SendJsonAsync(HttpMethod.Post, path, payload, headers));
 
         public Task<(bool ok, string body)> PutJsonAsync(string path, object payload) =>
             Discard(SendJsonAsync(HttpMethod.Put, path, payload));
@@ -213,7 +217,7 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             return (status >= 200 && status < 300, body);
         }
 
-        private async Task<(int status, string body)> SendJsonAsync(HttpMethod method, string path, object payload)
+        private async Task<(int status, string body)> SendJsonAsync(HttpMethod method, string path, object payload, IReadOnlyDictionary<string, string>? headers = null)
         {
             await EnsureAuthenticatedAsync(path);
 
@@ -224,6 +228,9 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
                 var json = JsonSerializer.Serialize(payload, _jsonOpts);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var request = new HttpRequestMessage(method, url) { Content = content };
+                if (headers != null)
+                    foreach (var h in headers)
+                        request.Headers.TryAddWithoutValidation(h.Key, h.Value);
 
                 var response = await _http.SendAsync(request);
                 var body = await response.Content.ReadAsStringAsync();
