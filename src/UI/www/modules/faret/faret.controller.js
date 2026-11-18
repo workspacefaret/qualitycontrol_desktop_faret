@@ -194,7 +194,7 @@ window.FaretController = class FaretController {
     // 1) PNC críticas pendientes (sin límite de antigüedad), 2) NC internas abiertas > 15 días,
     // 3) documentos con revisión vencida. Cada una solo si el usuario tiene acceso a su módulo.
     // this._alertas = { pnc, nci, doc }: { tipo, modulo, nombre, items } | null (omitida, sin acceso)
-    // | "error". Cada usuario puede dar registros por revisados desde "Administrar" (se ocultan N días).
+    // | "error". Los registros atendidos (registro central en la API) dejan de contarse para todos mientras no cambie su huella.
 
     _puedeVer(modulo) {
         return !window.App?.nivelModulo || window.App.nivelModulo(modulo) !== "SIN_ACCESO";
@@ -247,6 +247,8 @@ window.FaretController = class FaretController {
                 detalle: [c.npNv && `NP/NV ${c.npNv}`, c.cliente, c.tipoPnc].filter(Boolean).join(" · "),
                 dias: this._haceDias(c.fechaIngreso),
                 sinGestion: c.estadoGestion === "SIN_GESTION",
+                // Huella: estado de gestión + nivel de Data. Si cambia alguno, la alerta vuelve a requerir atención.
+                huella: `${c.estadoGestion || ""}|${c.nivel || ""}`,
             }));
         return { tipo: "pnc", modulo: "faret-nc", nombre: "PNC críticas pendientes", items };
     }
@@ -269,6 +271,8 @@ window.FaretController = class FaretController {
                 detalle: [nc.area, nc.categoriaDefecto && (window.NciTipoDesviacion?.etiqueta(nc.categoriaDefecto) ?? nc.categoriaDefecto)]
                     .filter(Boolean).join(" · "),
                 dias: this._haceDias(this._fechaIso(nc.fechaDeteccion)),
+                // Huella: estado de gestión + fecha de detección (condición que la dispara).
+                huella: `${String(nc.estadoGestion || "").toUpperCase()}|${this._fechaIso(nc.fechaDeteccion)}`,
             }));
         return { tipo: "nci", modulo: "faret-nc-internas", nombre: "NC internas abiertas hace más de 15 días", items };
     }
@@ -287,11 +291,13 @@ window.FaretController = class FaretController {
                 String(d.estado || "").toUpperCase() !== "OBSOLETO"
                 && this._fechaIso(d.versionProximaRevision) !== null
                 && this._fechaIso(d.versionProximaRevision) < hoy)
-            .map(d => ({ id: d.id, codigo: d.codigoBase || "-", nombre: d.nombre || "", fecha: this._fechaIso(d.versionProximaRevision) }))
+            .map(d => ({ id: d.id, codigo: d.codigoBase || "-", nombre: d.nombre || "", fecha: this._fechaIso(d.versionProximaRevision), versionId: d.versionVigenteId }))
             .sort((a, b) => a.fecha.localeCompare(b.fecha))
             .map(f => ({
                 ...f,
                 key: `doc:${f.id}`,
+                // Huella: versión vigente + próxima revisión. Una versión nueva o una fecha nueva rearman la alerta.
+                huella: `v${f.versionId ?? ""}|${f.fecha}`,
                 titulo: f.codigo,
                 detalle: `${f.nombre ? `${f.nombre} · ` : ""}vencido el ${window.DateUtils.formatear(f.fecha)}`,
                 dias: this._haceDias(f.fecha),
@@ -301,94 +307,87 @@ window.FaretController = class FaretController {
 
     async _cargarAlertasAsync() {
         this._alertas = { pnc: this._alertaPnc(), nci: undefined, doc: undefined };
+        this._atendidas = undefined; // aún no se conoce el registro central: no se dibuja nada parcial
         this._renderAlertas();
 
         const seguro = fn => fn().catch(() => "error");
-        const [nci, doc] = await Promise.all([seguro(() => this._alertaNcInternas()), seguro(() => this._alertaDocumentos())]);
+        const [nci, doc, atendidas] = await Promise.all([
+            seguro(() => this._alertaNcInternas()),
+            seguro(() => this._alertaDocumentos()),
+            this._cargarAtendidas().catch(() => null),
+        ]);
         // El usuario pudo salir de Inicio mientras tanto.
         if (!document.getElementById("fh-alertas-activas")) return;
         this._alertas.nci = nci;
         this._alertas.doc = doc;
+        this._atendidas = atendidas;
         this._renderAlertas();
     }
 
-    // ---------- Registros revisados (silenciados) por el usuario ----------
-    // Solo silencia la vista de ESTE usuario en ESTE equipo (localStorage): no modifica ningún dato.
-    // Cada registro se silencia por N días; vuelve solo al vencer, y un registro nuevo que cumpla la
-    // condición siempre aparece. Si localStorage falla, las alertas se muestran igual que siempre.
+    // ---------- Alertas atendidas: registro CENTRAL, visible para todos los usuarios ----------
+    // "Marcar atendida" se guarda en la API (alertasAtendidas.marcar: quién, cuándo, qué registro y qué huella). No modifica
+    // el registro de negocio (no cierra NC ni aprueba documentos). Una alerta atendida deja de contarse para TODOS mientras
+    // su huella (la condición que la dispara) no cambie; si cambia (otra versión, otro estado, otra fecha), vuelve sola.
+    // Si la lectura falla (this._atendidas === null) se muestran todas: nunca se oculta una alerta por un error.
 
-    _claveRevisadas() {
-        const usuario = String(sessionStorage.getItem("faretNombreUsuario") || "anonimo").trim().toLowerCase();
-        return `lcc_faret_alertas_revisadas_${usuario}`;
+    _claveAtencion(i) {
+        return `${i.key}|${i.huella}`;
     }
 
-    // { "pnc:123": vencimientoEpochMs, ... } solo con las vigentes (las vencidas se descartan).
-    _leerRevisadas() {
+    _puedeMarcar() {
+        return !window.App?.nivelModulo || window.App.nivelModulo("faret") === "EDITAR";
+    }
+
+    // { "doc:12|v5|2026-01-01": { por, fecha } } o null si no se pudo leer.
+    async _cargarAtendidas() {
+        const res = await this._fetch("alertasAtendidas.list", { data: { tipos: "doc,pnc,nci" } });
+        if (!Array.isArray(res)) return null;
+        const mapa = {};
+        res.forEach(r => { mapa[`${r.tipoAlerta}:${r.registroId}|${r.huella}`] = { por: r.atendidaPor, fecha: r.fechaAtendida }; });
+        return mapa;
+    }
+
+    // Marca (de a una, la API es idempotente) y vuelve a leer el registro central. Devuelve la cantidad de fallos.
+    async _marcarAtendidas(items) {
+        if (this._marcando) return 0;
+        this._marcando = true;
+        let fallos = 0;
         try {
-            const crudo = JSON.parse(localStorage.getItem(this._claveRevisadas()) || "{}");
-            const ahora = Date.now();
-            const vigentes = {};
-            Object.entries(crudo || {}).forEach(([k, v]) => { if (Number(v) > ahora) vigentes[k] = Number(v); });
-            return vigentes;
-        } catch {
-            return {};
+            const por = String(sessionStorage.getItem("faretNombreUsuario") || "").trim();
+            for (const i of items) {
+                const [tipo, ...resto] = i.key.split(":");
+                const res = await window.PhotinoBridge.send({
+                    action: "alertasAtendidas.marcar",
+                    data: { tipoAlerta: tipo, registroId: resto.join(":"), huella: i.huella, atendidaPor: por },
+                }).catch(() => null);
+                if (!res?.ok) fallos++;
+            }
+            const nuevo = await this._cargarAtendidas();
+            if (nuevo) this._atendidas = nuevo;
+        } finally {
+            this._marcando = false;
         }
+        return fallos;
     }
 
-    _guardarRevisadas(mapa) {
-        try { localStorage.setItem(this._claveRevisadas(), JSON.stringify(mapa)); } catch { /* sin persistencia */ }
-    }
-
-    _marcarRevisadas(keys, dias) {
-        const mapa = this._leerRevisadas();
-        const ahora = Date.now();
-        const vence = ahora + Number(dias) * 86400000;
-        keys.forEach(k => { mapa[k] = vence; });
-        this._guardarRevisadas(mapa);
-
-        // Fecha de la última validación por registro (se muestra aunque la pausa ya haya vencido).
-        // Se descartan las de más de un año para que el registro no crezca sin límite.
-        const ultimas = this._leerUltimasValidaciones();
-        keys.forEach(k => { ultimas[k] = ahora; });
-        try { localStorage.setItem(this._claveUltimas(), JSON.stringify(ultimas)); } catch { /* sin persistencia */ }
-    }
-
-    _claveUltimas() {
-        return this._claveRevisadas().replace("_revisadas_", "_ultima_validacion_");
-    }
-
-    _leerUltimasValidaciones() {
-        try {
-            const crudo = JSON.parse(localStorage.getItem(this._claveUltimas()) || "{}");
-            const limite = Date.now() - 365 * 86400000;
-            const vigentes = {};
-            Object.entries(crudo || {}).forEach(([k, v]) => { if (Number(v) > limite) vigentes[k] = Number(v); });
-            return vigentes;
-        } catch {
-            return {};
-        }
-    }
-
-    // "Última validación: 17-11-2026" del registro (o la más reciente de varios); "" si nunca se validó.
-    _textoUltimaValidacion(keys) {
-        const ultimas = this._leerUltimasValidaciones();
-        const max = Math.max(0, ...keys.map(k => ultimas[k] || 0));
-        return max ? `Última validación: ${new Date(max).toLocaleDateString("es-CL")}` : "";
-    }
-
-    _reactivar(keys) {
-        const mapa = this._leerRevisadas();
-        keys.forEach(k => delete mapa[k]);
-        this._guardarRevisadas(mapa);
-    }
-
-    // Separa los registros de una fuente en visibles y revisados (vigentes).
-    _separar(fuente, revisadas) {
+    // Separa los registros de una fuente en pendientes y atendidos (con quién y cuándo).
+    _separar(fuente) {
         const items = fuente?.items || [];
-        return {
-            visibles: items.filter(i => !revisadas[i.key]),
-            revisados: items.filter(i => revisadas[i.key]),
-        };
+        const atendidas = this._atendidas || {};
+        const visibles = [];
+        const revisados = [];
+        items.forEach(i => {
+            const a = atendidas[this._claveAtencion(i)];
+            if (a) revisados.push({ ...i, atencion: a });
+            else visibles.push(i);
+        });
+        return { visibles, revisados };
+    }
+
+    _textoAtencion(a) {
+        const f = String(a?.fecha || "").slice(0, 10).split("-");
+        const fecha = f.length === 3 ? `${f[2]}-${f[1]}-${f[0]}` : "";
+        return `Atendida por ${a?.por || "-"}${fecha ? ` el ${fecha}` : ""}`;
     }
 
     _textoAviso(fuente, visibles) {
@@ -404,12 +403,19 @@ window.FaretController = class FaretController {
         return `${n} documento${s} con revisión vencida`;
     }
 
+    async _alMarcar(items) {
+        const fallos = await this._marcarAtendidas(items);
+        if (fallos) alert(`No se pudo registrar ${fallos} alerta${fallos === 1 ? "" : "s"} como atendida${fallos === 1 ? "" : "s"}. Reintenta en unos minutos.`);
+        this._renderAlertas();
+    }
+
     _renderAlertas() {
         const container = document.getElementById("fh-alertas-activas");
         if (!container) return;
 
         const a = this._alertas;
-        if (!a) {
+        // Mientras no se conozca el registro central no se dibuja nada parcial (evita mostrar y luego ocultar).
+        if (!a || this._atendidas === undefined) {
             container.innerHTML = `<div class="alert-item"><div>Cargando alertas...</div></div>`;
             return;
         }
@@ -418,34 +424,30 @@ window.FaretController = class FaretController {
         const fuentes = lista.filter(x => x && x !== "error");
         const fallidas = lista.filter(x => x === "error").length;
         const pendientes = a.nci === undefined || a.doc === undefined;
+        const puedeMarcar = this._puedeMarcar();
 
-        const revisadas = this._leerRevisadas();
-        let totalRevisados = 0;
+        let totalAtendidos = 0;
         const avisos = [];
         fuentes.forEach(f => {
-            const { visibles, revisados } = this._separar(f, revisadas);
-            totalRevisados += revisados.length;
+            const { visibles, revisados } = this._separar(f);
+            totalAtendidos += revisados.length;
             if (visibles.length) avisos.push({ fuente: f, visibles });
         });
 
-        // Botones "Ver" (ir al módulo) y "Administrar" (modal para dar por revisados los registros).
-        // Documentos vencidos: se lista cada uno, con "Revisar" que abre ese documento.
         let html = avisos.map(({ fuente: x, visibles }) => `
             <div class="alert-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                <div>⚠ ${this._escape(this._textoAviso(x, visibles))}
-                    ${(() => { const t = this._textoUltimaValidacion((x.items || []).map(i => i.key)); return t ? `<div style="font-size:11px;opacity:.7;">${this._escape(t)}</div>` : ""; })()}</div>
+                <div>⚠ ${this._escape(this._textoAviso(x, visibles))}</div>
                 <div style="display:flex;gap:8px;flex-shrink:0;">
-                    <button type="button" class="btn-secondary fh-alerta-administrar" data-tipo="${x.tipo}">Administrar</button>
+                    <button type="button" class="btn-secondary fh-alerta-administrar" data-tipo="${x.tipo}">Detalle</button>
                     <button type="button" class="btn-secondary fh-alerta-ver" data-modulo="${this._escape(x.modulo)}">Ver</button>
                 </div>
             </div>
             ${x.tipo === "doc" ? visibles.slice(0, 5).map(f => `
             <div class="alert-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding-left:24px;font-size:13px;">
                 <div><strong>${this._escape(f.codigo)}</strong>${f.nombre ? ` · ${this._escape(f.nombre)}` : ""}
-                    <span style="opacity:.75;"> — vencido el ${this._escape(window.DateUtils.formatear(f.fecha))}${f.dias !== null ? ` (hace ${f.dias} día${f.dias === 1 ? "" : "s"})` : ""}</span>
-                    ${(() => { const t = this._textoUltimaValidacion([f.key]); return t ? `<div style="font-size:11px;opacity:.7;">${this._escape(t)}</div>` : ""; })()}</div>
+                    <span style="opacity:.75;"> — vencido el ${this._escape(window.DateUtils.formatear(f.fecha))}${f.dias !== null ? ` (hace ${f.dias} día${f.dias === 1 ? "" : "s"})` : ""}</span></div>
                 <div style="display:flex;gap:8px;flex-shrink:0;">
-                    <button type="button" class="btn-secondary fh-alerta-validar-doc" data-key="${this._escape(f.key)}" title="Ocultar este documento de tus alertas por 7 días">Marcar validada</button>
+                    ${puedeMarcar ? `<button type="button" class="btn-secondary fh-alerta-atender" data-key="${this._escape(f.key)}" title="Registra que esta alerta fue atendida; deja de contarse para todos los usuarios">Marcar atendida</button>` : ""}
                     <button type="button" class="btn-primary fh-alerta-revisar" data-doc-id="${Number(f.id)}">Revisar</button>
                 </div>
             </div>`).join("") : ""}
@@ -462,22 +464,28 @@ window.FaretController = class FaretController {
         if (fallidas && !pendientes) {
             html += `<div class="alert-item"><div style="opacity:.7;font-size:12px;">No se pudieron calcular ${fallidas} aviso${fallidas === 1 ? "" : "s"}. Reintenta más tarde.</div></div>`;
         }
-        if (totalRevisados) {
+        if (this._atendidas === null) {
+            html += `<div class="alert-item"><div style="opacity:.7;font-size:12px;">No se pudo leer el registro de alertas atendidas: se muestran todas.</div></div>`;
+        }
+        if (totalAtendidos) {
             html += `<div class="alert-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;opacity:.8;">
-                <div>${totalRevisados} registro${totalRevisados === 1 ? "" : "s"} validado${totalRevisados === 1 ? "" : "s"} (ocultos temporalmente para ti)</div>
-                <button type="button" class="btn-secondary fh-alerta-ocultas">Ver ocultas</button>
+                <div>${totalAtendidos} alerta${totalAtendidos === 1 ? "" : "s"} atendida${totalAtendidos === 1 ? "" : "s"} (registro compartido, visible para todos)</div>
+                <button type="button" class="btn-secondary fh-alerta-ocultas">Ver atendidas</button>
             </div>`;
         }
 
         container.innerHTML = html;
+        // Los "Ver"/"Revisar" de arriba en el listado reutilizan los cargados desde `this._alertas`.
+        const cargarUnicoItem = key => [this._alertas.pnc, this._alertas.nci, this._alertas.doc]
+            .flatMap(f => (f && f !== "error" ? f.items : [])).filter(i => i.key === key);
         container.querySelectorAll(".fh-alerta-ver").forEach(btn =>
             btn.addEventListener("click", () => window.App?.loadModule?.(btn.dataset.modulo)));
         container.querySelectorAll(".fh-alerta-administrar").forEach(btn =>
             btn.addEventListener("click", () => this._abrirModalAlerta(btn.dataset.tipo)));
         container.querySelector(".fh-alerta-ocultas")
             ?.addEventListener("click", () => this._abrirModalAlerta(null));
-        container.querySelectorAll(".fh-alerta-validar-doc").forEach(btn =>
-            btn.addEventListener("click", () => { this._marcarRevisadas([btn.dataset.key], 7); this._renderAlertas(); }));
+        container.querySelectorAll(".fh-alerta-atender").forEach(btn =>
+            btn.addEventListener("click", () => { btn.disabled = true; this._alMarcar(cargarUnicoItem(btn.dataset.key)); }));
         container.querySelectorAll(".fh-alerta-revisar").forEach(btn =>
             btn.addEventListener("click", () => {
                 try { sessionStorage.setItem("fcdAbrirDocumento", btn.dataset.docId); } catch { /* abre el listado */ }
@@ -485,11 +493,9 @@ window.FaretController = class FaretController {
             }));
     }
 
-    // ---------- Modal "Administrar alerta" ----------
-    // tipo = "pnc" | "nci" | "doc": registros pendientes de esa alerta (+ sus revisados).
-    // tipo = null: todos los registros ocultos, para reactivarlos.
-    // Textos de botones sin "validar"/"gestionar" a propósito: el modo "Solo vista" los ocultaría, y
-    // dar por revisado solo afecta la vista propia (no escribe datos).
+    // ---------- Modal de detalle de alertas ----------
+    // tipo = "pnc" | "nci" | "doc": registros pendientes de esa alerta (se pueden marcar como atendidos).
+    // tipo = null: alertas ya atendidas, con quién y cuándo (solo lectura).
 
     _cerrarModalAlerta() {
         document.getElementById("fh-alerta-modal")?.remove();
@@ -503,56 +509,43 @@ window.FaretController = class FaretController {
         this._cerrarModalAlerta();
         const a = this._alertas || {};
         const fuentes = [a.pnc, a.nci, a.doc].filter(x => x && x !== "error" && (!tipo || x.tipo === tipo));
-        const revisadas = this._leerRevisadas();
-        const modo = tipo ? "pendientes" : "ocultas";
+        const modo = tipo ? "pendientes" : "atendidas";
+        const puedeMarcar = this._puedeMarcar();
 
-        const fila = (i, revisado) => `
+        const fila = (i, atendida) => `
             <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #E5E7EB;">
-                <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;flex:1;min-width:0;">
-                    ${revisado ? "" : `<input type="checkbox" class="fh-am-check" data-key="${this._escape(i.key)}" style="margin-top:3px;width:auto;height:auto;">`}
+                <label style="display:flex;gap:10px;align-items:flex-start;${atendida || !puedeMarcar ? "" : "cursor:pointer;"}flex:1;min-width:0;">
+                    ${atendida || !puedeMarcar ? "" : `<input type="checkbox" class="fh-am-check" data-key="${this._escape(i.key)}" style="margin-top:3px;width:auto;height:auto;">`}
                     <span style="min-width:0;">
                         <strong>${this._escape(i.titulo)}</strong>
                         ${i.dias !== null && i.dias !== undefined ? `<span style="opacity:.7;font-size:12px;"> · hace ${i.dias} día${i.dias === 1 ? "" : "s"}</span>` : ""}
                         ${i.detalle ? `<div style="font-size:12px;opacity:.75;overflow-wrap:anywhere;">${this._escape(i.detalle)}</div>` : ""}
-                        ${revisado ? `<div style="font-size:12px;color:#047857;">Oculto hasta el ${this._escape(new Date(revisadas[i.key]).toLocaleDateString("es-CL"))}</div>` : ""}
-                        ${(() => { const t = this._textoUltimaValidacion([i.key]); return t ? `<div style="font-size:11px;opacity:.7;">${this._escape(t)}</div>` : ""; })()}
+                        ${atendida ? `<div style="font-size:12px;color:#047857;">${this._escape(this._textoAtencion(i.atencion))}</div>` : ""}
                     </span>
                 </label>
-                ${revisado
-                    ? `<button type="button" class="btn-secondary fh-am-reactivar" data-key="${this._escape(i.key)}">Reactivar</button>`
-                    : `<button type="button" class="btn-secondary fh-am-uno" data-key="${this._escape(i.key)}">Marcar validada</button>`}
+                ${!atendida && puedeMarcar ? `<button type="button" class="btn-secondary fh-am-uno" data-key="${this._escape(i.key)}">Marcar atendida</button>` : ""}
             </div>`;
 
         let cuerpo = "";
         let hayPendientes = false;
         fuentes.forEach(f => {
-            const { visibles, revisados } = this._separar(f, revisadas);
+            const { visibles, revisados } = this._separar(f);
             const mostrar = modo === "pendientes" ? visibles : revisados;
             if (modo === "pendientes" && visibles.length) hayPendientes = true;
             if (!mostrar.length && !(modo === "pendientes" && revisados.length)) return;
             cuerpo += `<div style="font-weight:700;margin:12px 0 4px;">${this._escape(f.nombre)}</div>`;
-            cuerpo += mostrar.map(i => fila(i, modo === "ocultas")).join("");
+            cuerpo += mostrar.map(i => fila(i, modo === "atendidas")).join("");
             if (modo === "pendientes" && revisados.length) {
-                cuerpo += `<div style="font-size:12px;opacity:.7;margin-top:6px;">${revisados.length} más ya validado${revisados.length === 1 ? "" : "s"}
-                    · <button type="button" class="btn-secondary fh-am-ver-ocultas" style="padding:2px 8px;font-size:12px;">Ver ocultas</button></div>`;
+                cuerpo += `<div style="font-size:12px;opacity:.7;margin-top:6px;">${revisados.length} más ya atendida${revisados.length === 1 ? "" : "s"}
+                    · <button type="button" class="btn-secondary fh-am-ver-ocultas" style="padding:2px 8px;font-size:12px;">Ver atendidas</button></div>`;
             }
         });
-        // Nada más que administrar (todo revisado / todo reactivado): se cierra.
         if (!cuerpo || (modo === "pendientes" && !hayPendientes)) return;
 
-        const pie = modo === "pendientes" && hayPendientes ? `
-            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:14px;">
-                <label style="display:flex;gap:8px;align-items:center;font-size:13px;">Ocultar durante
-                    <select id="fh-am-dias" style="width:auto;">
-                        <option value="1">1 día</option>
-                        <option value="7" selected>7 días</option>
-                        <option value="30">30 días</option>
-                    </select>
-                </label>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <button type="button" class="btn-secondary" id="fh-am-seleccionadas">Marcar validadas las seleccionadas</button>
-                    <button type="button" class="btn-primary" id="fh-am-todas">Marcar todas como validadas</button>
-                </div>
+        const pie = modo === "pendientes" && hayPendientes && puedeMarcar ? `
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end;margin-top:14px;">
+                <button type="button" class="btn-secondary" id="fh-am-seleccionadas">Marcar atendidas las seleccionadas</button>
+                <button type="button" class="btn-primary" id="fh-am-todas">Marcar todas como atendidas</button>
             </div>` : "";
 
         const overlay = document.createElement("div");
@@ -562,10 +555,10 @@ window.FaretController = class FaretController {
             <div role="dialog" aria-modal="true" aria-labelledby="fh-am-titulo" style="background:#fff;color:#111827;border-radius:12px;width:min(720px,100%);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3);">
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #E5E7EB;">
                     <div>
-                        <div id="fh-am-titulo" style="font-weight:700;font-size:16px;">${modo === "pendientes" ? this._escape(fuentes[0]?.nombre || "Alerta") : "Registros ocultos"}</div>
+                        <div id="fh-am-titulo" style="font-weight:700;font-size:16px;">${modo === "pendientes" ? this._escape(fuentes[0]?.nombre || "Alerta") : "Alertas atendidas"}</div>
                         <div style="font-size:12px;opacity:.7;">${modo === "pendientes"
-                            ? "Marca como validados los registros que ya conoces: dejan de mostrarse en tus alertas por el tiempo elegido. No modifica ningún dato; si aparece un registro nuevo, la alerta vuelve."
-                            : "Registros que validaste. Reactívalos para volver a verlos en tus alertas."}</div>
+                            ? "Marcar una alerta como atendida queda registrado para todos los usuarios (quién y cuándo). No modifica ni cierra el registro; si su condición cambia, la alerta vuelve."
+                            : "Alertas ya atendidas por cualquier usuario. Vuelven solas si cambia la condición que las originó."}</div>
                     </div>
                     <button type="button" class="btn-secondary" id="fh-am-cerrar" aria-label="Cerrar">✕</button>
                 </div>
@@ -573,11 +566,13 @@ window.FaretController = class FaretController {
             </div>`;
         document.body.appendChild(overlay);
 
-        const tras = () => {
-            this._renderAlertas();
+        const porClave = key => [a.pnc, a.nci, a.doc].flatMap(f => (f && f !== "error" ? f.items : [])).filter(i => i.key === key);
+        const marcar = async items => {
+            if (!items.length) return;
+            overlay.querySelectorAll("button").forEach(b => { b.disabled = true; });
+            await this._alMarcar(items);
             this._abrirModalAlerta(tipo);
         };
-        const dias = () => Number(document.getElementById("fh-am-dias")?.value || 7);
 
         overlay.addEventListener("click", e => { if (e.target === overlay) this._cerrarModalAlerta(); });
         overlay.querySelector("#fh-am-cerrar").addEventListener("click", () => this._cerrarModalAlerta());
@@ -585,21 +580,18 @@ window.FaretController = class FaretController {
         document.addEventListener("keydown", this._escModal);
 
         overlay.querySelectorAll(".fh-am-uno").forEach(btn =>
-            btn.addEventListener("click", () => { this._marcarRevisadas([btn.dataset.key], dias()); tras(); }));
-        overlay.querySelectorAll(".fh-am-reactivar").forEach(btn =>
-            btn.addEventListener("click", () => { this._reactivar([btn.dataset.key]); tras(); }));
+            btn.addEventListener("click", () => marcar(porClave(btn.dataset.key))));
         overlay.querySelectorAll(".fh-am-ver-ocultas").forEach(btn =>
             btn.addEventListener("click", () => this._abrirModalAlerta(null)));
         overlay.querySelector("#fh-am-seleccionadas")?.addEventListener("click", () => {
-            const keys = [...overlay.querySelectorAll(".fh-am-check:checked")].map(c => c.dataset.key);
-            if (!keys.length) return;
-            this._marcarRevisadas(keys, dias());
-            tras();
+            const items = [...overlay.querySelectorAll(".fh-am-check:checked")].flatMap(c => porClave(c.dataset.key));
+            marcar(items);
         });
         overlay.querySelector("#fh-am-todas")?.addEventListener("click", () => {
-            const keys = [...overlay.querySelectorAll(".fh-am-check")].map(c => c.dataset.key);
-            this._marcarRevisadas(keys, dias());
-            tras();
+            const items = [...overlay.querySelectorAll(".fh-am-check")].flatMap(c => porClave(c.dataset.key));
+            if (!items.length) return;
+            if (!confirm(`Se marcarán ${items.length} alerta${items.length === 1 ? "" : "s"} como atendida${items.length === 1 ? "" : "s"} para TODOS los usuarios. ¿Continuar?`)) return;
+            marcar(items);
         });
     }
 

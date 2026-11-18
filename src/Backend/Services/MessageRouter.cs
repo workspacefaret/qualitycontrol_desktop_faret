@@ -30,6 +30,7 @@ using QualityControlCenter.Modules.FaretLaboratorio;
 using QualityControlCenter.Modules.RecepcionCalidad;
 using QualityControlCenter.Modules.TalleresExternos;
 using QualityControlCenter.Modules.Formularios;
+using QualityControlCenter.Modules.AlertasAtendidas;
 using QualityControlCenter.Modules.CalidadNp;
 using QualityControlCenter.Modules.Trazabilidad;
 using QualityControlCenter.Modules.Usuarios;
@@ -246,6 +247,11 @@ namespace QualityControlCenter.Services
                 else if (action.StartsWith("trazabilidad"))
                 {
                     var handler = new TrazabilidadHandler(_innpackClient, _planificacionClient, _fpsMateriales, _fpsTrazabilidad);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("alertasAtendidas"))
+                {
+                    var handler = new AlertasAtendidasHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("calidadNp"))

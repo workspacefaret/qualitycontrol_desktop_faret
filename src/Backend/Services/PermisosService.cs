@@ -55,7 +55,8 @@ namespace QualityControlCenter.Services
             ["usuarios"] = new("INNPACK", new[] { "usuarios" }),
             // Administración de planta (operadores, inspectores, máquinas, áreas): oculto por rol; solo ADMIN_TI o permiso personalizado.
             ["admin-planta"] = new("INNPACK", new[] { "adminPlanta" }),
-            ["faret"] = new("FARET", Array.Empty<string>()),
+            // Inicio Faret: solo escribe el registro central de alertas atendidas (no modifica ningún dato de negocio).
+            ["faret"] = new("FARET", new[] { "alertasAtendidas" }),
             ["faret-inspecciones"] = new("FARET", new[] { "faret.inspecciones" }),
             ["faret-inspecciones-pallet"] = new("FARET", new[] { "faret.inspeccionesPallet" }),
             ["faret-producto-terminado"] = new("FARET", new[] { "productoTerminado" }),
