@@ -45,3 +45,12 @@ $ts = Get-Date -Format yyyyMMdd_HHmmss
 ```
    Esperado: NP 4007/3951/4002/4128 → 200 con todas las fuentes `True` y **ms < 18000**; lote → 200; `np=abc` → 400; las dos rutas antiguas → 200.
 3. **En la app** (instalador 1.8.36): Trazabilidad → NP 3951, 4002, 4007, 4128 y lote 5433-1; comparar contra `docs/FASE1A_GUIA_VALIDACION_CALIDAD_20261117.md`; exportar Excel. Revisar que Inicio, Laboratorio - Muestras, Producto Terminado, Despachos y los módulos Faret abran sin errores.
+
+## Resultado del despliegue (18-11-2026) — EJECUTADO con `docs/DEPLOY_FPS_API_1A_EJECUTAR.ps1`
+- Precheck OK: paquete local = manifiesto; `server.js` producción `C2B0CAAF…D9D74` (esperado); sin archivos `trazabilidad.*`; tarea Running; C: 87,8 GB libres.
+- Respaldo en servidor: `C:\API WEB\_backups\fps-api_pre_trazabilidad_20261118_104506` (`src\server.js` hash = producción previa; staging `nuevo\` = paquete, 3 hashes).
+- Corte: solo la tarea `FpsApi`; puerto 3002 libre a los 0 s; copia de 3 archivos, hashes en destino = manifiesto (`server.js` `BE52A6A5…E33A`, `trazabilidad.service.js` `C3429E29…CCA6`, `trazabilidad.routes.js` `13B8215A…DBC95`).
+- Recuperación: health local 200 a los ~9 s; Node PID 5264 (inicio 10:45:12) escuchando en 3002; tarea Running. Sin reversión.
+- Verificación de archivos: `src` de producción = 17 archivos; respecto del respaldo: 2 nuevos, 1 modificado (`server.js`), 0 otros cambiados, 0 faltantes.
+- HTTP externo (sin clave) = igual que la línea base: health 200, rutas bajo `/api/produccion` 401, inexistente 404. **Un 401 sin clave no prueba las rutas nuevas** (`apiKeyAuth` rechaza antes de resolver la ruta).
+- Pendiente: prueba con clave real: `docs/PRUEBA_AUTENTICADA_FPS_TRAZABILIDAD.ps1` (la ejecuta una persona; lee la clave en el servidor y no la muestra).
