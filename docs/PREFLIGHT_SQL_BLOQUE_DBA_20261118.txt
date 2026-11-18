@@ -1,0 +1,130 @@
+# ============================================================================================================
+# PREFLIGHT SQL + RESPALDO COPY_ONLY de calidad_db  (SOLO LECTURA + 1 BACKUP; NO migra, NO modifica datos/objetos)
+# Ejecutar en una consola PowerShell ADMINISTRATIVA abierta EN EL SERVIDOR SAP_NEW (192.168.1.230), pegando el bloque completo.
+# Autenticacion Windows integrada (no pide ni muestra contrasenas). Sin -ExecutionPolicy Bypass: se pega en la consola.
+# Se detiene ante cualquier error o comprobacion fallida. Solo hace BACKUP si TODAS las comprobaciones previas pasan.
+# ============================================================================================================
+$ErrorActionPreference = 'Stop'
+$Servidor   = '.'                          # instancia local del servidor SAP_NEW; si es una instancia con nombre: 'localhost\NOMBRE'
+$Base       = 'calidad_db'
+$DirBackup  = 'C:\SQLBackups\CalidadNp'
+$Marca      = Get-Date -Format 'yyyyMMdd_HHmmss'
+$Bak        = Join-Path $DirBackup ("calidad_db_PRE_CalidadNp_{0}.bak" -f $Marca)
+$Informe    = Join-Path $DirBackup ("preflight_resultado_{0}.txt" -f $Marca)
+$bloqueos   = New-Object System.Collections.Generic.List[string]
+$avisos     = New-Object System.Collections.Generic.List[string]
+$resumen    = [ordered]@{}
+
+function Abrir([string]$db) {
+    $cn = New-Object System.Data.SqlClient.SqlConnection("Server=$Servidor;Database=$db;Integrated Security=SSPI;TrustServerCertificate=True;Connect Timeout=15")
+    $cn.Open(); return $cn
+}
+function Consulta($cn, [string]$sql, [int]$timeout = 60) {
+    $cmd = $cn.CreateCommand(); $cmd.CommandText = $sql; $cmd.CommandTimeout = $timeout
+    $dt = New-Object System.Data.DataTable; $dt.Load($cmd.ExecuteReader()); return ,$dt
+}
+
+try {
+    # ---- 1. Conexion y contexto ------------------------------------------------------------------------
+    $cn = Abrir 'master'
+    $ctx = (Consulta $cn "SELECT SUSER_SNAME() AS login_actual, CAST(SERVERPROPERTY('MachineName') AS NVARCHAR(128)) AS maquina, CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(50)) AS version, CAST(SERVERPROPERTY('ProductLevel') AS NVARCHAR(20)) AS nivel, IS_SRVROLEMEMBER('sysadmin') AS es_sysadmin, HAS_PERMS_BY_NAME(N'$Base', 'DATABASE', 'BACKUP DATABASE') AS puede_backup, DB_ID(N'$Base') AS id_base")
+    $r = $ctx.Rows[0]
+    $resumen['Login (Windows)']  = $r.login_actual
+    $resumen['Servidor / SQL']   = "$($r.maquina) / $($r.version) $($r.nivel)"
+    $resumen['sysadmin']         = $r.es_sysadmin
+    if ($r.id_base -is [DBNull]) { $bloqueos.Add("La base $Base no existe en esta instancia") }
+    if ($r.maquina -ne $env:COMPUTERNAME) { $bloqueos.Add("La instancia SQL esta en '$($r.maquina)' y la sesion en '$env:COMPUTERNAME': el respaldo se escribe en el disco del servidor SQL; ejecutar el bloque en ese servidor") }
+    if ($r.puede_backup -isnot [DBNull] -and [int]$r.puede_backup -ne 1) { $bloqueos.Add("El login actual no tiene permiso BACKUP DATABASE sobre $Base") }
+    $cn.Close()
+    if ($bloqueos.Count -gt 0) { throw "BLOQUEADO en la verificacion inicial" }
+
+    # ---- 2. Preflight SQL de solo lectura sobre calidad_db (equivale a 2026_11_calidad_np_preflight_SOLO_LECTURA.sql) ----
+    $cn = Abrir $Base
+    $b = (Consulta $cn "SELECT d.compatibility_level, d.recovery_model_desc, d.collation_name, d.state_desc FROM sys.databases d WHERE d.name = DB_NAME()").Rows[0]
+    $resumen['Base']             = "$Base | estado $($b.state_desc) | compat $($b.compatibility_level) | recovery $($b.recovery_model_desc) | $($b.collation_name)"
+    if ($b.state_desc -ne 'ONLINE') { $bloqueos.Add("La base no esta ONLINE ($($b.state_desc))") }
+    if ([int]$b.compatibility_level -lt 130) { $bloqueos.Add("Compatibilidad $($b.compatibility_level) < 130: los scripts se probaron en 130") }
+
+    $perm = (Consulta $cn "SELECT HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','CREATE TABLE') AS create_table, HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','CREATE SEQUENCE') AS create_seq, HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','ALTER ANY USER') AS puede_grant").Rows[0]
+    $resumen['Permisos migracion'] = "CREATE TABLE=$($perm.create_table) CREATE SEQUENCE=$($perm.create_seq) GRANT=$($perm.puede_grant)"
+    if ([int]$perm.create_table -ne 1 -or [int]$perm.create_seq -ne 1 -or [int]$perm.puede_grant -ne 1) { $avisos.Add("Este login no podria ejecutar la migracion (faltan CREATE TABLE/SEQUENCE/GRANT); la ejecutara quien tenga esos permisos") }
+
+    $ex1b = Consulta $cn "SELECT name FROM sys.tables WHERE name LIKE N'trazabilidad[_]%'"
+    $exNp = Consulta $cn "SELECT name FROM sys.objects WHERE name IN (N'np_informe',N'np_merma',N'np_cierre',N'cert_destruccion',N'cert_destruccion_detalle',N'cert_destruccion_aprobacion',N'cert_destruccion_flujo',N'seq_cert_destruccion')"
+    $choque = Consulta $cn "SELECT name FROM sys.objects WHERE name LIKE N'PK[_]np[_]%' OR name LIKE N'UQ[_]np[_]%' OR name LIKE N'CK[_]np[_]%' OR name LIKE N'FK[_]np[_]%' OR name LIKE N'PK[_]cert[_]destruccion%' OR name LIKE N'CK[_]cert[_]destruccion%' OR name LIKE N'FK[_]cert[_]destruccion%' OR name LIKE N'UX[_]cert[_]%' OR name LIKE N'PK[_]trazabilidad[_]%'"
+    $resumen['Objetos Trazabilidad 1b existentes'] = $ex1b.Rows.Count
+    $resumen['Objetos Calidad NP existentes']      = $exNp.Rows.Count
+    $resumen['Choques de nombres']                 = $choque.Rows.Count
+    if ($ex1b.Rows.Count -gt 0) { $bloqueos.Add("Ya existen objetos trazabilidad_*: " + (($ex1b.Rows | ForEach-Object { $_.name }) -join ', ')) }
+    if ($exNp.Rows.Count -gt 0) { $bloqueos.Add("Ya existen objetos de Calidad NP: " + (($exNp.Rows | ForEach-Object { $_.name }) -join ', ')) }
+    if ($choque.Rows.Count -gt 0) { $bloqueos.Add("Choque de nombres de restricciones/indices: " + (($choque.Rows | ForEach-Object { $_.name }) -join ', ')) }
+
+    $usr = Consulta $cn "SELECT name FROM sys.database_principals WHERE name = N'qcc_innpack_api_sql'"
+    $resumen['Usuario API qcc_innpack_api_sql'] = if ($usr.Rows.Count -eq 1) { 'existe' } else { 'NO EXISTE' }
+    if ($usr.Rows.Count -ne 1) { $bloqueos.Add("No existe el usuario qcc_innpack_api_sql en $Base (los GRANT del script se omitirian y la API no podria usar las tablas)") }
+    $permApi = Consulta $cn "SELECT OBJECT_NAME(p.major_id) AS objeto, p.permission_name FROM sys.database_permissions p WHERE p.grantee_principal_id = DATABASE_PRINCIPAL_ID(N'qcc_innpack_api_sql') AND p.class = 1 AND OBJECT_NAME(p.major_id) LIKE N'trazabilidad%'"
+    $resumen['Permisos previos de la API sobre trazabilidad_*'] = $permApi.Rows.Count
+
+    $ult = Consulta $cn "SELECT TOP 1 bs.backup_finish_date, bs.is_copy_only, CAST(bs.backup_size/1048576.0 AS DECIMAL(12,1)) AS mb FROM msdb.dbo.backupset bs WHERE bs.database_name = DB_NAME() AND bs.type = 'D' ORDER BY bs.backup_finish_date DESC"
+    if ($ult.Rows.Count -eq 1) {
+        $resumen['Ultimo respaldo completo'] = "$($ult.Rows[0].backup_finish_date) | $($ult.Rows[0].mb) MB | copy_only=$($ult.Rows[0].is_copy_only)"
+        if (((Get-Date) - [datetime]$ult.Rows[0].backup_finish_date).TotalDays -gt 2) { $avisos.Add("El ultimo respaldo completo tiene mas de 2 dias") }
+    } else { $resumen['Ultimo respaldo completo'] = 'ninguno registrado'; $avisos.Add("No hay respaldo completo registrado en msdb para $Base") }
+
+    $usado = [double](Consulta $cn "SELECT CAST(SUM(CAST(FILEPROPERTY(name,'SpaceUsed') AS BIGINT))*8/1024.0 AS DECIMAL(14,1)) AS mb FROM sys.database_files WHERE type = 0").Rows[0].mb
+    $resumen['Datos usados (estimacion del .bak sin compresion)'] = "$usado MB"
+    $cn.Close()
+
+    # ---- 3. Espacio en el volumen de destino ------------------------------------------------------------
+    if (-not (Test-Path $DirBackup)) { New-Item -ItemType Directory -Path $DirBackup | Out-Null }
+    $drv = New-Object System.IO.DriveInfo((Split-Path $DirBackup -Qualifier))
+    $libreMb = [math]::Round($drv.AvailableFreeSpace / 1MB, 1)
+    $necesarioMb = [math]::Round($usado * 1.3 + 2048, 1)       # 30% de margen + 2 GB de holgura
+    $resumen['Espacio libre en destino'] = "$libreMb MB (necesario estimado $necesarioMb MB)"
+    if ($libreMb -lt $necesarioMb) { $bloqueos.Add("Espacio insuficiente en $($drv.Name): libre $libreMb MB < necesario $necesarioMb MB") }
+    if (Test-Path $Bak) { $bloqueos.Add("Ya existe $Bak (no se sobrescribe)") }
+
+    if ($bloqueos.Count -gt 0) { throw "BLOQUEADO: comprobaciones previas fallidas; NO se hizo ningun respaldo" }
+
+    # ---- 4. Respaldo COPY_ONLY + CHECKSUM (no altera la cadena de respaldos) --------------------------------
+    Write-Host "Comprobaciones previas OK. Creando respaldo COPY_ONLY: $Bak" -ForegroundColor Cyan
+    $cn = Abrir 'master'
+    $cn.FireInfoMessageOnUserErrors = $false
+    $handler = [System.Data.SqlClient.SqlInfoMessageEventHandler]{ param($s, $e) Write-Host ("  " + $e.Message) }
+    $cn.add_InfoMessage($handler)
+    $cmd = $cn.CreateCommand(); $cmd.CommandTimeout = 0
+    $cmd.CommandText = "BACKUP DATABASE [$Base] TO DISK = @ruta WITH COPY_ONLY, CHECKSUM, STATS = 10"
+    [void]$cmd.Parameters.AddWithValue('@ruta', $Bak)
+    [void]$cmd.ExecuteNonQuery()
+
+    # ---- 5. RESTORE VERIFYONLY WITH CHECKSUM ------------------------------------------------------------------
+    $cmd2 = $cn.CreateCommand(); $cmd2.CommandTimeout = 0
+    $cmd2.CommandText = "RESTORE VERIFYONLY FROM DISK = @ruta WITH CHECKSUM"
+    [void]$cmd2.Parameters.AddWithValue('@ruta', $Bak)
+    [void]$cmd2.ExecuteNonQuery()
+    $resumen['RESTORE VERIFYONLY WITH CHECKSUM'] = 'OK'
+    $cn.Close()
+
+    # ---- 6. SHA-256 y tamano del .bak ------------------------------------------------------------------------
+    $h = Get-FileHash -Algorithm SHA256 -Path $Bak
+    $resumen['Respaldo']      = $Bak
+    $resumen['Tamano .bak']   = "{0:N1} MB" -f ((Get-Item $Bak).Length / 1MB)
+    $resumen['SHA-256 .bak']  = $h.Hash
+}
+catch {
+    $bloqueos.Add("ERROR: " + $_.Exception.Message)
+}
+finally {
+    foreach ($c in @($cn)) { if ($c -and $c.State -eq 'Open') { $c.Close() } }
+}
+
+# ---- 7. Resumen -------------------------------------------------------------------------------------------------
+$estado = if ($bloqueos.Count -eq 0) { 'APTO' } else { 'BLOQUEADO' }
+$salida = @()
+$salida += "=== PREFLIGHT SQL CALIDAD NP: $estado === ($(Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))"
+foreach ($k in $resumen.Keys) { $salida += ("{0,-52}: {1}" -f $k, $resumen[$k]) }
+if ($avisos.Count)   { $salida += "AVISOS:";    $avisos   | ForEach-Object { $salida += "  - $_" } }
+if ($bloqueos.Count) { $salida += "BLOQUEOS:";  $bloqueos | ForEach-Object { $salida += "  - $_" } }
+$salida += "No se ejecuto ninguna migracion ni se modifico ningun objeto de $Base."
+$salida | ForEach-Object { Write-Host $_ -ForegroundColor $(if ($estado -eq 'APTO') { 'Green' } else { 'Red' }) }
+try { $salida | Set-Content -Path $Informe -Encoding UTF8; Write-Host "Informe guardado en $Informe" } catch { }
