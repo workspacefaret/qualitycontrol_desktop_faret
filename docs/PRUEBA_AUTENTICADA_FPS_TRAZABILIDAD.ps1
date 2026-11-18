@@ -21,8 +21,15 @@ $salida = Invoke-Command -ComputerName SRV-API.ad.faret.cl -ScriptBlock {
         try {
             $r = Invoke-WebRequest -UseBasicParsing -Headers @{ 'x-api-key' = $k } -Uri ('http://localhost:3002/api/produccion' + $p) -TimeoutSec 60
             $f = ''
-            try { $j = $r.Content | ConvertFrom-Json; if ($j.data.fuentes) { $f = ($j.data.fuentes.PSObject.Properties | ForEach-Object { $_.Name + '=' + $_.Value.ok }) -join ',' } } catch { $f = 'no-JSON' }
-            "$p -> $($r.StatusCode) ms=$($w.ElapsedMilliseconds) len=$($r.Content.Length) $f"
+            try {
+                $j = $r.Content | ConvertFrom-Json
+                if ($j.data -is [System.Array]) {                                               # rutas antiguas: {ok,total,data:[...]}
+                    $f = 'filas=' + $(if ($null -ne $j.total) { $j.total } else { $j.data.Count })  # cantidad de elementos, no largo de texto
+                }
+                elseif ($j.data -and $j.data.PSObject.Properties['fuentes']) { $f = 'fuentes: ' + (($j.data.fuentes.PSObject.Properties | ForEach-Object { $_.Name + '=' + $_.Value.ok }) -join ',') }
+                else { $f = 'objeto' }
+            } catch { $f = 'no-JSON' }
+            "$p -> $($r.StatusCode) ms=$($w.ElapsedMilliseconds) bytes=$($r.Content.Length) $f"
         } catch {
             $cod = 0; if ($_.Exception.Response) { $cod = [int]$_.Exception.Response.StatusCode }
             "$p -> $cod ms=$($w.ElapsedMilliseconds)"
