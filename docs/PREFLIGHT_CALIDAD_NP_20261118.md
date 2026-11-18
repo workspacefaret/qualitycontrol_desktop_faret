@@ -47,3 +47,13 @@ RESTORE VERIFYONLY FROM DISK = N'C:\SQLBackups\CalidadNp\calidad_db_PRE_CalidadN
 ## D. Estado de este preflight
 
 Parte local: **APTA**. Parte de producción (§B): **PENDIENTE de ejecución por persona autorizada**; sin ella el preflight global queda **NO CONCLUYENTE**, no se debe migrar ni desplegar.
+
+## E. Resultado de producción (18-11-2026, ejecutado en solo lectura)
+
+- SRV-API accesible por WinRM/Kerberos. `QualityControlInnpackPool` = **Started**; tarea `FpsApi` = **Running**; C: con 87,9 GB libres.
+- **DLL producción** `2D71507D…F58E` (1.675.776 B, 17-11-2026 12:09) y PDB `E7BB6D4B…DCF8`: copiadas a `Desktop\Proyectos\_backups_deploy\calidadnp_pre_20261118\api_innpack` con hash local = hash del servidor.
+- **Comparación real (cmpmeta, IL normalizado con tokens resueltos):** producción vs `54da0f1` compilado con fin de línea **LF** = **0 diferencias** en 5.219 métodos. (Con checkout CRLF aparecían 97 métodos distintos: solo la cantidad de `\r` en los literales SQL; descartado.) Conclusión: producción = `54da0f1`.
+- **Paquete aprobado reconstruido con LF** (convención de los despliegues previos): `_preflight_calidadnp_20261118\PAQUETE_API_3ef89e5_LF` (DLL `104199A5…B46CB`, PDB `850EA799…1F549`), manifiesto `MANIFIESTO_API_3ef89e5_LF.txt`, compilado de `3ef89e5` limpio. **El paquete CRLF de `91952f5` queda obsoleto.**
+- **fps-api producción:** copia de `src` (15 archivos) en `…\fps-api` = **idéntica** a `respaldo_pre_trazabilidad_20261117` (0 diferencias); sin archivos `trazabilidad.*`. Paquete 1a verificado aditivo.
+- Respaldo local: `_backups_deploy\calidadnp_pre_20261118` + `MANIFIESTO_SHA256_RESPALDO_PROD.txt` (verificado, 0 fallos).
+- **calidad_db: SIN ACCESO desde esta sesión** (la única herramienta SQL disponible apunta a FARET_PRODUCCION, no a `calidad_db`). Bloques para el DBA en §B-4 y §B-5; ejecutar en el servidor SQL de SAP_NEW con `db_owner`/permiso `BACKUP DATABASE` y espacio en `C:\SQLBackups\CalidadNp`.
