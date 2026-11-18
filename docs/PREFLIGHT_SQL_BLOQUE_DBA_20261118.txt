@@ -6,6 +6,7 @@
 # ============================================================================================================
 $ErrorActionPreference = 'Stop'
 $Servidor   = '.'                          # instancia local del servidor SAP_NEW; si es una instancia con nombre: 'localhost\NOMBRE'
+$ConfiarCertificado = 'False'              # validacion TLS estandar. Solo cambiar a 'True' si el servidor FUERZA cifrado con certificado autofirmado y TI lo acepta
 $Base       = 'calidad_db'
 $DirBackup  = 'C:\SQLBackups\CalidadNp'
 $Marca      = Get-Date -Format 'yyyyMMdd_HHmmss'
@@ -16,7 +17,7 @@ $avisos     = New-Object System.Collections.Generic.List[string]
 $resumen    = [ordered]@{}
 
 function Abrir([string]$db) {
-    $cn = New-Object System.Data.SqlClient.SqlConnection("Server=$Servidor;Database=$db;Integrated Security=SSPI;TrustServerCertificate=True;Connect Timeout=15")
+    $cn = New-Object System.Data.SqlClient.SqlConnection("Server=$Servidor;Database=$db;Integrated Security=SSPI;TrustServerCertificate=$ConfiarCertificado;Connect Timeout=15")
     $cn.Open(); return $cn
 }
 function Consulta($cn, [string]$sql, [int]$timeout = 60) {
