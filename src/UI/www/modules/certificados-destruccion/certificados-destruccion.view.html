@@ -1,0 +1,48 @@
+<div class="module certificados-destruccion-module">
+
+  <div class="module-header">
+    <div>
+      <div class="module-title">Certificados de Destrucción</div>
+      <div class="subtitle">Registro REG-SGI-CDD-V11: solicitud, aprobación y emisión. Aprobado o emitido no significa destruido: la ejecución física se confirma aparte. No descuenta inventario SAP.</div>
+    </div>
+    <div class="module-actions">
+      <button class="btn-primary" id="btnCdNuevo" data-requiere-editar>Nuevo certificado</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 16px;">
+    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+      <div class="form-group">
+        <label for="cdFiltroEstado">Estado</label>
+        <select id="cdFiltroEstado">
+          <option value="">Todos</option>
+          <option value="BORRADOR">Borrador</option>
+          <option value="PENDIENTE_APROBACION">Pendiente de aprobación</option>
+          <option value="APROBADO">Aprobado</option>
+          <option value="RECHAZADO">Rechazado</option>
+          <option value="EMITIDO">Emitido</option>
+          <option value="ANULADO">Anulado</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="cdFiltroNp">NP</label>
+        <input type="text" id="cdFiltroNp" placeholder="Todas">
+      </div>
+      <button class="btn-primary" id="btnCdBuscar">Buscar</button>
+      <button class="btn-secondary" id="btnCdExcel">Exportar</button>
+    </div>
+    <div id="cdEstado" class="subtitle" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="card">
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr><th>Certificado</th><th>NP</th><th>Cliente</th><th>Producto</th><th>Cant. a destruir</th><th>Motivo</th><th>Categoría</th><th>Estado</th><th>Ejecución física</th><th>Creado</th><th></th></tr>
+        </thead>
+        <tbody id="cdBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>

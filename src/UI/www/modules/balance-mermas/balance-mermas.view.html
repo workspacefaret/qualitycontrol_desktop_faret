@@ -1,0 +1,102 @@
+<div class="module balance-mermas-module">
+
+  <div class="module-header">
+    <div>
+      <div class="module-title">Balance y Mermas</div>
+      <div class="subtitle">Balance provisional de materiales por proceso y registro de mermas de una NP. Una diferencia nunca se clasifica sola como merma ni destrucción.</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom: 16px;">
+    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+      <div class="form-group">
+        <label for="bmNp">NP</label>
+        <input type="text" id="bmNp" placeholder="Ej: 4007">
+      </div>
+      <div class="form-group">
+        <label for="bmItem">Ítem</label>
+        <select id="bmItem"><option value="">—</option></select>
+      </div>
+      <button class="btn-primary" id="btnBmConsultar">Consultar balance</button>
+      <button class="btn-secondary" id="btnBmLimpiar">Limpiar</button>
+    </div>
+    <div id="bmEstado" class="subtitle" style="margin-top:8px;"></div>
+  </div>
+
+  <div id="bmResultado" style="display:none;">
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <button class="btn-primary" id="btnBmTabBalance">Balance de materiales</button>
+      <button class="btn-secondary" id="btnBmTabMermas">Mermas</button>
+    </div>
+
+    <div id="bmSecBalance">
+      <div id="bmAdvertencias" class="card" style="margin-bottom:12px; border-left:4px solid #b45309;"></div>
+      <div class="card">
+        <div class="module-header" style="margin-bottom:8px;">
+          <div class="module-title" style="font-size:16px;">Balance por proceso <span class="subtitle">(BALANCE PROVISIONAL)</span></div>
+          <div class="module-actions">
+            <button class="btn-secondary" id="btnBmExcelBalance">Exportar balance</button>
+            <button class="btn-primary" id="btnBmNuevaMerma" data-requiere-editar>Registrar merma</button>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="table" id="bmTablaBalance">
+            <thead>
+              <tr>
+                <th>Proceso</th><th>Fecha</th><th>Máquina</th><th>Entrada (estimada)</th><th>Procesado (FPS)</th><th>Unid. equivalentes</th>
+                <th>Salida conforme</th><th>Merma confirmada</th><th>Merma estimada</th><th>Material retenido</th><th>En reproceso</th>
+                <th>Diferencia por conciliar</th><th>Estado del registro</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="bmBalanceBody"></tbody>
+          </table>
+        </div>
+        <p class="subtitle" style="margin-top:8px;">Diferencia = entrada − salida conforme − mermas registradas. La entrada de un proceso es la salida del anterior (FPS no registra entradas). "Por conciliar" no significa merma: concílialo registrando la pérdida con su respaldo o justifícalo en Cierre de NP.</p>
+      </div>
+    </div>
+
+    <div id="bmSecMermas" style="display:none;">
+      <div class="kpi-row" id="bmKpis"></div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="module-header" style="margin-bottom:8px;">
+          <div class="module-title" style="font-size:16px;">Acumulado de mermas</div>
+          <div class="form-group" style="margin:0;">
+            <select id="bmAgrupar">
+              <option value="proceso">Por proceso</option>
+              <option value="defecto">Por defecto</option>
+              <option value="fecha">Por fecha</option>
+              <option value="maquina">Por máquina</option>
+              <option value="turno">Por turno</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="table">
+            <thead><tr><th>Grupo</th><th>Confirmada (contada/medida)</th><th>Estimada</th><th>Registros</th></tr></thead>
+            <tbody id="bmAcumBody"></tbody>
+          </table>
+        </div>
+        <p class="subtitle" style="margin-top:8px;">Las cantidades confirmadas y estimadas nunca se suman entre sí. Las anuladas no cuentan. Cada cantidad está en la unidad en que se registró.</p>
+      </div>
+
+      <div class="card">
+        <div class="module-header" style="margin-bottom:8px;">
+          <div class="module-title" style="font-size:16px;">Registros de merma</div>
+          <div class="module-actions">
+            <button class="btn-secondary" id="btnBmExcelMermas">Exportar resumen</button>
+            <button class="btn-primary" id="btnBmNuevaMerma2" data-requiere-editar>Nueva merma</button>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="table" id="bmTablaMermas">
+            <thead>
+              <tr><th>#</th><th>Fecha</th><th>Proceso</th><th>Máquina</th><th>Turno</th><th>Defecto</th><th>Cantidad</th><th>Unidad</th><th>Método</th><th>Estado</th><th>Registró</th><th>Acciones</th></tr>
+            </thead>
+            <tbody id="bmMermasBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
