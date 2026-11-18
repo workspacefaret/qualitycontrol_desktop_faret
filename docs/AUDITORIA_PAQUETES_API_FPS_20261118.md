@@ -18,3 +18,10 @@ Pool `QualityControlInnpackPool` Started (sin otros pools detenidos); tarea `Fps
 - API: DLL+PDB de producción respaldados con hash en `_backups_deploy\calidadnp_pre_20261118\api_innpack`; además se copiarán en el servidor a `C:\API WEB\_backups\innpack_pre_calidadnp_<ts>` antes de reemplazar. Reversión: Stop del pool → restaurar DLL+PDB → Start del pool.
 - fps-api: respaldo `respaldo_pre_trazabilidad_20261117` y copia de `src` de producción en `_backups_deploy\...\fps-api`. Reversión: restaurar `server.js`, borrar las 2 rutas nuevas, reiniciar solo la tarea `FpsApi`.
 - SQL: tablas nuevas vacías; los `*_rollback.sql` abortan si hay datos. Las APIs previas no usan esos objetos, así que revertir API sin tocar SQL es seguro.
+
+## Despliegue API INNPACK ejecutado (18-11-2026 ~10:30, fps-api NO desplegado)
+- Respaldo en servidor: `C:\API WEB\_backups\innpack_pre_calidadnp_20261118_103010` (DLL `2D71507D…F58E` y PDB `E7BB6D4B…DCF8`, hash = producción previa). Staging en su subcarpeta `nuevo\` con hash = paquete.
+- Reemplazo: solo DLL y PDB; destino DLL `104199A5…B46CB`, PDB `850EA799…1F549` (= paquete aprobado). Se detuvo y reinició únicamente `QualityControlInnpackPool` (~6 s). Sin tocar SQL, `appsettings`, otros pools ni fps-api.
+- Evento Application "started successfully" (10:30:59); 24/24 pools iniciados (la línea base documentada decía 23; ninguno detenido); 0 errores de Application relacionados en 15 min; tarea `FpsApi` Running.
+- HTTP antes → después: `health` 200→200; `no-conformidades` y `control-documental` 401→401; `login` con credenciales inválidas 401 (sin 500); rutas nuevas `api/calidad-np/*` y `api/trazabilidad-documentos/*` 404→**401** (GET y POST sin token); ruta inexistente 404→404.
+- Pendiente (requiere sesión autenticada): permisos 403/200 por rol, lectura real de las tablas nuevas y regresión funcional con usuario. Reversión disponible: detener pool, restaurar DLL+PDB del respaldo, iniciar pool.
