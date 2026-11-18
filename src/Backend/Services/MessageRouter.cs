@@ -30,6 +30,7 @@ using QualityControlCenter.Modules.FaretLaboratorio;
 using QualityControlCenter.Modules.RecepcionCalidad;
 using QualityControlCenter.Modules.TalleresExternos;
 using QualityControlCenter.Modules.Formularios;
+using QualityControlCenter.Modules.CalidadNp;
 using QualityControlCenter.Modules.Trazabilidad;
 using QualityControlCenter.Modules.Usuarios;
 
@@ -50,6 +51,7 @@ namespace QualityControlCenter.Services
         private readonly SapRecepcionApiClient _sapRecepcionClient;
         private readonly FpsRegistroProduccionApiService _fpsRegistroProduccion;
         private readonly FpsSesionesApiService? _fpsSesiones;
+        private readonly FpsTrazabilidadApiService? _fpsTrazabilidad;
         private readonly PermisosService _permisos;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -71,7 +73,8 @@ namespace QualityControlCenter.Services
             SapRecepcionApiClient sapRecepcionClient,
             FpsRegistroProduccionApiService fpsRegistroProduccion,
             PermisosService permisos,
-            FpsSesionesApiService? fpsSesiones = null
+            FpsSesionesApiService? fpsSesiones = null,
+            FpsTrazabilidadApiService? fpsTrazabilidad = null
         )
         {
             _db = db;
@@ -88,6 +91,7 @@ namespace QualityControlCenter.Services
             _fpsRegistroProduccion = fpsRegistroProduccion;
             _permisos = permisos;
             _fpsSesiones = fpsSesiones;
+            _fpsTrazabilidad = fpsTrazabilidad;
         }
 
         public async Task<string> Handle(string payloadJson)
@@ -241,7 +245,12 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("trazabilidad"))
                 {
-                    var handler = new TrazabilidadHandler(_innpackClient, _planificacionClient, _fpsMateriales);
+                    var handler = new TrazabilidadHandler(_innpackClient, _planificacionClient, _fpsMateriales, _fpsTrazabilidad);
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("calidadNp"))
+                {
+                    var handler = new CalidadNpHandler(_innpackClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("formularios"))

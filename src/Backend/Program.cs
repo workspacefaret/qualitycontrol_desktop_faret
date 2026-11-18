@@ -110,7 +110,8 @@ namespace QualityControlCenter
                     sapRecepcionApiClient,
                     fpsRegistroProduccionApiService,
                     new PermisosService(),
-                    new FpsSesionesApiService(fpsApiClient)
+                    new FpsSesionesApiService(fpsApiClient),
+                    new FpsTrazabilidadApiService(fpsApiClient)
                 );
 
                 // =========================

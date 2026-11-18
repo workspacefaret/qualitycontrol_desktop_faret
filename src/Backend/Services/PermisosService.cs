@@ -45,7 +45,12 @@ namespace QualityControlCenter.Services
             ["despachos-diarios"] = new("INNPACK", Array.Empty<string>()),
             ["recepcion-calidad"] = new("INNPACK", new[] { "recepcion" }),
             ["muestra-laboratorio"] = new("INNPACK", new[] { "muestraLab" }),
-            ["trazabilidad"] = new("INNPACK", Array.Empty<string>()),
+            // Fase 1b: documentos SGI y factor unidades/pliego (escritura con EDITAR; confirmar el factor lo restringe además la API a admin/admin_ti).
+            ["trazabilidad"] = new("INNPACK", new[] { "trazabilidad.documentos", "trazabilidad.factor", "calidadNp.informes" }),
+            // Calidad NP (Mariela, fases 2-5): mermas/balance, cierre interno de NP y certificados de destrucción. Validar mermas y aprobar certificados lo restringe además la API (admin/admin_ti).
+            ["balance-mermas"] = new("INNPACK", new[] { "calidadNp.mermas" }),
+            ["cierre-np"] = new("INNPACK", new[] { "calidadNp.cierre" }),
+            ["certificados-destruccion"] = new("INNPACK", new[] { "calidadNp.certificados" }),
             ["formularios"] = new("INNPACK", new[] { "formularios" }),
             ["usuarios"] = new("INNPACK", new[] { "usuarios" }),
             // Administración de planta (operadores, inspectores, máquinas, áreas): oculto por rol; solo ADMIN_TI o permiso personalizado.
@@ -147,7 +152,9 @@ namespace QualityControlCenter.Services
             "registrosProduccion.obtenerResumen",
             "talleresExternos.catalogos",
             "talleresExternos.historialLiberaciones",
-            "trazabilidad.consultarNp",
+            "calidadNp.mermas.evidencia", "calidadNp.certificados.flujo", // lecturas (abrir evidencia / cargos del flujo de aprobación)
+            "trazabilidad.consultarNp", "trazabilidad.integral", "trazabilidad.lote",
+            "trazabilidad.documentos.abrir", "trazabilidad.documentos.historial", "trazabilidad.documentos.zip", // solo lectura (el ZIP/archivo se guarda en la PC local)
         };
 
         private static readonly HashSet<string> SufijosLectura = new() { "list", "get", "resumen", "detalle" };
