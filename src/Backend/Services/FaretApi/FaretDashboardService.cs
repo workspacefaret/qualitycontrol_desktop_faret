@@ -446,6 +446,7 @@ namespace QualityControlCenter.Backend.Services.FaretApi
                 TipoPnc = d.TipoPnc ?? "",
                 EstadoGestion = nc == null ? "SIN_GESTION" : (string.IsNullOrWhiteSpace(nc.EstadoGestion) ? "PENDIENTE" : nc.EstadoGestion!),
                 FechaIngreso = FechaValida(d.FechaIngreso)?.ToString("dd-MM-yyyy") ?? "",
+                Nivel = d.Nivel ?? "",
             };
 
         private static bool EsEstado(string? valor, string esperado) =>

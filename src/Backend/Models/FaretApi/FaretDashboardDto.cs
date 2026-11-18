@@ -26,6 +26,9 @@ namespace QualityControlCenter.Backend.Models.FaretApi
         public string TipoPnc { get; set; } = "";
         public string EstadoGestion { get; set; } = "";
         public string FechaIngreso { get; set; } = "";
+
+        // Nivel de Data que la hace crítica (huella de "alerta atendida" en Inicio Faret).
+        public string Nivel { get; set; } = "";
     }
 
     public class FaretDashboardKpisDto

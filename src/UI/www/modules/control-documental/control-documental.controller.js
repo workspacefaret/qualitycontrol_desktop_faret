@@ -242,11 +242,40 @@ window.ControlDocumentalController = class ControlDocumentalController {
         document.getElementById("cd-f-cancelar-btn").style.display = (editable && this._editingId) ? "inline-block" : "none";
     }
 
+    // Próxima revisión propuesta: fecha de actualización + 365 días, pero nunca antes de hoy + 365
+    // (una versión nueva no puede nacer con la revisión vencida). Solo reemplaza un valor vacío o el
+    // que propuso el sistema: si el usuario eligió su propia fecha, se respeta (y se valida al guardar).
+    _proximaRevisionPorDefecto(fecha) {
+        const minima = window.DateUtils.sumarDias(window.DateUtils.hoyISO(), 365);
+        const propuesta = fecha ? window.DateUtils.sumarDias(fecha, 365) : minima;
+        return /^\d{4}-\d{2}-\d{2}$/.test(propuesta) && propuesta > minima ? propuesta : minima;
+    }
+
+    _proponerProximaRevision(proximaId, fecha) {
+        const proximaEl = document.getElementById(proximaId);
+        proximaEl.min = window.DateUtils.hoyISO();
+        proximaEl.value = this._proximaRevisionPorDefecto(fecha);
+        proximaEl.dataset.propuesta = proximaEl.value;
+    }
+
     _autocalcularProximaRevision(fechaId, proximaId) {
         const fecha = document.getElementById(fechaId).value;
         const proximaEl = document.getElementById(proximaId);
-        if (!fecha || proximaEl.value) return;
-        proximaEl.value = window.DateUtils.sumarDias(fecha, 365);
+        if (!fecha) return;
+        if (proximaEl.value && proximaEl.value !== proximaEl.dataset.propuesta) return;
+        this._proponerProximaRevision(proximaId, fecha);
+    }
+
+    // Solo para documentos y versiones NUEVOS: la próxima revisión no puede ser anterior a hoy.
+    // null = válida. No se aplica a las fechas históricas ya guardadas.
+    _errorProximaRevision(proxima) {
+        const hoy = window.DateUtils.hoyISO();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(proxima || "")) return "La fecha de próxima revisión no es válida.";
+        if (proxima < hoy) {
+            return `La próxima revisión (${window.DateUtils.formatear(proxima)}) no puede ser anterior a hoy (${window.DateUtils.formatear(hoy)}). `
+                + "Indica una fecha igual o posterior a hoy.";
+        }
+        return null;
     }
 
     _abrirNuevo() {
@@ -261,7 +290,7 @@ window.ControlDocumentalController = class ControlDocumentalController {
         document.getElementById("cd-f-estado").value = "VIGENTE";
         document.getElementById("cd-f-version").value = "";
         document.getElementById("cd-f-fecha-actualizacion").value = window.DateUtils.hoyISO();
-        document.getElementById("cd-f-proxima-revision").value = "";
+        this._proponerProximaRevision("cd-f-proxima-revision", window.DateUtils.hoyISO());
         document.getElementById("cd-f-adjunto").value = "";
 
         document.getElementById("cd-version-inicial-seccion").style.display = "block";
@@ -296,7 +325,7 @@ window.ControlDocumentalController = class ControlDocumentalController {
 
             document.getElementById("cd-nv-version").value = "";
             document.getElementById("cd-nv-fecha-actualizacion").value = "";
-            document.getElementById("cd-nv-proxima-revision").value = "";
+            this._proponerProximaRevision("cd-nv-proxima-revision", null);
             document.getElementById("cd-nv-adjunto").value = "";
         } catch {
             document.getElementById("cd-form-error").textContent = "Error de comunicación con el backend";
@@ -459,10 +488,17 @@ window.ControlDocumentalController = class ControlDocumentalController {
             } else {
                 const version = document.getElementById("cd-f-version").value.trim();
                 const fechaActualizacion = document.getElementById("cd-f-fecha-actualizacion").value;
-                const proximaRevision = document.getElementById("cd-f-proxima-revision").value || null;
+                const proximaRevision = document.getElementById("cd-f-proxima-revision").value || this._proximaRevisionPorDefecto(fechaActualizacion);
 
                 if (!version || !fechaActualizacion) {
                     errorEl.textContent = "La versión y la fecha de actualización iniciales son obligatorias";
+                    errorEl.style.display = "block";
+                    btn.disabled = false;
+                    return;
+                }
+                const errorProxima = this._errorProximaRevision(proximaRevision);
+                if (errorProxima) {
+                    errorEl.textContent = errorProxima;
                     errorEl.style.display = "block";
                     btn.disabled = false;
                     return;
@@ -519,10 +555,16 @@ window.ControlDocumentalController = class ControlDocumentalController {
 
         const version = document.getElementById("cd-nv-version").value.trim();
         const fechaActualizacion = document.getElementById("cd-nv-fecha-actualizacion").value;
-        const proximaRevision = document.getElementById("cd-nv-proxima-revision").value || null;
+        const proximaRevision = document.getElementById("cd-nv-proxima-revision").value || this._proximaRevisionPorDefecto(fechaActualizacion);
 
         if (!version || !fechaActualizacion) {
             errorEl.textContent = "La nueva versión y su fecha de actualización son obligatorias";
+            errorEl.style.display = "block";
+            return;
+        }
+        const errorProxima = this._errorProximaRevision(proximaRevision);
+        if (errorProxima) {
+            errorEl.textContent = errorProxima;
             errorEl.style.display = "block";
             return;
         }
