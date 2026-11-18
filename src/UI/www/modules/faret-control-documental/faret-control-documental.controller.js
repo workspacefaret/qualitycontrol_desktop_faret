@@ -19,6 +19,7 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
         document.getElementById("fcd-form-cerrar-btn")?.addEventListener("click", () => this._cerrarForm());
         document.getElementById("fcd-form-cancelar-btn")?.addEventListener("click", () => this._cancelarEdicion());
         document.getElementById("fcd-form-editar-btn")?.addEventListener("click", () => this._habilitarEdicion());
+        document.getElementById("fcd-form-validar-btn")?.addEventListener("click", () => this._validarRevision());
         document.getElementById("fcd-f-guardar-btn")?.addEventListener("click", () => this._guardarForm());
         document.getElementById("fcd-f-fecha-actualizacion")?.addEventListener("change", () => this._autocalcularProximaRevision("fcd-f-fecha-actualizacion", "fcd-f-proxima-revision"));
         document.getElementById("fcd-nv-fecha-actualizacion")?.addEventListener("change", () => this._autocalcularProximaRevision("fcd-nv-fecha-actualizacion", "fcd-nv-proxima-revision"));
@@ -250,6 +251,8 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
     _setModoEdicion(editable) {
         Object.values(this._camposMap()).forEach(({ id }) => { document.getElementById(id).disabled = !editable; });
         document.getElementById("fcd-form-editar-btn").style.display = (!editable && this._editingId) ? "inline-block" : "none";
+        const validar = document.getElementById("fcd-form-validar-btn");
+        if (validar) validar.style.display = (!editable && this._puedeValidarRevision()) ? "inline-block" : "none";
         document.getElementById("fcd-f-guardar-btn").style.display = editable ? "inline-block" : "none";
         document.getElementById("fcd-f-cancelar-btn").style.display = (editable && this._editingId) ? "inline-block" : "none";
     }
@@ -348,6 +351,32 @@ window.FaretControlDocumentalController = class FaretControlDocumentalController
     _renderForm(doc) {
         Object.entries(this._camposMap()).forEach(([campo, { id }]) => {
             document.getElementById(id).value = doc[campo] ?? "";
+        });
+    }
+
+    // Validar revisión (solo con EDITAR en este módulo; la API lo vuelve a verificar): la versión vigente del documento abierto.
+    _versionVigenteDetalle() {
+        return (this._detalleActual?.versiones || []).find(v => v.esVersionVigente) || null;
+    }
+
+    _puedeValidarRevision() {
+        if (!this._editingId || !this._detalleActual || this._detalleActual.estado === "OBSOLETO") return false;
+        if (window.App?.nivelModulo && window.App.nivelModulo("faret-control-documental") !== "EDITAR") return false;
+        return !!this._versionVigenteDetalle();
+    }
+
+    _validarRevision() {
+        const v = this._versionVigenteDetalle();
+        if (!v || !this._puedeValidarRevision()) return;
+        window.ValidarRevisionDoc.abrir({
+            documentoId: this._editingId,
+            codigo: this._detalleActual.codigoBase,
+            version: v.version,
+            proximaActual: v.proximaRevision,
+            onOk: async () => {
+                await this._verDetalle(this._editingId); // ficha al día (próxima revisión nueva)
+                this._loadLista();
+            },
         });
     }
 

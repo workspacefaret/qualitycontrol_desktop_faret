@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using QualityControlCenter.Backend.Services.FaretApi;
 using QualityControlCenter.Backend.Services.InnpackApi;
 
 namespace QualityControlCenter.Modules.ControlDocumental
@@ -29,9 +30,15 @@ namespace QualityControlCenter.Modules.ControlDocumental
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
-        public ControlDocumentalHandler(InnpackApiClient client)
+        private readonly FaretApiClient? _faret;
+        private readonly string _empresa;
+
+        // faret/empresa solo se usan para "validar revisión" (la empresa sale de la SESIÓN, nunca del frontend).
+        public ControlDocumentalHandler(InnpackApiClient client, FaretApiClient? faret = null, string? empresa = null)
         {
             _api = new InnpackControlDocumentalApiService(client);
+            _faret = faret;
+            _empresa = (empresa ?? "").ToUpperInvariant();
         }
 
         public async Task<string> Handle(string action, Dictionary<string, object> data)
@@ -45,6 +52,7 @@ namespace QualityControlCenter.Modules.ControlDocumental
                     "controlDocumental.create" => await HandleCreate(data),
                     "controlDocumental.update" => await HandleUpdate(data),
                     "controlDocumental.version.crear" => await HandleVersionCrear(data),
+                    "controlDocumental.version.validarRevision" => await HandleValidarRevision(data),
                     "controlDocumental.eliminar" => await HandleEliminar(data),
                     "controlDocumental.adjunto.subir" => await HandleAdjuntoSubir(data),
                     "controlDocumental.adjunto.abrir" => await HandleAdjuntoAbrir(data),
@@ -92,6 +100,30 @@ namespace QualityControlCenter.Modules.ControlDocumental
 
             var body = BuildBody(data, "action", "id");
             return await Forward(_api.ActualizarAsync(id, body));
+        }
+
+        // Validar revisión: confirma que el documento sigue vigente (nueva próxima revisión) SIN crear versión. No envía usuario:
+        // la API lo toma de la identidad verificada. En sesión Faret reenvía el JWT del usuario.
+        private async Task<string> HandleValidarRevision(Dictionary<string, object> data)
+        {
+            if (!TryGetInt(data, "documentoId", out var documentoId))
+                return Error("Falta el id del documento");
+            if (_empresa != "FARET" && _empresa != "INNPACK")
+                return Error("Sesión no válida: inicia sesión nuevamente.");
+            if (!TryGetString(data, "nuevaProximaRevision", out var nueva) || string.IsNullOrWhiteSpace(nueva))
+                return Error("Indica la nueva fecha de próxima revisión");
+            TryGetString(data, "comentario", out var comentario);
+
+            var body = new Dictionary<string, object?> { ["nuevaProximaRevision"] = nueva, ["comentario"] = comentario };
+            IReadOnlyDictionary<string, string>? cab = null;
+            if (_empresa == "FARET")
+            {
+                var tok = _faret?.CurrentToken;
+                if (string.IsNullOrEmpty(tok))
+                    return Error("Sesión Faret expirada. Vuelve a iniciar sesión.");
+                cab = new Dictionary<string, string> { ["X-Faret-User-Token"] = tok };
+            }
+            return await Forward(_api.ValidarRevisionAsync(documentoId, body, cab));
         }
 
         private async Task<string> HandleVersionCrear(Dictionary<string, object> data)

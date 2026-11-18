@@ -216,7 +216,7 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("controlDocumental"))
                 {
-                    var handler = new ControlDocumentalHandler(_innpackClient);
+                    var handler = new ControlDocumentalHandler(_innpackClient, _faretClient, _permisos.Empresa);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("certificadosLiberacion"))

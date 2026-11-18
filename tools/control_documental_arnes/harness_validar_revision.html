@@ -1,0 +1,71 @@
+<!doctype html><meta charset="utf-8"><body>
+<pre id="out">PENDIENTE</pre>
+<div id="host"></div>
+<script src="file:///C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/UI/www/shared/utils.js"></script>
+<script src="file:///C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/UI/www/modules/faret-control-documental/faret-control-documental.controller.js"></script>
+<script src="file:///C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/UI/www/modules/control-documental/control-documental.controller.js"></script>
+<script>
+// Arnés Edge headless (sin servidor): vista real + controlador real + puente Photino simulado.
+const BASE = "file:///C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/UI/www/modules/";
+function vista(mod) { const x = new XMLHttpRequest(); x.open("GET", BASE + mod + "/" + mod + ".view.html", false); x.send(); return x.responseText; }
+const hoy = window.DateUtils.hoyISO();
+let nivel = "EDITAR", llamadas = [], gets = 0, respuestaValidar = { ok: true, data: {} }, vigente = true, estado = "VIGENTE", confirmar = true, proxima = "2025-11-28";
+window.App = { nivelModulo: () => nivel };
+window.confirm = () => confirmar;
+window.PhotinoBridge = { async send(m) {
+  llamadas.push(m);
+  if (m.action === "controlDocumental.get") { gets++; return { ok: true, data: { id: 7, codigoBase: "REG-TEX", nombre: "Registro textil", estado,
+      versiones: [{ version: "V03", esVersionVigente: false, proximaRevision: "2024-12-01" }, { version: "V04", esVersionVigente: vigente, proximaRevision: proxima }] } }; }
+  if (m.action === "controlDocumental.list") return { ok: true, data: { items: [], total: 0, totalPages: 1 } };
+  if (m.action === "controlDocumental.version.validarRevision") { if (respuestaValidar.ok) proxima = m.nuevaProximaRevision; return respuestaValidar; }
+  return { ok: true, data: {} };
+} };
+const res = []; const ok = (n, c, e) => res.push((c ? "PASS " : "FAIL ") + n + (c ? "" : "  -> " + (e || "")));
+const esperar = ms => new Promise(r => setTimeout(r, ms));
+const visible = id => { const e = document.getElementById(id); return !!e && e.style.display !== "none"; };
+(async () => { try {
+  for (const [mod, pre, Cls] of [["faret-control-documental", "fcd", window.FaretControlDocumentalController], ["control-documental", "cd", window.ControlDocumentalController]]) {
+    const T = m => "[" + pre + "] " + m;
+    document.getElementById("host").innerHTML = vista(mod);
+    const c = new Cls(); c.init(); await esperar(30);
+    nivel = "EDITAR"; vigente = true; estado = "VIGENTE"; proxima = "2025-11-28"; llamadas = [];
+    await c._verDetalle(7); await esperar(20);
+    ok(T("EDITAR: boton Validar revision visible junto a Editar/Cerrar"), visible(pre + "-form-validar-btn") && document.getElementById(pre + "-form-validar-btn").parentElement === document.getElementById(pre + "-form-cerrar-btn").parentElement);
+    document.getElementById(pre + "-form-validar-btn").click();
+    const modal = document.getElementById("qcc-validar-revision-modal");
+    ok(T("abre modal con REG-TEX V04 y la fecha actual"), !!modal && /REG-TEX/.test(modal.innerText) && /V04/.test(modal.innerText) && /28-11-2025/.test(modal.innerText), modal && modal.innerText);
+    ok(T("pide nueva fecha (propuesta hoy+365)"), document.getElementById("qcc-vr-fecha").value === window.DateUtils.sumarDias(hoy, 365));
+    llamadas = []; document.getElementById("qcc-vr-fecha").value = "2020-01-01"; document.getElementById("qcc-vr-confirmar").click(); await esperar(20);
+    ok(T("fecha pasada: error y no llama a la API"), llamadas.length === 0 && /anterior a hoy/.test(document.getElementById("qcc-vr-error").innerText));
+    document.getElementById("qcc-vr-fecha").value = window.DateUtils.sumarDias(hoy, 200); confirmar = false;
+    document.getElementById("qcc-vr-confirmar").click(); await esperar(20);
+    ok(T("confirmacion cancelada: no guarda"), llamadas.filter(l => /validarRevision/.test(l.action)).length === 0 && !!document.getElementById("qcc-validar-revision-modal"));
+    confirmar = true; respuestaValidar = { ok: false, error: "No tienes permiso de EDITAR sobre Control Documental" };
+    document.getElementById("qcc-vr-confirmar").click(); await esperar(30);
+    ok(T("error de API (sin permiso): mensaje visible y sin toast"), /No tienes permiso/.test(document.getElementById("qcc-vr-error").innerText) && !document.querySelector(".qcc-toast-exito"));
+    respuestaValidar = { ok: true, data: {} }; llamadas = []; gets = 0;
+    document.getElementById("qcc-vr-confirmar").click(); await esperar(80);
+    const v = llamadas.find(l => l.action === "controlDocumental.version.validarRevision");
+    ok(T("POST con documentoId y nueva fecha, sin usuario/empresa"), v && v.documentoId === 7 && v.nuevaProximaRevision === window.DateUtils.sumarDias(hoy, 200) && !("validadoPor" in v) && !("empresa" in v) && !("atendidaPor" in v), JSON.stringify(v));
+    ok(T("no crea version ni sube adjunto"), !llamadas.some(l => /version\.crear|adjunto\.subir|controlDocumental\.update/.test(l.action)));
+    ok(T("toast de exito"), [...document.querySelectorAll(".qcc-toast-exito")].some(t => /Revisión validada correctamente/.test(t.textContent)));
+    const tb = document.getElementById(pre + "-versiones-tbody").innerText;
+    ok(T("modal cerrado y ficha recargada con la nueva fecha"), !document.getElementById("qcc-validar-revision-modal") && gets >= 1 && tb.includes(window.DateUtils.formatear(window.DateUtils.sumarDias(hoy, 200))), tb);
+    ok(T("ninguna llamada a alertas atendidas"), !llamadas.some(l => /alertasAtendidas/.test(l.action)));
+    document.querySelectorAll(".qcc-toast-exito").forEach(t => t.remove());
+    nivel = "VER"; await c._verDetalle(7); await esperar(20);
+    ok(T("VER: sin boton Validar revision"), !visible(pre + "-form-validar-btn"));
+    nivel = "SIN_ACCESO"; await c._verDetalle(7); await esperar(20);
+    ok(T("SIN_ACCESO: sin boton"), !visible(pre + "-form-validar-btn"));
+    nivel = "EDITAR"; estado = "OBSOLETO"; await c._verDetalle(7); await esperar(20);
+    ok(T("documento obsoleto: sin boton"), !visible(pre + "-form-validar-btn"));
+    estado = "VIGENTE"; vigente = false; await c._verDetalle(7); await esperar(20);
+    ok(T("sin version vigente: sin boton"), !visible(pre + "-form-validar-btn"));
+    vigente = true; await c._verDetalle(7); await esperar(20);
+    c._habilitarEdicion(); await esperar(10);
+    ok(T("en modo edicion el boton se oculta"), !visible(pre + "-form-validar-btn"));
+    document.getElementById("qcc-validar-revision-modal")?.remove();
+  }
+} catch (e) { res.push("FAIL excepción: " + e.stack); }
+document.getElementById("out").textContent = res.join("\n") + "\nTOTAL " + res.filter(x => x.startsWith("PASS")).length + " PASS / " + res.filter(x => x.startsWith("FAIL")).length + " FAIL"; })();
+</script>

@@ -415,17 +415,9 @@ window.FaretController = class FaretController {
         return `${n} documento${s} con revisión vencida`;
     }
 
-    // Notificación breve propia (no existe un toast global en la app).
+    // Notificación breve de éxito (utilidad compartida en shared/utils.js).
     _toastExito(texto) {
-        try {
-            const t = document.createElement("div");
-            t.className = "fh-toast-exito";
-            t.setAttribute("role", "status");
-            t.textContent = texto;
-            t.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:10000;background:#065F46;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.25);";
-            document.body.appendChild(t);
-            setTimeout(() => t.remove(), 3500);
-        } catch { /* sin notificación */ }
+        window.ToastExito?.mostrar(texto);
     }
 
     async _alMarcar(items) {

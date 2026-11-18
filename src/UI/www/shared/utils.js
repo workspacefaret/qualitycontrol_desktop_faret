@@ -955,3 +955,79 @@ window.NciTipoDesviacion = (function () {
     }
     return { etiqueta, AMPLIACIONES };
 })();
+
+// Notificación breve de éxito (la app no tenía un toast global). Uso: window.ToastExito.mostrar("texto").
+window.ToastExito = {
+    mostrar(texto) {
+        try {
+            const t = document.createElement("div");
+            t.className = "qcc-toast-exito";
+            t.setAttribute("role", "status");
+            t.textContent = texto;
+            t.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:10001;background:#065F46;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.25);";
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 3500);
+        } catch { /* sin notificación */ }
+    },
+};
+
+// Control Documental — "Validar revisión": confirma que un documento sigue vigente fijando una nueva próxima revisión de la
+// versión vigente, SIN crear versión ni tocar archivo/código/nombre/número. Compartido por INNPACK y Faret (misma acción
+// "controlDocumental.version.validarRevision"; la API verifica identidad y EDITAR, y registra usuario/fecha/fecha anterior).
+window.ValidarRevisionDoc = (function () {
+    function abrir({ documentoId, codigo, version, proximaActual, onOk }) {
+        document.getElementById("qcc-validar-revision-modal")?.remove();
+        const hoy = window.DateUtils.hoyISO();
+        const propuesta = window.DateUtils.sumarDias(hoy, 365);
+        const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+        const overlay = document.createElement("div");
+        overlay.id = "qcc-validar-revision-modal";
+        overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:10000;padding:16px;";
+        overlay.innerHTML = `
+            <div role="dialog" aria-modal="true" style="background:#fff;color:#111827;border-radius:12px;width:min(480px,100%);padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.35);">
+                <div style="font-weight:700;font-size:16px;">Validar revisión</div>
+                <div style="font-size:13px;opacity:.8;margin:6px 0 14px;">${esc(codigo)} · versión vigente ${esc(version)}${proximaActual ? ` · próxima revisión actual: ${esc(window.DateUtils.formatear(proximaActual))}` : ""}.<br>
+                    Confirma que el documento sigue siendo válido. No se crea una versión nueva ni se modifica el archivo.</div>
+                <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">Nueva fecha de próxima revisión</label>
+                <input type="date" id="qcc-vr-fecha" value="${propuesta}" min="${hoy}" style="width:100%;margin-bottom:12px;">
+                <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">Comentario (opcional)</label>
+                <textarea id="qcc-vr-comentario" rows="2" maxlength="500" style="width:100%;"></textarea>
+                <div id="qcc-vr-error" style="display:none;color:#B91C1C;font-size:13px;margin-top:8px;"></div>
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
+                    <button type="button" class="btn-secondary" id="qcc-vr-cancelar">Cancelar</button>
+                    <button type="button" class="btn-primary" id="qcc-vr-confirmar">Validar revisión</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        const cerrar = () => overlay.remove();
+        const error = t => { const e = overlay.querySelector("#qcc-vr-error"); e.textContent = t; e.style.display = t ? "block" : "none"; };
+        overlay.querySelector("#qcc-vr-cancelar").addEventListener("click", cerrar);
+        overlay.addEventListener("click", ev => { if (ev.target === overlay) cerrar(); });
+        const btn = overlay.querySelector("#qcc-vr-confirmar");
+        btn.addEventListener("click", async () => {
+            const fecha = overlay.querySelector("#qcc-vr-fecha").value;
+            const comentario = overlay.querySelector("#qcc-vr-comentario").value.trim();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return error("La fecha de próxima revisión no es válida.");
+            if (fecha < hoy) return error(`La próxima revisión no puede ser anterior a hoy (${window.DateUtils.formatear(hoy)}).`);
+            error("");
+            if (!confirm(`¿Confirmas que ${codigo} (versión ${version}) sigue siendo válido?\n\nLa próxima revisión pasará a ${window.DateUtils.formatear(fecha)}. No se creará una versión nueva.`)) return;
+            btn.disabled = true;
+            try {
+                const res = await window.PhotinoBridge.send({
+                    action: "controlDocumental.version.validarRevision",
+                    documentoId,
+                    nuevaProximaRevision: fecha,
+                    comentario,
+                });
+                if (!res?.ok) { error(res?.error || "No se pudo validar la revisión."); btn.disabled = false; return; }
+                cerrar();
+                window.ToastExito.mostrar("Revisión validada correctamente");
+                if (onOk) await onOk(res.data);
+            } catch {
+                error("Error de comunicación con el backend.");
+                btn.disabled = false;
+            }
+        });
+    }
+    return { abrir };
+})();

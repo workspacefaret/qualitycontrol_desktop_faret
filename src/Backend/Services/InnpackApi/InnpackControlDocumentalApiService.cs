@@ -50,6 +50,10 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
         public Task<(bool ok, string body)> CrearVersionAsync(int documentoId, object body) =>
             _client.PostJsonAsync($"api/control-documental/{documentoId}/version", body);
 
+        // Validar revisión: la API verifica identidad y EDITAR; en sesión Faret se reenvía el JWT del usuario (X-Faret-User-Token).
+        public Task<(bool ok, string body)> ValidarRevisionAsync(int documentoId, object body, IReadOnlyDictionary<string, string>? headers) =>
+            _client.PostJsonAsync($"api/control-documental/{documentoId}/validar-revision", body, headers);
+
         public Task<(bool ok, string body)> EliminarAsync(int id, string? actualizadoPor)
         {
             var query = $"api/control-documental/{id}";

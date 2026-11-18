@@ -161,7 +161,7 @@ const botones = sel => document.querySelectorAll("#fh-alertas-activas " + sel).l
     await VH._marcarAtendidas(VH._alertas.doc.items); VH._renderAlertas();
     ok("tras marcar: ya no hay alerta de documentos", !/documento/.test(txt()), txt());
     ok("sin texto residual de atendida en la lista", !/atendida|registro compartido/i.test(txt().replace(/Marcar atendida/g, "")), txt());
-    ok("toast de exito mostrado", [...document.querySelectorAll(".fh-toast-exito")].some(t => t.textContent === "Alerta marcada como atendida correctamente"));
+    ok("toast de exito mostrado", [...document.querySelectorAll(".qcc-toast-exito")].some(t => t.textContent === "Alerta marcada como atendida correctamente"));
     ok("sin filas rojas vacias", ![...document.querySelectorAll("#fh-alertas-activas .alert-item")].some(e => !e.innerText.trim()));
     ok("no existe boton Ver atendidas ni contador", botones(".fh-alerta-ocultas") === 0 && !/Ver atendidas|\(\d+\)/.test(txt()) && !document.body.innerText.includes("Ver atendidas"));
     // relectura fallida: el estado local ya la sacó de pendientes
