@@ -334,8 +334,13 @@ window.FaretController = class FaretController {
         return `${i.key}|${i.huella}`;
     }
 
-    _puedeMarcar() {
-        return !window.App?.nivelModulo || window.App.nivelModulo("faret") === "EDITAR";
+    // Atender una alerta exige EDITAR sobre el módulo de la alerta (la API lo vuelve a verificar con la identidad real):
+    // PNC → No Conformidades, NC interna → NC Internas, documento → Control Documental; además EDITAR en Inicio (puerta del escritorio).
+    _puedeMarcar(tipo) {
+        const nivel = window.App?.nivelModulo;
+        if (!nivel) return true;
+        const modulo = { pnc: "faret-nc", nci: "faret-nc-internas", doc: "faret-control-documental" }[tipo];
+        return nivel.call(window.App, "faret") === "EDITAR" && (!modulo || nivel.call(window.App, modulo) === "EDITAR");
     }
 
     // { "doc:12|v5|2026-01-01": { por, fecha } } o null si no se pudo leer.
@@ -427,7 +432,7 @@ window.FaretController = class FaretController {
         const fuentes = lista.filter(x => x && x !== "error");
         const fallidas = lista.filter(x => x === "error").length;
         const pendientes = a.nci === undefined || a.doc === undefined;
-        const puedeMarcar = this._puedeMarcar();
+        const puedeMarcarDoc = this._puedeMarcar("doc");
 
         let totalAtendidos = 0;
         const avisos = [];
@@ -450,7 +455,7 @@ window.FaretController = class FaretController {
                 <div><strong>${this._escape(f.codigo)}</strong>${f.nombre ? ` · ${this._escape(f.nombre)}` : ""}
                     <span style="opacity:.75;"> — vencido el ${this._escape(window.DateUtils.formatear(f.fecha))}${f.dias !== null ? ` (hace ${f.dias} día${f.dias === 1 ? "" : "s"})` : ""}</span></div>
                 <div style="display:flex;gap:8px;flex-shrink:0;">
-                    ${puedeMarcar ? `<button type="button" class="btn-secondary fh-alerta-atender" data-key="${this._escape(f.key)}" title="Registra que esta alerta fue atendida; deja de contarse para todos los usuarios">Marcar atendida</button>` : ""}
+                    ${puedeMarcarDoc ? `<button type="button" class="btn-secondary fh-alerta-atender" data-key="${this._escape(f.key)}" title="Registra que esta alerta fue atendida; deja de contarse para todos los usuarios">Marcar atendida</button>` : ""}
                     <button type="button" class="btn-primary fh-alerta-revisar" data-doc-id="${Number(f.id)}">Revisar</button>
                 </div>
             </div>`).join("") : ""}
@@ -513,7 +518,7 @@ window.FaretController = class FaretController {
         const a = this._alertas || {};
         const fuentes = [a.pnc, a.nci, a.doc].filter(x => x && x !== "error" && (!tipo || x.tipo === tipo));
         const modo = tipo ? "pendientes" : "atendidas";
-        const puedeMarcar = this._puedeMarcar();
+        const puedeMarcar = this._puedeMarcar(tipo);
 
         const fila = (i, atendida) => `
             <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #E5E7EB;">
