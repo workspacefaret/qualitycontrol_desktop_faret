@@ -9,8 +9,8 @@ $Servidor   = '.'                          # instancia local del servidor SAP_NE
 $Base       = 'calidad_db'
 $DirBackup  = 'C:\SQLBackups\CalidadNp'
 $Marca      = Get-Date -Format 'yyyyMMdd_HHmmss'
-$Bak        = Join-Path $DirBackup ("calidad_db_PRE_CalidadNp_{0}.bak" -f $Marca)
-$Informe    = Join-Path $DirBackup ("preflight_resultado_{0}.txt" -f $Marca)
+$Bak        = $DirBackup.TrimEnd('\') + '\' + ("calidad_db_PRE_CalidadNp_{0}.bak" -f $Marca)
+$Informe    = $DirBackup.TrimEnd('\') + '\' + ("preflight_resultado_{0}.txt" -f $Marca)
 $bloqueos   = New-Object System.Collections.Generic.List[string]
 $avisos     = New-Object System.Collections.Generic.List[string]
 $resumen    = [ordered]@{}
@@ -45,9 +45,10 @@ try {
     if ($b.state_desc -ne 'ONLINE') { $bloqueos.Add("La base no esta ONLINE ($($b.state_desc))") }
     if ([int]$b.compatibility_level -lt 130) { $bloqueos.Add("Compatibilidad $($b.compatibility_level) < 130: los scripts se probaron en 130") }
 
-    $perm = (Consulta $cn "SELECT HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','CREATE TABLE') AS create_table, HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','CREATE SEQUENCE') AS create_seq, HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','ALTER ANY USER') AS puede_grant").Rows[0]
-    $resumen['Permisos migracion'] = "CREATE TABLE=$($perm.create_table) CREATE SEQUENCE=$($perm.create_seq) GRANT=$($perm.puede_grant)"
-    if ([int]$perm.create_table -ne 1 -or [int]$perm.create_seq -ne 1 -or [int]$perm.puede_grant -ne 1) { $avisos.Add("Este login no podria ejecutar la migracion (faltan CREATE TABLE/SEQUENCE/GRANT); la ejecutara quien tenga esos permisos") }
+    # Los permisos que devuelve NULL se tratan como 0 (no verificable). Son informativos: la migracion la ejecuta quien tenga permisos.
+    $perm = (Consulta $cn "SELECT ISNULL(HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','CREATE TABLE'),0) AS create_table, ISNULL(HAS_PERMS_BY_NAME(N'dbo','SCHEMA','ALTER'),0) AS alter_schema, ISNULL(HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','ALTER ANY USER'),0) AS puede_grant, CASE WHEN IS_SRVROLEMEMBER('sysadmin') = 1 OR IS_MEMBER('db_owner') = 1 THEN 1 ELSE 0 END AS es_admin_db").Rows[0]
+    $resumen['Permisos migracion'] = "CREATE TABLE=$($perm.create_table) ALTER SCHEMA dbo=$($perm.alter_schema) GRANT=$($perm.puede_grant) sysadmin/db_owner=$($perm.es_admin_db)"
+    if ([int]$perm.create_table -ne 1 -or [int]$perm.alter_schema -ne 1 -or [int]$perm.puede_grant -ne 1) { $avisos.Add("Este login no podria ejecutar la migracion (faltan CREATE TABLE/ALTER dbo/GRANT); la ejecutara quien tenga esos permisos") }
 
     $ex1b = Consulta $cn "SELECT name FROM sys.tables WHERE name LIKE N'trazabilidad[_]%'"
     $exNp = Consulta $cn "SELECT name FROM sys.objects WHERE name IN (N'np_informe',N'np_merma',N'np_cierre',N'cert_destruccion',N'cert_destruccion_detalle',N'cert_destruccion_aprobacion',N'cert_destruccion_flujo',N'seq_cert_destruccion')"
@@ -89,7 +90,6 @@ try {
     # ---- 4. Respaldo COPY_ONLY + CHECKSUM (no altera la cadena de respaldos) --------------------------------
     Write-Host "Comprobaciones previas OK. Creando respaldo COPY_ONLY: $Bak" -ForegroundColor Cyan
     $cn = Abrir 'master'
-    $cn.FireInfoMessageOnUserErrors = $false
     $handler = [System.Data.SqlClient.SqlInfoMessageEventHandler]{ param($s, $e) Write-Host ("  " + $e.Message) }
     $cn.add_InfoMessage($handler)
     $cmd = $cn.CreateCommand(); $cmd.CommandTimeout = 0
