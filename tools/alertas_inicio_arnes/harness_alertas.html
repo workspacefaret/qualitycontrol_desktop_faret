@@ -1,0 +1,184 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>harness alertas</title></head>
+<body>
+<div id="fh-alertas-activas"></div>
+<pre id="out">PENDIENTE</pre>
+<script src="file:///C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/UI/www/shared/utils.js"></script>
+<script src="file:///C:/Users/dcarrasco/Desktop/Proyectos/qualitycontrol_desktop_faret/src/UI/www/modules/faret/faret.controller.js"></script>
+<script>
+// ---- Servidor simulado (estado compartido entre "usuarios") ----
+const hoy = window.DateUtils.hoyISO();
+const ayer = window.DateUtils.sumarDias(hoy, -3);
+const servidor = {
+  atendidas: [],            // filas de alertas_atendidas
+  caeLista: false,          // alertasAtendidas.list responde error
+  caeMarcar: false,         // alertasAtendidas.marcar responde error
+  llamadasList: 0, llamadasMarcar: 0, marcarCuerpos: [],
+  docs: [
+    { id: 11, codigoBase: "PRO-1", nombre: "Proc uno", estado: "VIGENTE", versionVigenteId: 5, versionProximaRevision: ayer },
+    { id: 12, codigoBase: "PRO-2", nombre: "Proc dos", estado: "VIGENTE", versionVigenteId: 7, versionProximaRevision: ayer },
+  ],
+  ncis: [
+    { id: 301, codigo: "NCI-301", estadoGestion: "ABIERTA", fechaDeteccion: window.DateUtils.sumarDias(hoy, -40), area: "Impresión", categoriaDefecto: "x" },
+  ],
+  criticas: [{ dataId: 900, codigo: "PNC-900", npNv: "1", cliente: "C", tipoPnc: "Rechazo", estadoGestion: "SIN_GESTION", nivel: "Crítico", fechaIngreso: window.DateUtils.sumarDias(hoy, -10) }],
+};
+let nivelFaret = "EDITAR";
+let nivelesMod = {};
+window.App = { nivelModulo: m => (m === 'faret' ? nivelFaret : (nivelesMod[m] || 'EDITAR')), loadModule() {} };
+window.Novedades = undefined;
+window.PhotinoBridge = {
+  async send(msg) {
+    const d = msg.data || {};
+    switch (msg.action) {
+      case "alertasAtendidas.list":
+        servidor.llamadasList++;
+        if (servidor.caeLista) return { ok: false, error: "caído" };
+        return { ok: true, data: servidor.atendidas.map(x => ({ ...x })) };
+      case "alertasAtendidas.marcar": {
+        servidor.llamadasMarcar++; servidor.marcarCuerpos.push(d);
+        if (servidor.caeMarcar) return { ok: false, error: "caído" };
+        if (!servidor.atendidas.some(x => x.tipoAlerta === d.tipoAlerta && x.registroId === String(d.registroId) && x.huella === d.huella))
+          servidor.atendidas.push({ tipoAlerta: d.tipoAlerta, registroId: String(d.registroId), huella: d.huella, atendidaPor: "ana", fechaAtendida: "2026-11-18 10:00:00" });
+        return { ok: true, data: { creada: true } };
+      }
+      case "noConformidades.list": return { ok: true, data: { items: servidor.ncis } };
+      case "controlDocumental.list": return { ok: true, data: { items: msg.alcanceEmpresa === "FARET" ? servidor.docs : [] } };
+    }
+    return { ok: false, error: "no simulada " + msg.action };
+  },
+};
+window.alert = m => { window.__alertas.push(m); };
+window.confirm = () => true;
+window.__alertas = [];
+
+function usuario(nombre) {
+  sessionStorage.setItem("faretNombreUsuario", nombre);
+  const c = new window.FaretController();
+  c._datos = { dashboard: { kpis: { dataDisponible: true }, criticasAbiertasDetalle: servidor.criticas } };
+  return c;
+}
+const txt = () => document.getElementById("fh-alertas-activas").innerText.replace(/\s+/g, " ").trim();
+const res = [];
+const ok = (n, cond, extra) => res.push((cond ? "PASS " : "FAIL ") + n + (cond ? "" : "  -> " + (extra || "")));
+const esperar = ms => new Promise(r => setTimeout(r, ms));
+const botones = sel => document.querySelectorAll("#fh-alertas-activas " + sel).length;
+
+(async () => {
+  try {
+    // 1. Usuario A ve todo y marca el documento PRO-1
+    let A = usuario("ana");
+    await A._cargarAlertasAsync();
+    ok("A ve 3 alertas (PNC, NCI, documentos)", /1 PNC crítica/.test(txt()) && /1 NC interna/.test(txt()) && /2 documentos con revisión vencida/.test(txt()), txt());
+    ok("A ve botón Marcar atendida por documento", botones(".fh-alerta-atender") === 2);
+    document.querySelector(".fh-alerta-atender[data-key='doc:11']").click();
+    await esperar(50);
+    ok("tras marcar: queda 1 documento pendiente", /1 documento con revisión vencida/.test(txt()), txt());
+    ok("el cuerpo lleva tipo/registro/huella y NO el usuario", servidor.marcarCuerpos.length === 1 && servidor.marcarCuerpos[0].tipoAlerta === "doc" && servidor.marcarCuerpos[0].registroId === "11" && servidor.marcarCuerpos[0].huella === "v5|" + ayer && servidor.marcarCuerpos[0].atendidaPor === undefined, JSON.stringify(servidor.marcarCuerpos));
+    ok("acceso Ver atendidas con conteo", /Ver atendidas \(1\)/.test(txt()), txt());
+
+    // 2. Usuario B (otra sesión, mismo servidor) NO la ve como pendiente y ve quién la atendió
+    let B = usuario("beto");
+    await B._cargarAlertasAsync();
+    ok("B no ve PRO-1 pendiente (1 documento)", /1 documento con revisión vencida/.test(txt()), txt());
+    B._abrirModalAlerta(null);
+    const modal = document.getElementById("fh-alerta-modal").innerText.replace(/\s+/g, " ");
+    ok("modal 'atendidas' muestra quién y cuándo", /PRO-1/.test(modal) && /Atendida por ana el 18-11-2026/.test(modal), modal);
+    B._cerrarModalAlerta();
+
+    // 3. Idempotencia: B marca la misma (ya atendida) -> no se duplica en el servidor
+    await B._marcarAtendidas([{ key: "doc:11", huella: "v5|" + ayer }]);
+    ok("marcar de nuevo no duplica", servidor.atendidas.filter(x => x.registroId === "11").length === 1);
+
+    // 4. La condición cambia (nueva versión vigente) -> la alerta vuelve para todos
+    servidor.docs[0].versionVigenteId = 6; // nueva versión, sigue vencida
+    let C = usuario("carla");
+    await C._cargarAlertasAsync();
+    ok("nueva versión (huella distinta) vuelve a alertar", /2 documentos con revisión vencida/.test(txt()), txt());
+
+    // 5. PNC: cambia el estado de gestión -> vuelve; mientras no cambie, se mantiene atendida
+    await C._marcarAtendidas(C._alertas.pnc.items);
+    C._renderAlertas();
+    ok("PNC atendida deja de contarse", !/PNC crítica/.test(txt()), txt());
+    let D = usuario("diego"); await D._cargarAlertasAsync();
+    ok("otro usuario tampoco ve la PNC atendida", !/PNC crítica/.test(txt()), txt());
+    servidor.criticas[0].estadoGestion = "EN_GESTION";
+    let E = usuario("eva"); await E._cargarAlertasAsync();
+    ok("PNC con estado distinto (huella distinta) vuelve", /1 PNC crítica/.test(txt()), txt());
+
+    // 5b. EDITAR en Inicio pero VER en Control Documental: no ve el boton de documentos (la API tambien lo rechazaria)
+    nivelFaret = "EDITAR"; nivelesMod = { "faret-control-documental": "VER" };
+    let UVERDOC = usuario("gina"); await UVERDOC._cargarAlertasAsync();
+    ok("EDITAR en Inicio pero VER en Control Documental: sin boton de documentos", botones(".fh-alerta-atender") === 0, String(botones(".fh-alerta-atender")));
+    nivelesMod = {}; nivelFaret = "EDITAR";
+
+    // 6. Solo vista (VER): sin botones de marcar
+    nivelFaret = "VER";
+    let F = usuario("fran"); await F._cargarAlertasAsync();
+    ok("VER: sin botones Marcar atendida", botones(".fh-alerta-atender") === 0);
+    F._abrirModalAlerta("doc");
+    ok("VER: modal sin botones de marcar", document.querySelectorAll("#fh-alerta-modal .fh-am-uno, #fh-am-todas, #fh-am-seleccionadas").length === 0);
+    F._cerrarModalAlerta();
+    nivelFaret = "EDITAR";
+
+    // 7. Registro central caído: se muestran todas (nunca oculta) y avisa
+    servidor.caeLista = true;
+    let UEDIT_VERDOC = usuario("gina"); await UEDIT_VERDOC._cargarAlertasAsync();
+    ok("lista caída: se muestran TODAS", /1 PNC crítica/.test(txt()) && /1 NC interna/.test(txt()) && /2 documentos/.test(txt()), txt());
+    ok("lista caída: avisa del problema", /No se pudo leer el registro de alertas atendidas/.test(txt()), txt());
+    servidor.caeLista = false;
+
+    // 8. Marcar falla: la alerta sigue pendiente y se avisa al usuario
+    servidor.caeMarcar = true;
+    let H = usuario("hugo"); await H._cargarAlertasAsync();
+    const antes = txt();
+    document.querySelector(".fh-alerta-atender").click();
+    await esperar(80);
+    ok("marcar caído: avisa con alert()", window.__alertas.length === 1 && /No se pudo registrar/.test(window.__alertas[0]), JSON.stringify(window.__alertas));
+    ok("marcar caído: la alerta sigue pendiente", /2 documentos con revisión vencida/.test(txt()), txt());
+    servidor.caeMarcar = false;
+
+    // 9. Consultas: una sola lectura del registro por carga de Inicio (sin consultas excesivas)
+    servidor.llamadasList = 0;
+    let I = usuario("ines"); await I._cargarAlertasAsync();
+    ok("1 sola consulta alertasAtendidas.list por carga", servidor.llamadasList === 1, String(servidor.llamadasList));
+
+    // 10. Marca masiva desde el modal: N llamadas secuenciales y recarga única del registro
+    servidor.llamadasMarcar = 0; servidor.llamadasList = 0;
+    I._abrirModalAlerta("doc");
+    document.getElementById("fh-am-todas").click();
+    await esperar(120);
+    ok("marcar todas: 2 marcas y 1 relectura", servidor.llamadasMarcar === 2 && servidor.llamadasList === 1, servidor.llamadasMarcar + "/" + servidor.llamadasList);
+    ok("tras marcar todas los documentos desaparecen", !/documento/.test(txt().replace(/Ver atendidas/, "")) || /atendida/.test(txt()), txt());
+
+    // 11. Sin localStorage de alertas (ya no se usa)
+    ok("no queda uso de localStorage de alertas", Object.keys(localStorage).every(k => !k.startsWith("lcc_faret_alertas")));
+    // 7. Requisito visual definitivo: la atendida desaparece por completo de pendientes
+    servidor.atendidas = []; servidor.criticas[0].estadoGestion = "SIN_GESTION"; servidor.docs[0].versionVigenteId = 5;
+    let VH = usuario("hugo"); await VH._cargarAlertasAsync();
+    const antesBtn = botones(".fh-alerta-atender");
+    ok("hay pendientes con boton antes de marcar", antesBtn > 0 && /documentos con revisi/.test(txt()), txt());
+    await VH._marcarAtendidas(VH._alertas.doc.items); VH._renderAlertas();
+    ok("tras marcar: ya no hay alerta de documentos", !/documento/.test(document.getElementById("fh-alertas-activas").innerText.replace(/Ver atendidas.*/s, "")), txt());
+    ok("sin texto residual de atendida en la lista", !/atendida\(s\)|registro compartido|alerta atendida/i.test(txt().replace(/Ver atendidas \(\d+\)/, "")), txt());
+    ok("sin filas rojas vacias", ![...document.querySelectorAll("#fh-alertas-activas .alert-item")].some(e => !e.innerText.trim()));
+    ok("historial accesible solo por Ver atendidas", botones(".fh-alerta-ocultas") === 1);
+    // relectura fallida: el estado local ya la sacó de pendientes
+    const rlista = servidor.caeLista; servidor.caeLista = true; await VH._marcarAtendidas([]); VH._renderAlertas(); servidor.caeLista = rlista;
+    ok("tras marcar con relectura caida sigue fuera de pendientes", !/documentos con revisi/.test(txt()), txt());
+    // otro usuario al actualizar Inicio
+    let VI = usuario("irma"); await VI._cargarAlertasAsync();
+    ok("otro usuario no ve la de documentos al actualizar", !/documentos con revisi/.test(txt()), txt());
+    // estado limpio cuando no queda nada pendiente
+    await VI._marcarAtendidas([...VI._alertas.nci.items, ...VI._alertas.pnc.items]); VI._renderAlertas();
+    ok("estado limpio: No hay alertas pendientes", /No hay alertas pendientes/.test(txt()), txt());
+    ok("estado limpio sin conteo de pendientes ni botones atender", botones(".fh-alerta-atender") === 0 && !/pendiente.*\d+ (PNC|NC|documento)/.test(txt()));
+    // huella cambia -> vuelve a pendiente y el estado limpio desaparece
+    servidor.docs[0].versionVigenteId = 9;
+    let VJ = usuario("juan"); await VJ._cargarAlertasAsync();
+    ok("huella cambiada: reaparece pendiente", /documentos? con revisi|1 documento/.test(txt()) && !/No hay alertas pendientes/.test(txt()), txt());
+
+  } catch (e) { res.push("FAIL excepción: " + e.stack); }
+  document.getElementById("out").textContent = res.join("\n") + "\nTOTAL " + res.filter(x => x.startsWith("PASS")).length + " PASS / " + res.filter(x => x.startsWith("FAIL")).length + " FAIL";
+})();
+</script></body></html>

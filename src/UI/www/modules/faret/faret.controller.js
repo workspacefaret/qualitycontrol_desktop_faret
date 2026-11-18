@@ -365,7 +365,11 @@ window.FaretController = class FaretController {
                     action: "alertasAtendidas.marcar",
                     data: { tipoAlerta: tipo, registroId: resto.join(":"), huella: i.huella },
                 }).catch(() => null);
-                if (!res?.ok) {
+                if (res?.ok) {
+                    // Estado local inmediato: sale de pendientes sin esperar la relectura (que luego lo confirma).
+                    if (!this._atendidas) this._atendidas = {};
+                    this._atendidas[this._claveAtencion(i)] = { por: res.data?.atendidaPor || "ti", fecha: new Date().toISOString() };
+                } else {
                     fallos++;
                     if (!this._errorMarcar && res?.error) this._errorMarcar = String(res.error);
                 }
@@ -467,7 +471,7 @@ window.FaretController = class FaretController {
                 ? `<div class="alert-item"><div>Cargando alertas...</div></div>`
                 : fallidas
                     ? ""
-                    : `<div class="alert-ok">✔ Sistema sin alertas activas</div>`;
+                    : `<div class="alert-ok">✔ No hay alertas pendientes</div>`;
         }
         if (fallidas && !pendientes) {
             html += `<div class="alert-item"><div style="opacity:.7;font-size:12px;">No se pudieron calcular ${fallidas} aviso${fallidas === 1 ? "" : "s"}. Reintenta más tarde.</div></div>`;
@@ -475,11 +479,9 @@ window.FaretController = class FaretController {
         if (this._atendidas === null) {
             html += `<div class="alert-item"><div style="opacity:.7;font-size:12px;">No se pudo leer el registro de alertas atendidas: se muestran todas.</div></div>`;
         }
+        // Historial global: solo un acceso discreto (sin texto de aviso dentro de la lista de pendientes).
         if (totalAtendidos) {
-            html += `<div class="alert-item" style="display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;opacity:.8;">
-                <div>${totalAtendidos} alerta${totalAtendidos === 1 ? "" : "s"} atendida${totalAtendidos === 1 ? "" : "s"} (registro compartido, visible para todos)</div>
-                <button type="button" class="btn-secondary fh-alerta-ocultas">Ver atendidas</button>
-            </div>`;
+            html += `<div style="text-align:right;margin-top:8px;"><button type="button" class="btn-secondary fh-alerta-ocultas" style="padding:2px 10px;font-size:12px;">Ver atendidas (${totalAtendidos})</button></div>`;
         }
 
         container.innerHTML = html;
