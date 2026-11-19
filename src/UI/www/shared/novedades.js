@@ -3,34 +3,26 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.37";
+    const ID = "1.8.38";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
         {
-            titulo: "Trazabilidad integral",
+            titulo: "Formatos oficiales de Calidad",
+            icono: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M9 13h6M9 17h6"/>',
+            puntos: [
+                { solo: "INNPACK", t: "Trazabilidad genera el informe oficial REG-SGI-TDP-V05 en PDF y Excel. Antes de generarlo se indican la hora de inicio, la hora de término y el cargo; la fecha de emisión y el usuario se completan solos." },
+                { solo: "INNPACK", t: "Certificados de Destrucción genera el formato oficial REG-SGI-CDD-V11 en PDF y Excel, en cualquier estado. Lo pendiente de emisión o aprobación se rotula como pendiente: nunca aparece como firmado." },
+                { solo: "INNPACK", t: "Si un dato no existe en el sistema se escribe \"SIN INFORMACIÓN\" o \"NO CONFIRMADO\": nunca se reemplaza por cero ni se convierte una diferencia en merma." },
+            ],
+        },
+        {
+            titulo: "Paneles de inicio",
             icono: '<path d="M3 3v18h18M7 15l4-4 3 3 5-6"/>',
             puntos: [
-                { solo: "INNPACK", t: "Trazabilidad ahora muestra, por NP, los ítems de la nota de venta, las órdenes y corridas de FPS, los materiales realmente consumidos con su lote y proveedor, las liberaciones, los despachos y los controles de Calidad." },
-                { solo: "INNPACK", t: "Nueva búsqueda por lote: indica en qué órdenes y NP se usó un material, y con un clic abre la trazabilidad de esa NP." },
-                { solo: "INNPACK", t: "Cada dato indica si está confirmado, es una estimación o no está disponible, y todo se puede exportar a Excel." },
-            ],
-        },
-        {
-            titulo: "Alertas atendidas para todos",
-            icono: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>',
-            puntos: [
-                { solo: "FARET", t: "En Inicio, \"Marcar atendida\" registra la alerta en un registro compartido: deja de aparecer para todos los usuarios y queda guardado quién y cuándo. Solo pueden marcar quienes tienen permiso de edición en el módulo de la alerta." },
-                { solo: "FARET", t: "Marcar una alerta no cierra ni modifica el registro. Si cambia la condición (otra versión, otro estado), la alerta vuelve a aparecer sola. Si no queda ninguna, el bloque \"Alertas activas\" se oculta." },
-            ],
-        },
-        {
-            titulo: "Validar revisión de documentos",
-            icono: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M9 15l2 2 4-4"/>',
-            puntos: [
-                { t: "Control Documental: en la ficha del documento, junto a \"Editar\" y \"Cerrar\", el botón \"Validar revisión\" confirma que el documento sigue vigente y fija la nueva fecha de próxima revisión, sin crear una versión nueva ni cambiar el archivo." },
-                { t: "Queda registrado quién validó, cuándo, y la fecha anterior y la nueva. Requiere permiso de edición en Control Documental; la alerta de revisión vencida desaparece del Inicio." },
+                { solo: "INNPACK", t: "Trazabilidad, Balance y Mermas, Cierre de NP y Certificados de Destrucción abren ahora en un panel con indicadores, gráficos y los registros que requieren atención, con filtro por período." },
+                { solo: "INNPACK", t: "La búsqueda por NP sigue arriba en cada panel; al consultar una NP aparece su detalle de siempre, con el botón \"Volver al resumen\". Si una fuente no responde, el panel lo indica y permite reintentar." },
             ],
         },
     ];
