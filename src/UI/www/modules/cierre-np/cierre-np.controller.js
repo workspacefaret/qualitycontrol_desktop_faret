@@ -10,11 +10,63 @@ if (!window.CierreNpController) {
       this._carga = null
       this._base = null
       this._lineas = []
+      this._dash = null
       this._seq = 0
     }
 
     async init() {
       this.bind()
+      this.montarResumen()
+    }
+
+    // ── Dashboard de inicio: estado vigente (última versión) de cada NP con cierre guardado. Una NP sin cierre guardado no aparece:
+    // nunca se asume que está cerrada ni abierta. ──
+    montarResumen() {
+      const D = window.NpDash
+      const rotulo = f => (f.estado === "CERRADO"
+        ? (f.conciliacion === "CONCILIADO" ? "Cerrada y conciliada" : "Cerrada con diferencia")
+        : f.conciliacion === "CONCILIADO" ? "Borrador conciliado" : f.conciliacion === "PENDIENTE" ? "Borrador con saldo" : "Borrador no calculable")
+      this._dash = D.montar(this.$("cnDash"), {
+        p: "cn",
+        periodo: true,
+        buscar: { placeholder: "Abrir el cierre de una NP (Ej: 4007)", boton: "Consultar NP", onBuscar: np => { this.vista(true); this.$("cnNp").value = np; this.consultar() } },
+        kpis: [
+          { label: "NP cerradas", icono: "ok", tono: "ok" },
+          { label: "NP abiertas con saldo", icono: "caja", tono: "warn" },
+          { label: "Pendientes de conciliación", icono: "alerta", tono: "warn" },
+          { label: "Diferencias justificadas", icono: "sello" },
+        ],
+        charts: [
+          { titulo: "Distribución por estado", sub: "Estado vigente de las NP con cierre guardado (no depende del período)" },
+          { titulo: "Cierres por mes", sub: "NP cerradas, según la fecha de su cierre vigente" },
+        ],
+        tabla: { titulo: "NP pendientes de revisión", sub: "Borradores o cierres con diferencia, sin importar el período (los más antiguos primero)", cols: ["NP", "Ítem", "Solicitada", "Fabricada", "Pendiente", "Conciliación", "Estado", ""], vacio: "No hay NP pendientes de revisión" },
+        cargar: per => C.send("calidadNp.resumen", per),
+        render: (d, h) => {
+          const c = d.cierre || {}
+          const est = c.porEstado || []
+          const n = fn => est.filter(fn).reduce((a, f) => a + Number(f.nps || 0), 0)
+          h.kpi(0, n(f => f.estado === "CERRADO"), "Cierre confirmado en el sistema")
+          h.kpi(1, n(f => f.estado === "BORRADOR" && f.conciliacion === "PENDIENTE"), "Borradores con diferencia sin justificar")
+          h.kpi(2, n(f => f.conciliacion !== "CONCILIADO"), "Incluye no calculables")
+          h.kpi(3, est.reduce((a, f) => a + Number(f.justificadas || 0), 0), "Cerradas con la diferencia explicada")
+          const grupos = {}
+          est.forEach(f => { grupos[rotulo(f)] = (grupos[rotulo(f)] || 0) + Number(f.nps || 0) })
+          const labels = Object.keys(grupos)
+          const color = l => (l === "Cerrada y conciliada" ? D.COL.verde : l === "Cerrada con diferencia" ? D.COL.ambar : l === "Borrador con saldo" ? D.COL.rojo : l === "Borrador conciliado" ? D.COL.celeste : D.COL.gris)
+          h.grafico(0, "doughnut", labels, [{ label: "NP", data: labels.map(l => grupos[l]), colores: labels.map(color) }], "Aún no hay cierres guardados")
+          const meses = c.porMes || []
+          h.grafico(1, "bar", meses.map(m => D.mesTxt(m.mes)), [{ label: "Cierres", data: meses.map(m => Number(m.cierres)), color: D.COL.verde }])
+          h.filas((c.atencion || []).map(x => `<tr><td><b>${C.esc(x.np)}</b></td><td>${C.esc(C.txt(x.item))}</td><td>${D.num(x.cantidadSolicitada)}</td><td>${D.num(x.cantidadFabricada)}</td><td>${D.num(x.diferenciaPendiente)}</td><td>${C.esc(CONCILIACION[x.conciliacion] || x.conciliacion)}</td><td><span class="npd-badge ${x.estado === "CERRADO" ? "warn" : ""}">${x.estado === "CERRADO" ? "Cerrada" : "Borrador"}</span></td><td><button class="btn-secondary" style="padding:2px 8px;" data-npd-np="${C.esc(x.np)}">Abrir NP</button></td></tr>`))
+        },
+      })
+    }
+
+    vista(detalle) {
+      this.$("cnDash").style.display = detalle ? "none" : ""
+      this.$("cnVista").style.display = detalle ? "" : "none"
+      this.$("btnCnResumen").style.display = detalle ? "" : "none"
+      if (!detalle) this._dash?.recargar()
     }
 
     $(id) { return document.getElementById(id) }
@@ -25,6 +77,7 @@ if (!window.CierreNpController) {
         const id = e.target.id
         if (id === "btnCnConsultar") this.consultar()
         else if (id === "btnCnLimpiar") this.limpiar()
+        else if (id === "btnCnResumen") { this.limpiar(); this.vista(false) }
         else if (id === "btnCnSugeridas") { this.sugeridas(); this.renderTodo() }
         else if (id === "btnCnAgregar") this.agregarLinea()
         else if (id === "btnCnGuardar") this.guardar("BORRADOR")
@@ -261,6 +314,7 @@ if (!window.CierreNpController) {
       if (this._input) { document.removeEventListener("change", this._input); document.removeEventListener("input", this._input) }
       this._click = null
       this._input = null
+      this._dash?.destruir()
       document.getElementById("cnModal")?.remove()
     }
   }

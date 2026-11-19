@@ -10,11 +10,62 @@ if (!window.BalanceMermasController) {
       this._carga = null
       this._mermas = []
       this._calidad = null
+      this._dash = null
       this._seq = 0
     }
 
     async init() {
       this.bind()
+      this.montarResumen()
+    }
+
+    // ── Dashboard de inicio: cifras agregadas por la API (nunca se descarga el historial al navegador) ──
+    montarResumen() {
+      const D = window.NpDash
+      this._dash = D.montar(this.$("bmDash"), {
+        p: "bm",
+        periodo: true,
+        buscar: { placeholder: "Consultar balance y mermas de una NP (Ej: 4007)", boton: "Consultar NP", onBuscar: np => { this.vista(true); this.$("bmNp").value = np; this.consultar() } },
+        kpis: [
+          { label: "Mermas registradas", icono: "lista" },
+          { label: "Pendientes de validación", icono: "reloj", tono: "warn" },
+          { label: "Mermas validadas", icono: "ok", tono: "ok" },
+          { label: "Unidades confirmadas", icono: "balanza", tono: "ok" },
+          { label: "NP pendientes de conciliación", icono: "alerta", tono: "warn" },
+        ],
+        charts: [
+          { titulo: "Mermas por proceso", sub: "Cantidad registrada, sin anuladas (unidades y pliegos por separado)" },
+          { titulo: "Evolución mensual", sub: "Cantidad de merma registrada por mes" },
+        ],
+        tabla: { titulo: "Mermas que requieren atención", sub: "Pendientes de validación, sin importar el período (las más antiguas primero)", cols: ["NP", "Ítem", "Proceso", "Fecha", "Cantidad", "Método", "Estado", ""], vacio: "No hay mermas pendientes de validación" },
+        cargar: per => C.send("calidadNp.resumen", per),
+        render: (d, h) => {
+          const m = d.mermas || {}
+          const est = m.porEstado || []
+          const suma = (estados, campo, unidad) => est.filter(f => (!estados || estados.includes(f.estado)) && (!unidad || f.unidad === unidad)).reduce((a, f) => a + Number(f[campo] || 0), 0)
+          const vivas = ["REGISTRADA", "PENDIENTE_VALIDACION", "VALIDADA", "CORREGIDA"]
+          h.kpi(0, suma(vivas, "registros"), `${D.num(suma(vivas, "cantidad", "UNIDADES"))} un. · ${D.num(suma(vivas, "cantidad", "PLIEGOS"))} pliegos (sin confirmar)`)
+          h.kpi(1, suma(["PENDIENTE_VALIDACION"], "registros"), "Esperan validación de Calidad")
+          h.kpi(2, suma(["VALIDADA"], "registros"), "Validadas en el período")
+          h.kpi(3, suma(["VALIDADA"], "cantidad", "UNIDADES"), `Validadas · más ${D.num(suma(["VALIDADA"], "cantidad", "PLIEGOS"))} pliegos`)
+          const c = d.cierre?.porEstado || []
+          h.kpi(4, c.filter(f => f.conciliacion !== "CONCILIADO").reduce((a, f) => a + Number(f.nps || 0), 0), "Según el cierre vigente de cada NP")
+          const serie = (filas, clave, etiquetas) => ["UNIDADES", "PLIEGOS"].map((un, i) => ({ label: un === "UNIDADES" ? "Unidades" : "Pliegos", color: i ? D.COL.ambar : D.COL.azul, data: etiquetas.map(e => Number(filas.find(f => f[clave] === e && f.unidad === un)?.cantidad || 0)) })).filter(s => s.data.some(v => v > 0))
+          const procs = [...new Set((m.porProceso || []).map(f => f.proceso))]
+          h.grafico(0, "barh", procs, serie(m.porProceso || [], "proceso", procs))
+          const meses = [...new Set((m.porMes || []).map(f => f.mes))]
+          h.grafico(1, "bar", meses.map(D.mesTxt), serie(m.porMes || [], "mes", meses))
+          h.filas((m.atencion || []).map(x => `<tr><td><b>${C.esc(x.np)}</b></td><td>${C.esc(C.txt(x.item))}</td><td>${C.esc(x.proceso)}</td><td>${C.fecha(x.fecha)}</td><td>${D.num(x.cantidad)} ${x.unidad === "PLIEGOS" ? "pliegos" : "un."}</td><td>${C.esc(x.metodo)}</td><td><span class="npd-badge warn">${C.esc(ESTADO_MERMA[x.estado] || x.estado)}</span></td><td><button class="btn-secondary" style="padding:2px 8px;" data-npd-np="${C.esc(x.np)}">Abrir NP</button></td></tr>`))
+        },
+      })
+    }
+
+    // Alterna entre el resumen y el detalle de una NP.
+    vista(detalle) {
+      this.$("bmDash").style.display = detalle ? "none" : ""
+      this.$("bmVista").style.display = detalle ? "" : "none"
+      this.$("btnBmResumen").style.display = detalle ? "" : "none"
+      if (!detalle) this._dash?.recargar()
     }
 
     $(id) { return document.getElementById(id) }
@@ -25,6 +76,7 @@ if (!window.BalanceMermasController) {
         const id = e.target.id
         if (id === "btnBmConsultar") this.consultar()
         else if (id === "btnBmLimpiar") this.limpiar()
+        else if (id === "btnBmResumen") { this.limpiar(); this.vista(false) }
         else if (id === "btnBmTabBalance") this.tab("balance")
         else if (id === "btnBmTabMermas") this.tab("mermas")
         else if (id === "btnBmExcelBalance") this.exportarBalance()
@@ -344,6 +396,7 @@ if (!window.BalanceMermasController) {
       if (this._change) document.removeEventListener("change", this._change)
       this._click = null
       this._change = null
+      this._dash?.destruir()
       document.getElementById("bmModal")?.remove()
       document.getElementById("bmModalMerma")?.remove()
       document.getElementById("bmModalVinc")?.remove()

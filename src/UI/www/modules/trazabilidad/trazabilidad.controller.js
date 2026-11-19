@@ -30,15 +30,82 @@ if (!window.TrazabilidadController) {
       this._consultaId = 0
     }
 
+    // ── Panel de inicio: buscador, últimas NP consultadas y estado de las fuentes de la ÚLTIMA consulta (no se simulan métricas globales) ──
+    montarPanel() {
+      this._panel = window.NpDash.montar(document.getElementById("trzDash"), {
+        p: "trz",
+        buscar: { placeholder: "Consultar la trazabilidad de una NP (Ej: 22443)", boton: "Consultar", onBuscar: np => { document.getElementById("trzNp").value = np; this.consultar() } },
+        extra: `<div class="npd-charts">
+          <div class="card npd-panel"><div class="npd-h">Últimas NP consultadas</div><div class="npd-hs">Se guardan solo en este equipo</div><div id="trzRec" class="npd-lista"></div></div>
+          <div class="card npd-panel"><div class="npd-h">Estado de las fuentes</div><div class="npd-hs" id="trzSrcSub"></div><div id="trzSrc" class="npd-fuentes"></div></div>
+        </div>
+        <div class="card npd-panel"><div class="npd-h">Qué muestra la trazabilidad</div>
+          <ul class="npd-info">
+            <li>Procesos y corridas registrados en FPS por el operador, con su máquina, fecha y cantidad declarada.</li>
+            <li>Liberaciones de Calidad (solo folios cerrados a productos terminados) y despachos de SAP, sin repartir cantidades entre líneas.</li>
+            <li>Balance de masas provisional: una diferencia entre procesos <b>no</b> se clasifica sola como merma ni destrucción.</li>
+            <li>Informe oficial REG-SGI-TDP-V05 en PDF y Excel, con las horas reales de inicio y término.</li>
+          </ul>
+          <div style="margin-top:10px;"><button class="btn-secondary" type="button" data-trz-ir-lote>Buscar por lote de material (SAP)</button></div>
+        </div>`,
+      })
+      this.renderPanel()
+    }
+
+    leerLocal(clave) {
+      try { return JSON.parse(localStorage.getItem(clave) || "null") } catch (e) { return null }
+    }
+
+    guardarReciente(np, data) {
+      try {
+        const lista = (this.leerLocal("qcc_trz_recientes") || []).filter(x => x.np !== np)
+        lista.unshift({ np, fecha: new Date().toISOString() })
+        localStorage.setItem("qcc_trz_recientes", JSON.stringify(lista.slice(0, 8)))
+        const f = data?.fuentes
+        const ok = x => (x ? !!x.ok : null)
+        localStorage.setItem("qcc_trz_fuentes", JSON.stringify({
+          np, fecha: new Date().toISOString(),
+          fps: f ? ok(f.fps) : false,
+          sap: f ? ok(f.sapNotaVenta) && ok(f.sapDespachos) && ok(f.sapConsumos) : false,
+          qcs: f ? ok(f.liberaciones) : false,
+        }))
+      } catch (e) { /* sin almacenamiento local: el panel simplemente no recuerda */ }
+    }
+
+    renderPanel() {
+      const rec = document.getElementById("trzRec")
+      if (!rec) return
+      const lista = this.leerLocal("qcc_trz_recientes") || []
+      rec.innerHTML = lista.length
+        ? lista.map(x => `<button type="button" class="npd-chip" data-trz-np="${this.esc(x.np)}" title="${this.esc(new Date(x.fecha).toLocaleString("es-CL"))}">NP ${this.esc(x.np)}</button>`).join("")
+        : `<span class="subtitle">Aún no has consultado ninguna NP. Escribe una arriba para hacer la primera consulta.</span>`
+      const f = this.leerLocal("qcc_trz_fuentes")
+      const punto = v => (v === null || v === undefined ? "" : v ? "ok" : "bad")
+      const txt = v => (v === null || v === undefined ? "Sin comprobar" : v ? "Disponible" : "No disponible")
+      document.getElementById("trzSrcSub").textContent = f ? `Comprobado en la consulta de la NP ${f.np} (${new Date(f.fecha).toLocaleString("es-CL")})` : "Se comprueba cada vez que consultas una NP"
+      document.getElementById("trzSrc").innerHTML = [["FPS", f?.fps], ["SAP", f?.sap], ["Calidad (QCS)", f?.qcs]]
+        .map(([n, v]) => `<div class="npd-fuente"><span class="npd-punto ${punto(v)}"></span><div><b>${n}</b><div class="subtitle">${txt(v)}</div></div></div>`).join("")
+    }
+
+    vista(detalle) {
+      document.getElementById("trzDash").style.display = detalle ? "none" : ""
+      document.getElementById("trzVista").style.display = detalle ? "" : "none"
+      document.getElementById("btnTrzPanel").style.display = detalle ? "" : "none"
+      if (!detalle) this.renderPanel()
+    }
+
     async init() {
       console.log("INIT TRAZABILIDAD")
       this.bindEvents()
+      this.montarPanel()
     }
 
     bindEvents() {
       if (this._clickHandler) return
 
       this._clickHandler = (e) => {
+        if (e.target.id === "btnTrzPanel") this.vista(false)
+        if (e.target.closest?.("[data-trz-ir-lote]")) { this.vista(true); document.getElementById("trzLote")?.focus() }
         if (e.target.id === "btnTrzConsultar") {
           this.consultar()
         }
@@ -100,6 +167,7 @@ if (!window.TrazabilidadController) {
         return
       }
 
+      this.vista(true)
       const id = ++this._consultaId
       const estadoEl = document.getElementById("trzEstadoConexion")
       const resultadoEl = document.getElementById("trzResultado")
@@ -307,6 +375,7 @@ if (!window.TrazabilidadController) {
 
       const data = fps && fps.ok !== false ? fps.data : null
       this._integral = { np, data, error: data ? null : (fps?.error || "No se pudo consultar FPS/SAP"), calidad, consultadoEn: new Date() }
+      this.guardarReciente(np, data)
 
       this.renderFuentes()
       this.renderItems()
@@ -592,6 +661,7 @@ if (!window.TrazabilidadController) {
         alert("Ingresa un lote")
         return
       }
+      this.vista(true)
       const id = ++this._consultaId
       const cont = document.getElementById("trzLoteResultado")
       document.getElementById("trzResultado").style.display = "none"

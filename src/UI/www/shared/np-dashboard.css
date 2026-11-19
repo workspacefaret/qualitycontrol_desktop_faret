@@ -1,0 +1,56 @@
+/* Dashboards de inicio de Calidad NP (Trazabilidad, Balance y Mermas, Cierre de NP, Certificados de Destrucción).
+   Un solo conjunto de estilos con prefijo npd-; reutiliza .card, .btn-* y los colores del sistema. */
+.npd { display: flex; flex-direction: column; gap: 16px; }
+.npd-top { display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch; }
+.npd-buscar { flex: 1 1 360px; display: flex; gap: 10px; align-items: center; padding: 14px 16px; margin-top: 0; }
+.npd-buscar input { flex: 1; min-width: 120px; height: 38px; padding: 0 12px; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 14px; }
+.npd-buscar input:focus { outline: 2px solid #BFDBFE; border-color: #2563EB; }
+.npd-buscar-ico, .npd-ico { display: inline-flex; width: 32px; height: 32px; border-radius: 9px; align-items: center; justify-content: center; flex-shrink: 0; background: #EFF6FF; color: #2563EB; }
+.npd-ico svg, .npd-buscar-ico svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.npd-periodo { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 12px; color: #64748B; margin-top: 0; }
+.npd-periodo select { height: 34px; border: 1px solid #CBD5E1; border-radius: 8px; padding: 0 8px; background: #fff; }
+.npd-acciones { display: flex; align-items: center; gap: 8px; }
+.npd-estado { font-size: 12px; color: #64748B; min-height: 16px; }
+.npd-estado.err { color: #B91C1C; }
+.npd-estado button { margin-left: 8px; }
+
+.npd-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+.npd-kpi { padding: 16px; display: flex; flex-direction: column; gap: 6px; border: 1px solid #E2E8F0; box-shadow: 0 2px 10px rgba(15, 23, 42, .05); margin-top: 0; }
+.npd-kpi-head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #64748B; }
+.npd-kpi-val { font-size: 30px; line-height: 1.1; font-weight: 700; color: #0F172A; }
+.npd-kpi-val.nd { color: #94A3B8; }
+.npd-kpi-sub { font-size: 11px; color: #94A3B8; min-height: 14px; }
+.npd-kpi.t-ok .npd-ico { background: #DCFCE7; color: #15803D; }
+.npd-kpi.t-warn .npd-ico { background: #FEF3C7; color: #B45309; }
+.npd-kpi.t-bad .npd-ico { background: #FEE2E2; color: #B91C1C; }
+
+.npd-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.npd-chart, .npd-tabla, .npd-panel { padding: 16px; border: 1px solid #E2E8F0; box-shadow: 0 2px 10px rgba(15, 23, 42, .05); margin-top: 0; }
+.npd-h { font-size: 14px; font-weight: 700; color: #0F172A; }
+.npd-hs { font-size: 11px; color: #94A3B8; margin-bottom: 8px; }
+.npd-canvas { position: relative; height: 220px; }
+.npd-vacio { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; font-size: 12px; color: #94A3B8; border: 1px dashed #CBD5E1; border-radius: 10px; background: #F8FAFC; padding: 12px; }
+.npd-canvas.sin-datos .npd-vacio { display: flex; }
+.npd-canvas.sin-datos canvas { visibility: hidden; }
+
+.npd-tabla .table-container { max-height: 300px; overflow: auto; }
+.npd-tabla .table { min-width: 0; }
+.npd-tabla .table th, .npd-tabla .table td { white-space: nowrap; }
+.npd-vacia td { text-align: center; color: #94A3B8; padding: 22px 8px !important; font-size: 12px; }
+.npd-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: #F1F5F9; color: #475569; white-space: nowrap; }
+.npd-badge.warn { background: #FEF3C7; color: #92400E; }
+.npd-badge.bad { background: #FEE2E2; color: #991B1B; }
+.npd-badge.ok { background: #DCFCE7; color: #166534; }
+
+.npd-lista { display: flex; flex-wrap: wrap; gap: 8px; }
+.npd-chip { border: 1px solid #CBD5E1; background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; color: #0F172A; }
+.npd-chip:hover { background: #EFF6FF; border-color: #2563EB; }
+.npd-fuentes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.npd-fuente { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #E2E8F0; border-radius: 10px; font-size: 13px; }
+.npd-punto { width: 10px; height: 10px; border-radius: 50%; background: #CBD5E1; flex-shrink: 0; }
+.npd-punto.ok { background: #16A34A; }
+.npd-punto.bad { background: #DC2626; }
+.npd-info { font-size: 13px; color: #475569; line-height: 1.55; margin: 6px 0 0; padding-left: 18px; }
+.npd-info li { margin-bottom: 4px; }
+.npd-cargando .npd-kpi-val, .npd-cargando .npd-canvas { opacity: .45; }
+@media (max-width: 760px) { .npd-kpi-val { font-size: 24px; } }

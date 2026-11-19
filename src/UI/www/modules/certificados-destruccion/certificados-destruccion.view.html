@@ -6,10 +6,15 @@
       <div class="subtitle">Registro REG-SGI-CDD-V11: solicitud, aprobación y emisión. Aprobado o emitido no significa destruido: la ejecución física se confirma aparte. No descuenta inventario SAP.</div>
     </div>
     <div class="module-actions">
+      <button class="btn-secondary" id="btnCdResumen" style="display:none;">&larr; Volver al resumen</button>
+      <button class="btn-secondary" id="btnCdLista">Ver listado completo</button>
       <button class="btn-primary" id="btnCdNuevo" data-requiere-editar>Nuevo certificado</button>
     </div>
   </div>
 
+  <div id="cdDash"></div>
+
+  <div id="cdVistaLista" style="display:none;">
   <div class="card" style="margin-bottom: 16px;">
     <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
       <div class="form-group">
@@ -43,6 +48,7 @@
         <tbody id="cdBody"></tbody>
       </table>
     </div>
+  </div>
   </div>
 
 </div>

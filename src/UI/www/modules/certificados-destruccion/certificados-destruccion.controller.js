@@ -7,12 +7,68 @@ if (!window.CertificadosDestruccionController) {
   class CertificadosDestruccionController {
     constructor() {
       this._click = null
+      this._dash = null
       this._lista = []
     }
 
     async init() {
       this.bind()
-      await this.buscar()
+      this.montarResumen()
+    }
+
+    // ── Dashboard de inicio (resumen agregado en la API; la lista completa sigue disponible aparte) ──
+    montarResumen() {
+      const D = window.NpDash
+      const sumar = (filas, campo, estados) => (filas || []).filter(f => !estados || estados.includes(f.estado)).reduce((a, f) => a + Number(f[campo] || 0), 0)
+      this._dash = D.montar(this.$("cdDash"), {
+        p: "cd",
+        periodo: true,
+        buscar: { placeholder: "Buscar certificados por NP (Ej: 3948)", boton: "Buscar NP", onBuscar: np => { this.$("cdFiltroNp").value = np; this.verLista(true) } },
+        kpis: [
+          { label: "Total de certificados", icono: "lista" },
+          { label: "Pendientes de aprobación", icono: "reloj", tono: "warn" },
+          { label: "Aprobados", icono: "ok", tono: "ok" },
+          { label: "Emitidos", icono: "sello" },
+          { label: "Destrucción confirmada", icono: "caja", tono: "ok" },
+        ],
+        charts: [
+          { titulo: "Certificados por motivo", sub: "Sin anulados ni rechazados" },
+          { titulo: "Evolución mensual", sub: "Certificados creados por mes" },
+        ],
+        tabla: { titulo: "Certificados pendientes de atención", sub: "En revisión, en aprobación o aprobados sin emitir (los más antiguos primero)", cols: ["Certificado", "NP", "Cliente", "Cantidad", "Motivo", "Estado", "Creado", ""], vacio: "No hay certificados pendientes de atención" },
+        cargar: per => C.send("calidadNp.resumen", per),
+        render: (d, h) => {
+          const r = d.certificados || {}
+          const est = r.porEstado || []
+          const n = estados => est.filter(f => !estados || estados.includes(f.estado)).reduce((a, f) => a + Number(f.certificados || 0), 0)
+          h.kpi(0, n(["BORRADOR", "PENDIENTE_REVISION", "PENDIENTE_APROBACION", "APROBADO", "RECHAZADO", "EMITIDO"]), "Sin anulados")
+          h.kpi(1, n(["PENDIENTE_REVISION", "PENDIENTE_APROBACION"]), "Esperan decisión")
+          h.kpi(2, n(["APROBADO"]), "Aprobados aún sin emitir")
+          h.kpi(3, n(["EMITIDO"]), "Emitido no significa destruido")
+          h.kpi(4, est.reduce((a, f) => a + Number(f.ejecutados || 0), 0), "Con ejecución física registrada")
+          const motivos = (r.porMotivo || []).filter(m => Number(m.certificados) > 0)
+          h.grafico(0, "doughnut", motivos.map(m => MOTIVO[m.motivo] || m.motivo), [{ label: "Certificados", data: motivos.map(m => Number(m.certificados)), colores: [D.COL.azul, D.COL.ambar, D.COL.verde, D.COL.gris] }])
+          const meses = r.porMes || []
+          h.grafico(1, "bar", meses.map(m => D.mesTxt(m.mes)), [{ label: "Certificados", data: meses.map(m => Number(m.certificados)), color: D.COL.azul }])
+          h.filas((r.atencion || []).map(x => `<tr><td><b>${C.esc(x.correlativo || "Sin correlativo (#" + x.id + ")")}</b></td><td>${C.esc(x.np)}</td><td>${C.esc(C.txt(x.cliente))}</td><td>${D.num(x.cantidadDestruir)}</td><td>${C.esc(MOTIVO[x.motivo] || x.motivo)}</td><td><span class="npd-badge ${x.estado === "APROBADO" ? "ok" : "warn"}">${C.esc(ESTADO[x.estado] || x.estado)}</span></td><td>${C.fecha(x.fechaCreacion)}</td><td><button class="btn-secondary" style="padding:2px 8px;" data-cd="ver" data-id="${x.id}">Ver</button></td></tr>`))
+        },
+      })
+    }
+
+    verLista(buscarYa) {
+      this.$("cdDash").style.display = "none"
+      this.$("cdVistaLista").style.display = ""
+      this.$("btnCdLista").style.display = "none"
+      this.$("btnCdResumen").style.display = ""
+      if (buscarYa || !this._lista.length) this.buscar()
+    }
+
+    verResumen() {
+      this.$("cdDash").style.display = ""
+      this.$("cdVistaLista").style.display = "none"
+      this.$("btnCdLista").style.display = ""
+      this.$("btnCdResumen").style.display = "none"
+      this._dash?.recargar()
     }
 
     $(id) { return document.getElementById(id) }
@@ -23,6 +79,8 @@ if (!window.CertificadosDestruccionController) {
         const id = e.target.id
         if (id === "btnCdBuscar") this.buscar()
         else if (id === "btnCdNuevo") this.formulario(null)
+        else if (id === "btnCdLista") this.verLista(false)
+        else if (id === "btnCdResumen") this.verResumen()
         else if (id === "btnCdExcel") this.excel()
         const a = e.target.closest?.("[data-cd]")
         if (a) this.accion(a.dataset.cd, Number(a.dataset.id))
@@ -69,6 +127,7 @@ if (!window.CertificadosDestruccionController) {
       const r = await C.send(`calidadNp.certificados.${accion}`, { id, ...extra })
       if (!r.ok) return r.error
       await this.buscar()
+      this._dash?.recargar()
       return null
     }
 
@@ -251,6 +310,7 @@ if (!window.CertificadosDestruccionController) {
       const r = await C.send(this._form.id ? "calidadNp.certificados.editar" : "calidadNp.certificados.crear", body)
       if (!r.ok) return r.error
       await this.buscar()
+      this._dash?.recargar()
     }
 
     // ── Certificado en el formato oficial REG-SGI-CDD-V11 ─────────────────────
@@ -279,6 +339,7 @@ if (!window.CertificadosDestruccionController) {
     destroy() {
       if (this._click) document.removeEventListener("click", this._click)
       this._click = null
+      this._dash?.destruir()
       for (const id of ["cdDetalle", "cdForm", "cdAccion"]) document.getElementById(id)?.remove()
     }
   }

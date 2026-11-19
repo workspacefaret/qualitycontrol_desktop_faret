@@ -20,6 +20,7 @@ namespace QualityControlCenter.Modules.CalidadNp
         // acción → (verbo, ruta con {np} {id} {item})
         private static readonly Dictionary<string, (string Verbo, string Ruta)> Rutas = new()
         {
+            ["calidadNp.resumen"] = ("GET", "resumen"),
             ["calidadNp.informes.list"] = ("GET", "np/{np}/informes"),
             ["calidadNp.informes.get"] = ("GET", "informes/{id}"),
             ["calidadNp.informes.guardar"] = ("POST", "np/{np}/informes"),
@@ -90,6 +91,15 @@ namespace QualityControlCenter.Modules.CalidadNp
                 var query = new List<string>();
                 if (action == "calidadNp.mermas.list" && TryGetInt(d, "item", out var itemFiltro))
                     query.Add($"item={itemFiltro}");
+                if (action == "calidadNp.resumen")
+                {
+                    // Período opcional (yyyy-MM-dd); la API valida el rango.
+                    foreach (var campo in new[] { "desde", "hasta" })
+                    {
+                        var valor = GetString(d, campo).Trim();
+                        if (System.Text.RegularExpressions.Regex.IsMatch(valor, @"^\d{4}-\d{2}-\d{2}$")) query.Add($"{campo}={valor}");
+                    }
+                }
                 if (action == "calidadNp.certificados.list")
                 {
                     var estado = GetString(d, "estado").Trim();
