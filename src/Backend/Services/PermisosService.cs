@@ -153,8 +153,9 @@ namespace QualityControlCenter.Services
             "registrosProduccion.obtenerResumen",
             "talleresExternos.catalogos",
             "talleresExternos.historialLiberaciones",
-            "calidadNp.mermas.evidencia", "calidadNp.certificados.flujo", // lecturas (abrir evidencia / cargos del flujo de aprobación)
-            "trazabilidad.consultarNp", "trazabilidad.integral", "trazabilidad.lote",
+            "calidadNp.mermas.evidencia", "calidadNp.certificados.flujo", "calidadNp.certificados.exportarExcel", "calidadNp.certificados.exportarPdf", // lecturas (abrir evidencia / cargos del flujo de aprobación)
+            "trazabilidad.consultarNp", "trazabilidad.integral", "trazabilidad.lote", "trazabilidad.exportarV05Excel", // exportar solo dibuja el modelo recibido
+            
             "trazabilidad.documentos.abrir", "trazabilidad.documentos.historial", "trazabilidad.documentos.zip", // solo lectura (el ZIP/archivo se guarda en la PC local)
         };
 

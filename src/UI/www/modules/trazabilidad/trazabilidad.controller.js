@@ -1,6 +1,27 @@
 if (!window.TrazabilidadController) {
   // Datos de una fuente caída o inexistente: nunca se muestran como cero.
   const ND = "No disponible"
+  const SI = "SIN INFORMACIÓN"
+
+  // Procesos del formato REG-SGI-TDP-V05, en el orden del documento. `balance` = nombre en la tabla de balance.
+  const PROCESOS_V05 = [
+    { clave: "corte", titulo: "CORTE Y DIMENSIONADO", balance: "Corte", re: /corte|dimension/i,
+      columnas: ["Fecha", "Operador", "Máquina", "Pliegos Solicitados", "Tipo sustrato", "Medida", "Pliegos Cortado", "Lotes"], pesos: [2, 3, 3, 2, 4, 2, 2, 4] },
+    { clave: "impresion", titulo: "IMPRESIÓN OFFSET", balance: "Impresión Offset", re: /impres|offset/i,
+      columnas: ["FECHA", "IMPRESIÓN", "MÁQUINA", "OPERADOR", "TINTAS", "BARNIZ", "PLIEGOS"], pesos: [2, 2, 2, 3, 7, 4, 2] },
+    { clave: "folia", titulo: "FOLIA", balance: "Folia", re: /folia/i,
+      columnas: ["FECHA", "MÁQUINA", "OPERADOR", "N° PLIEGO", "N° PERFIL", "PLIEGOS PROCESADOS"], pesos: [2, 3, 3, 2, 3, 3] },
+    { clave: "corrugado", titulo: "CORRUGADO", balance: "Corrugado", re: /corrug/i,
+      columnas: ["FECHA", "MÁQUINA", "OPERADOR", "N° PLIEGO", "PLIEGOS PROCESADOS"], pesos: [2, 4, 5, 2, 3] },
+    { clave: "emplacado", titulo: "EMPLACADO", balance: "Emplacado", re: /emplac/i,
+      columnas: ["FECHA", "MÁQUINA", "OPERADOR", "N° PLIEGO", "PLIEGOS PROCESADOS"], pesos: [2, 4, 5, 2, 3] },
+    { clave: "troquelado", titulo: "TROQUELADO", balance: "Troquelado", re: /troquel/i,
+      columnas: ["FECHA", "MÁQUINA", "OPERADOR", "N° PLIEGO", "N° PERFIL", "PLIEGOS PROCESADOS", "CANTIDAD DE UNIDADES"], pesos: [2, 3, 4, 2, 2, 3, 3] },
+    { clave: "pegado", titulo: "PEGADO", balance: "Pegado", re: /pegad/i,
+      columnas: ["FECHA", "MÁQUINA", "OPERADOR", "CAJAS", "ADHESIVOS", "PLIEGOS PROCESADOS", "CANTIDAD DE UNIDADES"], pesos: [2, 3, 3, 2, 3, 3, 3] },
+    { clave: "termoformado", titulo: "TERMOFORMADO", balance: "Termoformado", re: /termof/i,
+      columnas: ["FECHA", "MÁQUINA", "OPERADOR", "PRODUCIDO (REGISTRADO FPS)"], pesos: [2, 4, 5, 4] },
+  ]
 
   class TrazabilidadController {
     constructor() {
@@ -35,6 +56,9 @@ if (!window.TrazabilidadController) {
         }
         if (e.target.id === "btnTrzExcel") {
           this.exportarExcelNp()
+        }
+        if (e.target.id === "btnTrzExcelV05") {
+          this.exportarExcelV05()
         }
         if (e.target.id === "btnTrzLoteExcel") {
           this.exportarExcelLote()
@@ -786,7 +810,9 @@ if (!window.TrazabilidadController) {
 
     fechaCorta(v) {
       if (!v) return "-"
-      const d = new Date(v)
+      // "2026-10-30" (sin hora) se interpreta como UTC y en Chile mostraría el día anterior: se arma como fecha local.
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v))
+      const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v)
       return Number.isNaN(d.getTime()) ? "-" : d.toLocaleDateString("es-CL")
     }
 
@@ -1013,16 +1039,17 @@ if (!window.TrazabilidadController) {
         <tbody>${filas || `<tr><td colspan="6" style="text-align:center;">Sin movimientos</td></tr>`}</tbody></table></div>`, "", null)
     }
 
-    // ── Informe PDF REG-SGI-TDP (estructura provisional según el requerimiento; plantilla oficial pendiente) ──
-    clasificarProceso(p) {
-      const t = `${p.NombreCarpeta || ""} ${p.NombreProceso || ""} ${p.Categoria || ""}`
-      if (/corte|dimension/i.test(t)) return "corte"
-      if (/impres|offset/i.test(t)) return "impresion"
-      if (/folia/i.test(t)) return "folia"
-      if (/corrug|emplac/i.test(t)) return "corrugado"
-      if (/troquel/i.test(t)) return "troquelado"
-      if (/pegad|termof/i.test(t)) return "pegado"
-      return "otros"
+    // ── Informe oficial REG-SGI-TDP-V05 (formato entregado por Calidad) ──────────────────────────────
+    // Un solo modelo (modeloV05) alimenta el PDF (htmlV05) y el Excel (backend, trazabilidad.exportarV05Excel).
+    // Solo muestra datos ya consultados: lo que falta se rotula (SIN INFORMACIÓN / NO CONFIRMADO / NO APLICA), nunca 0.
+
+    // Clave del proceso FPS: primero por su nombre, y solo si no calza, por carpeta/categoría.
+    claveProceso(p) {
+      for (const texto of [p.NombreProceso || "", `${p.NombreCarpeta || ""} ${p.NombreProceso || ""} ${p.Categoria || ""}`]) {
+        const def = PROCESOS_V05.find(x => x.re.test(texto))
+        if (def) return def.clave
+      }
+      return null
     }
 
     // Factor unidades/pliego solo si es inequívoco: un único ítem con factor CONFIRMADO.
@@ -1032,132 +1059,231 @@ if (!window.TrazabilidadController) {
       return items.length === 1 && conf.length === 1 ? Number(conf[0].unidadesPorPliego) : null
     }
 
-    informeTabla(columnas, filas, vacio) {
-      if (!filas.length) return `<p class="vacio">${this.esc(vacio)}</p>`
-      return `<table><thead><tr>${columnas.map(c => `<th>${this.esc(c)}</th>`).join("")}</tr></thead><tbody>${
-        filas.map(f => `<tr>${f.map(c => `<td>${this.esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`
-    }
-
-    seccionProcesos(grupo, factor, vacio) {
+    // Corridas válidas (no anuladas) de un proceso, o el motivo por el que no hay filas que mostrar.
+    corridasV05(clave) {
       const d = this._integral.data
-      const procs = (d.procesos || []).filter(p => !p.idProcesoDuplicado && this.clasificarProceso(p) === grupo)
-      if (!procs.length) return `<p class="vacio">${this.esc(vacio)}</p>`
-      const ids = new Set(procs.map(p => String(p.IdProceso)))
-      const ses = (d.sesiones || []).filter(s => ids.has(String(s.IdProceso)) && Number(s.Status) === 1)
-      const conUnid = grupo === "troquelado" || grupo === "pegado"
-      const cols = ["Fecha", "Máquina", "Operador", "Proceso", "Producido (registrado FPS)"].concat(conUnid ? ["Unidades equivalentes"] : [])
-      const filas = ses.map(s => {
-        const pr = procs.find(p => String(p.IdProceso) === String(s.IdProceso))
-        const base = [this.fechaCorta(s.ProductionStartDate || s.SetupStartDate), s.Maquina, s.Operador, pr?.NombreProceso, this.num(s.ProductionQuantity)]
-        if (conUnid) base.push(factor && s.ProductionQuantity != null ? this.num(Number(s.ProductionQuantity) * factor) : "Factor no confirmado")
-        return base
-      })
-      return this.informeTabla(cols, filas, "Procesos sin corridas registradas en FPS (REGISTRO NO DISPONIBLE)")
+      if (!d) return { motivo: `${SI} (FPS no disponible)`, filas: [] }
+      const procs = (d.procesos || []).filter(p => !p.idProcesoDuplicado && this.claveProceso(p) === clave)
+      if (!procs.length) {
+        return { motivo: d.procesos?.length ? "NO APLICA (el proceso no figura en la ruta registrada en FPS)" : `${SI} (FPS no tiene procesos para esta NP)`, filas: [] }
+      }
+      const porId = new Map(procs.map(p => [String(p.IdProceso), p]))
+      const filas = (d.sesiones || [])
+        .filter(s => porId.has(String(s.IdProceso)) && Number(s.Status) === 1)
+        .map(s => ({ s, p: porId.get(String(s.IdProceso)), f: new Date(s.ProductionStartDate || s.SetupStartDate) }))
+        .sort((a, b) => a.f - b.f)
+      if (!filas.length) return { motivo: "REGISTRO NO DISPONIBLE (el proceso figura en FPS pero no tiene corridas registradas)", filas: [], enRuta: true }
+      return { filas, enRuta: true }
     }
 
-    materialesInforme(regex) {
-      const d = this._integral.data
-      return this.informeTabla(["Material", "Cantidad", "Unidad", "Lotes"],
-        (d.consumos || []).filter(c => regex.test(c.descripcion || "")).map(c => [c.descripcion, this.num(c.cantidad), c.unidad, (c.lotes || []).map(l => l.lote).join(", ") || "Sin lote"]),
-        d.consumos ? "Sin consumos de estos materiales registrados en SAP" : "Consumos SAP: " + ND)
-    }
-
-    construirInforme() {
+    modeloV05() {
       const t = this._integral
-      const d = t.data || {}
-      const items = d.items || []
-      const cal = t.calidad ? this.filasCalidad() : []
+      if (!t) { alert("Consulta un NP y espera a que termine la trazabilidad integral"); return null }
+      const d = t.data
+      const items = d?.items || []
       const factor = this.factorUnico()
+      const n = v => (v === null || v === undefined || v === "" || Number.isNaN(Number(v)) ? SI : Number(v).toLocaleString("es-CL", { maximumFractionDigits: 3 }))
+      const dato = v => (v === null || v === undefined || String(v).trim() === "" ? SI : String(v).trim())
+      const fecha = s => this.fechaCorta(s.ProductionStartDate || s.SetupStartDate)
+      const consumos = d?.consumos
+      // Materiales y lotes de SAP por OT de la NP (no se ligan a una corrida concreta por fecha).
+      const materiales = re => (consumos || []).filter(c => re.test(c.descripcion || ""))
+      const nombresMat = re => [...new Set(materiales(re).map(c => c.descripcion))].join("\n") || SI
+      const lotesMat = re => [...new Set(materiales(re).flatMap(c => (c.lotes || []).map(l => l.lote)))].join(", ") || SI
+      const unidadesV05 = pliegos => (pliegos === null ? null : factor ? pliegos * factor : null)
+      const sinFactor = "FACTOR NO CONFIRMADO"
+      const unidadesFila = s => (s.ProductionQuantity === null || s.ProductionQuantity === undefined ? SI : factor ? n(Number(s.ProductionQuantity) * factor) : sinFactor)
+
+      const filasProceso = {
+        corte: (c, i) => [fecha(c.s), dato(c.s.Operador), dato(c.s.Maquina), n(c.p.CantidadTotal), SI, SI, n(c.s.ProductionQuantity), i ? "" : lotesMat(/cartul|pliego|sustrato/i)],
+        impresion: (c, i) => [fecha(c.s), c.p.NrPl ? `PLIEGO ${c.p.NrPl}` : SI, dato(c.s.Maquina), dato(c.s.Operador), i ? "" : nombresMat(/tinta/i), i ? "" : nombresMat(/barniz/i), n(c.s.ProductionQuantity)],
+        folia: c => [fecha(c.s), dato(c.s.Maquina), dato(c.s.Operador), dato(c.p.NrPl), SI, n(c.s.ProductionQuantity)],
+        corrugado: c => [fecha(c.s), dato(c.s.Maquina), dato(c.s.Operador), dato(c.p.NrPl), n(c.s.ProductionQuantity)],
+        emplacado: c => [fecha(c.s), dato(c.s.Maquina), dato(c.s.Operador), dato(c.p.NrPl), n(c.s.ProductionQuantity)],
+        troquelado: c => [fecha(c.s), dato(c.s.Maquina), dato(c.s.Operador), dato(c.p.NrPl), SI, n(c.s.ProductionQuantity), unidadesFila(c.s)],
+        pegado: (c, i) => [fecha(c.s), dato(c.s.Maquina), dato(c.s.Operador), SI, i ? "" : nombresMat(/adhesiv|pva|almid|cola/i), n(c.s.ProductionQuantity), unidadesFila(c.s)],
+        termoformado: c => [fecha(c.s), dato(c.s.Maquina), dato(c.s.Operador), n(c.s.ProductionQuantity)],
+      }
+
+      const resultados = {}
+      const bloques = []
+      const itemDe = i => items.find(x => String(x.item) === String(i))
+      bloques.push({
+        titulo: "DESCRIPCIÓN DE PRODUCTOS", columnas: ["ITEM", "CÓDIGO", "DESCRIPCIÓN PRODUCTO", "UNIDADES"], pesos: [2, 5, 13, 4],
+        filas: items.map(i => [dato(i.item), dato(i.itemCode), dato(i.descripcion), n(i.solicitado)]),
+        vacio: d ? `${SI} (la nota de venta no existe o no está disponible en SAP)` : `${SI} (FPS/SAP no disponible)`,
+      })
+      const ruta = (d?.procesos || []).filter(p => !p.idProcesoDuplicado).map(p => p.NombreProceso).filter(Boolean).join(" → ")
+      bloques.push({
+        titulo: "GUÍA TÉCNICA",
+        texto: `Guía técnica, perfil y molde: ${SI} (no se exponen en FPS ni SAP).\nRuta registrada en FPS: ${ruta || SI}.\nFactor unidades por pliego: ${factor ? n(factor) + " (confirmado)" : "NO CONFIRMADO"}.`,
+      })
+      bloques.push({ titulo: "PROCESOS" })
+      for (const def of PROCESOS_V05) {
+        const r = this.corridasV05(def.clave)
+        resultados[def.clave] = r
+        bloques.push({ titulo: def.titulo, columnas: def.columnas, pesos: def.pesos, filas: r.filas.map(filasProceso[def.clave]), vacio: r.motivo })
+      }
+
+      // Liberación (QCS): solo folios cerrados con destino Productos Terminados, los que suman al liberado.
+      const lib = (d?.liberaciones || []).filter(l => /productos?\s+terminados?/i.test(l.BodegaDestino || "") && this.estadoFolio(l) === "Cerrado")
+      const libOtros = (d?.liberaciones || []).length - lib.length
+      bloques.push({
+        titulo: "LIBERACIÓN DE CONTROL DE CALIDAD", columnas: ["ITEM", "PRODUCTO", "CÓDIGO", "UNIDADES LIBERADAS"], pesos: [2, 10, 5, 4],
+        filas: lib.map(l => [dato(l.Item), dato(itemDe(l.Item)?.descripcion), dato(l.ItemCode), n(l.Cantidad)]),
+        vacio: d?.liberaciones ? "SIN LIBERACIONES REGISTRADAS en QCS para esta NP" : `${SI} (liberaciones QCS no disponibles)`,
+        nota: libOtros > 0 ? `No incluidos: ${libOtros} folio(s) a cuarentena, destrucción o incompletos (ver Trazabilidad integral).` : "",
+      })
+
+      // Despacho (SAP): guías y facturas directas asociadas a una línea de la NV (las que suman al despachado).
+      const desp = (d?.documentos || []).filter(x => (x.Tipo === "GUIA" || (x.Tipo === "FACTURA" && x.Origen === "DIRECTA")) && x.LineaNv !== null && x.LineaNv !== undefined)
+      const devs = (d?.documentos || []).filter(x => x.Tipo === "DEVOLUCION")
+      bloques.push({
+        titulo: "DESPACHO DE PRODUCTO", columnas: ["ITEM", "PRODUCTO", "CÓDIGO", "UNIDADES DESPACHADAS"], pesos: [2, 10, 5, 4],
+        filas: desp.map(x => {
+          const nv = (d.notaVenta || []).find(l => Number(l.LineNum) === Number(x.LineaNv))
+          return [dato(nv?.Item), `${dato(itemDe(nv?.Item)?.descripcion)} — ${this.tipoDocumento(x)} N° ${x.DocNum} (${this.fechaCorta(x.DocDate)})`, dato(x.ItemCode), n(x.Cantidad)]
+        }),
+        vacio: d?.documentos ? "SIN DESPACHOS REGISTRADOS en SAP para esta NP" : `${SI} (despachos SAP no disponibles)`,
+        nota: devs.length ? `Devoluciones registradas: ${devs.length} documento(s) por ${n(devs.reduce((a, x) => a + (Number(x.Cantidad) || 0), 0))} unidades (restan al despachado).` : "",
+      })
+
+      // Balance de masas: una fila por proceso de la ruta real + Calidad + Despacho.
+      const sumar = campo => (items.length && items.every(i => i[campo] !== null && i[campo] !== undefined) ? items.reduce((a, i) => a + Number(i[campo]), 0) : null)
+      const bal = []
+      for (const def of PROCESOS_V05) {
+        const r = resultados[def.clave]
+        if (!r.enRuta) continue
+        const completo = r.filas.length > 0 && r.filas.every(c => c.s.ProductionQuantity !== null && c.s.ProductionQuantity !== undefined)
+        const pliegos = completo ? r.filas.reduce((a, c) => a + Number(c.s.ProductionQuantity), 0) : null
+        bal.push({ area: def.balance, pliegos, unidades: unidadesV05(pliegos), proceso: true })
+      }
+      for (const [area, campo] of [["Calidad", "liberadoPt"], ["Despacho", "despachado"]]) {
+        const unidades = sumar(campo)
+        bal.push({ area, unidades, pliegos: unidades !== null && factor ? unidades / factor : null })
+      }
+      const celda = (v, r, esPliego) => {
+        if (v !== null) return n(v)
+        if (r.proceso) return esPliego || factor ? "REGISTRO NO DISPONIBLE" : sinFactor
+        return esPliego && factor === null ? sinFactor : SI
+      }
+      const dif = (a, b) => (a === null || b === null ? "NO CALCULABLE" : n(a - b))
+      const filasBal = bal.map((r, i) => [String(i + 1), r.area, celda(r.pliegos, r, true), i ? dif(bal[i - 1].pliegos, r.pliegos) : "-", celda(r.unidades, r, false), i ? dif(bal[i - 1].unidades, r.unidades) : "-"])
+      const f = d?.fuentes || {}
+      const fuentesOk = !!d && ["fps", "sapNotaVenta", "sapDespachos", "sapConsumos", "liberaciones"].every(k => f[k]?.ok)
+      const motivos = []
+      if (!fuentesOk) motivos.push("alguna fuente (FPS, SAP o liberaciones QCS) no está disponible")
+      if (factor === null) motivos.push("el factor unidades/pliego no está confirmado o la NP tiene más de un ítem")
+      if ((d?.procesos || []).some(p => p.enCurso)) motivos.push("hay corridas FPS en curso")
+      if (bal.some(r => r.pliegos === null || r.unidades === null)) motivos.push("hay cantidades sin registro")
+      if (items.some(i => i.foliosSinCerrar)) motivos.push("hay folios de liberación sin cerrar")
+      const merma = t.calidad ? this.filasCalidad().filter(r => r.merma !== "-").length : 0
+      bloques.push({
+        titulo: motivos.length ? "BALANCE DE MASAS — PROVISIONAL" : "BALANCE DE MASAS",
+        columnas: ["Procesos", "Áreas", "Cantidad de Pliegos Entrada", "Diferencia Pliegos", "Cantidad Unidades", "Diferencia unidades"], pesos: [2, 5, 4, 4, 4, 4],
+        filas: filasBal, vacio: `${SI} (sin procesos en la ruta FPS)`,
+        nota: "Cantidad = pliegos registrados en FPS por el operador (no es inventario confirmado). Diferencia = cantidad del proceso anterior − cantidad del proceso; es una diferencia por conciliar: no se clasifica como merma ni destrucción."
+          + (motivos.length ? `\nPROVISIONAL porque: ${motivos.join("; ")}.` : "")
+          + (merma ? `\nControles de Calidad con merma declarada: ${merma} registro(s) (ver Balance y Mermas).` : ""),
+      })
+
+      // Anexo: materiales y lotes consumidos (SAP). No forma parte del Word original; respalda la columna "Lotes".
+      bloques.push({
+        titulo: "ANEXO — MATERIALES Y LOTES CONSUMIDOS (SAP, por OT de la NP)", columnas: ["Material", "Cantidad", "Unidad", "Lotes"], pesos: [9, 3, 2, 8],
+        filas: (consumos || []).map(c => [dato(c.descripcion), n(c.cantidad), dato(c.unidad), (c.lotes || []).map(l => l.lote).join(", ") || "SIN LOTE"]),
+        vacio: consumos ? "Sin consumos registrados en SAP para las OT de esta NP" : `${SI} (consumos SAP no disponibles)`,
+      })
+
       const advertencias = []
-      const f = d.fuentes || {}
-      if (!t.data) advertencias.push(`Fuente FPS/SAP no disponible: ${t.error || "sin respuesta"}. Ninguna cantidad de este informe es completa.`)
+      if (!d) advertencias.push(`Fuente FPS/SAP no disponible: ${t.error || "sin respuesta"}. Ninguna cantidad de este informe es completa.`)
       else {
-        for (const [k, n] of [["fps", "FPS"], ["sapNotaVenta", "SAP nota de venta"], ["sapDespachos", "SAP despachos"], ["sapConsumos", "SAP consumos"], ["liberaciones", "liberaciones QCS"]]) {
-          if (!f[k]?.ok) advertencias.push(`Fuente ${n} no disponible${f[k]?.error ? " (" + f[k].error + ")" : ""}.`)
+        for (const [k, nombre] of [["fps", "FPS"], ["sapNotaVenta", "SAP nota de venta"], ["sapDespachos", "SAP despachos"], ["sapConsumos", "SAP consumos"], ["liberaciones", "liberaciones QCS"]]) {
+          if (!f[k]?.ok) advertencias.push(`Fuente ${nombre} no disponible${f[k]?.error ? " (" + f[k].error + ")" : ""}.`)
         }
       }
-      if (factor === null) advertencias.push("Factor unidades/pliego sin confirmar o ambiguo: no se calculan unidades equivalentes.")
-      const reqs = this._sgi?.requisitos
-      const faltantes = (reqs || []).filter(r => !r.vigente || (r.vigente.estado !== "DISPONIBLE" && r.vigente.estado !== "NO_APLICA"))
-      if (!reqs) advertencias.push("Panel documental SGI no disponible: no se pudo verificar el checklist.")
-      else if (faltantes.length) advertencias.push(`${faltantes.length} requisito(s) documental(es) sin documento.`)
-      advertencias.push("Balance PROVISIONAL: las cantidades de FPS son declaradas por el operador y no equivalen a inventario confirmado. Una diferencia no es automáticamente merma ni destrucción.")
+      const faltantes = (this._sgi?.requisitos || []).filter(r => !r.vigente || (r.vigente.estado !== "DISPONIBLE" && r.vigente.estado !== "NO_APLICA"))
+      if (!this._sgi?.requisitos) advertencias.push("Checklist documental SGI no disponible: no se pudo verificar.")
+      else if (faltantes.length) advertencias.push(`Documentos SGI pendientes: ${faltantes.length} de ${this._sgi.requisitos.length} (ver panel documental de la NP).`)
+      if (advertencias.length) bloques.push({ titulo: "ADVERTENCIAS DE INFORMACIÓN FALTANTE", texto: advertencias.map(a => "• " + a).join("\n") })
 
-      const sec = (n, titulo, cuerpo) => `<section><h2>${n}. ${this.esc(titulo)}</h2>${cuerpo}</section>`
-      const factoresConf = (this._sgi?.factores || []).filter(x => x.estado === "CONFIRMADO")
-      const p = [
-        sec("01", "Identificación", this.informeTabla(["NP", "Órdenes FPS", "Ítem", "Código", "Descripción", "Solicitado (SAP)"],
-          items.length ? items.map(i => [t.np, (d.ordenes || []).map(o => o.OrdenTrabajo).join(", ") || ND, i.item, i.itemCode, i.descripcion, this.num(i.solicitado)])
-            : [[t.np, ND, ND, ND, ND, ND]], "")),
-        sec("02", "Guía técnica", `<p class="vacio">Guía técnica, perfil y especificaciones no se exponen en FPS/SAP: REGISTRO NO DISPONIBLE. Ruta real registrada en FPS: ${
-          this.esc((d.procesos || []).filter(x => !x.idProcesoDuplicado).map(x => x.NombreProceso).filter(Boolean).join(" → ") || ND)}.</p>` +
-          this.informeTabla(["Ítem", "Factor unidades/pliego"], factoresConf.map(x => [x.item, this.num(x.unidadesPorPliego, 4) + " (confirmado)"]), "Factor unidades/pliego sin confirmar")),
-        sec("03", "Corte y dimensionado", this.seccionProcesos("corte", factor, "NO APLICA o sin registro en FPS")),
-        sec("04", "Impresión", this.seccionProcesos("impresion", factor, "NO APLICA o sin registro en FPS") + this.materialesInforme(/tinta|barniz/i)),
-        sec("05", "Folia", this.seccionProcesos("folia", factor, "NO APLICA o sin registro en FPS")),
-        sec("06", "Corrugado / Emplacado", this.seccionProcesos("corrugado", factor, "NO APLICA o sin registro en FPS") + this.materialesInforme(/papel|liner|onda|carton|cartul|almid|pva|adhesiv/i)),
-        sec("07", "Troquelado", this.seccionProcesos("troquelado", factor, "NO APLICA o sin registro en FPS")),
-        sec("08", "Pegado / Termoformado", this.seccionProcesos("pegado", factor, "NO APLICA o sin registro en FPS") +
-          ((d.procesos || []).some(x => !x.idProcesoDuplicado && this.clasificarProceso(x) === "otros") ? "<h3>Otros procesos registrados</h3>" + this.seccionProcesos("otros", factor, "") : "")),
-        sec("09", "Liberación de calidad", this.informeTabla(["Folio", "Ítem", "Código", "Fecha", "Cantidad", "Destino", "Estado"],
-          (d.liberaciones || []).map(l => [l.Folio, l.Item, l.ItemCode, this.fechaCorta(l.Fecha), this.num(l.Cantidad), l.BodegaDestino, this.estadoFolio(l)]),
-          d.liberaciones ? "Sin liberaciones registradas" : "Liberaciones: " + ND)),
-        sec("10", "Despacho", this.informeTabla(["Tipo", "N° SAP", "Fecha", "Código", "Cantidad"],
-          (d.documentos || []).filter(x => x.Tipo === "GUIA" || x.Tipo === "DEVOLUCION" || x.Tipo === "FACTURA").map(x => [this.tipoDocumento(x), x.DocNum, this.fechaCorta(x.DocDate), x.ItemCode, this.num(x.Cantidad)]),
-          d.documentos ? "Sin despachos registrados" : "Despachos: " + ND)),
-        sec("11", "Balance de materiales (PROVISIONAL)", this.informeTabla(["Ítem", "Solicitado", "Liberado PT", "Cuarentena", "Destrucción", "Despachado", "Devuelto", "Pendiente despacho (estimado)"],
-          items.map(i => [i.item, this.num(i.solicitado), this.num(i.liberadoPt), this.num(this.saldo(i, "CUARENTENA")), this.num(this.saldo(i, "DESTRUCCION")), this.num(i.despachado), this.num(i.devuelto), this.num(this.pendienteDespacho(i))]), "Sin ítems") +
-          this.informeTabla(["Origen", "Fecha", "Proceso", "Resultado", "Merma declarada"], cal.filter(r => r.merma !== "-").map(r => [r.origen, r.fecha, r.proceso, r.resultado, r.merma]), "Sin mermas declaradas en controles de Calidad") +
-          `<p class="vacio">Cantidades sin conciliar: no se asignan a merma ni destrucción sin respaldo documental.</p>`),
-        sec("12", "Anexos", this.informeTabla(["Área", "Requisito", "Estado", "Archivo", "Versión", "Fecha"],
-          (reqs || []).map(r => [r.area, r.nombre, r.vigente ? r.vigente.estado : "PENDIENTE", r.vigente?.nombreArchivo || "-", r.vigente?.version ?? "-", r.vigente ? this.fechaCorta(r.vigente.fechaDocumento) : "-"]), "Checklist documental no disponible")),
-        sec("13", "Documentos faltantes", this.informeTabla(["Área", "Documento", "Motivo de ausencia"],
-          faltantes.map(r => [r.area, r.nombre, r.vigente ? (r.vigente.observacion || r.vigente.estado) : "Sin documento adjuntado"]), reqs ? "Sin faltantes" : "No verificable"))
-      ]
-      return { advertencias, cuerpo: p.join("") }
+      const inicios = (d?.sesiones || []).filter(s => Number(s.Status) === 1).map(s => new Date(s.ProductionStartDate || s.SetupStartDate)).filter(x => !Number.isNaN(x.getTime())).sort((a, b) => a - b)
+      const val = id => (document.getElementById(id)?.value || "").trim() || SI
+      return {
+        np: t.np, codigo: "REG-SGI-TDP-V05", titulo: "TRAZABILIDAD DE PRODUCTOS", fechaVersion: "Diciembre 2023", logo: window.RegSgiLogo || "",
+        emision: new Date().toLocaleDateString("es-CL"), horaInicio: val("trzHoraInicio"), horaTermino: val("trzHoraTermino"),
+        realizadoPor: dato(sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("codigoUsuario")), cargo: val("trzCargo"),
+        cabecera: [
+          ["CLIENTE", dato(d?.ordenes?.[0]?.Cliente || this._ultimaConsulta?.procesos?.[0]?.cli)],
+          ["NV", t.np],
+          ["TIPO PRODUCTO", SI],
+          ["FECHA FABRICACIÓN (primera corrida válida en FPS)", inicios.length ? inicios[0].toLocaleDateString("es-CL") : SI],
+        ],
+        bloques,
+      }
+    }
+
+    // PDF fiel al Word: carta horizontal; encabezado y pie oficiales se repiten en cada página (thead/tfoot).
+    htmlV05(m) {
+      const e = v => this.esc(v).replace(/\n/g, "<br>")
+      const tabla = b => {
+        const nota = b.nota ? `<div class="nota">${e(b.nota)}</div>` : ""
+        if (!b.columnas) return `<div class="bt">${e(b.titulo)}</div>` + (b.texto ? `<div class="tx">${e(b.texto)}</div>` : "") + nota
+        const total = b.pesos.reduce((a, x) => a + x, 0)
+        const col = b.pesos.map(x => `<col style="width:${(x / total * 100).toFixed(2)}%">`).join("")
+        const cuerpo = b.filas.length ? b.filas.map(f => `<tr>${f.map(c => `<td>${e(c)}</td>`).join("")}</tr>`).join("")
+          : `<tr><td colspan="${b.columnas.length}" class="c">${e(b.vacio)}</td></tr>`
+        return `<table class="t"><colgroup>${col}</colgroup><thead><tr><th colspan="${b.columnas.length}" class="bt">${e(b.titulo)}</th></tr><tr>${b.columnas.map(c => `<th>${e(c)}</th>`).join("")}</tr></thead><tbody>${cuerpo}</tbody></table>` + nota
+      }
+      const cab = `<table class="t cab"><colgroup><col style="width:30%"><col></colgroup>${m.cabecera.map(([k, v]) => `<tr><th>${e(k)}</th><td>${e(v)}</td></tr>`).join("")}</table>`
+      return `<!doctype html><html><head><meta charset="utf-8"><title>REG-SGI-TDP-V05 NP ${this.esc(m.np)}</title><style>
+        @page{size:letter landscape;margin:10mm 12mm 8mm 12mm}
+        *{box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:9.5px;color:#000;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        table.doc{width:100%;border-collapse:collapse}table.doc>thead>tr>td,table.doc>tfoot>tr>td,table.doc>tbody>tr>td{padding:0;border:0}
+        .enc{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:6px}.enc td{border:1px solid #000;padding:3px 6px;vertical-align:middle}
+        .enc img{width:74px;height:56px;display:block;margin:auto}.enc .ti{font-size:17px;font-weight:bold;text-align:center}.enc .cd{text-align:center;font-weight:bold}
+        .pie{width:100%;border-collapse:collapse;margin-top:4px}.pie td{border:1px solid #000;padding:3px 6px;font-size:9px}
+        table.t{width:100%;border-collapse:collapse;table-layout:fixed;margin:0 0 4px}.t th,.t td{border:1px solid #000;padding:2px 4px;vertical-align:top;overflow-wrap:anywhere}
+        .t th{background:#f2f2f2;text-align:center}.t th.bt{background:#d9d9d9;font-size:10.5px}.t .c{text-align:center}.cab th{text-align:left;background:#f2f2f2}
+        tr{break-inside:avoid;page-break-inside:avoid}thead{display:table-header-group}
+        .bt{background:#d9d9d9;border:1px solid #000;font-weight:bold;text-align:center;padding:2px 4px;margin-top:8px;font-size:10.5px}
+        .tx{border:1px solid #000;border-top:0;padding:3px 6px;margin-bottom:4px}.nota{font-style:italic;font-size:8.5px;margin:0 0 6px;border:1px solid #000;padding:2px 6px}
+        </style></head><body>
+        <table class="doc"><thead><tr><td>
+          <table class="enc"><colgroup><col style="width:12%"><col style="width:68%"><col style="width:20%"></colgroup>
+            <tr><td rowspan="2">${m.logo ? `<img src="${m.logo}" alt="">` : ""}</td><td rowspan="2" class="ti">${e(m.titulo)}</td><td class="cd">${e(m.codigo)}</td></tr>
+            <tr><td class="cd">${e(m.fechaVersion)}</td></tr></table>
+        </td></tr></thead>
+        <tfoot><tr><td><table class="pie"><tr><td>Fecha de emisión documento: ${e(m.emision)}</td><td>Hora de Inicio: ${e(m.horaInicio)}</td><td>Hora de Término: ${e(m.horaTermino)}</td>
+          <td>Realizado por: ${e(m.realizadoPor)}</td><td>Cargo: ${e(m.cargo)}</td></tr></table></td></tr></tfoot>
+        <tbody><tr><td>${cab}${m.bloques.map(tabla).join("")}</td></tr></tbody></table></body></html>`
     }
 
     generarInformePdf() {
       const html = this.htmlInforme()
-      if (!html) return
-      const iframe = document.createElement("iframe")
-      iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;"
-      document.body.appendChild(iframe)
-      iframe.contentDocument.open()
-      iframe.contentDocument.write(html)
-      iframe.contentDocument.close()
-      setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print() }, 300)
-      setTimeout(() => iframe.remove(), 120000)
+      if (html) window.CalidadNp.imprimirHtml(html)
     }
 
     // Guarda una versión del informe (append-only, la versión la asigna la API) para poder reabrirlo tal como se emitió.
     async guardarInforme() {
-      const t = this._integral
       const html = this.htmlInforme()
       if (!html) return
-      const r = await window.PhotinoBridge.send({ action: "calidadNp.informes.guardar", data: { np: t.np, formato: "REG-SGI-TDP", html } })
+      const r = await window.PhotinoBridge.send({ action: "calidadNp.informes.guardar", data: { np: this._integral.np, formato: "REG-SGI-TDP", html } })
       if (!r?.ok) { alert(r?.error || "No se pudo guardar el informe"); return }
       window.ExcelExporter?.showToast?.(`Informe guardado (versión ${r.data?.version ?? "?"})`)
     }
 
     htmlInforme() {
-      const t = this._integral
-      if (!t) { alert("Consulta un NP y espera a que termine la trazabilidad integral"); return null }
-      const usuario = sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("codigoUsuario") || "-"
-      const emitido = new Date().toLocaleString("es-CL")
-      const { advertencias, cuerpo } = this.construirInforme()
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Trazabilidad NP ${this.esc(t.np)}</title><style>
-        body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:14px}
-        h1{font-size:16px;margin:0}h2{font-size:12px;margin:14px 0 4px;border-bottom:1px solid #334155;padding-bottom:2px}h3{font-size:11px;margin:8px 0 2px}
-        table{width:100%;border-collapse:collapse;margin:4px 0}th,td{border:1px solid #94a3b8;padding:2px 4px;text-align:left;vertical-align:top}th{background:#e2e8f0}
-        .meta{margin:4px 0 8px;color:#334155}.vacio{color:#64748b;font-style:italic;margin:3px 0}
-        .adv{border:1px solid #b45309;background:#fef3c7;padding:6px;margin:8px 0}.adv li{margin:1px 0}tr{page-break-inside:avoid}
-        </style></head><body>
-        <h1>INNPACK — Informe de Trazabilidad NP ${this.esc(t.np)}</h1>
-        <div class="meta">Formato REG-SGI-TDP (estructura provisional, versión borrador 0) · Emitido: ${this.esc(emitido)} · Usuario: ${this.esc(usuario)} · Datos consultados: ${this.esc(t.consultadoEn.toLocaleString("es-CL"))}</div>
-        <div class="adv"><b>Advertencias de información faltante o provisional</b><ul>${advertencias.map(a => `<li>${this.esc(a)}</li>`).join("")}</ul></div>
-        ${cuerpo}</body></html>`
-      return html
+      const m = this.modeloV05()
+      return m ? this.htmlV05(m) : null
+    }
+
+    async exportarExcelV05() {
+      const m = this.modeloV05()
+      if (!m) return
+      const r = await window.PhotinoBridge.send({ action: "trazabilidad.exportarV05Excel", data: m })
+      if (!r?.ok) { alert(r?.error || "No se pudo generar el Excel REG-SGI-TDP-V05"); return }
+      const g = await window.PhotinoBridge.send({ action: "excel.guardar", data: { fileName: r.data.fileName, base64: r.data.base64 } })
+      window.ExcelExporter?.showToast?.(g?.ok === false ? "Error exportando archivo" : "Archivo exportado correctamente")
     }
 
     destroy() {

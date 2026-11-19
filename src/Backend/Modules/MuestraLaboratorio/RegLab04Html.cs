@@ -70,12 +70,25 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                         if (r != fr || c != fc) cubiertas.Add((r, c));
             }
 
-            var imagenes = new Dictionary<(int, int), List<IXLPicture>>();
+            var imagenes = new Dictionary<(int, int), List<(IXLPicture Pic, double Dx, double Dy)>>();
             foreach (var pic in ws.Pictures)
             {
-                var k = (pic.TopLeftCell.Address.RowNumber, pic.TopLeftCell.Address.ColumnNumber);
-                if (!imagenes.TryGetValue(k, out var l)) imagenes[k] = l = new List<IXLPicture>();
-                l.Add(pic);
+                var fila = pic.TopLeftCell.Address.RowNumber;
+                var col = pic.TopLeftCell.Address.ColumnNumber;
+                double dx = 0, dy = 0;
+                // Imagen anclada dentro de una combinada: se dibuja en la celda superior-izquierda del rango, desplazada
+                // lo que la separa del ancla (si no, esa celda está "cubierta" y la imagen no se emitiría).
+                if (cubiertas.Contains((fila, col)))
+                {
+                    var origen = ws.MergedRanges.First(m => m.Contains(pic.TopLeftCell)).FirstCell().Address;
+                    for (var c = origen.ColumnNumber; c < col; c++) dx += ws.Column(c).Width * 7 + 5;
+                    for (var r = origen.RowNumber; r < fila; r++) dy += ws.Row(r).Height * 96.0 / 72.0;
+                    fila = origen.RowNumber;
+                    col = origen.ColumnNumber;
+                }
+                var k = (fila, col);
+                if (!imagenes.TryGetValue(k, out var l)) imagenes[k] = l = new List<(IXLPicture, double, double)>();
+                l.Add((pic, dx, dy));
             }
 
             var rep = ws.PageSetup.FirstRowToRepeatAtTop;
@@ -108,7 +121,7 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
                     if (sp.cs > 1) sb.Append(" colspan=\"").Append(sp.cs).Append('"');
                     sb.Append(" style=\"").Append(Estilo(cell, sp.rs > 1 || sp.cs > 1 ? Rango(ws, r, c, sp) : null)).Append("\">");
                     if (imagenes.TryGetValue((r, c), out var pics))
-                        foreach (var p in pics) sb.Append(Imagen(p));
+                        foreach (var p in pics) sb.Append(Imagen(p.Pic, p.Dx, p.Dy));
                     sb.Append(Texto(cell));
                     sb.Append("</td>");
                 }
@@ -121,12 +134,12 @@ namespace QualityControlCenter.Modules.MuestraLaboratorio
         private static IXLRange Rango(IXLWorksheet ws, int r, int c, (int rs, int cs) sp)
             => ws.Range(r, c, r + Math.Max(sp.rs, 1) - 1, c + Math.Max(sp.cs, 1) - 1);
 
-        private static string Imagen(IXLPicture p)
+        private static string Imagen(IXLPicture p, double dx, double dy)
         {
             using var ms = new MemoryStream();
             p.ImageStream.Position = 0;
             p.ImageStream.CopyTo(ms);
-            return $"<img alt=\"\" style=\"width:{p.Width}px;height:{p.Height}px;margin:{p.Top}px 0 0 {p.Left}px\" src=\"data:image/png;base64,{Convert.ToBase64String(ms.ToArray())}\">";
+            return $"<img alt=\"\" style=\"width:{p.Width}px;height:{p.Height}px;margin:{p.Top + dy}px 0 0 {p.Left + dx}px\" src=\"data:image/png;base64,{Convert.ToBase64String(ms.ToArray())}\">";
         }
 
         private static string Texto(IXLCell cell)

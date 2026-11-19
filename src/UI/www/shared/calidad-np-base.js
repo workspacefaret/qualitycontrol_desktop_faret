@@ -243,15 +243,18 @@ window.CalidadNp = (function () {
     }
 
     // Impresión/PDF de un documento HTML completo (el usuario elige "Guardar como PDF"): mismo mecanismo iframe del proyecto.
-    function imprimirHtml(html) {
+    // Imprime/guarda como PDF un documento HTML completo; espera a que carguen las imágenes (logos) antes de abrir el diálogo.
+    async function imprimirHtml(html) {
         const iframe = document.createElement("iframe")
         iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;"
         document.body.appendChild(iframe)
-        iframe.contentDocument.open()
-        iframe.contentDocument.write(html)
-        iframe.contentDocument.close()
-        setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print() }, 300)
+        const doc = iframe.contentDocument
+        doc.open()
+        doc.write(html)
+        doc.close()
         setTimeout(() => iframe.remove(), 120000)
+        await Promise.all(Array.from(doc.querySelectorAll("img")).map(i => (i.complete ? null : new Promise(r => { i.onload = i.onerror = r }))))
+        setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print() }, 300)
     }
 
     function usuarioActual() {

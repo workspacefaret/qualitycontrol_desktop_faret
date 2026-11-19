@@ -108,9 +108,16 @@
       <div class="card" style="margin-bottom: 16px;">
         <div class="module-header" style="margin-bottom: 8px;">
           <div class="module-title" style="font-size: 16px;">Trazabilidad integral (FPS / SAP / Calidad)</div>
-          <button class="btn-primary" id="btnTrzPdf">Informe PDF (REG-SGI-TDP)</button>
+          <button class="btn-primary" id="btnTrzPdf">Informe PDF (REG-SGI-TDP-V05)</button>
+          <button class="btn-primary" id="btnTrzExcelV05">Informe Excel (REG-SGI-TDP-V05)</button>
       <button class="btn-secondary" id="btnTrzGuardarInforme" data-requiere-editar>Guardar versión del informe</button>
-          <button class="btn-secondary" id="btnTrzExcel">Exportar Excel</button>
+          <button class="btn-secondary" id="btnTrzExcel">Exportar Excel (datos)</button>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
+          <div class="form-group" style="margin:0;"><label for="trzHoraInicio">Hora real de inicio del ejercicio</label><input type="time" id="trzHoraInicio"></div>
+          <div class="form-group" style="margin:0;"><label for="trzHoraTermino">Hora real de término</label><input type="time" id="trzHoraTermino"></div>
+          <div class="form-group" style="margin:0;"><label for="trzCargo">Cargo de quien realiza</label><input type="text" id="trzCargo" maxlength="80" placeholder="Opcional"></div>
+          <div class="subtitle">Se imprimen en el pie del informe; si quedan vacías aparece SIN INFORMACIÓN.</div>
         </div>
         <div id="trzFuentes" class="subtitle">Consultando fuentes...</div>
         <div class="subtitle" style="margin-top: 8px;">

@@ -41,7 +41,7 @@ if (!window.CertificadosDestruccionController) {
       this.$("cdBody").innerHTML = this._lista.length ? this._lista.map(x => {
         const acc = [`<button class="btn-secondary" style="padding:2px 8px;" data-cd="ver" data-id="${x.id}">Ver</button>`]
         if (x.estado === "BORRADOR" || x.estado === "RECHAZADO") acc.push(`<button class="btn-secondary" style="padding:2px 8px;" data-cd="editar" data-id="${x.id}" data-requiere-editar>Editar</button>`)
-        if (x.estado === "EMITIDO") acc.push(`<button class="btn-secondary" style="padding:2px 8px;" data-cd="pdf" data-id="${x.id}">PDF</button>`)
+        acc.push(`<button class="btn-secondary" style="padding:2px 8px;" data-cd="pdf" data-id="${x.id}">PDF</button>`, `<button class="btn-secondary" style="padding:2px 8px;" data-cd="excel" data-id="${x.id}">Excel</button>`)
         return `<tr${x.estado === "ANULADO" ? ' style="opacity:.55;"' : ""}><td><b>${C.esc(x.correlativo || "Sin correlativo (#" + x.id + ")")}</b></td><td>${C.esc(x.np)}</td><td>${C.esc(C.txt(x.cliente))}</td><td>${C.esc(C.txt(x.producto))}</td>
           <td>${C.num(x.cantidadDestruir)}</td><td>${C.esc(MOTIVO[x.motivo] || x.motivo)}</td><td>${C.esc(CATEGORIA[x.categoria] || x.categoria)}</td><td>${C.esc(ESTADO[x.estado] || x.estado)}</td>
           <td>${x.estado === "EMITIDO" ? (x.ejecutada ? "Ejecutada" : "Sin confirmar") : "-"}</td><td>${C.esc(x.creadoPor)}<div class="subtitle">${C.fecha(x.fechaCreacion)}</div></td><td style="white-space:nowrap;">${acc.join(" ")}</td></tr>`
@@ -60,7 +60,7 @@ if (!window.CertificadosDestruccionController) {
       const r = await C.send("calidadNp.certificados.get", { id })
       if (!r.ok) { alert(r.error); return }
       if (a === "ver") this.detalle(r.data)
-      else if (a === "pdf") this.pdf(r.data)
+      else if (a === "pdf" || a === "excel") this.exportarV11(r.data, a)
     }
 
     // ── Detalle con flujo de aprobación ──────────────────────────────────────
@@ -102,7 +102,8 @@ if (!window.CertificadosDestruccionController) {
         if (c.estado === "EMITIDO" && !c.ejecutada) mk("Confirmar destrucción ejecutada", abrir("Confirmar ejecución física", "Observación", "confirmarEjecucion", false, { html: `<div class="form-group"><label>Fecha de ejecución</label><input type="date" id="cdFecEj" value="${new Date().toISOString().slice(0, 10)}"></div>`, leer: o => ({ fecha: o.querySelector("#cdFecEj").value }) }), "btn-primary")
         if (c.estado !== "ANULADO" && !c.ejecutada) mk("Anular", abrir("Anular certificado", "Motivo de anulación *", "anular", true))
       }
-      if (c.estado === "EMITIDO") mk("Generar PDF", () => this.pdf(d))
+      mk("PDF (REG-SGI-CDD-V11)", () => this.exportarV11(d, "pdf"))
+      mk("Excel (REG-SGI-CDD-V11)", () => this.exportarV11(d, "excel"))
       const cuerpo = `
         <table class="table"><tbody>
           <tr><td><b>Certificado</b></td><td>${C.esc(c.correlativo || "Sin correlativo (borrador)")}</td><td><b>Estado</b></td><td>${C.esc(ESTADO[c.estado] || c.estado)}${c.ejecutada ? " · destrucción ejecutada " + C.fecha(c.fechaEjecucion) : c.estado === "EMITIDO" ? " · ejecución física sin confirmar" : ""}</td></tr>
@@ -252,31 +253,27 @@ if (!window.CertificadosDestruccionController) {
       await this.buscar()
     }
 
-    // ── PDF REG-SGI-CDD-V11 (solo certificados emitidos) ─────────────────────
+    // ── Certificado en el formato oficial REG-SGI-CDD-V11 ─────────────────────
+    // El backend rellena la plantilla original de Calidad con el certificado registrado (Excel) y la misma hoja
+    // se renderiza como PDF. Lo no emitido/aprobado sale rotulado como pendiente. La cantidad liberada no se
+    // guarda en el certificado: se consulta a la trazabilidad y, si no responde, queda SIN INFORMACIÓN.
 
-    pdf(d) {
+    async cantidadLiberada(c) {
+      const carga = await C.cargarNp(c.np)
+      const items = carga.data?.items || []
+      const i = c.item != null ? items.find(x => Number(x.item) === Number(c.item)) : (items.length === 1 ? items[0] : null)
+      return i && i.liberadoPt !== null && i.liberadoPt !== undefined ? Number(i.liberadoPt) : null
+    }
+
+    async exportarV11(d, tipo) {
       const c = d.certificado
-      if (c.estado !== "EMITIDO") { alert("Solo se genera el PDF de certificados emitidos"); return }
-      const e = C.esc
-      const lineas = (d.detalle || []).map(x => `<tr><td>${e(C.txt(x.lote))}</td><td>${e(C.txt(x.pallet))}</td><td>${e(C.txt(x.defecto))}</td><td style="text-align:right">${C.num(x.cantidad)}</td><td>${e(x.unidad)}</td></tr>`).join("") || `<tr><td colspan="5">Sin detalle</td></tr>`
-      const aprob = (d.aprobaciones || []).map(x => `<tr><td>${e(x.cargo)}</td><td>${e(x.estado)}</td><td>${e(C.txt(x.usuario))}</td><td>${C.fechaHora(x.fecha)}</td></tr>`).join("")
-      C.imprimirHtml(`<!doctype html><html><head><meta charset="utf-8"><title>${e(c.correlativo)}</title><style>
-        body{font-family:Arial,sans-serif;font-size:11px;margin:16px;color:#111}h1{font-size:17px;margin:0}h2{font-size:12px;margin:12px 0 4px;border-bottom:1px solid #334155}
-        table{width:100%;border-collapse:collapse;margin:4px 0}th,td{border:1px solid #94a3b8;padding:3px 5px;text-align:left}th{background:#e2e8f0}.k td:nth-child(odd){width:18%;font-weight:700;background:#f1f5f9}
-        .firmas{display:flex;gap:30px;margin-top:50px}.firmas div{flex:1;border-top:1px solid #111;text-align:center;padding-top:4px}
-        </style></head><body><h1>Certificado de destrucción de producto — ${e(c.correlativo)}</h1>
-        <p>Registro REG-SGI-CDD-V11 (formato provisional hasta contar con la plantilla oficial) · Emitido: ${C.fechaHora(c.fechaEmision)} por ${e(C.txt(c.emitidoPor))} · Destrucción física: ${c.ejecutada ? "ejecutada el " + C.fecha(c.fechaEjecucion) : "NO confirmada aún"}</p>
-        <table class="k"><tr><td>NP</td><td>${e(c.np)}</td><td>Ítem</td><td>${e(C.txt(c.item))}</td></tr><tr><td>Cliente</td><td>${e(C.txt(c.cliente))}</td><td>Razón social</td><td>${e(C.txt(c.razonSocial))}</td></tr>
-        <tr><td>Producto</td><td>${e(C.txt(c.producto))} (${e(C.txt(c.codigoProducto))})</td><td>Formato</td><td>${e(c.formato)}</td></tr>
-        <tr><td>Cantidad solicitada</td><td>${C.num(c.cantidadSolicitada)}</td><td>Cantidad a destruir</td><td><b>${C.num(c.cantidadDestruir)}</b></td></tr>
-        <tr><td>Motivo</td><td>${e(MOTIVO[c.motivo] || c.motivo)}</td><td>Categoría</td><td>${e(CATEGORIA[c.categoria] || c.categoria)}</td></tr>
-        <tr><td>Área / Operador</td><td>${e(C.txt(c.area))} / ${e(C.txt(c.operador))}</td><td>Jefe / Supervisor</td><td>${e(C.txt(c.jefeSupervisor))}</td></tr>
-        <tr><td>Solicitante</td><td>${e(C.txt(c.solicitanteNombre))} — ${e(C.txt(c.solicitanteCargo))} (${e(C.txt(c.solicitanteArea))})</td><td>Fecha solicitud</td><td>${C.fecha(c.fechaSolicitud)}</td></tr></table>
-        <h2>Descripción del defecto</h2><p>${e(C.txt(c.descripcionDefecto))}</p><h2>Causa raíz</h2><p>${e(C.txt(c.causaRaiz))}</p>
-        <h2>Detalle</h2><table><thead><tr><th>Lote</th><th>Pallet</th><th>Defecto</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>${lineas}</tbody></table>
-        <h2>Aprobaciones</h2><table><thead><tr><th>Cargo</th><th>Estado</th><th>Usuario</th><th>Fecha</th></tr></thead><tbody>${aprob}</tbody></table>
-        <h2>Observaciones</h2><p>${e(C.txt(c.observaciones))}</p>
-        <div class="firmas"><div>Solicitante</div><div>Jefatura de Calidad</div><div>Gerencia</div></div></body></html>`)
+      window.ExcelExporter?.showToast?.("Preparando certificado REG-SGI-CDD-V11...")
+      const cantidadLiberada = await this.cantidadLiberada(c).catch(() => null)
+      const r = await C.send(tipo === "pdf" ? "calidadNp.certificados.exportarPdf" : "calidadNp.certificados.exportarExcel", { id: c.id, cantidadLiberada })
+      if (!r.ok) { alert(r.error || "No se pudo generar el certificado"); return }
+      if (tipo === "pdf") return C.imprimirHtml(r.data.html)
+      const g = await C.send("excel.guardar", { fileName: r.data.fileName, base64: r.data.base64 })
+      window.ExcelExporter?.showToast?.(g.ok === false ? "Error exportando archivo" : "Archivo exportado correctamente")
     }
 
     destroy() {

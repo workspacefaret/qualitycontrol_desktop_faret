@@ -60,6 +60,8 @@ namespace QualityControlCenter.Modules.CalidadNp
                 var d = GetDataElement(data);
                 if (action == "calidadNp.mermas.evidencia")
                     return await AbrirEvidencia(d);
+                if (action is "calidadNp.certificados.exportarExcel" or "calidadNp.certificados.exportarPdf")
+                    return await ExportarCertificado(action, d);
                 if (!Rutas.TryGetValue(action, out var ruta))
                     return Error($"Acción no reconocida: {action}");
 
@@ -128,6 +130,26 @@ namespace QualityControlCenter.Modules.CalidadNp
             await File.WriteAllBytesAsync(ruta, contenido);
             Process.Start(new ProcessStartInfo { FileName = ruta, UseShellExecute = true });
             return Ok(new { nombreArchivo = nombre });
+        }
+
+        // Certificado en el formato oficial REG-SGI-CDD-V11: Excel (plantilla rellenada) o HTML imprimible del mismo libro (PDF).
+        private async Task<string> ExportarCertificado(string action, JsonElement d)
+        {
+            if (!TryGetInt(d, "id", out var id))
+                return Error("Falta el certificado.");
+            var (ok, body) = await _client.GetAsync($"{Base}certificados/{id}");
+            if (!TryUnwrap(body, out var cert, out var error) || !ok)
+                return Error(error);
+
+            decimal? liberada = d.ValueKind == JsonValueKind.Object && d.TryGetProperty("cantidadLiberada", out var l) && l.ValueKind == JsonValueKind.Number ? l.GetDecimal() : null;
+            using var libro = CertificadoDestruccionV11.Construir(cert, liberada);
+            var c = cert.GetProperty("certificado");
+            var nombre = c.TryGetProperty("correlativo", out var corr) && corr.ValueKind == JsonValueKind.String ? corr.GetString() : null;
+            nombre = Regex.Replace(nombre ?? $"BORRADOR-{id}", @"[^A-Za-z0-9._-]", "_");
+
+            if (action == "calidadNp.certificados.exportarPdf")
+                return Ok(new { fileName = $"REG-SGI-CDD-V11_{nombre}.pdf", html = MuestraLaboratorio.RegLab04Html.Render(libro, $"REG-SGI-CDD-V11 {nombre}") });
+            return Ok(new { fileName = $"REG-SGI-CDD-V11_{nombre}.xlsx", base64 = Convert.ToBase64String(CertificadoDestruccionV11.ABytes(libro)) });
         }
 
         private static string Forward(bool ok, string body)

@@ -101,6 +101,17 @@ namespace QualityControlCenter.Modules.Trazabilidad
                     return Ok(resultado);
                 }
 
+                // Formato oficial REG-SGI-TDP-V05: el frontend manda el modelo ya armado (mismo del PDF); aquí solo se dibuja.
+                if (action == "trazabilidad.exportarV05Excel")
+                {
+                    var modelo = GetDataElement(data);
+                    var np = GetString(modelo, "np").Trim();
+                    if (!NpRegex.IsMatch(np))
+                        return Error("Debes indicar una NP válida (letras, números, punto o guion, hasta 40 caracteres).");
+                    var bytes = TrazabilidadV05Excel.Construir(modelo);
+                    return Ok(new { fileName = $"REG-SGI-TDP-V05_NP{np}.xlsx", base64 = Convert.ToBase64String(bytes) });
+                }
+
                 // Fase 1b: panel documental SGI y factor unidades/pliego (API INNPACK, tablas trazabilidad_*).
                 if (
                     action.StartsWith("trazabilidad.documentos.")

@@ -40,6 +40,11 @@
     <PackageReference Include="Photino.NET" Version="4.0.16" />
   </ItemGroup>
 
+  <!-- Plantilla oficial REG-SGI-CDD-V11 (certificado de destrucción), incrustada en el ejecutable -->
+  <ItemGroup>
+    <EmbeddedResource Include="src/Backend/Modules/CalidadNp/Plantillas/REG-SGI-CDD-V11.xlsx" LogicalName="REG-SGI-CDD-V11.xlsx" />
+  </ItemGroup>
+
   <!-- FRONTEND COMPLETO -->
   <ItemGroup>
     <Content Include="src/UI/www/**">
