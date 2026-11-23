@@ -57,6 +57,7 @@
 .ap-campo .ap-check input { width: auto; height: auto; }
 
 .ap-campo input,
+.ap-campo textarea,
 .ap-campo select {
     width: 100%;
     height: 38px;
@@ -70,6 +71,7 @@
 }
 
 .ap-campo input:focus,
+.ap-campo textarea:focus,
 .ap-campo select:focus {
     border-color: #3B82F6;
     outline: none;
@@ -290,6 +292,7 @@
 .admin-planta-module.ap-faret .ap-campo label { letter-spacing: 0.02em; }
 
 .admin-planta-module.ap-faret .ap-campo input,
+.admin-planta-module.ap-faret .ap-campo textarea,
 .admin-planta-module.ap-faret .ap-campo select {
     height: 38px;
     border-color: #D8DEE9;
@@ -390,3 +393,11 @@
     .admin-planta-module.ap-faret .ap-filtros { grid-template-columns: 1fr; }
     .admin-planta-module.ap-faret .ap-kpis { grid-template-columns: 1fr; }
 }
+
+/* Pestañas de defectos y controles de los formularios (FARET): la primera lleva un separador visual. */
+.admin-planta-module .ap-campo textarea { height: auto; resize: vertical; font-family: inherit; }
+.admin-planta-module .ap-campo select:disabled,
+.admin-planta-module .ap-campo input:disabled,
+.admin-planta-module .ap-campo textarea:disabled { background: #F1F5F9; color: #64748B; cursor: not-allowed; }
+.admin-planta-module .ap-tab-form:first-of-type,
+.admin-planta-module .ap-tab:not(.ap-tab-form) + .ap-tab-form { margin-left: 10px; border-left: 2px solid #E2E8F0; border-radius: 0 10px 10px 0; }

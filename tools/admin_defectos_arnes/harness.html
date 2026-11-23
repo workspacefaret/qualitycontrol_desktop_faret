@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Arnés Administración de planta - Formularios FARET</title>
+<link rel="stylesheet" href="../../src/UI/www/core/styles.css">
+<link rel="stylesheet" href="../../src/UI/www/modules/admin-planta/admin-planta.css">
+<style>#out{position:fixed;left:0;bottom:0;max-height:30vh;overflow:auto;background:#111;color:#0f0;font:11px monospace;margin:0;z-index:99999;width:100%;display:none}</style>
+</head>
+<body>
+<div class="sidebar" id="sidebar"><div class="logo">QCC</div></div>
+<div class="main" id="main-layout"><div class="header"><div class="title">Panel de Calidad</div></div><div class="workspace"><div id="app-content"><div class="module admin-planta-module ap-faret" id="ap-raiz"></div></div></div></div>
+<pre id="out">PENDIENTE</pre>
+
+<script src="../../src/UI/www/shared/utils.js"></script>
+<script>
+const Q = new URLSearchParams(location.search);
+const MODO = Q.get("modo") || "test";
+const res = []; let ok = 0, fallas = 0;
+function check(n, c, d = "") { if (c) ok++; else { fallas++; res.push("FALLA: " + n + " " + d); } }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function esperar(fn, ms = 4000) { const t = Date.now(); while (Date.now() - t < ms) { if (fn()) return true; await sleep(20); } return false; }
+
+// ---- Puente simulado con el comportamiento de la API (mismas reglas que adminPlanta.controller.js) ----
+const AREAS = [{ id: "OFF", nombre: "03-OFFSET", activo: true, codigo: "OFF" }, { id: "SER", nombre: "04-SERIGRAFÍA", activo: true, codigo: "SER" }];
+const db = {
+    areas: AREAS,
+    def_calidad: [
+        { id: "OFF-001", nombre: "DIFERENCIA DE TONO", activo: true, codigo: "OFF-001", grupoId: "OFF", criticidad: "Critico", orden: 1, pendienteAprobacion: false },
+        { id: "OFF-002", nombre: "DEFECTO DE SECADO", activo: true, codigo: "OFF-002", grupoId: "OFF", criticidad: "Mayor", orden: 2, pendienteAprobacion: false },
+        { id: "SER-007", nombre: "DEFECTO PENDIENTE", activo: false, codigo: "SER-007", grupoId: "SER", criticidad: "Mayor", orden: 7, pendienteAprobacion: true },
+    ],
+    def_pt: [
+        { id: 1, nombre: "BURBUJA", activo: true, grupoId: 4, criticidad: "mayor", compartido: true, enUso: true },
+        { id: 2, nombre: "DESCUADRE", activo: true, grupoId: 5, criticidad: "critico", compartido: true, enUso: true },
+        { id: 900, nombre: "MEZCLA DE PRODUCTO", activo: true, grupoId: 4, criticidad: "critico", compartido: false, enUso: true },
+        { id: 901, nombre: "RAYA PROPIA", activo: true, grupoId: 5, criticidad: "menor", compartido: false, enUso: false },
+    ],
+    chk_pallet: [
+        { id: 1, nombre: "¿El pallet está limpio?", activo: true, orden: 1, enUso: true },
+        { id: 2, nombre: "¿Etiqueta correcta?", activo: true, orden: 2, enUso: false },
+    ],
+};
+const llamadas = [];
+let sig = 100;
+window.PhotinoBridge = {
+    async send({ action, data }) {
+        llamadas.push({ action, data });
+        const l = db[data.entidad];
+        if (action === "adminPlanta.list") return { ok: true, data: JSON.parse(JSON.stringify(l)) };
+        if (action === "adminPlanta.crear") {
+            if (l.some((f) => f.nombre.toLowerCase() === data.nombre.toLowerCase() && String(f.grupoId) === String(data.grupoId))) return { ok: false, error: "Ya existe un registro con ese nombre" };
+            const f = { id: data.entidad === "def_calidad" ? `${data.grupoId}-${String(sig++).padStart(3, "0")}` : sig++, nombre: data.nombre, activo: true, grupoId: data.grupoId, criticidad: data.criticidad, orden: data.orden ?? 99, compartido: false, enUso: false, pendienteAprobacion: false };
+            if (data.entidad === "def_calidad") f.codigo = f.id;
+            l.push(f); return { ok: true, data: f };
+        }
+        if (action === "adminPlanta.actualizar") {
+            const f = l.find((x) => String(x.id) === String(data.id));
+            if (f.compartido) return { ok: false, error: "Este defecto es compartido con INNPACK y no se puede modificar desde FARET." };
+            if (f.enUso && ((data.nombre !== undefined && data.nombre !== f.nombre) || (data.criticidad && data.criticidad !== f.criticidad))) return { ok: false, error: "Ya se usó en inspecciones: su texto y criticidad no se modifican." };
+            for (const k of ["nombre", "criticidad", "orden", "activo"]) if (data[k] !== undefined) f[k] = data[k];
+            return { ok: true, data: f };
+        }
+        return { ok: false, error: "?" };
+    },
+};
+try { sessionStorage.setItem("faretRol", "ADMIN_TI"); } catch {}
+window.App = { currentModule: "faret-admin-planta", nivelModulo: () => "EDITAR" };
+window.confirm = () => true;
+window.alert = (m) => { window.__alert = m; };
+</script>
+<script src="../../src/UI/www/shared/admin-planta-base.js"></script>
+<script>
+window.FaretAdminPlantaController = class extends window.AdminPlantaBase { static EMPRESA = "FARET"; };
+const $ = (id) => document.getElementById(id);
+const tabs = () => [...document.querySelectorAll(".ap-tab")].map((b) => b.textContent.trim());
+const filas = () => [...document.querySelectorAll("#ap-tbody tr")];
+const txt = (tr) => tr.textContent.replace(/\s+/g, " ").trim();
+async function irA(c, tab) { document.querySelector(`[data-tab="${tab}"]`).click(); await esperar(() => document.querySelector(".ap-tab.active")?.dataset.tab === tab && $("ap-tbody")); await sleep(30); }
+const ultima = (a) => [...llamadas].reverse().find((l) => l.action === a);
+
+(async () => {
+    const c = new window.FaretAdminPlantaController();
+    c.init();
+    await esperar(() => $("ap-tbody"));
+
+    if (MODO === "shot") {
+        const p = Q.get("pestana") || "def_calidad";
+        await irA(c, p === "modal" ? "def_calidad" : p);
+        if (p === "modal") { document.querySelector('[data-acc="editar"][data-id="OFF-001"]').click(); await sleep(60); }
+        document.getElementById("out").style.display = "none";
+        return;
+    }
+
+    // 1. Pestañas
+    const t = tabs();
+    check("pestañas de formularios presentes", t.includes("Defectos · Calidad/Producción") && t.includes("Checklist · Pallet/Papel") && t.includes("Defectos · Producto Terminado"), JSON.stringify(t));
+    check("pestañas planta intactas", t.includes("Operadores de máquina") && t.includes("Inspectores") && t.includes("Máquinas") && t.includes("Áreas") && t.includes("Historial de cambios"));
+
+    // 2. Calidad/Producción
+    await irA(c, "def_calidad");
+    const filtroEstado = async (v) => { $("ap-f-estado").value = v; $("ap-f-estado").dispatchEvent(new Event("change", { bubbles: true })); await sleep(20); };
+    await filtroEstado("todos");
+    check("lista 3 defectos con ID, criticidad y orden", filas().length === 3 && /OFF-001/.test(txt(filas()[0])) && /Crítico/.test(txt(filas()[0])) && /\b1\b/.test(txt(filas()[0])), txt(filas()[0] || ""));
+    check("pendiente de aprobación sin Reactivar", /Pendiente de aprobación/.test(txt(filas()[2])) && !filas()[2].querySelector('[data-acc="estado"]'), txt(filas()[2]));
+    await filtroEstado("activos");
+    $("ap-nuevo-btn").click(); await sleep(30);
+    check("modal nuevo: criticidad y orden, nombre habilitado", !!$("ap-m-criticidad") && !!$("ap-m-orden") && !$("ap-m-nombre").disabled && !$("ap-m-grupo").disabled);
+    $("ap-m-nombre").value = "Mezcla de producto"; $("ap-m-grupo").value = "OFF";
+    $("ap-m-guardar").click(); await sleep(30);
+    check("criticidad obligatoria", /Selecciona la criticidad/.test($("ap-m-error").textContent), $("ap-m-error").textContent);
+    $("ap-m-criticidad").value = "Mayor";
+    $("ap-m-orden").value = "0"; $("ap-m-guardar").click(); await sleep(30);
+    check("orden inválido rechazado", /entre 1 y 9999/.test($("ap-m-error").textContent), $("ap-m-error").textContent);
+    $("ap-m-orden").value = "";
+    $("ap-m-guardar").click(); await esperar(() => !$("ap-m-guardar")); await sleep(60);
+    const cr = ultima("adminPlanta.crear");
+    check("crear envía entidad, nombre, área y criticidad", cr && cr.data.entidad === "def_calidad" && cr.data.nombre === "Mezcla de producto" && cr.data.grupoId === "OFF" && cr.data.criticidad === "Mayor" && cr.data.orden === undefined, JSON.stringify(cr));
+    check("el defecto nuevo aparece en el listado", filas().some((r) => /Mezcla de producto/.test(txt(r)) && /Mayor/.test(txt(r))));
+    // duplicado
+    $("ap-nuevo-btn").click(); await sleep(30);
+    $("ap-m-nombre").value = "mezcla de producto"; $("ap-m-grupo").value = "OFF"; $("ap-m-criticidad").value = "Menor";
+    $("ap-m-guardar").click(); await sleep(60);
+    check("duplicado: mensaje del servidor", /Ya existe/.test($("ap-m-error").textContent), $("ap-m-error").textContent);
+    $("ap-m-cancelar").click();
+    // editar: área bloqueada, cambia criticidad
+    document.querySelector('[data-acc="editar"][data-id="OFF-002"]').click(); await sleep(30);
+    check("editar: el área no se puede cambiar", $("ap-m-grupo").disabled);
+    $("ap-m-criticidad").value = "Critico"; $("ap-m-orden").value = "9";
+    $("ap-m-guardar").click(); await sleep(80);
+    const ed = ultima("adminPlanta.actualizar");
+    check("actualizar envía criticidad y orden", ed.data.id === "OFF-002" && ed.data.criticidad === "Critico" && ed.data.orden === 9, JSON.stringify(ed));
+    // baja y reactivación
+    document.querySelector('[data-acc="estado"][data-id="OFF-001"]').click(); await sleep(80);
+    check("baja lógica envía activo:false", ultima("adminPlanta.actualizar").data.activo === false);
+    check("la baja sale de 'Activos'", !filas().some((r) => /OFF-001/.test(txt(r))));
+
+    // 3. Producto Terminado
+    await irA(c, "def_pt");
+    check("PT: 4 defectos, grupos Pegado/Termoformado", filas().length === 4 && [...$("ap-f-grupo").options].map((o) => o.textContent).join("|") === "Todas|Pegado|Termoformado", [...$("ap-f-grupo").options].map((o) => o.textContent).join("|"));
+    const compartidos = filas().filter((r) => /Compartido con INNPACK/.test(txt(r)));
+    check("PT: defectos compartidos son de solo lectura", compartidos.length === 2 && compartidos.every((r) => !r.querySelector("[data-acc]") && /Solo lectura/.test(txt(r))));
+    document.querySelector('[data-acc="editar"][data-id="900"]').click(); await sleep(30);
+    check("PT: defecto ya usado bloquea nombre, criticidad y proceso", $("ap-m-nombre").disabled && $("ap-m-criticidad").disabled && $("ap-m-grupo").disabled);
+    check("PT: aviso de historial", /Ya se usó en inspecciones/.test($("ap-modal-root").textContent));
+    $("ap-m-cancelar").click();
+    document.querySelector('[data-acc="editar"][data-id="901"]').click(); await sleep(30);
+    check("PT: defecto sin uso editable (nombre y criticidad)", !$("ap-m-nombre").disabled && !$("ap-m-criticidad").disabled);
+    $("ap-m-criticidad").value = "Mayor"; $("ap-m-guardar").click(); await sleep(80);
+    check("PT: procesoId numérico en la llamada", typeof ultima("adminPlanta.actualizar").data.grupoId === "number", JSON.stringify(ultima("adminPlanta.actualizar").data));
+    $("ap-nuevo-btn").click(); await sleep(30);
+    $("ap-m-nombre").value = "Rotura de sello"; $("ap-m-grupo").value = "5"; $("ap-m-criticidad").value = "Menor";
+    $("ap-m-guardar").click(); await sleep(80);
+    const nuevoPt = ultima("adminPlanta.crear");
+    check("PT: crear con proceso numérico y criticidad", nuevoPt.data.entidad === "def_pt" && nuevoPt.data.grupoId === 5 && nuevoPt.data.criticidad === "Menor", JSON.stringify(nuevoPt.data));
+
+    // 4. Checklist Pallet/Papel
+    await irA(c, "chk_pallet");
+    check("Checklist: 2 preguntas con orden, sin criticidad ni área", filas().length === 2 && !$("ap-f-grupo") && !/Criticidad/.test(document.querySelector("thead").textContent) && /Orden/.test(document.querySelector("thead").textContent));
+    document.querySelector('[data-acc="editar"][data-id="1"]').click(); await sleep(30);
+    check("Checklist: pregunta ya respondida no cambia su texto", $("ap-m-nombre").tagName === "TEXTAREA" && $("ap-m-nombre").disabled && !$("ap-m-orden").disabled);
+    $("ap-m-orden").value = "5"; $("ap-m-guardar").click(); await sleep(80);
+    check("Checklist: reordenar una pregunta usada se permite", ultima("adminPlanta.actualizar").data.orden === 5);
+    $("ap-nuevo-btn").click(); await sleep(30);
+    $("ap-m-nombre").value = "¿Fleje en buen estado?"; $("ap-m-guardar").click(); await sleep(80);
+    const q = ultima("adminPlanta.crear");
+    check("Checklist: crear pregunta sin criticidad (queda al final)", q.data.entidad === "chk_pallet" && q.data.criticidad === undefined && q.data.orden === undefined, JSON.stringify(q.data));
+    document.querySelector('[data-acc="estado"][data-id="2"]').click(); await sleep(80);
+    check("Checklist: baja lógica de pregunta", ultima("adminPlanta.actualizar").data.activo === false);
+
+    // 5. Pestañas de planta siguen cargando áreas
+    check("sin alertas inesperadas", window.__alert === undefined, window.__alert);
+
+    document.getElementById("out").textContent = (res.length ? res.join("\n") + "\n" : "") + `RESULTADO: ${ok} OK, ${fallas} FALLAS`;
+    document.getElementById("out").style.display = "block";
+})().catch((e) => { document.getElementById("out").textContent = "ERROR: " + e.stack; document.getElementById("out").style.display = "block"; });
+</script>
+</body>
+</html>

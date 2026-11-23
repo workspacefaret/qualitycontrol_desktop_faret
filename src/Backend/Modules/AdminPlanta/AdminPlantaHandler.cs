@@ -12,8 +12,10 @@ namespace QualityControlCenter.Modules.AdminPlanta
     // Acciones: adminPlanta.list / .crear / .actualizar / .auditoria.list (lectura = .list; el resto exige EDITAR en el módulo).
     public class AdminPlantaHandler
     {
-        private static readonly HashSet<string> Entidades = new() { "areas", "maquinas", "operadores", "inspectores" };
-        private static readonly string[] CamposEscribibles = { "nombre", "grupoId", "codigo", "activo" };
+        private static readonly HashSet<string> Entidades = new() { "areas", "maquinas", "operadores", "inspectores", "def_calidad", "def_pt", "chk_pallet" };
+        // Defectos y controles de los formularios: solo FARET (la API además lo impone por sesión).
+        private static readonly HashSet<string> EntidadesSoloFaret = new() { "def_calidad", "def_pt", "chk_pallet" };
+        private static readonly string[] CamposEscribibles = { "nombre", "grupoId", "codigo", "activo", "criticidad", "orden" };
 
         private readonly FaretApiClient _client;
         private readonly string _empresa;
@@ -41,6 +43,8 @@ namespace QualityControlCenter.Modules.AdminPlanta
                 var entidad = Texto(data, "entidad");
                 if (entidad == null || !Entidades.Contains(entidad))
                     return Error("Entidad no válida");
+                if (_empresa != "FARET" && EntidadesSoloFaret.Contains(entidad))
+                    return Error("Esta administración solo está disponible para FARET");
                 var ruta = $"admin-planta/{_empresa}/{entidad}";
 
                 switch (action)
@@ -83,7 +87,8 @@ namespace QualityControlCenter.Modules.AdminPlanta
             return cuerpo;
         }
 
-        // id numérico (maquinas/operadores/inspectores/procesos) o código de 3 letras (áreas FARET): nunca texto libre en la URL.
+        // id numérico (maquinas/operadores/inspectores/procesos/defectos PT/preguntas), código de 3 letras (áreas FARET) o ID de defecto
+        // de Calidad/Producción (OFF-001): nunca texto libre en la URL.
         private static bool EsIdValido(JsonElement id, out string texto)
         {
             texto = "";
@@ -96,6 +101,11 @@ namespace QualityControlCenter.Modules.AdminPlanta
             {
                 var s = id.GetString() ?? "";
                 if (s.Length == 3 && s.AsSpan().IndexOfAnyExceptInRange('A', 'Z') < 0)
+                {
+                    texto = s;
+                    return true;
+                }
+                if (s.Length == 7 && s[3] == '-' && s.AsSpan(0, 3).IndexOfAnyExceptInRange('A', 'Z') < 0 && s.AsSpan(4).IndexOfAnyExceptInRange('0', '9') < 0)
                 {
                     texto = s;
                     return true;

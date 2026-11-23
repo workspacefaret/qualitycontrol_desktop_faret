@@ -20,15 +20,28 @@ window.AdminPlantaBase = (function () {
         return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]} ${t.substring(11, 16)}` : t;
     };
 
-    // grupo = "agrupa por área/proceso"; codigo = columna de código visible.
+    // Criticidad: la API guarda "Critico" (Calidad/Producción) o "critico" (Producto Terminado); se muestra siempre con tilde.
+    const CRITICIDADES = [["Critico", "Crítico"], ["Mayor", "Mayor"], ["Menor", "Menor"]];
+    const etiquetaCriticidad = (v) => (CRITICIDADES.find(([k]) => k.toLowerCase() === String(v || "").toLowerCase()) || [0, v || "-"])[1];
+    const PROCESOS_PT = [{ id: 4, nombre: "Pegado", activo: true }, { id: 5, nombre: "Termoformado", activo: true }];
+
+    // grupo = "agrupa por área/proceso"; codigo = columna de código visible; criticidad/orden = defectos y controles de formularios FARET.
     const entidades = (empresa) => {
         const faret = empresa === "FARET";
         const area = faret ? "Área" : "Proceso";
+        const formularios = faret
+            ? {
+                  def_calidad: { titulo: "Defectos · Calidad/Producción", singular: "defecto", grupo: "Área", codigo: "ID", criticidad: true, orden: true, formulario: true, nuevo: "Nuevo defecto" },
+                  chk_pallet: { titulo: "Checklist · Pallet/Papel", singular: "pregunta del checklist", grupo: null, orden: true, formulario: true, etiquetaNombre: "Pregunta", nuevo: "Nueva pregunta" },
+                  def_pt: { titulo: "Defectos · Producto Terminado", singular: "defecto", grupo: "Proceso", grupoFijo: PROCESOS_PT, grupoNumerico: true, criticidad: true, formulario: true, nuevo: "Nuevo defecto" },
+              }
+            : {};
         return {
             operadores: { titulo: "Operadores de máquina", singular: "operador", grupo: area, nuevo: "Nuevo operador" },
             inspectores: { titulo: "Inspectores", singular: "inspector", grupo: null, codigo: faret ? null : "Código", nuevo: "Nuevo inspector" },
             maquinas: { titulo: "Máquinas", singular: "máquina", grupo: area, codigo: faret ? null : "Código QR", nuevo: "Nueva máquina" },
             areas: { titulo: faret ? "Áreas" : "Procesos", singular: faret ? "área" : "proceso", grupo: null, codigo: faret ? "Código" : null, nuevo: faret ? "Nueva área" : "Nuevo proceso" },
+            ...formularios,
         };
     };
 
@@ -80,7 +93,7 @@ window.AdminPlantaBase = (function () {
                 <div class="module-header">
                     <div>
                         <div class="module-title">Administración de planta</div>
-                        <div class="subtitle">Operadores, inspectores, máquinas y ${esc(this.def.areas.titulo.toLowerCase())} de ${esc(this.empresa === "FARET" ? "Faret" : "INNPACK")}. Los cambios quedan auditados y llegan a la app móvil de inspecciones.</div>
+                        <div class="subtitle">Operadores, inspectores, máquinas y ${esc(this.def.areas.titulo.toLowerCase())}${this.empresa === "FARET" ? ", más los defectos y controles de los formularios de inspección," : ""} de ${esc(this.empresa === "FARET" ? "Faret" : "INNPACK")}. Los cambios quedan auditados y llegan a la app móvil de inspecciones.</div>
                     </div>
                     <div class="module-actions">
                         <button class="btn-primary" id="ap-nuevo-btn" data-requiere-editar></button>
@@ -89,7 +102,7 @@ window.AdminPlantaBase = (function () {
 
                 <div class="ap-tabs" role="tablist">
                     ${Object.entries(this.def)
-                        .map(([k, d]) => `<button class="ap-tab" role="tab" data-tab="${k}">${esc(d.titulo)}</button>`)
+                        .map(([k, d]) => `<button class="ap-tab${d.formulario ? " ap-tab-form" : ""}" role="tab" data-tab="${k}"${d.formulario ? ` title="Defectos y controles del formulario de inspección ${esc(d.titulo)}"` : ""}>${esc(d.titulo)}</button>`)
                         .join("")}
                     <button class="ap-tab ap-tab-historial" role="tab" data-tab="historial">Historial de cambios</button>
                 </div>
@@ -143,7 +156,7 @@ window.AdminPlantaBase = (function () {
 
             $("ap-contenido").innerHTML = `<div class="card ap-estado">Cargando...</div>`;
 
-            const pedidos = tab === "historial" ? [this.cargarHistorial()] : [this.cargar(tab), this.cargar("areas")];
+            const pedidos = tab === "historial" ? [this.cargarHistorial()] : [this.cargar(tab), ...(tab === "areas" || !this.def[tab].grupo || this.def[tab].grupoFijo ? [] : [this.cargar("areas")])];
             const resultados = await Promise.all(pedidos);
             if (solicitud !== this.solicitud) return;
 
@@ -159,8 +172,13 @@ window.AdminPlantaBase = (function () {
         }
 
         // ---- Listado ------------------------------------------------------------------------------------------
+        // Áreas/procesos de la pestaña actual (Producto Terminado usa solo Pegado y Termoformado).
+        gruposDeTab() {
+            return this.def[this.tab].grupoFijo || this.areas;
+        }
+
         etiquetaGrupo(fila) {
-            const a = this.areas.find((x) => String(x.id) === String(fila.grupoId));
+            const a = this.gruposDeTab().find((x) => String(x.id) === String(fila.grupoId));
             return a ? a.nombre : fila.grupo || "-";
         }
 
@@ -171,7 +189,7 @@ window.AdminPlantaBase = (function () {
 
             const opcionesGrupo = d.grupo
                 ? `<div class="ap-campo"><label for="ap-f-grupo">${esc(d.grupo)}</label>
-                       <select id="ap-f-grupo"><option value="">Todas</option>${this.areas
+                       <select id="ap-f-grupo"><option value="">Todas</option>${this.gruposDeTab()
                            .filter((a) => a.activo)
                            .map((a) => `<option value="${esc(a.id)}">${esc(a.nombre)}</option>`)
                            .join("")}</select></div>`
@@ -198,7 +216,7 @@ window.AdminPlantaBase = (function () {
                     <div class="table-container ap-tabla">
                         <table class="table">
                             <thead><tr>
-                                <th>Nombre</th>${d.grupo ? `<th>${esc(d.grupo)}</th>` : ""}${d.codigo ? `<th>${esc(d.codigo)}</th>` : ""}<th>Estado</th><th class="ap-col-acc">Acciones</th>
+                                <th>${esc(d.etiquetaNombre || "Nombre")}</th>${d.grupo ? `<th>${esc(d.grupo)}</th>` : ""}${d.codigo ? `<th>${esc(d.codigo)}</th>` : ""}${d.criticidad ? "<th>Criticidad</th>" : ""}${d.orden ? "<th>Orden</th>" : ""}<th>Estado</th><th class="ap-col-acc">Acciones</th>
                             </tr></thead>
                             <tbody id="ap-tbody"></tbody>
                         </table>
@@ -222,7 +240,7 @@ window.AdminPlantaBase = (function () {
         pintarTabla() {
             const d = this.def[this.tab];
             const filas = this.filtrar();
-            const cols = 3 + (d.grupo ? 1 : 0) + (d.codigo ? 1 : 0);
+            const cols = 3 + (d.grupo ? 1 : 0) + (d.codigo ? 1 : 0) + (d.criticidad ? 1 : 0) + (d.orden ? 1 : 0);
 
             $("ap-tbody").innerHTML = filas.length
                 ? filas
@@ -231,11 +249,17 @@ window.AdminPlantaBase = (function () {
                     <td><strong>${esc(f.nombre)}</strong></td>
                     ${d.grupo ? `<td>${esc(this.etiquetaGrupo(f))}</td>` : ""}
                     ${d.codigo ? `<td><code>${esc(f.codigo || "-")}</code></td>` : ""}
-                    <td><span class="ap-pill ${f.oculto ? "ap-pill-baja" : f.activo ? "ap-pill-ok" : "ap-pill-baja"}">${f.oculto ? "Cuenta técnica" : f.activo ? "Activo" : "De baja"}</span></td>
+                    ${d.criticidad ? `<td>${esc(etiquetaCriticidad(f.criticidad))}</td>` : ""}
+                    ${d.orden ? `<td>${esc(f.orden ?? "-")}</td>` : ""}
+                    <td><span class="ap-pill ${f.oculto || f.compartido ? "ap-pill-baja" : f.activo ? "ap-pill-ok" : "ap-pill-baja"}">${f.oculto ? "Cuenta técnica" : f.compartido ? "Compartido con INNPACK" : f.pendienteAprobacion && !f.activo ? "Pendiente de aprobación" : f.activo ? "Activo" : "De baja"}</span></td>
                     <td class="ap-col-acc">${f.oculto
                         ? `<span class="ap-vacio">Protegida</span>`
+                        : f.compartido
+                        ? `<span class="ap-vacio" title="Este defecto también lo usa INNPACK: no se modifica desde FARET">Solo lectura</span>`
                         : `<button class="btn-secondary ap-btn" data-acc="editar" data-id="${esc(f.id)}" data-requiere-editar>Editar</button>
-                        <button class="ap-btn ${f.activo ? "btn-danger" : "btn-secondary"}" data-acc="estado" data-id="${esc(f.id)}" data-requiere-editar>${f.activo ? "Dar de baja" : "Reactivar"}</button>`}
+                        ${f.pendienteAprobacion && !f.activo
+                            ? `<span class="ap-vacio" title="Requiere la aprobación de Calidad">Requiere aprobación</span>`
+                            : `<button class="ap-btn ${f.activo ? "btn-danger" : "btn-secondary"}" data-acc="estado" data-id="${esc(f.id)}" data-requiere-editar>${f.activo ? "Dar de baja" : "Reactivar"}</button>`}`}
                     </td></tr>`
                       )
                       .join("")
@@ -247,25 +271,39 @@ window.AdminPlantaBase = (function () {
         abrirModal(fila) {
             const d = this.def[this.tab];
             const esFaretArea = this.empresa === "FARET" && this.tab === "areas";
-            const grupos = this.areas.filter((a) => a.activo || (fila && String(a.id) === String(fila.grupoId)));
+            const grupos = this.gruposDeTab().filter((a) => a.activo || (fila && String(a.id) === String(fila.grupoId)));
+            const nombreBloqueado = !!(fila && fila.enUso); // ya respaldó inspecciones: texto y criticidad no se cambian
+            const grupoBloqueado = !!(fila && d.formulario && d.grupo);
 
             $("ap-modal-root").innerHTML = `
                 <div class="ap-modal-overlay" id="ap-overlay">
                     <div class="ap-modal" role="dialog" aria-modal="true" aria-labelledby="ap-modal-titulo">
                         <h3 id="ap-modal-titulo">${fila ? `Editar ${esc(d.singular)}` : esc(d.nuevo)}</h3>
-                        <div class="ap-campo"><label for="ap-m-nombre">Nombre</label>
-                            <input type="text" id="ap-m-nombre" maxlength="150" value="${esc(fila?.nombre || "")}" autocomplete="off"></div>
+                        <div class="ap-campo"><label for="ap-m-nombre">${esc(d.etiquetaNombre || "Nombre")}</label>
+                            ${d.etiquetaNombre
+                                ? `<textarea id="ap-m-nombre" rows="3" maxlength="255" autocomplete="off" ${nombreBloqueado ? "disabled" : ""}>${esc(fila?.nombre || "")}</textarea>`
+                                : `<input type="text" id="ap-m-nombre" maxlength="150" value="${esc(fila?.nombre || "")}" autocomplete="off" ${nombreBloqueado ? "disabled" : ""}>`}</div>
                         ${d.grupo ? `<div class="ap-campo"><label for="ap-m-grupo">${esc(d.grupo)}</label>
-                            <select id="ap-m-grupo"><option value="">Seleccionar...</option>${grupos
+                            <select id="ap-m-grupo" ${grupoBloqueado ? "disabled" : ""}><option value="">Seleccionar...</option>${grupos
                                 .map((a) => `<option value="${esc(a.id)}" ${fila && String(a.id) === String(fila.grupoId) ? "selected" : ""}>${esc(a.nombre)}</option>`)
                                 .join("")}</select></div>` : ""}
                         ${esFaretArea && !fila ? `<div class="ap-campo"><label for="ap-m-codigo">Código del área (3 letras)</label>
                             <input type="text" id="ap-m-codigo" maxlength="3" placeholder="Ej: LAM" autocomplete="off"></div>` : ""}
                         ${this.empresa === "INNPACK" && this.tab === "maquinas" && !fila ? `<div class="ap-campo"><label for="ap-m-codigo">Código QR (opcional)</label>
                             <input type="text" id="ap-m-codigo" maxlength="100" placeholder="Se genera automáticamente" autocomplete="off"></div>` : ""}
+                        ${d.criticidad ? `<div class="ap-campo"><label for="ap-m-criticidad">Criticidad</label>
+                            <select id="ap-m-criticidad" ${nombreBloqueado ? "disabled" : ""}><option value="">Seleccionar...</option>${CRITICIDADES
+                                .map(([k, e]) => `<option value="${k}" ${fila && String(fila.criticidad || "").toLowerCase() === k.toLowerCase() ? "selected" : ""}>${e}</option>`)
+                                .join("")}</select></div>` : ""}
+                        ${d.orden ? `<div class="ap-campo"><label for="ap-m-orden">Orden${d.grupo ? " dentro del área" : ""}</label>
+                            <input type="number" id="ap-m-orden" min="1" max="9999" step="1" placeholder="${fila ? "" : "Al final"}" value="${esc(fila?.orden ?? "")}"></div>` : ""}
                         ${fila && d.codigo ? `<div class="ap-campo"><label>${esc(d.codigo)}</label><div class="ap-solo-lectura"><code>${esc(fila.codigo || "-")}</code></div></div>` : ""}
-                        <div class="ap-nota">${fila
+                        <div class="ap-nota">${nombreBloqueado
+                            ? "Ya se usó en inspecciones: su texto y criticidad no se modifican para conservar el historial. Para cambiarlo, dé de baja este y cree uno nuevo."
+                            : fila
                             ? "El cambio de nombre no modifica los registros históricos ya guardados."
+                            : d.formulario
+                            ? "Quedará activo y disponible en el formulario de la app móvil. Las inspecciones ya guardadas no cambian."
                             : "Quedará activo y disponible en la app móvil."}</div>
                         <div class="ap-error-form" id="ap-m-error" hidden></div>
                         <div class="ap-modal-acciones">
@@ -298,7 +336,9 @@ window.AdminPlantaBase = (function () {
             const grupoId = $("ap-m-grupo")?.value || "";
             const codigo = $("ap-m-codigo")?.value.trim() || "";
 
-            const falta = !nombre ? "El nombre es obligatorio" : d.grupo && !grupoId ? `Selecciona ${d.grupo.toLowerCase() === "área" ? "un área" : "un proceso"}` : null;
+            const criticidad = $("ap-m-criticidad")?.value || "";
+            const orden = $("ap-m-orden")?.value.trim() || "";
+            const falta = !nombre ? (d.etiquetaNombre ? "La pregunta es obligatoria" : "El nombre es obligatorio") : d.criticidad && !criticidad ? "Selecciona la criticidad" : orden && !/^[1-9]\d{0,3}$/.test(orden) ? "El orden debe ser un número entero entre 1 y 9999" : d.grupo && !grupoId ? `Selecciona ${d.grupo.toLowerCase() === "área" ? "un área" : "un proceso"}` : null;
             if (falta) {
                 error.textContent = falta;
                 error.hidden = false;
@@ -306,7 +346,9 @@ window.AdminPlantaBase = (function () {
             }
 
             const cuerpo = { entidad: this.tab, nombre };
-            if (d.grupo) cuerpo.grupoId = this.empresa === "FARET" ? grupoId : Number(grupoId);
+            if (d.grupo) cuerpo.grupoId = this.empresa === "FARET" && !d.grupoNumerico ? grupoId : Number(grupoId);
+            if (d.criticidad) cuerpo.criticidad = criticidad;
+            if (d.orden && orden) cuerpo.orden = Number(orden);
             if (!fila && codigo) cuerpo.codigo = codigo;
 
             boton.disabled = true;
