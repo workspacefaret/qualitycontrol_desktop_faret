@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Arnés Clasificación de Pallets</title>
+<link rel="stylesheet" href="../../src/UI/www/core/styles.css">
+<link rel="stylesheet" href="../../src/UI/www/modules/clasificacion-pallets/clasificacion-pallets.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="../../src/UI/www/libs/chart.js"></script>
+<style>#out{position:fixed;left:0;bottom:0;max-height:30vh;overflow:auto;background:#111;color:#0f0;font:11px monospace;margin:0;z-index:99999;width:100%;display:none}</style>
+</head>
+<body>
+<!-- Mismo esqueleto que index.html: barra lateral + main-layout + workspace + #app-content -->
+<div class="sidebar" id="sidebar"><div class="logo">QCC</div><div class="menu"><button data-module="clasificacion-pallets" class="active"><span>Clasificación de Pallets</span></button></div></div>
+<div class="main" id="main-layout"><div class="header"><div class="title">Panel de Calidad</div></div><div class="workspace"><div id="app-content"></div></div></div>
+<pre id="out">PENDIENTE</pre>
+
+<script src="../../src/UI/www/shared/utils.js"></script>
+<script>
+// ───────── parámetros ─────────
+const Q = new URLSearchParams(location.search);
+const MODO = Q.get("modo") || "test";            // test | shot
+const ESC = Q.get("escenario") || "datos";       // datos | vacio | error | drawer | anulada
+const hoy = window.DateUtils.hoyISO();
+const log = [];                                   // llamadas al puente (para verificar parámetros)
+const res = [];
+let ok = 0, fallas = 0;
+function check(nombre, cond, det = "") { if (cond) ok++; else { fallas++; res.push("FALLA: " + nombre + " " + det); } }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function esperar(fn, ms = 4000) { const t = Date.now(); while (Date.now() - t < ms) { if (fn()) return true; await sleep(30); } return false; }
+
+</script>
+<script src="mock_api.js"></script>
+<script>
+window.PhotinoBridge = { send: responderMock };
+try { sessionStorage.setItem("rolUsuario", "calidad"); } catch {}
+window.App = { currentModule: "clasificacion-pallets", nivelModulo: () => "EDITAR" };
+window.ExcelExporter = { llamadas: [], exportTable(o) { const t = document.querySelector(o.tableSelector); this.llamadas.push({ o, filas: t.querySelectorAll("tbody tr").length, cols: t.querySelectorAll("thead th").length, cab: [...t.querySelectorAll("thead th")].map(x => x.textContent), primera: [...t.querySelectorAll("tbody tr")[0].children].map(x => x.textContent) }); } };
+
+// ───────── carga del módulo real (igual que App.loadModule) ─────────
+function leer(url) { const x = new XMLHttpRequest(); x.open("GET", url, false); x.send(); return x.responseText; }
+let ctl = null;
+async function montar() {
+  if (ctl) ctl.destroy();
+  document.getElementById("app-content").innerHTML = leer("../../src/UI/www/modules/clasificacion-pallets/clasificacion-pallets.view.html");
+  if (!window.ClasificacionPalletsController) { const s = document.createElement("script"); s.textContent = leer("../../src/UI/www/modules/clasificacion-pallets/clasificacion-pallets.controller.js"); document.body.appendChild(s); }
+  ctl = new window.ClasificacionPalletsController();
+  await ctl.init();
+  return ctl;
+}
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const txt = id => document.getElementById(id)?.textContent.trim();
+const click = el => el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+const filas = () => $$("#cpTbody tr.cp-fila");
+const ultimaLlamada = a => [...log].reverse().find(l => l.action === a);
+
+async function escenarioDatos() {
+  await montar();
+  const total = vigentes(EVENTOS).length;
+
+  // ── carga inicial ──
+  check("vista por defecto = Vigentes", $("[data-cp-vista=vigentes]").classList.contains("active"));
+  check("período por defecto 30 días activo", $("[data-cp-periodo='30']").classList.contains("active"));
+  const l0 = log.filter(l => l.action === "clasificacionPallets.list")[0];
+  check("primera consulta: vigentes + desde = hoy-30", l0.data.vista === "vigentes" && l0.data.desde === window.DateUtils.sumarDias(hoy, -30), JSON.stringify(l0.data));
+  check("la primera consulta no manda hasta ni color", !l0.data.hasta && !l0.data.color);
+  const esperados30 = filtrar({ vista: "vigentes", desde: window.DateUtils.sumarDias(hoy, -30) });
+  const t30 = totales(esperados30);
+  check("KPI total = API", txt("cpKTotal") === t30.total.toLocaleString("es-CL"), txt("cpKTotal") + " vs " + t30.total);
+  check("KPI verde/azul/rojo", txt("cpKVerde") === String(t30.verde) && txt("cpKAzul") === String(t30.azul) && txt("cpKRojo") === String(t30.rojo));
+  check("KPI porcentajes con texto", /% del total/.test(txt("cpKVerdeSub")) && /% del total/.test(txt("cpKRojoSub")));
+  await esperar(() => /más antiguo/.test(txt("cpKAzulSub")));
+  check("KPI azul muestra antigüedad", /más antiguo: \d+ día/.test(txt("cpKAzulSub")), txt("cpKAzulSub"));
+  check("KPI defecto principal con nombre", txt("cpKDefecto").length > 2 && txt("cpKDefecto") !== "—", txt("cpKDefecto"));
+  check("filas = 25 (página 1)", filas().length === 25, String(filas().length));
+  check("paginación visible con botón 2", !!$("[data-cp-pag='2']"));
+  check("4 gráficos creados", Object.keys(ctl.charts).length === 4, Object.keys(ctl.charts).join());
+  check("ningún gráfico en estado vacío", $$(".cp-canvas.sin-datos").length === 0);
+  check("combos Proceso/Máquina poblados", $("#cpProceso").options.length === 6 && $("#cpMaquina").options.length === 9, `${$("#cpProceso").options.length}/${$("#cpMaquina").options.length}`);
+  check("color siempre con texto (badges)", filas().every(f => /Azul|Rojo|Verde/.test(f.querySelector(".cp-badge").textContent)));
+  check("subtítulo de tabla con total", /registros/.test(txt("cpTablaSub")), txt("cpTablaSub"));
+
+  // ── XSS: el HTML de campos libres jamás se interpreta ──
+  check("XSS: sin elementos inyectados en la tabla", !$("#xssb") && !window.__xss);
+
+  // ── paginación ──
+  click($("[data-cp-pag='2']")); await esperar(() => ultimaLlamada("clasificacionPallets.list").data.pagina === 2); await sleep(150);
+  check("página 2: pide pagina=2 y no recarga resumen", ultimaLlamada("clasificacionPallets.list").data.pagina === 2);
+  check("página 2 renderiza el resto de filas", filas().length === Math.min(25, t30.total - 25), String(filas().length));
+  check("botón de página activa", $("[data-cp-pag='2']").classList.contains("active"));
+  click($("[data-cp-pag='1']")); await sleep(200);
+
+  // ── filtros: color ──
+  click($("[data-cp-color=AZUL]")); await sleep(250);
+  check("color AZUL: solo filas azules", filas().length > 0 && filas().every(f => f.querySelector(".cp-badge").textContent === "Azul"));
+  check("color AZUL: chip activo", $("[data-cp-color=AZUL]").classList.contains("active") && !$("[data-cp-color='']").classList.contains("active"));
+  check("color AZUL: se envía a las 3 consultas", ["list", "resumen", "defectos"].every(a => ultimaLlamada("clasificacionPallets." + a).data.color === "AZUL"));
+  check("color AZUL: vuelve a página 1", ultimaLlamada("clasificacionPallets.list").data.pagina === 1);
+  click($("[data-cp-color='']")); await sleep(250);
+
+  // ── período ──
+  click($("[data-cp-periodo='0']")); await sleep(250);
+  check("período Todo: sin desde", !ultimaLlamada("clasificacionPallets.list").data.desde);
+  check("período Todo: total = todos los vigentes", txt("cpKTotal") === String(total), txt("cpKTotal"));
+  click($("[data-cp-periodo='7']")); await sleep(250);
+  check("período 7 días: desde = hoy-7", ultimaLlamada("clasificacionPallets.list").data.desde === window.DateUtils.sumarDias(hoy, -7));
+  click($("[data-cp-periodo='0']")); await sleep(250);
+
+  // ── vista eventos / anuladas ──
+  check("incluir anuladas deshabilitado en Vigentes", $("#cpAnuladas").disabled);
+  click($("[data-cp-vista=eventos]")); await sleep(250);
+  check("Eventos: más registros que Vigentes", Number(txt("cpKTotal").replace(/\./g, "")) === EVENTOS.filter(e => !e.anulado).length, txt("cpKTotal"));
+  check("Eventos: título de tabla", /Todos los eventos/.test(txt("cpTablaTitulo")));
+  check("Eventos: anuladas habilitado", !$("#cpAnuladas").disabled);
+  check("Eventos: existen filas 'Histórica'", $$("#cpTbody .cp-estado").some(x => x.textContent === "Histórica"));
+  $("#cpAnuladas").checked = true; $("#cpAnuladas").dispatchEvent(new Event("change", { bubbles: true })); await sleep(250);
+  check("Incluir anuladas: se envía al backend", ultimaLlamada("clasificacionPallets.list").data.incluirAnuladas === true);
+  // La anulada del juego de datos es el pallet 460003-4: se busca por código para no depender de la página.
+  const bq = $("#cpBuscar"); bq.value = "460003-4"; bq.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await sleep(300);
+  check("Incluir anuladas: aparece fila Anulada", $$("#cpTbody tr.cp-anulada").length === 1 && /Anulada/.test($("#cpTbody").textContent));
+  $("#cpAnuladas").checked = false; $("#cpAnuladas").dispatchEvent(new Event("change", { bubbles: true })); await sleep(250);
+  check("Sin 'incluir anuladas' la anulada no aparece", $$("#cpTbody tr.cp-anulada").length === 0);
+  bq.value = ""; bq.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await sleep(250);
+  $("#cpAnuladas").checked = true; $("#cpAnuladas").dispatchEvent(new Event("change", { bubbles: true })); await sleep(250);
+  click($("[data-cp-vista=vigentes]")); await sleep(250);
+  check("Volver a Vigentes limpia 'incluir anuladas'", !$("#cpAnuladas").checked && !ultimaLlamada("clasificacionPallets.list").data.incluirAnuladas);
+
+  // ── proceso / máquina / búsqueda ──
+  $("#cpProceso").value = "3"; $("#cpProceso").dispatchEvent(new Event("change", { bubbles: true })); await sleep(250);
+  check("filtro Proceso", filas().length > 0 && filas().every(f => /Troquelado/.test(f.cells[4].textContent)));
+  $("#cpProceso").value = ""; $("#cpProceso").dispatchEvent(new Event("change", { bubbles: true })); await sleep(200);
+  $("#cpMaquina").value = "2"; $("#cpMaquina").dispatchEvent(new Event("change", { bubbles: true })); await sleep(250);
+  check("filtro Máquina", filas().length > 0 && filas().every(f => /Máquina 2/.test(f.cells[4].textContent)));
+  $("#cpMaquina").value = ""; $("#cpMaquina").dispatchEvent(new Event("change", { bubbles: true })); await sleep(200);
+
+  const b = $("#cpBuscar");
+  b.value = "3903"; b.dispatchEvent(new Event("input", { bubbles: true })); await sleep(900);
+  check("búsqueda NP: se envía como np", ultimaLlamada("clasificacionPallets.list").data.np === "3903" && !ultimaLlamada("clasificacionPallets.list").data.palletCodigo);
+  check("búsqueda NP: filas del NP", filas().length > 0 && filas().every(f => /3903/.test(f.cells[3].textContent)));
+  b.value = "460005-1"; b.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await sleep(300);
+  check("búsqueda pallet: se envía como palletCodigo", ultimaLlamada("clasificacionPallets.list").data.palletCodigo === "460005-1" && !ultimaLlamada("clasificacionPallets.list").data.np);
+  check("búsqueda pallet: 1 fila", filas().length === 1 && /460005-1/.test(filas()[0].textContent));
+  const nLlam = log.length;
+  b.value = "460005-1"; b.dispatchEvent(new Event("input", { bubbles: true })); b.value = "zzz-no-existe"; b.dispatchEvent(new Event("input", { bubbles: true })); await sleep(900);
+  check("antirrebote: varias teclas = una sola consulta", log.slice(nLlam).filter(l => l.action === "clasificacionPallets.list").length === 1);
+  check("sin resultados: mensaje y acciones", /Sin resultados para los filtros actuales/.test($("#cpTbody").textContent) && !!$("#cpTbody [data-cp-accion=limpiar]"));
+  click($("#cpTbody [data-cp-accion=limpiar]")); await sleep(300);
+  check("Limpiar: restablece búsqueda, período 30 y color", $("#cpBuscar").value === "" && $("[data-cp-periodo='30']").classList.contains("active") && filas().length === 25);
+
+  // ── gráficos interactivos: clic filtra ──
+  ctl.charts.cpGProceso.options.onClick({}, [{ index: 0 }]); await sleep(300);
+  check("clic en gráfico de proceso aplica el filtro", !!ultimaLlamada("clasificacionPallets.list").data.procesoId && $("#cpProceso").value !== "");
+  $("#cpProceso").value = ""; $("#cpProceso").dispatchEvent(new Event("change", { bubbles: true })); await sleep(250);
+  ctl.charts.cpGMaquina.options.onClick({}, [{ index: 0 }]); await sleep(300);
+  check("clic en gráfico de máquina aplica el filtro", !!ultimaLlamada("clasificacionPallets.list").data.maquinaId);
+  $("#cpMaquina").value = ""; $("#cpMaquina").dispatchEvent(new Event("change", { bubbles: true })); await sleep(250);
+  ctl.charts.cpGDefectos.options.onClick({}, [{ datasetIndex: 0, index: 0 }]); await sleep(300);
+  check("clic en Pareto filtra por defecto", !!ultimaLlamada("clasificacionPallets.list").data.defectoId);
+  check("etiqueta de filtro de defecto visible y removible", !$("#cpActivos").hidden && /Defecto:/.test($("#cpActivos").textContent));
+  check("filas del filtro de defecto", filas().length > 0);
+  click($("[data-cp-quitar=defecto]")); await sleep(300);
+  check("quitar filtro de defecto", $("#cpActivos").hidden && !ultimaLlamada("clasificacionPallets.list").data.defectoId);
+
+  // ── fotos ──
+  const conFoto = $$("#cpTbody img.cp-thumb"), sinFoto = $$("#cpTbody .cp-nofoto");
+  check("hay miniaturas y marcadores 'sin foto'", conFoto.length > 0 && sinFoto.length > 0, `${conFoto.length}/${sinFoto.length}`);
+  await sleep(1200);
+  check("foto rota se reemplaza por marcador (sin ícono roto)", $$("#cpTbody img.cp-thumb").every(i => i.src.startsWith("data:")), $$("#cpTbody img.cp-thumb").map(i => i.src.slice(0, 20)).join("|"));
+  click($("#cpTbody img.cp-thumb")); await sleep(100);
+  check("clic en miniatura abre el visor y NO el detalle", !!$("#cpLightbox") && !$("#cpDrawer").classList.contains("abierto"));
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); await sleep(50);
+  check("Escape cierra el visor", !$("#cpLightbox"));
+
+  // ── detalle (panel lateral) ──
+  const fila = filas().find(f => /460007-3|460014-5/.test(f.textContent)) || filas()[0];
+  const idFila = Number(fila.dataset.cpFila);
+  click(fila.cells[1]); await esperar(() => $("#cpDrawer .cp-timeline"));
+  check("panel lateral abierto", $("#cpDrawer").classList.contains("abierto") && !$("#cpOverlay").hidden);
+  check("detalle se pide al backend (URL de foto renovada)", ultimaLlamada("clasificacionPallets.detalle").data.id === idFila);
+  const ev = EVENTOS.find(e => e.id === idFila);
+  const nHist = EVENTOS.filter(e => e.palletCodigo === ev.palletCodigo).length;
+  check("línea de tiempo con todo el historial", $$("#cpDrawer .cp-tl-item").length === nHist, `${$$("#cpDrawer .cp-tl-item").length} vs ${nHist}`);
+  check("historial: el evento abierto está resaltado", $$("#cpDrawer .cp-tl-item.cp-actual").length === 1);
+  check("detalle: datos de trazabilidad", /Orden de fabricación/.test($("#cpDrawer").textContent) && /Cliente/.test($("#cpDrawer").textContent));
+  check("detalle: el color lleva texto", /Azul|Rojo|Verde/.test($("#cpDrawer .cp-d-head").textContent));
+  check("botón Anular marcado como escritura (se oculta en Solo vista)", $$("#cpDrawer [data-cp-anular]").length > 0 && $$("#cpDrawer [data-cp-anular]").every(x => x.hasAttribute("data-requiere-editar")));
+
+  // anulación: validación del motivo
+  const btnAn = $("#cpDrawer [data-cp-anular]"); const idAn = Number(btnAn.dataset.cpAnular);
+  click(btnAn); await sleep(50);
+  check("formulario de anulación con advertencia", !!$("#cpDrawer .cp-anular-form") && /no se borra/i.test($("#cpDrawer .cp-anular-form").textContent));
+  const nAnul0 = log.filter(l => l.action === "clasificacionPallets.anular").length;
+  click($("#cpDrawer [data-cp-anular-ok]")); await sleep(80);
+  check("motivo obligatorio: no llama al backend y muestra error", log.filter(l => l.action === "clasificacionPallets.anular").length === nAnul0 && /motivo/.test($("#cpDrawer .cp-err").textContent));
+  $("#cpDrawer .cp-anular-form textarea").value = "FORZAR_403";
+  click($("#cpDrawer [data-cp-anular-ok]")); await esperar(() => /permiso/.test($("#cpDrawer .cp-err")?.textContent || ""));
+  check("error del backend (403) se muestra y el botón se reactiva", /No tienes permiso/.test($("#cpDrawer .cp-err").textContent) && !$("#cpDrawer [data-cp-anular-ok]").disabled);
+  $("#cpDrawer .cp-anular-form textarea").value = "Pallet mal clasificado en la prueba";
+  const antes = ultimaLlamada("clasificacionPallets.resumen") && log.filter(l => l.action === "clasificacionPallets.resumen").length;
+  click($("#cpDrawer [data-cp-anular-ok]")); await sleep(500);
+  const llamAn = ultimaLlamada("clasificacionPallets.anular");
+  check("anular: envía id y motivo", llamAn.data.id === idAn && llamAn.data.motivo === "Pallet mal clasificado en la prueba");
+  check("anular: el historial muestra la clasificación anulada con motivo", /Anulada/.test($("#cpDrawer").textContent) && /Pallet mal clasificado en la prueba/.test($("#cpDrawer").textContent));
+  check("anular: refresca KPIs/listado", log.filter(l => l.action === "clasificacionPallets.resumen").length > antes);
+  check("anular: aviso de éxito", !!document.querySelector(".qcc-toast-exito"));
+  click($("#cpDrawer [data-cp-cerrar]")); await sleep(50);
+  check("cerrar panel", !$("#cpDrawer").classList.contains("abierto") && $("#cpOverlay").hidden);
+
+  // overlay y Escape
+  click(filas()[0].cells[1]); await esperar(() => $("#cpDrawer .cp-timeline"));
+  click($("#cpOverlay")); await sleep(50);
+  check("clic en el fondo cierra el panel", !$("#cpDrawer").classList.contains("abierto"));
+  click(filas()[0].cells[1]); await esperar(() => $("#cpDrawer .cp-timeline"));
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); await sleep(50);
+  check("Escape cierra el panel", !$("#cpDrawer").classList.contains("abierto"));
+
+  // ── exportación: todas las páginas con los filtros ──
+  click($("[data-cp-periodo='0']")); await sleep(250);
+  click($("[data-cp-color=ROJO]")); await sleep(250);
+  const nRojo = filar_total("ROJO");
+  function filar_total(c) { return filtrar({ vista: "vigentes", color: c }).length; }
+  ExcelExporter.llamadas.length = 0;
+  click($("#cpBtnExportar")); await esperar(() => ExcelExporter.llamadas.length === 1, 5000);
+  const ex = ExcelExporter.llamadas[0];
+  check("exportación: se llamó una vez", !!ex);
+  check("exportación: todas las filas del filtro (no solo la página)", ex && ex.filas === nRojo, `${ex?.filas} vs ${nRojo}`);
+  check("exportación: 20 columnas", ex && ex.cols === 20, String(ex?.cols));
+  check("exportación: título describe los filtros", ex && /Vigentes/.test(ex.o.title) && /Rojo/.test(ex.o.title), ex?.o.title);
+  check("exportación: nombre de archivo y hoja", ex && /^qcc_clasificacion_pallets_\d+\.xlsx$/.test(ex.o.fileName) && ex.o.sheetName === "Clasificación de Pallets");
+  check("exportación: solo filas ROJO", ex && ex.primera[2] === "Rojo", ex?.primera.join("|"));
+  check("exportación: tabla temporal retirada y botón restaurado", !$("#cpExportTemp") && !$("#cpBtnExportar").disabled && $("#cpBtnExportar").textContent === "Exportar Excel");
+  // exportación con más de una página de 200 (para forzar el bucle)
+  const base = EVENTOS.length; EVENTOS = EVENTOS.concat(construirEventos(450).map((e, k) => ({ ...e, id: 100000 + k, palletCodigo: "9" + e.palletCodigo })));
+  click($("[data-cp-color='']")); await sleep(300);
+  ExcelExporter.llamadas.length = 0; const nLlamList = log.filter(l => l.action === "clasificacionPallets.list").length;
+  click($("#cpBtnExportar")); await esperar(() => ExcelExporter.llamadas.length === 1, 8000);
+  const totalVig = vigentes(EVENTOS).length;
+  check("exportación multipágina: trae todo el universo filtrado", ExcelExporter.llamadas[0]?.filas === totalVig, `${ExcelExporter.llamadas[0]?.filas} vs ${totalVig}`);
+  check("exportación multipágina: usa límite 200", log.slice(-8).some(l => l.action === "clasificacionPallets.list" && l.data.limite === 200));
+  EVENTOS = EVENTOS.slice(0, base);
+
+  // ── respuesta lenta que llega tarde no pisa a la más nueva ──
+  retardo = m => (m.data && m.data.color === "ROJO" ? 700 : 20);
+  click($("[data-cp-color=ROJO]")); await sleep(30);
+  click($("[data-cp-color=VERDE]")); await sleep(1100);
+  retardo = 0;
+  check("carrera: gana la última consulta (VERDE), no la lenta (ROJO)", filas().length > 0 && filas().every(f => f.querySelector(".cp-badge").textContent === "Verde"));
+
+  // ── ciclo de vida ──
+  const ncharts = Object.keys(ctl.charts).length; ctl.destroy();
+  check("destroy: gráficos liberados", Object.keys(ctl.charts).length === 0 && ncharts >= 3);
+  const nl = log.length; click($("[data-cp-color=AZUL]")); await sleep(150);
+  check("destroy: ya no reacciona a clics", log.length === nl);
+}
+
+async function escenarioVacio() {
+  await montar();
+  check("VACÍO: KPIs en cero", txt("cpKTotal") === "0" && txt("cpKRojo") === "0");
+  check("VACÍO: mensaje 'Aún no hay clasificaciones registradas' en tabla", /Aún no hay clasificaciones registradas/.test($("#cpTbody").textContent));
+  check("VACÍO: mensaje explicativo", /app móvil/.test($("#cpTbody").textContent));
+  check("VACÍO: 4 gráficos con estado vacío y texto", $$(".cp-canvas.sin-datos").length === 4 && $$(".cp-vacio").every(v => /Aún no hay/.test(v.textContent)), $$(".cp-vacio").map(v => v.textContent).join("|"));
+  check("VACÍO: sin paginación", $("#cpPaginacion").innerHTML === "");
+  check("VACÍO: sin banner de error", $("#cpError").hidden);
+  check("VACÍO: defecto principal 'Sin defectos'", txt("cpKDefecto") === "Sin defectos");
+  ExcelExporter.llamadas.length = 0;
+  click($("#cpBtnExportar")); await sleep(300);
+  check("VACÍO: exportar avisa sin generar archivo", ExcelExporter.llamadas.length === 0 && !$("#cpError").hidden && /No hay datos para exportar/.test($("#cpError").textContent));
+  click($("[data-cp-color=ROJO]")); await sleep(250);
+  check("VACÍO + filtro: sigue diciendo que no hay registros (no 'sin resultados')", /Aún no hay clasificaciones registradas/.test($("#cpTbody").textContent));
+}
+
+async function escenarioError() {
+  await montar();
+  check("ERROR: banner visible con mensaje", !$("#cpError").hidden && /No se pudo cargar la información/.test($("#cpError").textContent), $("#cpError").textContent);
+  check("ERROR: botón Reintentar en banner y tabla", !!$("#cpError [data-cp-accion=reintentar]") && !!$("#cpTbody [data-cp-accion=reintentar]"));
+  check("ERROR: KPIs sin inventar cifras ('—')", txt("cpKTotal") === "—");
+  check("ERROR: gráficos dicen 'No disponible' (no 'sin datos')", $$(".cp-vacio").length === 4 && $$(".cp-vacio").every(v => v.textContent === "No disponible"), $$(".cp-vacio").map(v => v.textContent).join("|"));
+  check("ERROR: sin spinner eterno", !$("#cpTbody .cp-skeleton") && !document.querySelector(".cp-cargando"));
+  OFFLINE.v = false; EVENTOS = construirEventos(30);
+  click($("#cpError [data-cp-accion=reintentar]")); await sleep(500);
+  check("ERROR → Reintentar recupera los datos", $("#cpError").hidden && txt("cpKTotal") !== "—" && filas().length > 0);
+}
+
+// ───────── ejecución ─────────
+(async () => {
+  try {
+    if (MODO === "test") {
+      if (ESC === "datos") await escenarioDatos();
+      else if (ESC === "vacio") await escenarioVacio();
+      else if (ESC === "error") await escenarioError();
+    } else {
+      await montar();
+      await sleep(900);
+      if (ESC === "drawer") { click(filas()[3].cells[1]); await esperar(() => $("#cpDrawer .cp-timeline")); await sleep(500); }
+      if (ESC === "anulada") { click($("[data-cp-vista=eventos]")); await sleep(300); $("#cpAnuladas").checked = true; $("#cpAnuladas").dispatchEvent(new Event("change", { bubbles: true })); await sleep(400); }
+      if (ESC === "azul") { click($("[data-cp-color=AZUL]")); await sleep(600); }
+    }
+  } catch (e) { fallas++; res.push("EXCEPCIÓN: " + (e && e.stack || e)); }
+  const out = document.getElementById("out");
+  out.textContent = `ESCENARIO ${ESC}/${MODO}: ${ok} OK, ${fallas} FALLAS\n` + res.join("\n") + `\nFIN`;
+  if (MODO === "test") out.style.display = "block";
+})();
+</script>
+</body>
+</html>

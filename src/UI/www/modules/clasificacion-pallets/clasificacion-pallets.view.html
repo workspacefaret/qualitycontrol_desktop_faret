@@ -1,0 +1,157 @@
+<div class="module clasificacion-pallets-module">
+
+  <div class="module-header">
+    <div>
+      <div class="module-title">Clasificación de Pallets</div>
+      <div class="subtitle">Pallets clasificados AZUL / ROJO / VERDE por los inspectores desde la app móvil (Calidad y Producción INNPACK)</div>
+    </div>
+    <div class="module-actions">
+      <span class="cp-actualizado" id="cpActualizado"></span>
+      <button class="btn-secondary" id="cpBtnExportar" type="button">Exportar Excel</button>
+      <button class="btn-primary" id="cpBtnActualizar" type="button">Actualizar</button>
+    </div>
+  </div>
+
+  <div id="cpError" class="cp-banner cp-banner-error" role="alert" hidden></div>
+
+  <!-- Barra de filtros -->
+  <div class="card cp-toolbar">
+    <div class="cp-toolbar-row">
+      <div class="cp-segment" role="group" aria-label="Vista">
+        <button type="button" class="active" data-cp-vista="vigentes" title="Último estado de cada pallet">Vigentes</button>
+        <button type="button" data-cp-vista="eventos" title="Todas las clasificaciones registradas, incluido el historial">Todos los eventos</button>
+      </div>
+
+      <div class="cp-chips" role="group" aria-label="Período">
+        <button type="button" class="cp-chip" data-cp-periodo="7">7 días</button>
+        <button type="button" class="cp-chip active" data-cp-periodo="30">30 días</button>
+        <button type="button" class="cp-chip" data-cp-periodo="90">90 días</button>
+        <button type="button" class="cp-chip" data-cp-periodo="365">12 meses</button>
+        <button type="button" class="cp-chip" data-cp-periodo="0">Todo</button>
+      </div>
+
+      <div class="cp-chips" role="group" aria-label="Clasificación">
+        <button type="button" class="cp-chip cp-color-chip active" data-cp-color="">Todas</button>
+        <button type="button" class="cp-chip cp-color-chip cp-azul" data-cp-color="AZUL"><i></i>Azul</button>
+        <button type="button" class="cp-chip cp-color-chip cp-rojo" data-cp-color="ROJO"><i></i>Rojo</button>
+        <button type="button" class="cp-chip cp-color-chip cp-verde" data-cp-color="VERDE"><i></i>Verde</button>
+      </div>
+    </div>
+
+    <div class="cp-toolbar-row cp-fields">
+      <div class="cp-field">
+        <label for="cpDesde">Desde</label>
+        <input type="text" id="cpDesde" placeholder="Fecha" autocomplete="off" />
+      </div>
+      <div class="cp-field">
+        <label for="cpHasta">Hasta</label>
+        <input type="text" id="cpHasta" placeholder="Fecha" autocomplete="off" />
+      </div>
+      <div class="cp-field">
+        <label for="cpProceso">Proceso</label>
+        <select id="cpProceso"><option value="">Todos</option></select>
+      </div>
+      <div class="cp-field">
+        <label for="cpMaquina">Máquina</label>
+        <select id="cpMaquina"><option value="">Todas</option></select>
+      </div>
+      <div class="cp-field cp-field-grow">
+        <label for="cpBuscar">NP o pallet</label>
+        <input type="text" id="cpBuscar" placeholder="Ej. 3957 o 466568-1" maxlength="40" autocomplete="off" />
+      </div>
+      <label class="cp-check" id="cpAnuladasWrap" title="Disponible en la vista «Todos los eventos»">
+        <input type="checkbox" id="cpAnuladas" /> Incluir anuladas
+      </label>
+      <button class="btn-secondary" id="cpBtnLimpiar" type="button">Limpiar</button>
+    </div>
+
+    <div class="cp-activos" id="cpActivos" hidden></div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="cp-kpis" id="cpKpis">
+    <div class="cp-kpi">
+      <div class="cp-kpi-label">Pallets clasificados</div>
+      <div class="cp-kpi-value" id="cpKTotal">—</div>
+      <div class="cp-kpi-sub" id="cpKTotalSub">&nbsp;</div>
+    </div>
+    <div class="cp-kpi cp-k-verde">
+      <div class="cp-kpi-label"><span class="cp-dot cp-verde"></span>Verde · conforme</div>
+      <div class="cp-kpi-value" id="cpKVerde">—</div>
+      <div class="cp-kpi-sub" id="cpKVerdeSub">&nbsp;</div>
+    </div>
+    <div class="cp-kpi cp-k-azul">
+      <div class="cp-kpi-label"><span class="cp-dot cp-azul"></span>Azul · en revisión</div>
+      <div class="cp-kpi-value" id="cpKAzul">—</div>
+      <div class="cp-kpi-sub" id="cpKAzulSub">&nbsp;</div>
+    </div>
+    <div class="cp-kpi cp-k-rojo">
+      <div class="cp-kpi-label"><span class="cp-dot cp-rojo"></span>Rojo · rechazo</div>
+      <div class="cp-kpi-value" id="cpKRojo">—</div>
+      <div class="cp-kpi-sub" id="cpKRojoSub">&nbsp;</div>
+    </div>
+    <div class="cp-kpi">
+      <div class="cp-kpi-label">Defecto principal</div>
+      <div class="cp-kpi-value cp-kpi-texto" id="cpKDefecto">—</div>
+      <div class="cp-kpi-sub" id="cpKDefectoSub">&nbsp;</div>
+    </div>
+  </div>
+
+  <!-- Gráficos -->
+  <div class="cp-charts">
+    <div class="card cp-chart">
+      <div class="cp-chart-h">Tendencia diaria</div>
+      <div class="cp-chart-s">Clasificaciones por día y color</div>
+      <div class="cp-canvas" id="cpGTendencia"><canvas></canvas><div class="cp-vacio"></div></div>
+    </div>
+    <div class="card cp-chart">
+      <div class="cp-chart-h">Por proceso</div>
+      <div class="cp-chart-s">Haz clic en una barra para filtrar</div>
+      <div class="cp-canvas" id="cpGProceso"><canvas></canvas><div class="cp-vacio"></div></div>
+    </div>
+    <div class="card cp-chart">
+      <div class="cp-chart-h">Por máquina</div>
+      <div class="cp-chart-s">Top 10 · haz clic en una barra para filtrar</div>
+      <div class="cp-canvas" id="cpGMaquina"><canvas></canvas><div class="cp-vacio"></div></div>
+    </div>
+    <div class="card cp-chart">
+      <div class="cp-chart-h">Principales defectos</div>
+      <div class="cp-chart-s">Pareto de defectos registrados · haz clic para filtrar</div>
+      <div class="cp-canvas" id="cpGDefectos"><canvas></canvas><div class="cp-vacio"></div></div>
+    </div>
+  </div>
+
+  <!-- Tabla -->
+  <div class="card cp-tabla-card">
+    <div class="cp-tabla-head">
+      <div>
+        <div class="cp-chart-h" id="cpTablaTitulo">Clasificaciones</div>
+        <div class="cp-chart-s" id="cpTablaSub">&nbsp;</div>
+      </div>
+    </div>
+    <div class="table-container">
+      <table class="table" id="cpTabla">
+        <thead>
+          <tr>
+            <th>Foto</th>
+            <th>Pallet</th>
+            <th>Clasificación</th>
+            <th>NP · Producto</th>
+            <th>Proceso · Máquina</th>
+            <th>Inspector</th>
+            <th>Fecha</th>
+            <th>Defectos</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="cpTbody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="cpPaginacion"></div>
+  </div>
+
+  <!-- Panel lateral de detalle -->
+  <div class="cp-overlay" id="cpOverlay" hidden></div>
+  <aside class="cp-drawer" id="cpDrawer" aria-hidden="true" role="dialog" aria-label="Detalle del pallet"></aside>
+
+</div>

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Arnés de aplicación real (index.html + app.js) — Clasificación de Pallets</title>
+<style>body{margin:0;background:#222}iframe{display:block}#out{position:fixed;left:0;bottom:0;background:#111;color:#0f0;font:11px monospace;margin:0;z-index:99999;width:100%;max-height:30vh;overflow:auto;white-space:pre-wrap}</style>
+</head>
+<body>
+<pre id="out">PENDIENTE</pre>
+<script>
+// Carga el index.html REAL en un iframe, sustituye solo el puente nativo (window.external) y ejerce el App real:
+// menú por empresa y permisos, aviso "Solo vista", ocultamiento de escritura y la etiqueta _modulo de cada mensaje.
+const Q = new URLSearchParams(location.search);
+const ESC = "datos", MODO = "app";
+const hoy = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+const log = [];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+</script>
+<script src="../../src/UI/www/shared/utils.js"></script>
+<script src="mock_api.js"></script>
+<script>
+const CASO = Q.get("caso");
+let ok = 0, fallas = 0; const res = [];
+function check(n, c, d = "") { if (c) ok++; else { fallas++; res.push("FALLA: " + n + " " + d); } }
+async function esperar(fn, ms = 4000) { const t = Date.now(); while (Date.now() - t < ms) { if (fn()) return true; await sleep(30); } return false; }
+const mensajes = []; // payload completo recibido por el "backend" (incluye _modulo)
+
+function abrir(sesion) {
+  return new Promise(resolve => {
+    const f = document.createElement("iframe");
+    f.style.cssText = "width:1500px;height:900px;border:0";
+    f.src = "../../src/UI/www/index.html";
+    f.onload = () => {
+      const w = f.contentWindow;
+      w.alert = () => {}; w.confirm = () => true;
+      Object.keys(sesion.storage).forEach(k => w.sessionStorage.setItem(k, sesion.storage[k]));
+      Object.defineProperty(w, "external", {
+        configurable: true,
+        value: {
+          sendMessage: async s => {
+            const m = JSON.parse(s);
+            mensajes.push(m.payload);
+            const r = await responderMock({ action: m.payload.action, data: m.payload.data });
+            w.PhotinoBridge.receive(JSON.stringify({ id: m.id, data: r }));
+          },
+        },
+      });
+      w.App.permisos = sesion.permisos;
+      resolve(w);
+    };
+    document.body.appendChild(f);
+  });
+}
+const visible = el => !!el && el.style.display !== "none" && getComputedStyle(el).display !== "none";
+
+(async () => {
+  try {
+    if (CASO === "innpack_editar") {
+      const w = await abrir({ storage: { empresa: "INNPACK", rolUsuario: "calidad" }, permisos: { inicio: "VER", "clasificacion-pallets": "EDITAR" } });
+      const d = w.document;
+      w.App.loadModule("clasificacion-pallets");
+      await esperar(() => d.querySelectorAll("#cpTbody tr.cp-fila").length > 0);
+      const boton = d.querySelector('[data-module="clasificacion-pallets"]');
+      check("el botón existe en el menú, dentro del grupo INNPACK", !!boton && boton.getAttribute("data-empresa") === "INNPACK");
+      check("el botón está justo después de Producto Terminado", boton.previousElementSibling?.getAttribute("data-module") === "producto-terminado", boton.previousElementSibling?.getAttribute("data-module"));
+      check("INNPACK/EDITAR: botón visible", visible(boton));
+      check("el módulo carga con su controlador (nombre kebab→Pascal)", !!d.querySelector(".clasificacion-pallets-module") && w.App.currentController?.constructor?.name === "ClasificacionPalletsController");
+      check("el botón del menú queda marcado como activo", boton.classList.contains("active"));
+      check("EDITAR: sin aviso de Solo vista", !/Solo vista/.test(d.querySelector("#app-content").textContent));
+      check("CSS del módulo cargado desde index.html y aplicado", getComputedStyle(d.querySelector(".cp-kpi")).borderTopWidth === "4px", getComputedStyle(d.querySelector(".cp-kpi")).borderTopWidth);
+      check("todos los mensajes llevan _modulo = clasificacion-pallets", mensajes.length >= 3 && mensajes.every(m => m._modulo === "clasificacion-pallets"), JSON.stringify(mensajes.map(m => m._modulo)));
+      check("las acciones enviadas son solo clasificacionPallets.*", mensajes.every(m => m.action.startsWith("clasificacionPallets.")), mensajes.map(m => m.action).join());
+      const fila = d.querySelector("#cpTbody tr.cp-fila"); fila.cells[1].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await esperar(() => d.querySelector("#cpDrawer .cp-timeline"));
+      await sleep(150);
+      const botones = [...d.querySelectorAll("#cpDrawer [data-cp-anular]")];
+      check("EDITAR: botón Anular visible en el panel", botones.length > 0 && botones.every(visible));
+      w.App.currentController.destroy();
+    }
+
+    if (CASO === "innpack_rol_sin_anular") {
+      // EDITAR en el módulo pero con un rol que la API no autoriza a anular (operador / inspector / consulta).
+      for (const rol of ["operador", "inspector", "consulta", ""]) {
+        const w = await abrir({ storage: { empresa: "INNPACK", rolUsuario: rol }, permisos: { inicio: "VER", "clasificacion-pallets": "EDITAR" } });
+        const d = w.document;
+        w.App.loadModule("clasificacion-pallets");
+        await esperar(() => d.querySelectorAll("#cpTbody tr.cp-fila").length > 0);
+        d.querySelector("#cpTbody tr.cp-fila").cells[1].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await esperar(() => d.querySelector("#cpDrawer .cp-timeline"));
+        await sleep(150);
+        check(`rol "${rol}" con EDITAR: sin botón Anular en el DOM`, d.querySelectorAll("#cpDrawer [data-cp-anular]").length === 0);
+        check(`rol "${rol}": el historial sigue visible`, d.querySelectorAll("#cpDrawer .cp-tl-item").length > 0);
+        w.App.currentController.destroy();
+      }
+      for (const rol of ["admin", "admin_ti", "calidad", "ADMIN_TI"]) {
+        const w = await abrir({ storage: { empresa: "INNPACK", rolUsuario: rol }, permisos: { inicio: "VER", "clasificacion-pallets": "EDITAR" } });
+        const d = w.document;
+        w.App.loadModule("clasificacion-pallets");
+        await esperar(() => d.querySelectorAll("#cpTbody tr.cp-fila").length > 0);
+        d.querySelector("#cpTbody tr.cp-fila").cells[1].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await esperar(() => d.querySelector("#cpDrawer .cp-timeline"));
+        await sleep(150);
+        check(`rol "${rol}" con EDITAR: botón Anular presente`, d.querySelectorAll("#cpDrawer [data-cp-anular]").length > 0);
+        w.App.currentController.destroy();
+      }
+    }
+
+    if (CASO === "innpack_ver") {
+      const w = await abrir({ storage: { empresa: "INNPACK", rolUsuario: "calidad" }, permisos: { inicio: "VER", "clasificacion-pallets": "VER" } });
+      const d = w.document;
+      w.App.loadModule("clasificacion-pallets");
+      await esperar(() => d.querySelectorAll("#cpTbody tr.cp-fila").length > 0);
+      check("VER: botón del menú visible", visible(d.querySelector('[data-module="clasificacion-pallets"]')));
+      check("VER: aviso 'Solo vista'", /Solo vista/.test(d.querySelector("#app-content").textContent));
+      check("VER: consulta, exporta y actualiza siguen visibles", visible(d.getElementById("cpBtnExportar")) && visible(d.getElementById("cpBtnActualizar")));
+      const fila = d.querySelector("#cpTbody tr.cp-fila"); fila.cells[1].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await esperar(() => d.querySelector("#cpDrawer .cp-timeline"));
+      await sleep(300); // el observador de Solo vista oculta lo que se dibuja después
+      const botones = [...d.querySelectorAll("#cpDrawer [data-cp-anular]")];
+      check("VER: existen botones Anular en el DOM pero TODOS ocultos", botones.length > 0 && botones.every(b => !visible(b)), botones.map(visible).join());
+      check("VER: el historial (lectura) sigue visible", d.querySelectorAll("#cpDrawer .cp-tl-item").length > 0);
+      w.App.currentController.destroy();
+    }
+
+    if (CASO === "innpack_sin_acceso") {
+      const w = await abrir({ storage: { empresa: "INNPACK", rolUsuario: "calidad" }, permisos: { inicio: "VER", "producto-terminado": "EDITAR", "clasificacion-pallets": "SIN_ACCESO" } });
+      const d = w.document;
+      w.App.loadModule("clasificacion-pallets");
+      await sleep(400);
+      check("SIN_ACCESO: el módulo no se abre", !d.querySelector(".clasificacion-pallets-module"));
+      check("SIN_ACCESO: no se envía ninguna consulta del módulo", !mensajes.some(m => m.action.startsWith("clasificacionPallets.")));
+      w.App.loadModule("producto-terminado"); await sleep(300); // refresca el menú
+      check("SIN_ACCESO: el botón del menú queda oculto", !visible(d.querySelector('[data-module="clasificacion-pallets"]')));
+    }
+
+    if (CASO === "faret") {
+      const w = await abrir({ storage: { empresa: "FARET", faretRol: "ADMIN_TI", rolUsuario: "" }, permisos: { faret: "VER", "faret-inspecciones": "EDITAR" } });
+      const d = w.document;
+      w.App.loadModule("faret-inspecciones"); await sleep(400); // refresca el menú
+      const boton = d.querySelector('[data-module="clasificacion-pallets"]');
+      check("FARET: el botón de Clasificación de Pallets está oculto", !visible(boton));
+      check("FARET: sí ve sus propios módulos (control)", visible(d.querySelector('[data-module="faret-inspecciones"]')));
+      mensajes.length = 0;
+      w.App.loadModule("clasificacion-pallets"); await sleep(400);
+      check("FARET: forzar la carga del módulo por código no lo abre", !d.querySelector(".clasificacion-pallets-module"));
+      check("FARET: no sale ninguna consulta de pallets al backend", !mensajes.some(m => m.action.startsWith("clasificacionPallets.")));
+      const matriz = [...d.querySelectorAll('#sidebar [data-module][data-empresa="FARET"]')].map(b => b.dataset.module);
+      check("FARET: el módulo no figura entre los botones de FARET (matriz de permisos)", !matriz.includes("clasificacion-pallets"));
+      const faretInspPallet = d.querySelector('[data-module="faret-inspecciones-pallet"]');
+      check("el módulo existente de Faret (inspecciones pallet/papel) sigue en su lugar", !!faretInspPallet && faretInspPallet.getAttribute("data-empresa") === "FARET");
+    }
+  } catch (e) { fallas++; res.push("EXCEPCIÓN: " + (e && e.stack || e)); }
+  document.getElementById("out").textContent = `APP ${CASO}: ${ok} OK, ${fallas} FALLAS\n` + res.join("\n") + "\nFIN";
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+/* Clasificación de Pallets (INNPACK). Estilos scoped a .clasificacion-pallets-module; el drawer vive dentro del módulo.
+   Los colores AZUL/ROJO/VERDE siempre se acompañan de texto (badge/leyenda): nunca se comunica solo con color. */
+.clasificacion-pallets-module {
+    --cp-azul: #2563eb; --cp-azul-bg: #dbeafe; --cp-azul-fg: #1e40af;
+    --cp-rojo: #dc2626; --cp-rojo-bg: #fee2e2; --cp-rojo-fg: #991b1b;
+    --cp-verde: #16a34a; --cp-verde-bg: #dcfce7; --cp-verde-fg: #166534;
+    --cp-borde: #e2e8f0; --cp-texto: #0f172a; --cp-suave: #64748b; --cp-tenue: #94a3b8;
+}
+
+.clasificacion-pallets-module .cp-actualizado { font-size: 12px; color: var(--cp-tenue); }
+.clasificacion-pallets-module .cp-banner { margin: 8px 0; padding: 10px 14px; border-radius: 10px; font-size: 13px; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.clasificacion-pallets-module .cp-banner[hidden] { display: none; }
+.clasificacion-pallets-module .cp-banner-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+/* Filtros */
+.clasificacion-pallets-module .cp-toolbar { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; }
+.clasificacion-pallets-module .cp-toolbar-row { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; }
+.clasificacion-pallets-module .cp-fields { align-items: flex-end; }
+.clasificacion-pallets-module .cp-segment { display: inline-flex; background: #f1f5f9; border-radius: 10px; padding: 3px; }
+.clasificacion-pallets-module .cp-segment button { border: 0; background: transparent; padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--cp-suave); cursor: pointer; }
+.clasificacion-pallets-module .cp-segment button.active { background: #fff; color: var(--cp-texto); box-shadow: 0 1px 4px rgba(15, 23, 42, .12); }
+.clasificacion-pallets-module .cp-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.clasificacion-pallets-module .cp-chip { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.clasificacion-pallets-module .cp-chip:hover { background: #f8fafc; }
+.clasificacion-pallets-module .cp-chip.active { background: var(--cp-texto); border-color: var(--cp-texto); color: #fff; }
+.clasificacion-pallets-module .cp-chip i, .clasificacion-pallets-module .cp-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: #94a3b8; }
+.clasificacion-pallets-module .cp-azul i, .clasificacion-pallets-module .cp-dot.cp-azul { background: var(--cp-azul); }
+.clasificacion-pallets-module .cp-rojo i, .clasificacion-pallets-module .cp-dot.cp-rojo { background: var(--cp-rojo); }
+.clasificacion-pallets-module .cp-verde i, .clasificacion-pallets-module .cp-dot.cp-verde { background: var(--cp-verde); }
+.clasificacion-pallets-module .cp-chip.cp-azul.active { background: var(--cp-azul); border-color: var(--cp-azul); }
+.clasificacion-pallets-module .cp-chip.cp-rojo.active { background: var(--cp-rojo); border-color: var(--cp-rojo); }
+.clasificacion-pallets-module .cp-chip.cp-verde.active { background: var(--cp-verde); border-color: var(--cp-verde); }
+.clasificacion-pallets-module .cp-chip.active i { background: #fff; }
+.clasificacion-pallets-module .cp-field { display: flex; flex-direction: column; gap: 5px; min-width: 130px; }
+.clasificacion-pallets-module .cp-field-grow { flex: 1 1 200px; }
+.clasificacion-pallets-module .cp-field label { font-size: 11.5px; font-weight: 700; color: var(--cp-suave); text-transform: uppercase; letter-spacing: .03em; }
+.clasificacion-pallets-module .cp-field input, .clasificacion-pallets-module .cp-field select { height: 38px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 10px; background: #fff; font-size: 13.5px; width: 100%; box-sizing: border-box; }
+.clasificacion-pallets-module .cp-field input:focus, .clasificacion-pallets-module .cp-field select:focus { outline: 2px solid #bfdbfe; border-color: var(--cp-azul); }
+.clasificacion-pallets-module .cp-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; height: 38px; }
+.clasificacion-pallets-module .cp-check.off { opacity: .45; }
+.clasificacion-pallets-module .cp-activos { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.clasificacion-pallets-module .cp-activos[hidden] { display: none; }
+.clasificacion-pallets-module .cp-tag { display: inline-flex; align-items: center; gap: 6px; background: #eff6ff; color: #1e40af; border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 12px; font-weight: 600; }
+.clasificacion-pallets-module .cp-tag button { border: 0; background: #dbeafe; color: #1e40af; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; line-height: 1; font-size: 12px; }
+
+/* KPIs */
+.clasificacion-pallets-module .cp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 14px 0; }
+.clasificacion-pallets-module .cp-kpi { background: #fff; border-radius: 12px; padding: 16px 18px; box-shadow: 0 2px 12px rgba(15, 23, 42, .07); border: 1px solid var(--cp-borde); border-top: 4px solid #cbd5e1; }
+.clasificacion-pallets-module .cp-kpi.cp-k-verde { border-top-color: var(--cp-verde); }
+.clasificacion-pallets-module .cp-kpi.cp-k-azul { border-top-color: var(--cp-azul); }
+.clasificacion-pallets-module .cp-kpi.cp-k-rojo { border-top-color: var(--cp-rojo); }
+.clasificacion-pallets-module .cp-kpi-label { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--cp-suave); }
+.clasificacion-pallets-module .cp-kpi-value { font-size: 32px; line-height: 1.15; font-weight: 700; color: var(--cp-texto); margin: 6px 0 2px; }
+.clasificacion-pallets-module .cp-kpi-value.cp-kpi-texto { font-size: 18px; line-height: 1.3; min-height: 41px; display: flex; align-items: center; }
+.clasificacion-pallets-module .cp-kpi-sub { font-size: 12px; color: var(--cp-tenue); min-height: 16px; }
+.clasificacion-pallets-module.cp-cargando .cp-kpi-value, .clasificacion-pallets-module.cp-cargando .cp-canvas, .clasificacion-pallets-module.cp-cargando #cpTbody { opacity: .45; transition: opacity .15s; }
+
+/* Gráficos */
+.clasificacion-pallets-module .cp-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+.clasificacion-pallets-module .cp-chart { padding: 16px 18px; margin-top: 0; }
+.clasificacion-pallets-module .cp-chart-h { font-size: 14px; font-weight: 700; color: var(--cp-texto); }
+.clasificacion-pallets-module .cp-chart-s { font-size: 11.5px; color: var(--cp-tenue); margin-bottom: 8px; }
+.clasificacion-pallets-module .cp-canvas { position: relative; height: 250px; }
+.clasificacion-pallets-module .cp-vacio { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; font-size: 12.5px; color: var(--cp-tenue); border: 1px dashed #cbd5e1; border-radius: 10px; background: #f8fafc; padding: 14px; }
+.clasificacion-pallets-module .cp-canvas.sin-datos .cp-vacio { display: flex; }
+.clasificacion-pallets-module .cp-canvas.sin-datos canvas { visibility: hidden; }
+.clasificacion-pallets-module .cp-canvas.sin-datos { height: 170px !important; }
+@media (max-width: 1100px) { .clasificacion-pallets-module .cp-charts { grid-template-columns: minmax(0, 1fr); } }
+
+/* Tabla */
+.clasificacion-pallets-module .cp-tabla-card { margin-top: 0; padding: 16px 18px; }
+.clasificacion-pallets-module .cp-tabla-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 6px; }
+.clasificacion-pallets-module .table-container { overflow-x: auto; }
+.clasificacion-pallets-module #cpTabla th, .clasificacion-pallets-module #cpTabla td { white-space: nowrap; vertical-align: middle; }
+.clasificacion-pallets-module #cpTabla td.cp-wrap { white-space: normal; min-width: 170px; max-width: 260px; }
+.clasificacion-pallets-module #cpTabla tbody tr.cp-fila { cursor: pointer; }
+.clasificacion-pallets-module #cpTabla tbody tr.cp-fila:hover { background: #f8fafc; }
+.clasificacion-pallets-module #cpTabla tbody tr.cp-anulada td:not(.cp-td-estado) { opacity: .55; }
+.clasificacion-pallets-module .cp-pallet { font-weight: 700; color: var(--cp-texto); font-variant-numeric: tabular-nums; }
+.clasificacion-pallets-module .cp-sub { font-size: 11.5px; color: var(--cp-tenue); }
+.clasificacion-pallets-module .cp-thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; border: 1px solid var(--cp-borde); background: #f1f5f9; display: block; cursor: zoom-in; }
+.clasificacion-pallets-module .cp-nofoto { width: 44px; height: 44px; border-radius: 8px; border: 1px dashed #cbd5e1; background: #f8fafc; color: #94a3b8; display: flex; align-items: center; justify-content: center; }
+.clasificacion-pallets-module .cp-nofoto svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.clasificacion-pallets-module .cp-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.clasificacion-pallets-module .cp-badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.clasificacion-pallets-module .cp-badge.cp-azul { background: var(--cp-azul-bg); color: var(--cp-azul-fg); }
+.clasificacion-pallets-module .cp-badge.cp-rojo { background: var(--cp-rojo-bg); color: var(--cp-rojo-fg); }
+.clasificacion-pallets-module .cp-badge.cp-verde { background: var(--cp-verde-bg); color: var(--cp-verde-fg); }
+.clasificacion-pallets-module .cp-estado { display: inline-block; padding: 2px 9px; border-radius: 6px; font-size: 11.5px; font-weight: 600; background: #f1f5f9; color: #475569; }
+.clasificacion-pallets-module .cp-estado.vigente { background: #ecfdf5; color: #047857; }
+.clasificacion-pallets-module .cp-estado.anulada { background: #fef2f2; color: #b91c1c; }
+.clasificacion-pallets-module .cp-defecto { display: inline-block; background: #f1f5f9; color: #334155; border-radius: 6px; padding: 2px 8px; font-size: 11.5px; margin: 0 4px 3px 0; }
+.clasificacion-pallets-module .cp-estado-fila td { text-align: center; padding: 38px 12px !important; color: var(--cp-suave); white-space: normal !important; }
+.clasificacion-pallets-module .cp-estado-fila strong { display: block; color: var(--cp-texto); font-size: 14px; margin-bottom: 4px; }
+.clasificacion-pallets-module .cp-estado-fila button { margin-top: 10px; }
+.clasificacion-pallets-module .cp-skeleton td { padding: 14px 10px !important; }
+.clasificacion-pallets-module .cp-skeleton span { display: block; height: 12px; border-radius: 6px; background: linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9); background-size: 200% 100%; animation: cp-shimmer 1.2s infinite; }
+@keyframes cp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* Panel lateral */
+.clasificacion-pallets-module .cp-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, .4); z-index: 9000; }
+.clasificacion-pallets-module .cp-overlay[hidden] { display: none; }
+.clasificacion-pallets-module .cp-drawer { position: fixed; top: 0; right: 0; height: 100%; width: min(480px, 100%); background: #fff; z-index: 9001; box-shadow: -12px 0 40px rgba(15, 23, 42, .25); transform: translateX(105%); transition: transform .22s ease; display: flex; flex-direction: column; }
+.clasificacion-pallets-module .cp-drawer.abierto { transform: translateX(0); }
+.clasificacion-pallets-module .cp-d-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--cp-borde); display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.clasificacion-pallets-module .cp-d-titulo { font-size: 20px; font-weight: 700; color: var(--cp-texto); font-variant-numeric: tabular-nums; }
+.clasificacion-pallets-module .cp-d-cerrar { border: 0; background: #f1f5f9; border-radius: 8px; width: 32px; height: 32px; font-size: 18px; cursor: pointer; color: #475569; }
+.clasificacion-pallets-module .cp-d-body { padding: 16px 20px 28px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 18px; }
+.clasificacion-pallets-module .cp-d-hero { width: 100%; max-height: 260px; object-fit: contain; background: #0f172a; border-radius: 12px; cursor: zoom-in; display: block; }
+.clasificacion-pallets-module .cp-d-sinfoto { height: 120px; border: 1px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; display: flex; align-items: center; justify-content: center; gap: 8px; color: #94a3b8; font-size: 13px; }
+.clasificacion-pallets-module .cp-d-sec h4 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--cp-suave); }
+.clasificacion-pallets-module .cp-d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.clasificacion-pallets-module .cp-d-grid .k { font-size: 11px; color: var(--cp-tenue); }
+.clasificacion-pallets-module .cp-d-grid .v { font-size: 13.5px; color: var(--cp-texto); font-weight: 600; word-break: break-word; }
+.clasificacion-pallets-module .cp-d-obs { background: #f8fafc; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #334155; white-space: pre-wrap; }
+.clasificacion-pallets-module .cp-aviso { font-size: 12px; background: #fffbeb; color: #92400e; border-radius: 8px; padding: 8px 10px; }
+.clasificacion-pallets-module .cp-timeline { list-style: none; margin: 0; padding: 0 0 0 4px; }
+.clasificacion-pallets-module .cp-tl-item { position: relative; padding: 0 0 18px 24px; border-left: 2px solid var(--cp-borde); margin-left: 6px; }
+.clasificacion-pallets-module .cp-tl-item:last-child { border-left-color: transparent; padding-bottom: 0; }
+.clasificacion-pallets-module .cp-tl-item::before { content: ""; position: absolute; left: -8px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: #94a3b8; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--cp-borde); }
+.clasificacion-pallets-module .cp-tl-item.cp-azul::before { background: var(--cp-azul); }
+.clasificacion-pallets-module .cp-tl-item.cp-rojo::before { background: var(--cp-rojo); }
+.clasificacion-pallets-module .cp-tl-item.cp-verde::before { background: var(--cp-verde); }
+.clasificacion-pallets-module .cp-tl-item.cp-actual .cp-tl-card { border-color: #93c5fd; background: #f8fbff; }
+.clasificacion-pallets-module .cp-tl-card { border: 1px solid var(--cp-borde); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; color: #334155; display: flex; flex-direction: column; gap: 4px; }
+.clasificacion-pallets-module .cp-tl-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.clasificacion-pallets-module .cp-tl-foto { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; border: 1px solid var(--cp-borde); cursor: zoom-in; }
+.clasificacion-pallets-module .cp-link { border: 0; background: transparent; color: #b91c1c; font-size: 12px; font-weight: 700; cursor: pointer; padding: 2px 0; }
+.clasificacion-pallets-module .cp-anular-form { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px dashed #fecaca; }
+.clasificacion-pallets-module .cp-anular-form textarea { width: 100%; box-sizing: border-box; min-height: 64px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; font: inherit; font-size: 13px; resize: vertical; }
+.clasificacion-pallets-module .cp-anular-form .cp-err { color: #b91c1c; font-size: 12px; min-height: 14px; }
+.clasificacion-pallets-module .cp-anular-acciones { display: flex; gap: 8px; justify-content: flex-end; }
+.clasificacion-pallets-module .cp-btn-peligro { background: #dc2626; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+.clasificacion-pallets-module .cp-btn-peligro:disabled { opacity: .6; cursor: default; }
+
+/* Visor de foto (se agrega a document.body) */
+.cp-lightbox { position: fixed; inset: 0; background: rgba(15, 23, 42, .85); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out; }
+.cp-lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; background: #fff; }

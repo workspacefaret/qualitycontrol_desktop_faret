@@ -17,6 +17,7 @@ using QualityControlCenter.Modules.Faret;
 using QualityControlCenter.Modules.Home;
 using QualityControlCenter.Modules.LiberacionCalidad;
 using QualityControlCenter.Modules.AdminPlanta;
+using QualityControlCenter.Modules.ClasificacionPallets;
 using QualityControlCenter.Modules.MaquinasSeguimiento;
 using QualityControlCenter.Modules.EvaluacionMaquinas;
 using QualityControlCenter.Modules.EvaluacionOperadores;
@@ -202,6 +203,12 @@ namespace QualityControlCenter.Services
                 {
                     // Datos compartidos en la API `calidad` (JWT de la sesión); la empresa sale de la sesión, no del frontend.
                     var handler = new AdminPlantaHandler(_faretCalidadClient, _permisos.Empresa ?? "");
+                    rawResult = await handler.Handle(action, data);
+                }
+                else if (action.StartsWith("clasificacionPallets."))
+                {
+                    // API `calidad` con el JWT de la sesión; el handler rechaza toda sesión que no sea INNPACK.
+                    var handler = new ClasificacionPalletsHandler(_faretCalidadClient, _permisos.Empresa ?? "");
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("evaluacionOperadores"))

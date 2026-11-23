@@ -41,6 +41,8 @@ namespace QualityControlCenter.Services
             ["registros-control"] = new("INNPACK", new[] { "registrosControl" }),
             ["talleres-externos"] = new("INNPACK", new[] { "talleresExternos" }),
             ["producto-terminado"] = new("INNPACK", new[] { "productoTerminado" }),
+            // Clasificación de pallets AZUL/ROJO/VERDE (exclusivo de INNPACK): consulta y anulación lógica; la API restringe además quién anula.
+            ["clasificacion-pallets"] = new("INNPACK", new[] { "clasificacionPallets" }),
             ["certificados-liberacion"] = new("INNPACK", Array.Empty<string>()),
             ["despachos-diarios"] = new("INNPACK", Array.Empty<string>()),
             ["recepcion-calidad"] = new("INNPACK", new[] { "recepcion" }),
@@ -153,6 +155,7 @@ namespace QualityControlCenter.Services
             "registrosProduccion.obtenerResumen",
             "talleresExternos.catalogos",
             "talleresExternos.historialLiberaciones",
+            "clasificacionPallets.defectos", // ranking de defectos (solo lectura)
             "calidadNp.mermas.evidencia", "calidadNp.certificados.flujo", "calidadNp.resumen", "calidadNp.certificados.exportarExcel", "calidadNp.certificados.exportarPdf", // lecturas (abrir evidencia / cargos del flujo de aprobación)
             "trazabilidad.consultarNp", "trazabilidad.integral", "trazabilidad.lote", "trazabilidad.exportarV05Excel", // exportar solo dibuja el modelo recibido
             
@@ -257,6 +260,17 @@ namespace QualityControlCenter.Services
                         return "No tienes acceso a este módulo.";
                     if (action == "faret.evaluacionMaquinas.coberturaFps" && !EsAdminTiSinLock())
                         return "Acceso no autorizado: solo ADMIN_TI puede ejecutar la auditoría de cobertura FPS.";
+                }
+
+                // Clasificación de pallets: exclusivo de INNPACK. Se exige acceso al módulo venga de donde venga la acción
+                // (una lectura o anulación enviada con el _modulo de otro módulo o de Faret no debe saltarse el permiso).
+                if (action.StartsWith("clasificacionPallets."))
+                {
+                    var nivelPallets = NivelEfectivoSinLock("clasificacion-pallets");
+                    if (_empresa != "INNPACK" || nivelPallets == SinAcceso)
+                        return "No tienes acceso a este módulo.";
+                    if (!EsLectura(action) && nivelPallets != Editar)
+                        return "Solo vista: no tienes permiso para modificar datos en este módulo.";
                 }
 
                 // Eliminar formularios (borrado físico, irreversible): solo ADMIN_TI.

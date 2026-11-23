@@ -3,26 +3,18 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.38";
+    const ID = "1.8.39";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
         {
-            titulo: "Formatos oficiales de Calidad",
-            icono: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M9 13h6M9 17h6"/>',
+            titulo: "Clasificación de Pallets",
+            icono: '<path d="M12 3 3 7.5 12 12l9-4.5L12 3zM3 12l9 4.5 9-4.5M3 16.5l9 4.5 9-4.5"/>',
             puntos: [
-                { solo: "INNPACK", t: "Trazabilidad genera el informe oficial REG-SGI-TDP-V05 en PDF y Excel. Antes de generarlo se indican la hora de inicio, la hora de término y el cargo; la fecha de emisión y el usuario se completan solos." },
-                { solo: "INNPACK", t: "Certificados de Destrucción genera el formato oficial REG-SGI-CDD-V11 en PDF y Excel, en cualquier estado. Lo pendiente de emisión o aprobación se rotula como pendiente: nunca aparece como firmado." },
-                { solo: "INNPACK", t: "Si un dato no existe en el sistema se escribe \"SIN INFORMACIÓN\" o \"NO CONFIRMADO\": nunca se reemplaza por cero ni se convierte una diferencia en merma." },
-            ],
-        },
-        {
-            titulo: "Paneles de inicio",
-            icono: '<path d="M3 3v18h18M7 15l4-4 3 3 5-6"/>',
-            puntos: [
-                { solo: "INNPACK", t: "Trazabilidad, Balance y Mermas, Cierre de NP y Certificados de Destrucción abren ahora en un panel con indicadores, gráficos y los registros que requieren atención, con filtro por período." },
-                { solo: "INNPACK", t: "La búsqueda por NP sigue arriba en cada panel; al consultar una NP aparece su detalle de siempre, con el botón \"Volver al resumen\". Si una fuente no responde, el panel lo indica y permite reintentar." },
+                { solo: "INNPACK", t: "Nuevo módulo Clasificación de Pallets, junto a Producto Terminado: muestra los pallets que los inspectores clasifican AZUL (en revisión), ROJO (rechazo) o VERDE (conforme) desde la app móvil." },
+                { solo: "INNPACK", t: "Panel con indicadores y gráficos por día, proceso, máquina y defecto. Haz clic en un gráfico para filtrar. Puedes ver solo lo vigente o todos los eventos, y exportar a Excel exactamente lo filtrado." },
+                { solo: "INNPACK", t: "Cada pallet tiene su historial y fotografías en un panel lateral. Si tu perfil lo permite, puedes anular una clasificación indicando el motivo: queda registrada, no se borra." },
             ],
         },
     ];
