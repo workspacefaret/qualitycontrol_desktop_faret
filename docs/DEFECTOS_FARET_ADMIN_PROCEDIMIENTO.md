@@ -20,7 +20,7 @@ El único cambio estructural es `parametros_control_visual.empresa`: es impresci
 
 ## 3. Pallet/Papel: formularios abiertos durante un cambio
 
-La API exigía responder *exactamente* todas las preguntas activas, lo que rechazaría un formulario abierto antes de agregar una pregunta. Ahora (`validarChecklist`): una pregunta dada de baja mientras se llenaba se acepta; una pregunta creada hace menos de 240 min (`PALLET_PREGUNTA_NUEVA_TOLERANCIA_MIN`) puede faltar; toda pregunta vigente más antigua sigue obligatoria; una inexistente se rechaza. Usa `created_at` (ya existe: sin cambio estructural).
+La API exigía responder *exactamente* todas las preguntas activas, lo que rechazaría un formulario abierto antes de agregar una pregunta. Regla vigente (`validarChecklist`, sin omitir controles): la app envía `preguntasMostradas` (lo que el inspector vio); toda pregunta vigente mostrada debe venir respondida; una vigente **no mostrada** solo se tolera si es muy reciente (<240 min, `PALLET_PREGUNTA_NUEVA_TOLERANCIA_MIN`), una antigua no mostrada se rechaza; una pregunta dada de baja mientras se llenaba se acepta; una inexistente se rechaza. Una app anterior (sin `preguntasMostradas`) sigue con la exigencia estricta de siempre. Sin cambio estructural (`created_at` ya existe).
 
 ## 4. Orden de despliegue (cada paso con autorización explícita)
 
@@ -49,6 +49,5 @@ Si se despliega la API antes que la SQL, `adminPlanta` de FARET y la consulta de
 
 - Autorización explícita para los pasos 1–6 (nada se aplicó).
 - Prueba en Photino real con sesión FARET ADMIN_TI contra una base de pruebas (el arnés usa un puente simulado).
-- Tolerancia de 240 min: confirmar con Calidad.
 - Los defectos compartidos de PT no se pueden editar desde FARET: si Calidad quiere renombrar uno, hay que duplicarlo como propio (decisión de negocio).
 - Permisos finos: el rol `administrar` de la API admite cualquier rol de escritorio salvo CONSULTA; la restricción real por usuario es la matriz del QCC (limitación ya conocida de la 013).
