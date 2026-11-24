@@ -69,11 +69,23 @@ window.CalidadNp = (function () {
 
     // Consulta integral (FPS/SAP/QCS) + factores confirmados. Una fuente caída llega como null, nunca como 0.
     async function cargarNp(np) {
-        const [integral, factores] = await Promise.all([send("trazabilidad.integral", { np }), send("trazabilidad.factor.list", { np })])
+        let [integral, factores] = await Promise.all([send("trazabilidad.integral", { np }), send("trazabilidad.factor.list", { np })])
+        let data = integral.ok ? integral.data : null
+        let error = integral.ok ? null : integral.error
+        // El número escrito puede ser una OT / NP Faret: todo el módulo trabaja con la NP INNPACK resuelta.
+        const resolucion = data?.resolucion || null
+        if (data && data.np === null) {
+            error = (resolucion?.avisos || []).join(" ") || "El número no corresponde a una NP INNPACK."
+            data = null
+        }
+        const npReal = data ? String(data.np) : String(np)
+        if (npReal !== String(np)) factores = await send("trazabilidad.factor.list", { np: npReal })
         return {
-            np,
-            error: integral.ok ? null : integral.error,
-            data: integral.ok ? integral.data : null,
+            np: npReal,
+            npIngresada: String(np),
+            resolucion,
+            error,
+            data,
             factores: factores.ok ? (factores.data?.factores || []) : [],
             factoresError: factores.ok ? null : factores.error,
             consultadoEn: new Date()
@@ -257,9 +269,54 @@ window.CalidadNp = (function () {
         setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print() }, 300)
     }
 
+    // Producto ingresado a bodega por SAP para el ítem (entradas de producción con esta NP y código de la NV). null = fuente no disponible.
+    function ingresadoItem(carga, it) {
+        const e = carga?.data?.entradas
+        if (!e || !it) return null
+        return e.ingresadoPorItem.filter(x => String(x.itemCode) === String(it.itemCode)).reduce((a, x) => a + x.ingresado, 0)
+    }
+
+    // Evidencia de los datos usados al cerrar una NP (se guarda con el cierre; la API le calcula la huella SHA-256).
+    function evidenciaItem(carga, it, extra) {
+        if (!it) return null
+        return {
+            consultadoEn: (carga?.consultadoEn || new Date()).toISOString(),
+            np: carga?.np, item: it.item, itemCode: it.itemCode,
+            solicitado: it.solicitado, liberadoPt: it.liberadoPt, despachado: it.despachado, devuelto: it.devuelto,
+            foliosLiberacion: it.foliosLiberacion, documentosDespacho: it.documentosDespacho,
+            ingresadoBodega: ingresadoItem(carga, it),
+            ultimaLiberacion: it.ultimaLiberacion ?? null, ultimoDespacho: it.ultimoDespacho ?? null,
+            ...extra
+        }
+    }
+
+    // Compara la evidencia de un cierre con los datos actuales de SAP/QCS: lista lo que cambió después del cierre.
+    // Devuelve null si no hay evidencia (cierres anteriores a esta función) o si las fuentes no están disponibles.
+    function movimientosPosteriores(evidenciaJson, it, carga) {
+        if (!evidenciaJson || !it) return null
+        let ev
+        try { ev = JSON.parse(evidenciaJson) } catch { return null }
+        const cambios = []
+        const dif = (campo, rotulo) => {
+            const antes = ev[campo], ahora = it[campo]
+            if (antes === null || antes === undefined || ahora === null || ahora === undefined) return
+            if (Number(antes) !== Number(ahora)) cambios.push(`${rotulo}: ${num(antes)} → ${num(ahora)}`)
+        }
+        it = { ...it, ingresadoBodega: ingresadoItem(carga, it) }
+        dif("liberadoPt", "Liberado")
+        dif("ingresadoBodega", "Ingresado a bodega")
+        dif("despachado", "Despachado")
+        dif("foliosLiberacion", "Folios de liberación")
+        dif("documentosDespacho", "Documentos de despacho")
+        const nueva = (campo, rotulo) => { if (ev[campo] && it[campo] && it[campo] > ev[campo]) cambios.push(`${rotulo} posterior al cierre: ${it[campo]}`) }
+        nueva("ultimaLiberacion", "Liberación")
+        nueva("ultimoDespacho", "Despacho")
+        return cambios
+    }
+
     function usuarioActual() {
         return sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("codigoUsuario") || "-"
     }
 
-    return { ND, ETAPAS, esc, num, txt, fecha, fechaHora, send, nivel, puedeEditar, etapaDe, calidadDeNp, cargarNp, factorConfirmado, saldoBodega, balance, hoja, guardarLibro, stamp, modal, leerArchivoBase64, imprimirHtml, usuarioActual }
+    return { ND, ETAPAS, esc, num, txt, fecha, fechaHora, send, nivel, puedeEditar, etapaDe, calidadDeNp, cargarNp, evidenciaItem, ingresadoItem, movimientosPosteriores, factorConfirmado, saldoBodega, balance, hoja, guardarLibro, stamp, modal, leerArchivoBase64, imprimirHtml, usuarioActual }
 })()

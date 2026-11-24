@@ -270,6 +270,10 @@ if (!window.CertificadosDestruccionController) {
         ov.querySelector("#cdfMsg").textContent = "Consultando..."
         const [carga] = await Promise.all([C.cargarNp(np), cargarMermas(np)])
         this._form.carga = carga
+        if (carga.np !== np) { // número escrito = OT / NP Faret: el certificado queda con la NP INNPACK
+          ov.querySelector("#cdfNp").value = carga.np
+          await cargarMermas(carga.np)
+        }
         const items = carga.data?.items || []
         const sel = ov.querySelector("#cdfItem")
         if (items.length) {

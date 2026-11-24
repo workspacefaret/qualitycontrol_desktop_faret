@@ -214,10 +214,31 @@ if (!window.CierreNpController) {
       return { origen, solicitada, fabricada, justificado, dif, pendiente, cumpl }
     }
 
+    // Un cierre no congela la NP: SAP y QCS pueden registrar movimientos después. Se compara con la evidencia guardada.
+    renderMovimientos(it) {
+      const el = this.$("cnMovimientos")
+      if (!el) return
+      const v = this._cierre?.vigente
+      if (!v || v.estado !== "CERRADO") { el.style.display = "none"; return }
+      const cambios = C.movimientosPosteriores(v.evidenciaJson, it, this._carga)
+      const hash = v.evidenciaSha256 ? ` · huella ${C.esc(String(v.evidenciaSha256).trim().slice(0, 12))}…` : ""
+      if (cambios === null) {
+        el.style.cssText = "display:block;margin:6px 0;padding:8px 12px;border-radius:8px;background:#f1f5f9;color:#475569;font-size:12px;"
+        el.innerHTML = v.evidenciaJson ? "No se pudo comparar con la evidencia del cierre." : "Este cierre no guardó evidencia de los datos usados (anterior a esta función): no se pueden detectar movimientos posteriores."
+      } else if (cambios.length) {
+        el.style.cssText = "display:block;margin:6px 0;padding:8px 12px;border-radius:8px;background:#fef3c7;color:#92400e;font-size:12px;"
+        el.innerHTML = `<b>Movimientos posteriores al cierre (versión ${C.esc(v.version)})</b>${hash}<br>${cambios.map(x => C.esc(x)).join("<br>")}`
+      } else {
+        el.style.cssText = "display:block;margin:6px 0;padding:8px 12px;border-radius:8px;background:#dcfce7;color:#166534;font-size:12px;"
+        el.innerHTML = `Sin movimientos posteriores al cierre (versión ${C.esc(v.version)})${hash}`
+      }
+    }
+
     renderTodo(conLineas = true) {
       const it = this.itemObj()
       const o = this._carga?.data?.ordenes?.[0]
       this.$("cnDatos").innerHTML = `Cliente: <b>${C.esc(C.txt(o?.Cliente))}</b> · NP: <b>${C.esc(this._carga.np)}</b> · Producto: <b>${C.esc(C.txt(it?.descripcion))}</b> (${C.esc(C.txt(it?.itemCode))})${this._errorCierre ? ` · <span style="color:#b91c1c;">Cierres previos no disponibles: ${C.esc(this._errorCierre)}</span>` : ""}`
+      this.renderMovimientos(it)
       const c = this.calculo()
       this.$("cnSolicitada").textContent = C.num(c.solicitada)
       this.$("cnFabricada").textContent = c.fabricada === null ? "PENDIENTE DE CONFIRMACIÓN" : C.num(c.fabricada)
@@ -261,7 +282,8 @@ if (!window.CierreNpController) {
         cantidadSolicitada: c.solicitada, cantidadFabricada: c.fabricada, origenFabricada: origen,
         responsableFabricada: origen === "MANUAL" ? this.$("cnManualResp").value.trim() : "", observaciones: this.$("cnObs").value.trim(), estado,
         justificaciones: this._lineas.map(l => ({ concepto: l.concepto, cantidad: Number(l.cantidad) || 0, certeza: l.certeza, origen: l.origen || "" })),
-        np: this._carga.np, item: it.item
+        np: this._carga.np, item: it.item,
+        evidencia: C.evidenciaItem(this._carga, it, { fabricada: c.fabricada, origenFabricada: origen })
       }
       if (estado === "CERRADO" && !confirm("¿Registrar el cierre interno de esta NP? Queda como una versión nueva en el historial (no se borra ni sobrescribe).")) return
       const r = await C.send("calidadNp.cierre.guardar", body)

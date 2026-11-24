@@ -27,7 +27,9 @@ if (!window.TrazabilidadController) {
     constructor() {
       this._clickHandler = null
       this._keyHandler = null
+      this._inputHandler = null
       this._consultaId = 0
+      this._tab = "resumen"
     }
 
     // ── Panel de inicio: buscador, últimas NP consultadas y estado de las fuentes de la ÚLTIMA consulta (no se simulan métricas globales) ──
@@ -130,6 +132,10 @@ if (!window.TrazabilidadController) {
         if (e.target.id === "btnTrzLoteExcel") {
           this.exportarExcelLote()
         }
+        const tab = e.target.closest?.("[data-trz-ir]")
+        if (tab) this.activarTab(tab.getAttribute("data-trz-ir"))
+        const adj = e.target.closest?.("[data-trz-adjunto]")
+        if (adj) this.abrirAdjuntosSap(adj)
         const lote = e.target.closest?.("[data-trz-lote]")
         if (lote) {
           document.getElementById("trzLote").value = lote.getAttribute("data-trz-lote")
@@ -361,7 +367,7 @@ if (!window.TrazabilidadController) {
     async consultarIntegral(np, id) {
       const fuentesEl = document.getElementById("trzFuentes")
       fuentesEl.textContent = "Consultando FPS, SAP, liberaciones y Calidad..."
-      for (const [b, c] of [["trzItemsBody", 13], ["trzFpsBody", 16], ["trzConsumosBody", 12], ["trzLiberacionesBody", 11], ["trzDespachosBody", 10], ["trzCalidadBody", 10]]) {
+      for (const [b, c] of [["trzItemsBody", 13], ["trzFpsBody", 16], ["trzTurnosBody", 5], ["trzConsumosBody", 12], ["trzLiberacionesBody", 11], ["trzDespachosBody", 10], ["trzEntradasBody", 8], ["trzNcBody", 10], ["trzCalidadBody", 10]]) {
         this.filasVacias(b, c, "Consultando...")
       }
       document.getElementById("trzOrdenes").textContent = ""
@@ -373,9 +379,20 @@ if (!window.TrazabilidadController) {
       ])
       if (id !== this._consultaId) return // llegó otra consulta mientras tanto
 
-      const data = fps && fps.ok !== false ? fps.data : null
-      this._integral = { np, data, error: data ? null : (fps?.error || "No se pudo consultar FPS/SAP"), calidad, consultadoEn: new Date() }
-      this.guardarReciente(np, data)
+      let data = fps && fps.ok !== false ? fps.data : null
+      let error = data ? null : (fps?.error || "No se pudo consultar FPS/SAP")
+      // El número escrito puede ser una OT / NP Faret: toda la pantalla trabaja con la NP INNPACK resuelta.
+      const resolucion = data?.resolucion || null
+      if (data && data.np === null) {
+        error = (resolucion?.avisos || []).join(" ") || "El número no corresponde a una NP INNPACK."
+        data = null
+      }
+      const npReal = data ? String(data.np) : np
+      let calidadReal = calidad
+      if (data && npReal !== String(np)) calidadReal = await this.consultarCalidad(npReal)
+      if (id !== this._consultaId) return
+      this._integral = { np: npReal, npIngresada: np, data, error, resolucion, calidad: calidadReal, consultadoEn: new Date() }
+      this.guardarReciente(npReal, data)
 
       this.renderFuentes()
       this.renderItems()
@@ -384,8 +401,13 @@ if (!window.TrazabilidadController) {
       this.renderLiberaciones()
       this.renderDespachos()
       this.renderCalidad()
+      this.renderTurnos()
+      this.renderEntradas()
+      this.renderKpis()
+      this.activarTab(this._tab)
+      this.cargarNc(npReal, id)
       // Fase 1b: factor y documentos SGI (propios de QCC; si la API aún no los expone se muestra el aviso).
-      this.cargarPanelSgi(np, id)
+      this.cargarPanelSgi(npReal, id)
     }
 
     // Registros de Calidad de la NP, desde las acciones existentes de sus módulos (sin backend nuevo).
@@ -411,7 +433,152 @@ if (!window.TrazabilidadController) {
       return { registros, productoTerminado }
     }
 
+    // ── Organización visual: pestañas, indicadores superiores y filtro por tabla ──
+    activarTab(tab) {
+      this._tab = tab
+      document.querySelectorAll("#trzTabs .trz-tab").forEach(b => b.classList.toggle("active", b.getAttribute("data-trz-ir") === tab))
+      document.querySelectorAll("#trzIntegral [data-trz-tab]").forEach(c => { c.style.display = c.getAttribute("data-trz-tab") === tab ? "" : "none" })
+      this.montarFiltros()
+    }
+
+    // Un cuadro de búsqueda sobre cada tabla del análisis: oculta las filas que no contienen el texto (solo en pantalla).
+    montarFiltros() {
+      document.querySelectorAll("#trzIntegral [data-trz-tab] .table-container").forEach(tc => {
+        if (tc.previousElementSibling?.classList?.contains("trz-filtro")) return
+        const input = document.createElement("input")
+        input.type = "search"
+        input.className = "trz-filtro"
+        input.placeholder = "Filtrar filas..."
+        tc.parentNode.insertBefore(input, tc)
+      })
+      if (!this._inputHandler) {
+        this._inputHandler = e => {
+          if (e.target.classList?.contains("trz-filtro")) this.aplicarFiltro(e.target)
+        }
+        document.addEventListener("input", this._inputHandler)
+      }
+    }
+
+    aplicarFiltro(input) {
+      const q = input.value.trim().toLowerCase()
+      input.nextElementSibling?.querySelectorAll("tbody tr").forEach(tr => {
+        tr.style.display = !q || tr.textContent.toLowerCase().includes(q) ? "" : "none"
+      })
+    }
+
+    reaplicarFiltros() {
+      document.querySelectorAll("#trzIntegral .trz-filtro").forEach(i => { if (i.value) this.aplicarFiltro(i) })
+    }
+
+    // Suma una cifra por ítem; si algún ítem no la tiene (fuente caída) el total no se inventa: No disponible.
+    sumaItems(campo, items) {
+      let t = 0
+      for (const i of items) {
+        if (i[campo] === null || i[campo] === undefined) return null
+        t += Number(i[campo])
+      }
+      return t
+    }
+
+    renderKpis() {
+      const el = document.getElementById("trzKpis")
+      const d = this._integral.data
+      const kpi = (titulo, valor, sub, tono = "") => `
+        <div class="card npd-kpi ${tono}"><div class="npd-kpi-head">${this.esc(titulo)}</div>
+          <div class="npd-kpi-val ${valor === ND ? "nd" : ""}">${this.esc(valor)}</div><div class="npd-kpi-sub">${this.esc(sub)}</div></div>`
+      if (!d) { el.innerHTML = ""; return }
+      const items = d.items
+      const n = v => (v === null ? ND : this.num(v))
+      const solicitado = items ? this.sumaItems("solicitado", items) : null
+      const liberado = items ? this.sumaItems("liberadoPt", items) : null
+      const despachado = items ? this.sumaItems("despachado", items) : null
+      const pendiente = solicitado !== null && despachado !== null ? solicitado - despachado : null
+      const ingresado = d.entradas ? d.entradas.ingresadoPorItem.reduce((a, x) => a + x.ingresado, 0) : null
+      const nc = this._integral.nc
+      const cal = this._integral.calidad
+      const controles = cal?.registros?.estado === "OK"
+        ? cal.registros.items.length + (cal.productoTerminado?.estado === "OK" ? cal.productoTerminado.items.length : 0) : null
+      el.innerHTML = [
+        kpi("Solicitado (NV)", n(solicitado), "unidades de la nota de venta"),
+        kpi("Ingresado a bodega", n(ingresado), "entradas SAP con esta NP"),
+        kpi("Liberado PT", n(liberado), "certificados QCS"),
+        kpi("Despachado", n(despachado), "guías y facturas directas − devoluciones"),
+        kpi("Pendiente despacho", n(pendiente), "estimado, no es merma", pendiente > 0 ? "t-warn" : ""),
+        kpi("Controles de Calidad", n(controles), "registros de control + producto terminado"),
+        kpi("No conformidades", nc && nc.estado === "OK" ? this.num(nc.items.length) : ND, "producto, esta NP", nc && nc.estado === "OK" && nc.items.length ? "t-bad" : "")
+      ].join("")
+    }
+
+    renderTurnos() {
+      const d = this._integral.data
+      if (!d || !d.turnos) return this.filasVacias("trzTurnosBody", 5, ND)
+      if (d.turnos.length === 0) return this.filasVacias("trzTurnosBody", 5, "Sin corridas válidas en FPS")
+      document.getElementById("trzTurnosBody").innerHTML = d.turnos.map(t => `
+        <tr><td>${this.esc(t.turno)}</td><td>${this.num(t.sesiones)}</td><td>${this.num(t.producido)}</td>
+          <td>${this.esc(t.maquinas.join(", ") || "-")}</td><td>${this.esc(t.operadores.join(", ") || "-")}</td></tr>`).join("")
+    }
+
+    renderEntradas() {
+      const d = this._integral.data
+      if (!d || !d.entradas) return this.filasVacias("trzEntradasBody", 8, ND)
+      if (d.entradas.lineas.length === 0) return this.filasVacias("trzEntradasBody", 8, "Sin entradas ni traslados de producción con esta NP en SAP")
+      document.getElementById("trzEntradasBody").innerHTML = d.entradas.lineas.map(l => `
+        <tr><td>${l.tipo === "ENTRADA" ? "Entrada de producción" : "Traslado entre bodegas"}</td><td>${this.esc(l.docNum)}</td><td>${this.esc(l.fecha)}</td>
+          <td>${this.esc(l.itemCode)}</td><td>${this.esc(l.descripcion)}</td><td>${this.num(l.cantidad)}</td><td>${this.esc(l.bodega)}</td>
+          <td style="font-size:12px;">${l.vinculoNv ? "Ítem de la NV" : "Ítem NO está en la NV (no suma)"}${l.tipo === "TRASLADO" ? " · no suma a lo producido" : ""}</td></tr>`).join("")
+    }
+
+    // No conformidades de producto de la NP (API INNPACK). Llega después de la pantalla principal: no la bloquea.
+    async cargarNc(np, id) {
+      this.filasVacias("trzNcBody", 10, "Consultando...")
+      let nc
+      try {
+        const res = await window.PhotinoBridge.send({ action: "trazabilidad.noConformidades", data: { np } })
+        nc = !res || res.ok === false ? { estado: "ERROR", items: [] } : { estado: "OK", items: res.data?.items || [] }
+      } catch {
+        nc = { estado: "ERROR", items: [] }
+      }
+      if (id !== this._consultaId) return
+      this._integral.nc = nc
+      if (nc.estado !== "OK") this.filasVacias("trzNcBody", 10, ND)
+      else if (nc.items.length === 0) this.filasVacias("trzNcBody", 10, "Sin no conformidades de producto para esta NP")
+      else document.getElementById("trzNcBody").innerHTML = nc.items.map(x => `
+        <tr><td>${this.esc(x.id)}</td><td>${this.esc(this.txt(x.fechaIngreso))}</td><td>${this.esc(this.txt(x.npNv))}</td><td>${this.esc(this.txt(x.cliente))}</td>
+          <td>${this.esc(this.txt(x.producto))}</td><td>${this.esc(this.txt(x.tipoPnc))}</td><td>${this.esc(this.txt(x.nivel))}</td>
+          <td>${this.num(x.cantRechazada)}</td><td>${this.esc(this.txt(x.categoriaDefecto))}</td><td>${this.esc(this.txt(x.estadoGestion))}</td></tr>`).join("")
+      this.renderKpis()
+      this.reaplicarFiltros()
+    }
+
+    // Abre los PDF que SAP tiene adjuntos al documento (Service Layer vía apisapfaret). Solo lectura.
+    async abrirAdjuntosSap(btn) {
+      const tipo = btn.getAttribute("data-tipo")
+      const docEntry = Number(btn.getAttribute("data-doc"))
+      const original = btn.textContent
+      btn.disabled = true
+      btn.textContent = "Abriendo..."
+      try {
+        const lista = await window.PhotinoBridge.send({ action: "trazabilidad.adjuntosSap.list", data: { tipo, docEntry } })
+        if (!lista || lista.ok === false) throw new Error(lista?.error || "No se pudo consultar SAP")
+        const adjuntos = lista.data?.adjuntos || []
+        if (adjuntos.length === 0) { window.ExcelExporter?.showToast?.("SAP no tiene archivos adjuntos para este documento"); return }
+        for (const a of adjuntos) {
+          const r = await window.PhotinoBridge.send({
+            action: "trazabilidad.adjuntosSap.abrir",
+            data: { tipo, docEntry, linea: a.numero, nombre: [a.nombre, a.extension].filter(Boolean).join(".") }
+          })
+          if (!r || r.ok === false) throw new Error(r?.error || "No se pudo abrir el archivo")
+        }
+      } catch (err) {
+        window.ExcelExporter?.showToast?.(err?.message || "No se pudo abrir el adjunto")
+      } finally {
+        btn.disabled = false
+        btn.textContent = original
+      }
+    }
+
     estadoFuente(nombre, f) {
+      if (f && f.ok && f.estado === "SIN_DATOS") return `<span style="color:#a16207;">● ${this.esc(nombre)}: sin registros</span>`
       if (f && f.ok) return `<span style="color:#15803d;">● ${this.esc(nombre)}: disponible</span>`
       const motivo = { TIEMPO_AGOTADO: "tiempo agotado", REQUIERE_FPS: "requiere FPS", DEMASIADAS_OT: "demasiadas OT", SIN_PERMISO: "sin permiso" }[f?.error] || "no disponible"
       return `<span style="color:#b91c1c;">● ${this.esc(nombre)}: ${this.esc(motivo)}</span>`
@@ -422,6 +589,9 @@ if (!window.TrazabilidadController) {
       const el = document.getElementById("trzFuentes")
       const cal = c => ({ ok: c.estado === "OK", error: c.estado === "SIN_PERMISO" ? "SIN_PERMISO" : null })
       const partes = []
+      const aviso = this._integral.resolucion?.avisos?.[0]
+      if (aviso) partes.push(`<span style="color:#1d4ed8;">ℹ ${this.esc(aviso)}</span><br>`)
+      if (data?.resolucion?.ots?.length > 1) partes.push(`<span style="color:#1d4ed8;">ℹ La NP tiene ${data.resolucion.ots.length} órdenes de trabajo en FPS (${data.resolucion.ots.join(", ")}).</span><br>`)
       if (!data) {
         partes.push(`<span style="color:#b91c1c;">● FPS / SAP: ${this.esc(error)}</span>`)
       } else {
@@ -583,6 +753,10 @@ if (!window.TrazabilidadController) {
       return l ? `${this.txt(l.Item)} (línea ${linea})` : null
     }
 
+    tipoAdjunto(tipo) {
+      return { GUIA: "guia", FACTURA: "factura", DEVOLUCION: "devolucion", NOTA_CREDITO: "notacredito" }[tipo] || ""
+    }
+
     observacionDocumento(d) {
       if (d.LineaNv === null || d.LineaNv === undefined) return "Sin línea NV asociada (no suma)"
       if (d.Tipo === "FACTURA" && d.Origen !== "DIRECTA") return "Facturación de una guía: no suma al despachado"
@@ -605,7 +779,7 @@ if (!window.TrazabilidadController) {
           <td>${this.esc(x.ItemCode)}</td>
           <td>${this.num(x.Cantidad)}</td>
           <td>${this.esc(this.txt(x.Pallets))}</td>
-          <td>${x.TieneAdjunto ? "Sí" : "No"}</td>
+          <td>${x.TieneAdjunto ? `<button class="btn-secondary" data-trz-adjunto data-tipo="${this.esc(this.tipoAdjunto(x.Tipo))}" data-doc="${this.esc(x.DocEntry)}">Ver PDF</button>` : "No"}</td>
           <td>${this.esc(this.observacionDocumento(x))}</td>
         </tr>`).join("")
     }
@@ -1366,6 +1540,10 @@ if (!window.TrazabilidadController) {
       if (this._keyHandler) {
         document.removeEventListener("keydown", this._keyHandler)
         this._keyHandler = null
+      }
+      if (this._inputHandler) {
+        document.removeEventListener("input", this._inputHandler)
+        this._inputHandler = null
       }
     }
   }

@@ -120,7 +120,8 @@ if (!window.BalanceMermasController) {
       const id = ++this._seq
       this.$("bmEstado").textContent = "Consultando FPS, SAP, QCS y mermas registradas..."
       this.$("bmResultado").style.display = "none"
-      const [carga, mer] = await Promise.all([C.cargarNp(np), C.send("calidadNp.mermas.list", { np })])
+      let [carga, mer] = await Promise.all([C.cargarNp(np), C.send("calidadNp.mermas.list", { np })])
+      if (carga.np !== String(np)) mer = await C.send("calidadNp.mermas.list", { np: carga.np }) // número escrito = OT / NP Faret
       if (id !== this._seq) return
       this._carga = carga
       this._mermas = mer.ok ? mer.data || [] : []
@@ -135,7 +136,8 @@ if (!window.BalanceMermasController) {
       const avisos = []
       if (!carga.data) avisos.push(`Fuente FPS/SAP no disponible: ${carga.error || "sin respuesta"}.`)
       if (!mer.ok) avisos.push(`Mermas: ${mer.error}`)
-      this.$("bmEstado").textContent = avisos.join(" ") || `NP ${np} consultada ${carga.consultadoEn.toLocaleString("es-CL")}`
+      if (carga.resolucion?.avisos?.length && carga.data) avisos.push(carga.resolucion.avisos[0])
+      this.$("bmEstado").textContent = avisos.join(" ") || `NP ${carga.np} consultada ${carga.consultadoEn.toLocaleString("es-CL")}`
       this.$("bmResultado").style.display = ""
       this.refrescarItem()
     }

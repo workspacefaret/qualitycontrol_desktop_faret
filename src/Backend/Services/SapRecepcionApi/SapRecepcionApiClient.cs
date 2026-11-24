@@ -58,6 +58,38 @@ namespace QualityControlCenter.Backend.Services.SapRecepcionApi
             }
         }
 
+        // GET binario (adjuntos de documentos). Ante un error devuelve el mensaje de la API en `error`; nunca lanza.
+        public async Task<(bool ok, byte[]? contenido, string? error)> GetBytesAsync(string path)
+        {
+            var url = BuildUrl(path);
+            try
+            {
+                var response = await _http.GetAsync(url);
+                Console.WriteLine($"[SapRecepcionApi] GET {url} → {(int)response.StatusCode}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    var body = await response.Content.ReadAsStringAsync();
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(body);
+                        if (doc.RootElement.TryGetProperty("message", out var m) && m.ValueKind == System.Text.Json.JsonValueKind.String)
+                            return (false, null, m.GetString());
+                    }
+                    catch (System.Text.Json.JsonException) { }
+                    return (false, null, $"HTTP {(int)response.StatusCode}");
+                }
+                return (true, await response.Content.ReadAsByteArrayAsync(), null);
+            }
+            catch (TaskCanceledException)
+            {
+                return (false, null, "Timeout al conectar con SAP (apisapfaret)");
+            }
+            catch (HttpRequestException ex)
+            {
+                return (false, null, $"Error de red: {ex.Message}");
+            }
+        }
+
         private string BuildUrl(string path)
         {
             var base_ = _settings.BaseUrl.TrimEnd('/');

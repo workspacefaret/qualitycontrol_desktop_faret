@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using QualityControlCenter.Backend.Services.FpsApi;
 using QualityControlCenter.Backend.Services.InnpackApi;
 using QualityControlCenter.Backend.Services.PlanificacionApi;
+using QualityControlCenter.Backend.Services.SapRecepcionApi;
 
 namespace QualityControlCenter.Modules.Trazabilidad
 {
@@ -20,6 +21,8 @@ namespace QualityControlCenter.Modules.Trazabilidad
         private readonly TrazabilidadService _service;
         private readonly FpsTrazabilidadApiService? _fpsTrazabilidad;
         private readonly InnpackTrazabilidadDocumentosApiService _docs;
+        private readonly SapRecepcionApiClient? _sap;
+        private readonly InnpackApiClient _innpack;
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
@@ -30,10 +33,13 @@ namespace QualityControlCenter.Modules.Trazabilidad
             InnpackApiClient innpackClient,
             PlanificacionApiClient planificacionClient,
             FpsMaterialesApiService fpsMaterialesClient,
-            FpsTrazabilidadApiService? fpsTrazabilidad = null
+            FpsTrazabilidadApiService? fpsTrazabilidad = null,
+            SapRecepcionApiClient? sapClient = null
         )
         {
             _fpsTrazabilidad = fpsTrazabilidad;
+            _sap = sapClient;
+            _innpack = innpackClient;
             _docs = new InnpackTrazabilidadDocumentosApiService(innpackClient);
             _service = new TrazabilidadService(
                 planificacionClient,
@@ -100,6 +106,18 @@ namespace QualityControlCenter.Modules.Trazabilidad
                         return Error(error ?? "No se pudo consultar FPS.");
                     return Ok(resultado);
                 }
+
+                // Adjuntos (PDF) de guías/facturas/devoluciones/notas de crédito: apisapfaret → Service Layer, solo lectura.
+                if (action == "trazabilidad.noConformidades")
+                {
+                    var npNc = GetString(GetDataElement(data), "np").Trim();
+                    if (!FpsTrazabilidadApiService.NpValido(npNc))
+                        return Error("NP no válida.");
+                    return await Forward(_innpack.GetAsync($"api/no-conformidades/por-np?np={npNc}"));
+                }
+
+                if (action is "trazabilidad.adjuntosSap.list" or "trazabilidad.adjuntosSap.abrir")
+                    return await HandleAdjuntosSap(action, GetDataElement(data));
 
                 // Formato oficial REG-SGI-TDP-V05: el frontend manda el modelo ya armado (mismo del PDF); aquí solo se dibuja.
                 if (action == "trazabilidad.exportarV05Excel")
@@ -193,6 +211,62 @@ namespace QualityControlCenter.Modules.Trazabilidad
             }
         }
 
+        private static readonly Regex TipoDocumento = new(@"^(guia|factura|devolucion|notacredito)$");
+
+        // Adjuntos de un documento de venta de SAP. La empresa es siempre INNPACK (módulo exclusivo): no viaja desde el frontend.
+        private async Task<string> HandleAdjuntosSap(string action, JsonElement d)
+        {
+            if (_sap is null || !_sap.IsConfigured)
+                return Error("La conexión con SAP no está configurada en este equipo.");
+            var tipo = GetString(d, "tipo");
+            if (!TipoDocumento.IsMatch(tipo))
+                return Error("Tipo de documento no válido.");
+            if (!TryGetId(d, "docEntry", out var docEntry))
+                return Error("Falta el documento.");
+            var baseRuta = $"api/documentos-adjuntos/{tipo}/{docEntry}";
+
+            if (action == "trazabilidad.adjuntosSap.list")
+            {
+                var (ok, body) = await _sap.GetAsync($"{baseRuta}?empresa=INNPACK");
+                return TryUnwrapSap(ok, body, out var payload, out var error) ? Ok(payload) : Error(error);
+            }
+
+            if (!TryGetId(d, "linea", out var linea, permitirCero: true))
+                return Error("Falta el adjunto.");
+            var (okF, contenido, errorF) = await _sap.GetBytesAsync($"{baseRuta}/{linea}/archivo?empresa=INNPACK");
+            if (!okF || contenido is null)
+                return Error(errorF ?? "No se pudo obtener el adjunto.");
+            var nombre = Path.GetFileName(GetString(d, "nombre"));
+            foreach (var c in Path.GetInvalidFileNameChars()) nombre = nombre.Replace(c, '_');
+            if (string.IsNullOrWhiteSpace(nombre)) nombre = $"{tipo}_{docEntry}_{linea}.pdf";
+            var carpeta = Path.Combine(Path.GetTempPath(), "QCC_Trazabilidad_SAP");
+            Directory.CreateDirectory(carpeta);
+            var ruta = Path.Combine(carpeta, $"{tipo}{docEntry}_{linea}_{nombre}");
+            await File.WriteAllBytesAsync(ruta, contenido);
+            Process.Start(new ProcessStartInfo { FileName = ruta, UseShellExecute = true });
+            return Ok(new { nombreArchivo = nombre, bytes = contenido.Length });
+        }
+
+        private static bool TryUnwrapSap(bool ok, string body, out JsonElement payload, out string error)
+        {
+            payload = default;
+            error = "SAP no respondió correctamente.";
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String && !ok)
+                    error = m.GetString() ?? error;
+                if (!ok) return false;
+                payload = root.Clone();
+                return true;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
         // Escribe el archivo a una carpeta temporal y lo abre con la app del sistema (mismo patrón que
         // Control Documental para formatos no embebibles). El nombre se reduce a nombre de archivo.
         private async Task<string> AbrirDocumento(JsonElement d)
@@ -249,14 +323,15 @@ namespace QualityControlCenter.Modules.Trazabilidad
         // Solo para pruebas locales: evita abrir el Explorador.
         internal static string? DirectorioPruebas { get; set; }
 
-        private static bool TryGetId(JsonElement obj, string prop, out int id)
+        private static bool TryGetId(JsonElement obj, string prop, out int id, bool permitirCero = false)
         {
             id = 0;
             if (obj.ValueKind != JsonValueKind.Object || !obj.TryGetProperty(prop, out var v))
                 return false;
+            var minimo = permitirCero ? 0 : 1;
             return v.ValueKind == JsonValueKind.Number
-                ? v.TryGetInt32(out id) && id > 0
-                : v.ValueKind == JsonValueKind.String && int.TryParse(v.GetString(), out id) && id > 0;
+                ? v.TryGetInt32(out id) && id >= minimo
+                : v.ValueKind == JsonValueKind.String && int.TryParse(v.GetString(), out id) && id >= minimo;
         }
 
         private static async Task<string> Forward(Task<(bool ok, string body)> call)

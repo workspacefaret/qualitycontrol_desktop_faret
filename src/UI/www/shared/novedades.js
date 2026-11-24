@@ -3,18 +3,25 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.39";
+    const ID = "1.8.40";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
     const SLIDES = [
         {
-            titulo: "Clasificación de Pallets",
+            titulo: "Trazabilidad más completa",
             icono: '<path d="M12 3 3 7.5 12 12l9-4.5L12 3zM3 12l9 4.5 9-4.5M3 16.5l9 4.5 9-4.5"/>',
             puntos: [
-                { solo: "INNPACK", t: "Nuevo módulo Clasificación de Pallets, junto a Producto Terminado: muestra los pallets que los inspectores clasifican AZUL (en revisión), ROJO (rechazo) o VERDE (conforme) desde la app móvil." },
-                { solo: "INNPACK", t: "Panel con indicadores y gráficos por día, proceso, máquina y defecto. Haz clic en un gráfico para filtrar. Puedes ver solo lo vigente o todos los eventos, y exportar a Excel exactamente lo filtrado." },
-                { solo: "INNPACK", t: "Cada pallet tiene su historial y fotografías en un panel lateral. Si tu perfil lo permite, puedes anular una clasificación indicando el motivo: queda registrada, no se borra." },
+                { solo: "INNPACK", t: "Trazabilidad se ordena en pestañas (Resumen, Producción y turnos, Materiales, Calidad, Despachos e inventario) con indicadores arriba y un filtro en cada tabla." },
+                { solo: "INNPACK", t: "Nuevo: turnos estimados, producto ingresado a bodega según SAP y no conformidades de la NP. Puedes abrir el PDF que SAP tiene adjunto a cada guía o factura." },
+                { solo: "INNPACK", t: "Puedes escribir la NP o la OT: si SAP tiene información aunque FPS no la tenga, igual se muestra. Una fuente caída aparece como No disponible, nunca como cero." },
+            ],
+        },
+        {
+            titulo: "Cierre de NP con evidencia",
+            icono: '<path d="M5 12l4 4L19 6"/>',
+            puntos: [
+                { solo: "INNPACK", t: "Al cerrar una NP se guarda una huella de los datos usados. Si después hay despachos, liberaciones o ingresos nuevos, el cierre lo avisa." },
             ],
         },
     ];

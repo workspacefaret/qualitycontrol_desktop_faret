@@ -253,7 +253,7 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("trazabilidad"))
                 {
-                    var handler = new TrazabilidadHandler(_innpackClient, _planificacionClient, _fpsMateriales, _fpsTrazabilidad);
+                    var handler = new TrazabilidadHandler(_innpackClient, _planificacionClient, _fpsMateriales, _fpsTrazabilidad, _sapRecepcionClient);
                     rawResult = await handler.Handle(action, data);
                 }
                 else if (action.StartsWith("alertasAtendidas"))

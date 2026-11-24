@@ -133,7 +133,16 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 16px;">
+      <div id="trzKpis" class="trz-kpis"></div>
+      <div id="trzTabs" class="trz-tabs" role="tablist">
+        <button class="trz-tab active" data-trz-ir="resumen" role="tab">Resumen</button>
+        <button class="trz-tab" data-trz-ir="produccion" role="tab">Producción y turnos</button>
+        <button class="trz-tab" data-trz-ir="materiales" role="tab">Materiales</button>
+        <button class="trz-tab" data-trz-ir="calidad" role="tab">Calidad</button>
+        <button class="trz-tab" data-trz-ir="despachos" role="tab">Despachos e inventario</button>
+      </div>
+
+      <div class="card" data-trz-tab="resumen" style="margin-bottom: 16px;">
         <div class="module-title" style="font-size: 16px;">Ítems de la NP (SAP INNPACK + liberaciones)</div>
         <div class="table-container">
           <table class="table" id="trzTablaItems">
@@ -149,7 +158,7 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 16px;">
+      <div class="card" data-trz-tab="produccion" style="margin-bottom: 16px;">
         <div class="module-title" style="font-size: 16px;">Órdenes y corridas (FPS)</div>
         <div id="trzOrdenes" class="subtitle" style="margin-bottom: 8px;"></div>
         <div class="table-container">
@@ -166,7 +175,18 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 16px;">
+      <div class="card" data-trz-tab="produccion" style="margin-bottom: 16px;">
+        <div class="module-title" style="font-size: 16px;">Turnos (estimado por hora de inicio de la corrida)</div>
+        <div class="subtitle" style="margin-bottom: 8px;">A 07-15, B 15-23, C 23-07. FPS no entrega el turno: se calcula con la hora de inicio de cada corrida válida.</div>
+        <div class="table-container">
+          <table class="table" id="trzTablaTurnos">
+            <thead><tr><th>Turno</th><th>Corridas</th><th>Producido (registrado)</th><th>Máquinas</th><th>Operadores</th></tr></thead>
+            <tbody id="trzTurnosBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-trz-tab="materiales" style="margin-bottom: 16px;">
         <div class="module-title" style="font-size: 16px;">Materiales consumidos (SAP, salidas a producción por OT)</div>
         <div class="table-container">
           <table class="table" id="trzTablaConsumos">
@@ -181,7 +201,7 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 16px;">
+      <div class="card" data-trz-tab="calidad" style="margin-bottom: 16px;">
         <div class="module-title" style="font-size: 16px;">Liberaciones (Certificados de Terminaciones, QCS)</div>
         <div class="table-container">
           <table class="table" id="trzTablaLiberaciones">
@@ -196,7 +216,7 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 16px;">
+      <div class="card" data-trz-tab="despachos" style="margin-bottom: 16px;">
         <div class="module-title" style="font-size: 16px;">Despachos y facturación (SAP INNPACK)</div>
         <div class="table-container">
           <table class="table" id="trzTablaDespachos">
@@ -211,7 +231,17 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 16px;">
+      <div class="card" data-trz-tab="calidad" style="margin-bottom: 16px;">
+        <div class="module-title" style="font-size: 16px;">No conformidades de producto (QCC)</div>
+        <div class="table-container">
+          <table class="table" id="trzTablaNc">
+            <thead><tr><th>Id</th><th>Fecha ingreso</th><th>NP/NV</th><th>Cliente</th><th>Producto</th><th>Tipo PNC</th><th>Nivel</th><th>Cant. rechazada</th><th>Defecto</th><th>Estado de gestión</th></tr></thead>
+            <tbody id="trzNcBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-trz-tab="calidad" style="margin-bottom: 16px;">
         <div class="module-title" style="font-size: 16px;">Controles de Calidad (QCC)</div>
         <div class="table-container">
           <table class="table" id="trzTablaCalidad">
@@ -222,6 +252,20 @@
               </tr>
             </thead>
             <tbody id="trzCalidadBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-trz-tab="despachos" style="margin-bottom: 16px;">
+        <div class="module-title" style="font-size: 16px;">Inventario atribuible a la NP (entradas a bodega, SAP INNPACK)</div>
+        <div class="subtitle" style="margin-bottom: 8px;">
+          Solo lo que SAP registra como entrada de producción o traslado con esta NP y con ítems de su nota de venta. El stock general del artículo en bodega
+          <b>no</b> se muestra: comparte unidades con otras NP y no se puede asignar a esta NP. Existencia actual por NP: <b>No disponible</b> (sin relación verificable).
+        </div>
+        <div class="table-container">
+          <table class="table" id="trzTablaEntradas">
+            <thead><tr><th>Tipo</th><th>N° SAP</th><th>Fecha</th><th>Código</th><th>Descripción</th><th>Cantidad</th><th>Bodega</th><th>Vínculo con la NV</th></tr></thead>
+            <tbody id="trzEntradasBody"></tbody>
           </table>
         </div>
       </div>

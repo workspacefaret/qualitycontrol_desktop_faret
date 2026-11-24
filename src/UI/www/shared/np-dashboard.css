@@ -54,3 +54,13 @@
 .npd-info li { margin-bottom: 4px; }
 .npd-cargando .npd-kpi-val, .npd-cargando .npd-canvas { opacity: .45; }
 @media (max-width: 760px) { .npd-kpi-val { font-size: 24px; } }
+
+/* Trazabilidad integral: indicadores superiores, pestañas y filtro por tabla (prefijo trz-). */
+.trz-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.trz-kpis .npd-kpi-val { font-size: 24px; }
+.trz-tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid #E2E8F0; margin-bottom: 14px; }
+.trz-tab { border: 0; background: transparent; padding: 10px 16px; font-size: 13px; font-weight: 600; color: #64748B; cursor: pointer; border-bottom: 3px solid transparent; }
+.trz-tab:hover { color: #0F172A; }
+.trz-tab.active { color: #2563EB; border-bottom-color: #2563EB; }
+.trz-filtro { width: 100%; max-width: 280px; height: 32px; margin: 4px 0 8px; padding: 0 10px; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; }
+.trz-filtro:focus { outline: 2px solid #BFDBFE; border-color: #2563EB; }
