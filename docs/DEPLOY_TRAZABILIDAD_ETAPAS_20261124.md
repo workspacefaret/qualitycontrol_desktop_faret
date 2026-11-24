@@ -50,3 +50,12 @@ Para cada API: (a) respaldo con hash de lo que se va a reemplazar en `C:\API WEB
 - Turnos: estimados por la hora de inicio de la corrida (A 07-15, B 15-23, C 23-07), igual regla que la Evaluación por Operador.
 - Adjuntos: solo se abre lo que el Service Layer entrega (tope 25 MB); si SAP lista un archivo cuya ruta compartida no existe, se informa "archivo no disponible".
 - El instalador no está firmado ni probado en un equipo limpio; la actualización automática se confirma en un cliente real tras publicar.
+
+## Resultado del despliegue (24-11-2026) — pasos 1-4 EJECUTADOS, piloto y `latest.json` PENDIENTES
+
+- **1 SQL:** ejecutado por el usuario (AD\Administrador, SAP_NEW 192.168.1.230): respaldo COPY_ONLY + VERIFYONLY OK; `evidencia_json` (max_length -1) y `evidencia_sha256` (64) verificados. No repetir.
+- **2 API INNPACK (14:43):** respaldo `C:\API WEB\_backups\innpack_pre_trazabilidad_20261124_144321`; DLL `73235C96…1FE2B`, PDB `6DF23022…ADA56`; pool `Started`, 24/24, health 200.
+- **3 apisapfaret (14:44):** respaldo `C:\API WEB\_backups\apifaret_pre_adjuntos_20261124_144356`; DLL `53DCCE1B…A7B1` (compilada con SDK 9.0.318: con SDK 10 difiere de producción en 2 métodos ajenos), PDB `A1B7500A…2342`; `ApiFaretPool` `Started`.
+- **4 fps-api (14:44):** respaldo `C:\API WEB\_backups\fps-api_pre_etapas_20261124_144431`; `trazabilidad.service.js` `6AA23A83…A7F8`; tarea `FpsApi` Running, PID 12588, health 200.
+- **Prueba autenticada de fps-api:** ejecutada por el usuario, todo 200.
+- **Pendiente:** piloto manual del instalador 1.8.40 (SHA-256 `1239ea67…aa98`) con regresión FARET, y solo después publicar en el share y activar `latest.json` (hoy 1.8.39, no tocado).
