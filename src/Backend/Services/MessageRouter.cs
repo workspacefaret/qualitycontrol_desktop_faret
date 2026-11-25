@@ -102,7 +102,7 @@ namespace QualityControlCenter.Services
 
             try
             {
-                Log("INFO", $"📩 PAYLOAD: {payloadJson}");
+                Log("INFO", $"📩 PAYLOAD: {LogSeguro.Ocultar(payloadJson)}");
 
                 var data = JsonSerializer.Deserialize<Dictionary<string, object>>(payloadJson);
 
@@ -132,6 +132,10 @@ namespace QualityControlCenter.Services
                     Log("ERROR", $"⛔ {action} (módulo {modulo ?? "-"}): {rechazo}");
                     return Error(rechazo);
                 }
+
+                // La impresora Zebra es un equipo físico de la red: en pruebas no se le envía nada.
+                if (EntornoAislado.Activo && action.StartsWith("binsPrint"))
+                    return Error("Entorno aislado: la impresión de bins está desactivada (no se envía nada a la impresora).");
 
                 string rawResult;
 
@@ -253,8 +257,16 @@ namespace QualityControlCenter.Services
                 }
                 else if (action.StartsWith("trazabilidad"))
                 {
-                    var handler = new TrazabilidadHandler(_innpackClient, _planificacionClient, _fpsMateriales, _fpsTrazabilidad, _sapRecepcionClient);
-                    rawResult = await handler.Handle(action, data);
+                    // Pallets clasificados de la NP: misma lectura del módulo Clasificación de Pallets (API calidad, solo INNPACK).
+                    if (action == "trazabilidad.pallets")
+                    {
+                        rawResult = await new ClasificacionPalletsHandler(_faretCalidadClient, _permisos.Empresa ?? "").PorNp(data);
+                    }
+                    else
+                    {
+                        var handler = new TrazabilidadHandler(_innpackClient, _planificacionClient, _fpsMateriales, _fpsTrazabilidad, _sapRecepcionClient);
+                        rawResult = await handler.Handle(action, data);
+                    }
                 }
                 else if (action.StartsWith("alertasAtendidas"))
                 {

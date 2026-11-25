@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Prueba de la guarda del escritorio en modo aislado (enlaza el código real; sin red). Ejecutar con `dotnet run`. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\src\Backend\Services\EntornoAislado.cs" />
+    <Compile Include="..\..\..\src\Backend\Services\LogSeguro.cs" />
+  </ItemGroup>
+
+</Project>

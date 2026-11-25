@@ -28,6 +28,9 @@ namespace QualityControlCenter
 
             try
             {
+                // Antes de construir cualquier cliente: en modo aislado no se arranca con destinos reales.
+                EntornoAislado.Validar();
+
                 // =========================
                 // 🔧 CONFIG + DB
                 // =========================
@@ -143,7 +146,7 @@ namespace QualityControlCenter
                 // 🖥 VENTANA
                 // =========================
                 var window = new PhotinoWindow()
-                    .SetTitle("Quality Control Center")
+                    .SetTitle(EntornoAislado.Activo ? "Quality Control Center — ENTORNO AISLADO (pruebas)" : "Quality Control Center")
                     .SetUseOsDefaultSize(true)
                     .Center()
                     .SetChromeless(false)
@@ -160,7 +163,7 @@ namespace QualityControlCenter
                     {
                         try
                         {
-                            Console.WriteLine($"📥 RAW: {message}");
+                            Console.WriteLine($"📥 RAW: {LogSeguro.Ocultar(message)}");
 
                             using var doc = JsonDocument.Parse(message);
                             var rootJson = doc.RootElement;
@@ -198,7 +201,7 @@ namespace QualityControlCenter
 
                             var responseJson = JsonSerializer.Serialize(response);
 
-                            Console.WriteLine($"📤 RESPONSE: {responseJson}");
+                            Console.WriteLine($"📤 RESPONSE: {LogSeguro.Ocultar(responseJson)}");
 
                             window.SendWebMessage(responseJson);
                         }
@@ -220,7 +223,7 @@ namespace QualityControlCenter
                 {
                     var updateService = new UpdateService();
 
-                    if (updateService.IsUpdateAvailable(out var updateInfo) && updateInfo != null)
+                    if (!EntornoAislado.Activo && updateService.IsUpdateAvailable(out var updateInfo) && updateInfo != null)
                     {
                         // Confirmación ANTES de tocar nada (Pending/relanzador/Task todavía no
                         // existen en este punto) — a diferencia del MessageBoxW que había al

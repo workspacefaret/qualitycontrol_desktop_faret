@@ -45,6 +45,7 @@
         <div class="form-group">
           <label for="cnOrigen">Origen de la cantidad fabricada</label>
           <select id="cnOrigen">
+            <option value="">— Seleccione el origen —</option>
             <option value="QCS">Liberada conforme (QCS)</option>
             <option value="FPS">Última etapa en unidades (FPS)</option>
             <option value="MANUAL">Ingreso manual autorizado</option>
@@ -59,6 +60,18 @@
           <input type="text" id="cnManualResp" placeholder="Quién confirma esta cantidad">
         </div>
       </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="module-title" style="font-size:16px;">Producción, liberación, inventario y despacho del ítem</div>
+      <p class="subtitle">Son cifras distintas de fuentes distintas: ninguna reemplaza a otra.</p>
+      <div class="table-container">
+        <table class="table">
+          <thead><tr><th>Concepto</th><th>Cantidad (unidades)</th><th>Qué significa</th></tr></thead>
+          <tbody id="cnEtapasBody"></tbody>
+        </table>
+      </div>
+      <details style="margin-top:6px;"><summary>Ver folios de liberación y documentos de despacho</summary><div id="cnDocumentos"></div></details>
     </div>
 
     <div class="card" style="margin-bottom: 16px;">
@@ -93,18 +106,37 @@
       <div class="module-title" style="font-size:16px;">Certificados de destrucción relacionados</div>
       <div class="table-container">
         <table class="table">
-          <thead><tr><th>Certificado</th><th>Estado</th><th>Cant. a destruir</th><th>Ya contada como merma</th><th>Destrucción ejecutada</th></tr></thead>
+          <thead><tr><th>Certificado</th><th>Estado</th><th>Cant. a destruir</th><th>Ya contada como merma</th><th>Destrucción ejecutada</th><th></th></tr></thead>
           <tbody id="cnCertBody"></tbody>
         </table>
       </div>
       <p class="subtitle" style="margin-top:6px;">Los certificados respaldan documentalmente las destrucciones. No suman solos a la justificación: si además registraste la merma o la bodega Destrucción de QCS, sumarlos otra vez contaría dos veces la misma pérdida.</p>
     </div>
 
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="module-title" style="font-size:16px;">Estado del cierre por área</div>
+      <p class="subtitle">Informativo: las áreas y sus responsables aún no están definidos por Calidad, por eso no habilitan ni bloquean el cierre. Cada cambio queda en el historial.</p>
+      <div id="cnAreaForm" style="display:none; margin-bottom:8px;">
+        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+          <div class="form-group" style="margin:0;"><label for="cnArea">Área</label><input type="text" id="cnArea" maxlength="100" placeholder="Ej: Bodega"></div>
+          <div class="form-group" style="margin:0;"><label for="cnAreaEstado">Estado</label><select id="cnAreaEstado"><option value="PENDIENTE">Pendiente</option><option value="CONFORME">Conforme</option><option value="OBSERVADO">Observado</option><option value="NO_APLICA">No aplica</option></select></div>
+          <div class="form-group" style="margin:0; flex:1; min-width:200px;"><label for="cnAreaObs">Observación</label><input type="text" id="cnAreaObs" maxlength="500"></div>
+          <button class="btn-secondary" id="btnCnArea" data-requiere-editar>Registrar estado</button>
+        </div>
+      </div>
+      <div class="table-container">
+        <table class="table">
+          <thead><tr><th>Área</th><th>Estado</th><th>Observación</th><th>Usuario</th><th>Fecha</th><th>Versión del cierre</th></tr></thead>
+          <tbody id="cnAreasBody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="card">
       <div class="module-title" style="font-size:16px;">Historial de cierres</div>
       <div class="table-container">
         <table class="table">
-          <thead><tr><th>Versión</th><th>Estado</th><th>Conciliación</th><th>Fabricada</th><th>Pendiente</th><th>Origen</th><th>Usuario</th><th>Fecha</th></tr></thead>
+          <thead><tr><th>Versión</th><th>Estado</th><th>Conciliación</th><th>Fabricada</th><th>Pendiente</th><th>Origen</th><th>Usuario</th><th>Fecha</th><th></th></tr></thead>
           <tbody id="cnHistBody"></tbody>
         </table>
       </div>

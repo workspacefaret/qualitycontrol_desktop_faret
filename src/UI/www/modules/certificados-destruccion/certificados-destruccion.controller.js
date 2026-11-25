@@ -102,14 +102,14 @@ if (!window.CertificadosDestruccionController) {
         acc.push(`<button class="btn-secondary" style="padding:2px 8px;" data-cd="pdf" data-id="${x.id}">PDF</button>`, `<button class="btn-secondary" style="padding:2px 8px;" data-cd="excel" data-id="${x.id}">Excel</button>`)
         return `<tr${x.estado === "ANULADO" ? ' style="opacity:.55;"' : ""}><td><b>${C.esc(x.correlativo || "Sin correlativo (#" + x.id + ")")}</b></td><td>${C.esc(x.np)}</td><td>${C.esc(C.txt(x.cliente))}</td><td>${C.esc(C.txt(x.producto))}</td>
           <td>${C.num(x.cantidadDestruir)}</td><td>${C.esc(MOTIVO[x.motivo] || x.motivo)}</td><td>${C.esc(CATEGORIA[x.categoria] || x.categoria)}</td><td>${C.esc(ESTADO[x.estado] || x.estado)}</td>
-          <td>${x.estado === "EMITIDO" ? (x.ejecutada ? "Ejecutada" : "Sin confirmar") : "-"}</td><td>${C.esc(x.creadoPor)}<div class="subtitle">${C.fecha(x.fechaCreacion)}</div></td><td style="white-space:nowrap;">${acc.join(" ")}</td></tr>`
+          <td>${x.estado === "EMITIDO" ? (x.ejecutada ? `Ejecutada${x.cantidadEjecutada === null || x.cantidadEjecutada === undefined ? "" : ": " + C.num(x.cantidadEjecutada)}` : "Sin confirmar") : "-"}${x.evidencias ? `<div class="subtitle">${C.esc(x.evidencias)} evidencia(s)</div>` : ""}${x.estado === "EMITIDO" && x.documentoEmitido === 0 ? `<div class="subtitle" style="color:#b45309;">Documento emitido sin conservar</div>` : ""}</td><td>${C.esc(x.creadoPor)}<div class="subtitle">${C.fecha(x.fechaCreacion)}</div></td><td style="white-space:nowrap;">${acc.join(" ")}</td></tr>`
       }).join("") : `<tr><td colspan="11" style="text-align:center;">Sin certificados</td></tr>`
     }
 
     excel() {
       const wb = XLSX.utils.book_new()
-      C.hoja(wb, "Certificados", `Certificados de destrucción — ${C.fechaHora(new Date())}`, ["Certificado", "NP", "Ítem", "Cliente", "Producto", "Cantidad a destruir", "Motivo", "Categoría", "Estado", "Ejecutada", "Creado por", "Fecha creación", "Fecha emisión"],
-        this._lista.map(x => [x.correlativo || `(borrador #${x.id})`, x.np, x.item ?? "-", C.txt(x.cliente), C.txt(x.producto), x.cantidadDestruir, MOTIVO[x.motivo] || x.motivo, CATEGORIA[x.categoria] || x.categoria, ESTADO[x.estado] || x.estado, x.estado === "EMITIDO" ? (x.ejecutada ? "Sí" : "No") : "-", x.creadoPor, C.fecha(x.fechaCreacion), C.fecha(x.fechaEmision)]))
+      C.hoja(wb, "Certificados", `Certificados de destrucción — ${C.fechaHora(new Date())}`, ["Certificado", "NP", "Ítem", "Cliente", "Producto", "Cantidad a destruir", "Motivo", "Categoría", "Estado", "Ejecutada", "Creado por", "Fecha creación", "Fecha emisión", "Cant. efectivamente destruida", "Unidad", "Código SAP", "Evidencias vigentes", "Documento emitido conservado"],
+        this._lista.map(x => [x.correlativo || `(borrador #${x.id})`, x.np, x.item ?? "-", C.txt(x.cliente), C.txt(x.producto), x.cantidadDestruir, MOTIVO[x.motivo] || x.motivo, CATEGORIA[x.categoria] || x.categoria, ESTADO[x.estado] || x.estado, x.estado === "EMITIDO" ? (x.ejecutada ? "Sí" : "No") : "-", x.creadoPor, C.fecha(x.fechaCreacion), C.fecha(x.fechaEmision), x.cantidadEjecutada ?? "-", x.unidad || "-", x.itemCode || "-", x.evidencias ?? C.ND, x.documentoEmitido === undefined ? C.ND : x.documentoEmitido ? "Sí" : "No"]))
       C.guardarLibro(wb, `Certificados_Destruccion_${C.stamp()}.xlsx`)
     }
 
@@ -150,22 +150,43 @@ if (!window.CertificadosDestruccionController) {
       }, 520)
       const mk = (txt, fn, cls = "btn-secondary") => { const id = `cdb${botones.length}`; botones.push({ id, txt, fn, cls }); return id }
       if (puedeEd) {
-        if (c.estado === "BORRADOR" || c.estado === "RECHAZADO") mk("Solicitar aprobación", async () => { const e = await this.ejecutar("solicitarAprobacion", c.id); if (e) alert(e); else document.getElementById("cdDetalle")?.remove() }, "btn-primary")
+        if (c.estado === "BORRADOR") mk("Solicitar aprobación", async () => { const e = await this.ejecutar("solicitarAprobacion", c.id); if (e) alert(e); else document.getElementById("cdDetalle")?.remove() }, "btn-primary")
         if (c.estado === "PENDIENTE_APROBACION" && pend.length) {
           const cargos = pend.map(p => `<option>${C.esc(p.cargo)}</option>`).join("")
           const sel = { html: `<div class="form-group"><label>Cargo que decide</label><select id="cdCargo">${cargos}</select></div>`, leer: o => ({ cargo: o.querySelector("#cdCargo").value }) }
           mk("Aprobar (solo aprobador)", abrir("Aprobar certificado", "Observación", "aprobar", false, sel), "btn-primary")
           mk("Rechazar (solo aprobador)", abrir("Rechazar certificado", "Motivo del rechazo *", "rechazar", true, sel))
         }
-        if (c.estado === "APROBADO") mk("Emitir certificado", async () => { if (!confirm("Al emitir se asigna el correlativo definitivo, que no se reutiliza. ¿Emitir?")) return; const e = await this.ejecutar("emitir", c.id); if (e) alert(e); else document.getElementById("cdDetalle")?.remove() }, "btn-primary")
-        if (c.estado === "EMITIDO" && !c.ejecutada) mk("Confirmar destrucción ejecutada", abrir("Confirmar ejecución física", "Observación", "confirmarEjecucion", false, { html: `<div class="form-group"><label>Fecha de ejecución</label><input type="date" id="cdFecEj" value="${new Date().toISOString().slice(0, 10)}"></div>`, leer: o => ({ fecha: o.querySelector("#cdFecEj").value }) }), "btn-primary")
+        if (c.estado === "APROBADO") mk("Emitir certificado", async () => {
+          if (!confirm("Al emitir se asigna el correlativo definitivo, que no se reutiliza. ¿Emitir?")) return
+          const e = await this.ejecutar("emitir", c.id)
+          if (e) { alert(e); return }
+          document.getElementById("cdDetalle")?.remove()
+          const aviso = await this.conservarDocumento(c.id)
+          if (aviso) alert(`El certificado quedó emitido, pero no se pudo conservar su documento: ${aviso}\nÁbrelo con "Ver" y usa "Conservar documento emitido".`)
+          await this.buscar()
+        }, "btn-primary")
+        if (c.estado === "EMITIDO" && d.archivos && !d.archivos.some(x => x.tipo === "DOCUMENTO_EMITIDO")) mk("Conservar documento emitido", async () => {
+          const aviso = await this.conservarDocumento(c.id)
+          if (aviso) { alert(aviso); return }
+          document.getElementById("cdDetalle")?.remove()
+          await this.accion("ver", c.id)
+        }, "btn-primary")
+        if (c.estado === "EMITIDO" && !c.ejecutada) mk("Confirmar destrucción ejecutada", abrir("Confirmar ejecución física", "Observación (obligatoria si se destruyó menos de lo aprobado)", "confirmarEjecucion", false, {
+          html: `<div class="form-group"><label>Cantidad efectivamente destruida * (aprobada: ${C.num(c.cantidadDestruir)})</label><input type="number" step="any" min="0" id="cdCantEj"></div><div class="form-group"><label>Fecha de ejecución</label><input type="date" id="cdFecEj" value="${C.hoyLocal()}" max="${C.hoyLocal()}"></div>`,
+          leer: o => {
+            // Se pide escribirla: precargar la aprobada haría pasar por contado lo que nadie contó.
+            const v = o.querySelector("#cdCantEj").value
+            return v === "" || !(Number(v) > 0) ? { error: "Indica la cantidad efectivamente destruida" } : { fecha: o.querySelector("#cdFecEj").value, cantidadEjecutada: Number(v) }
+          }
+        }), "btn-primary")
         if (c.estado !== "ANULADO" && !c.ejecutada) mk("Anular", abrir("Anular certificado", "Motivo de anulación *", "anular", true))
       }
       mk("PDF (REG-SGI-CDD-V11)", () => this.exportarV11(d, "pdf"))
       mk("Excel (REG-SGI-CDD-V11)", () => this.exportarV11(d, "excel"))
       const cuerpo = `
         <table class="table"><tbody>
-          <tr><td><b>Certificado</b></td><td>${C.esc(c.correlativo || "Sin correlativo (borrador)")}</td><td><b>Estado</b></td><td>${C.esc(ESTADO[c.estado] || c.estado)}${c.ejecutada ? " · destrucción ejecutada " + C.fecha(c.fechaEjecucion) : c.estado === "EMITIDO" ? " · ejecución física sin confirmar" : ""}</td></tr>
+          <tr><td><b>Certificado</b></td><td>${C.esc(c.correlativo || "Sin correlativo (borrador)")}</td><td><b>Estado</b></td><td>${C.esc(ESTADO[c.estado] || c.estado)}${c.ejecutada ? ` · destrucción ejecutada ${C.fecha(c.fechaEjecucion)}: ${c.cantidadEjecutada === null || c.cantidadEjecutada === undefined ? "cantidad no registrada" : C.num(c.cantidadEjecutada) + " de " + C.num(c.cantidadDestruir) + " aprobadas"}` : c.estado === "EMITIDO" ? " · ejecución física sin confirmar" : ""}</td></tr>
           <tr><td><b>NP / Ítem</b></td><td>${C.esc(c.np)} / ${C.esc(C.txt(c.item))}</td><td><b>Cliente</b></td><td>${C.esc(C.txt(c.cliente))}</td></tr>
           <tr><td><b>Producto</b></td><td>${C.esc(C.txt(c.producto))} (${C.esc(C.txt(c.codigoProducto))})</td><td><b>Cantidad a destruir</b></td><td>${C.num(c.cantidadDestruir)}</td></tr>
           <tr><td><b>Motivo / Categoría</b></td><td>${C.esc(MOTIVO[c.motivo] || c.motivo)} / ${C.esc(CATEGORIA[c.categoria] || c.categoria)}</td><td><b>Solicitante</b></td><td>${C.esc(C.txt(c.solicitanteNombre))} (${C.esc(C.txt(c.solicitanteCargo))})</td></tr>
@@ -174,11 +195,77 @@ if (!window.CertificadosDestruccionController) {
           ${c.motivoAnulacion ? `<tr><td><b>Anulación</b></td><td colspan="3">${C.esc(c.motivoAnulacion)} (${C.esc(C.txt(c.anuladoPor))})</td></tr>` : ""}
         </tbody></table>
         <b>Detalle</b><table class="table"><thead><tr><th>Lote</th><th>Pallet</th><th>Defecto</th><th>Cantidad</th><th>Unidad</th><th>Origen</th></tr></thead><tbody>${lineas}</tbody></table>
+        ${this.archivosHtml(d, puedeEd)}
         <b>Aprobaciones</b> <span class="subtitle">(flujo provisional hasta que Calidad/SGI defina el definitivo)</span>
         <table class="table"><thead><tr><th>Orden</th><th>Cargo</th><th>Estado</th><th>Usuario</th><th>Fecha</th><th>Observación</th></tr></thead><tbody>${aprobaciones}</tbody></table>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">${botones.map(b => `<button class="${b.cls}" id="${b.id}">${C.esc(b.txt)}</button>`).join("")}</div>`
-      const ov = C.modal("cdDetalle", "Certificado de destrucción", cuerpo, "", null, 940)
-      botones.forEach(b => { ov.querySelector("#" + b.id).onclick = b.fn })
+      const ov = C.modal("cdDetalle", "Certificado de destrucción", cuerpo, "", null, 1100)
+      // Mientras una acción está en curso el botón queda bloqueado: un segundo clic en "Emitir" mostraba un error falso.
+      botones.forEach(b => {
+        const el = ov.querySelector("#" + b.id)
+        el.onclick = async () => { el.disabled = true; try { await b.fn() } finally { el.disabled = false } }
+      })
+      this.enlazarArchivos(ov, c)
+    }
+
+    // ── Documento emitido (copia inmutable) y evidencias ─────────────────────
+
+    // Devuelve el mensaje de error, o null si quedó conservado.
+    async conservarDocumento(id) {
+      const g = await C.send("calidadNp.certificados.get", { id })
+      if (!g.ok) return g.error
+      const cantidadLiberada = await this.cantidadLiberada(g.data.certificado).catch(() => null)
+      const r = await C.send("calidadNp.certificados.documento.conservar", { id, cantidadLiberada })
+      return r.ok ? null : r.error
+    }
+
+    archivosHtml(d, puedeEd) {
+      if (!d.archivos) return `<p class="subtitle">Evidencias y documento emitido: ${C.ND} (el servidor no está actualizado).</p>`
+      const c = d.certificado
+      const emitido = d.archivos.find(x => x.tipo === "DOCUMENTO_EMITIDO")
+      const evidencias = d.archivos.filter(x => x.tipo === "EVIDENCIA")
+      const filas = evidencias.map(x => `<tr${x.anulado ? ' style="opacity:.55;"' : ""}><td>${C.esc(x.nombreArchivo)}</td><td>${C.esc(C.txt(x.descripcion))}</td><td>${C.esc(x.subidoPor)}<div class="subtitle">${C.fechaHora(x.fechaSubida)}</div></td>
+          <td>${x.anulado ? `Anulada por ${C.esc(x.anuladoPor)}: ${C.esc(x.motivoAnulacion)}` : "Vigente"}</td>
+          <td style="white-space:nowrap;"><button class="btn-secondary" style="padding:2px 8px;" data-cd-abrir="${x.id}">Abrir</button>${puedeEd && !x.anulado ? ` <button class="btn-secondary" style="padding:2px 8px;" data-cd-anular="${x.id}" data-requiere-editar>Anular</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="5">Sin evidencias cargadas</td></tr>`
+      const copia = emitido ? `<p><b>Documento emitido conservado:</b> ${C.fechaHora(emitido.fechaSubida)} por ${C.esc(emitido.subidoPor)} · huella ${C.esc(String(emitido.sha256).slice(0, 12))}…
+          <button class="btn-secondary" style="padding:2px 8px;" data-cd-emitido="${emitido.id}">Ver / imprimir el original</button></p>`
+        : c.estado === "EMITIDO" ? `<p style="color:#b45309;">Este certificado emitido aún no tiene su documento conservado.</p>` : ""
+      const carga = puedeEd && c.estado !== "ANULADO" ? `<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:4px 0 10px;">
+          <div class="form-group" style="margin:0;"><label>Foto o respaldo (máx. 10 MB)</label><input type="file" id="cdEvArchivo" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:200px;"><label>Descripción</label><input type="text" id="cdEvDesc" maxlength="500"></div>
+          <button class="btn-secondary" id="cdEvSubir" type="button" data-requiere-editar>Agregar evidencia</button></div>` : ""
+      return `${copia}<b>Evidencias y fotografías</b>
+        <table class="table"><thead><tr><th>Archivo</th><th>Descripción</th><th>Cargó</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>${carga}`
+    }
+
+    enlazarArchivos(ov, c) {
+      const reabrir = async () => { ov.remove(); await this.accion("ver", c.id); await this.buscar() }
+      ov.querySelectorAll("[data-cd-abrir]").forEach(b => {
+        b.onclick = async () => { const r = await C.send("calidadNp.certificados.archivo.abrir", { id: c.id, archivoId: Number(b.dataset.cdAbrir) }); if (!r.ok) alert(r.error) }
+      })
+      ov.querySelectorAll("[data-cd-emitido]").forEach(b => {
+        b.onclick = async () => { const r = await C.send("calidadNp.certificados.documento.get", { id: c.id, archivoId: Number(b.dataset.cdEmitido) }); if (!r.ok) alert(r.error); else C.imprimirHtml(r.data.html) }
+      })
+      ov.querySelectorAll("[data-cd-anular]").forEach(b => {
+        b.onclick = () => C.modal("cdAccion", "Anular evidencia", `<div class="form-group"><label>Motivo *</label><textarea id="cdObs" rows="2" style="width:100%"></textarea></div>`, "Anular", async o => {
+          const motivo = o.querySelector("#cdObs").value.trim()
+          if (!motivo) return "El motivo es obligatorio"
+          const r = await C.send("calidadNp.certificados.archivos.anular", { id: c.id, archivoId: Number(b.dataset.cdAnular), motivo })
+          if (!r.ok) return r.error
+          await reabrir()
+        }, 460)
+      })
+      const subir = ov.querySelector("#cdEvSubir")
+      if (subir) subir.onclick = async () => {
+        const f = ov.querySelector("#cdEvArchivo").files[0]
+        if (!f) { alert("Selecciona un archivo"); return }
+        if (f.size > 10 * 1024 * 1024) { alert("El archivo excede 10 MB"); return }
+        subir.disabled = true
+        const r = await C.send("calidadNp.certificados.archivos.agregar", { id: c.id, tipo: "EVIDENCIA", nombre: f.name, contenidoBase64: await C.leerArchivoBase64(f), descripcion: ov.querySelector("#cdEvDesc").value.trim() })
+        subir.disabled = false
+        if (!r.ok) { alert(r.error); return }
+        await reabrir()
+      }
     }
 
     // ── Formulario REG-SGI-CDD-V11 ───────────────────────────────────────────
@@ -192,15 +279,17 @@ if (!window.CertificadosDestruccionController) {
         c = r.data.certificado
         detalle = r.data.detalle || []
       }
-      this._form = { id, np: c.np || "", mermas: [], carga: null }
+      this._form = { id, np: c.np || "", mermas: [], carga: null, sap: { itemCode: c.itemCode ?? null, nvDocEntry: c.nvDocentry ?? null, nvLineas: c.nvLineas ?? null } }
       const o = (v, t, s) => `<option value="${C.esc(v)}"${s === v ? " selected" : ""}>${C.esc(t)}</option>`
       const iv = (k, d = "") => C.esc(c[k] ?? d)
-      const hoy = new Date().toISOString().slice(0, 10)
+      const hoy = C.hoyLocal()
       const cuerpo = `
         <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;">
           <div class="form-group" style="margin:0;"><label>NP *</label><input type="text" id="cdfNp" value="${iv("np")}" ${id ? "disabled" : ""}></div>
           <button class="btn-secondary" id="cdfCargar" type="button" ${id ? "disabled" : ""}>Cargar datos y mermas</button><span id="cdfMsg" class="subtitle"></span>
         </div>
+        <div id="cdfOtros"></div>
+        <div id="cdfAntecedentes"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
           <div class="form-group"><label>Ítem</label><select id="cdfItem"><option value="${iv("item")}">${iv("item", "—")}</option></select></div>
           <div class="form-group"><label>Cliente</label><input type="text" id="cdfCliente" value="${iv("cliente")}"></div>
@@ -226,7 +315,7 @@ if (!window.CertificadosDestruccionController) {
         <div class="form-group"><label>Observaciones</label><textarea id="cdfObs" rows="2" style="width:100%">${iv("observaciones")}</textarea></div>
         <div style="display:flex;justify-content:space-between;align-items:center;"><b>Detalle de lo que se destruye</b><button class="btn-secondary" id="cdfAddLinea" type="button">Agregar línea</button></div>
         <p class="subtitle">Elige la merma de origen para que el saldo se controle (no se puede destruir más de lo registrado, descontando otros certificados activos). El detalle debe sumar la cantidad total.</p>
-        <table class="table"><thead><tr><th>Merma de origen</th><th>Lote</th><th>Pallet</th><th>Defecto</th><th>Cantidad</th><th>Unidad</th><th></th></tr></thead><tbody id="cdfLineas"></tbody></table>
+        <div style="overflow-x:auto;"><table class="table"><thead><tr><th>Merma de origen</th><th>Lote</th><th>Pallet</th><th>Defecto</th><th>Cantidad</th><th>Unidad</th><th></th></tr></thead><tbody id="cdfLineas"></tbody></table></div>
         <div id="cdfSuma" class="subtitle"></div>`
       const ov = C.modal("cdForm", id ? "Editar certificado" : "Nuevo certificado de destrucción", cuerpo, "Guardar borrador", o2 => this.guardar(o2), 980)
       const lineasEl = ov.querySelector("#cdfLineas")
@@ -256,6 +345,7 @@ if (!window.CertificadosDestruccionController) {
       }
       const cargarMermas = async np => {
         const r = await C.send("calidadNp.mermas.list", { np })
+        this._form.sinMermas = !r.ok
         // Saldo disponible = merma activa y no validada como anulada, menos lo ya comprometido en certificados activos.
         this._form.mermas = r.ok ? (r.data || []).filter(m => m.estado !== "ANULADA").map(m => ({ ...m, saldo: Math.max(0, Number(m.cantidad) - Number(m.comprometidoDestruccion || 0)) })).filter(m => m.saldo > 0 || detalle.some(d => d.mermaId === m.id)) : []
         return r
@@ -274,8 +364,11 @@ if (!window.CertificadosDestruccionController) {
           ov.querySelector("#cdfNp").value = carga.np
           await cargarMermas(carga.np)
         }
+        await this.avisarOtrosCertificados(ov, carga.np, id)
+        const [nc, inspeccion] = await Promise.all([this.consultarNc(carga.np), this.consultarDefectosInspeccion(carga.np)])
         const items = carga.data?.items || []
         const sel = ov.querySelector("#cdfItem")
+        const verAntecedentes = () => this.pintarAntecedentes(ov, this.antecedentes(carga, nc, sel.value, inspeccion))
         if (items.length) {
           sel.innerHTML = items.map(i => `<option value="${i.item}">${C.esc(i.item)} — ${C.esc(i.itemCode || "")}</option>`).join("")
           const llenar = () => {
@@ -285,13 +378,132 @@ if (!window.CertificadosDestruccionController) {
             ov.querySelector("#cdfProducto").value = it.descripcion || ""
             ov.querySelector("#cdfSolic").value = it.solicitado ?? ""
           }
-          sel.onchange = llenar
+          sel.onchange = () => { llenar(); verAntecedentes() }
           llenar()
           ov.querySelector("#cdfCliente").value = carga.data?.ordenes?.[0]?.Cliente || ov.querySelector("#cdfCliente").value
         }
         lineasEl.querySelectorAll(".cdl-merma").forEach(s => { s.innerHTML = mermaOpts(s.value) })
-        ov.querySelector("#cdfMsg").textContent = carga.data ? `${this._form.mermas.length} merma(s) con saldo` : `FPS/SAP no disponible: completa los datos a mano`
+        verAntecedentes()
+        const msgMermas = this._form.sinMermas ? "Mermas no disponibles (no se pudieron consultar)" : `${this._form.mermas.length} merma(s) con saldo`
+        ov.querySelector("#cdfMsg").textContent = carga.data ? msgMermas : `FPS/SAP no disponible: completa los datos a mano. ${this._form.sinMermas ? msgMermas : ""}`
       }
+    }
+
+    // Aviso para no duplicar: certificados vigentes que ya existen para la NP.
+    async avisarOtrosCertificados(ov, np, propio) {
+      const el = ov.querySelector("#cdfOtros")
+      const r = await C.send("calidadNp.certificados.list", { np })
+      if (!r.ok) { el.innerHTML = `<p class="subtitle">No se pudo revisar si la NP ya tiene certificados.</p>`; return }
+      const otros = (r.data || []).filter(x => x.id !== propio && x.estado !== "ANULADO" && x.estado !== "RECHAZADO")
+      el.innerHTML = otros.length ? `<div class="card" style="padding:8px 12px;margin-bottom:10px;background:#fef3c7;color:#92400e;"><b>La NP ya tiene ${otros.length} certificado(s) vigente(s). Revisa que no sea la misma destrucción:</b><ul style="margin:2px 0 0 18px;">${otros.map(x => `<li>${C.esc(x.correlativo || "#" + x.id)} · ítem ${C.esc(C.txt(x.item))} · ${C.num(x.cantidadDestruir)} · ${C.esc(ESTADO[x.estado] || x.estado)}</li>`).join("")}</ul></div>` : ""
+    }
+
+    // NC de producto de la NP. null = sin permiso o consulta fallida (nunca "no hay").
+    async consultarNc(np) {
+      if (C.nivel && C.nivel("no-conformidades") === "SIN_ACCESO") return null
+      try {
+        const r = await C.send("trazabilidad.noConformidades", { np })
+        return r.ok ? r.data?.items || [] : null
+      } catch {
+        return null
+      }
+    }
+
+    // Defectos ya registrados por inspección para la NP (coincidencia exacta). No se crea un defecto nuevo. El nombre
+    // del defecto de Producto Terminado solo viene en el detalle: se pide para los No Conforme, hasta MAX_DETALLES_PT.
+    async consultarDefectosInspeccion(np) {
+      const MAX_DETALLES_PT = 10
+      let cal
+      try {
+        cal = await C.calidadDeNp(np)
+      } catch {
+        return null
+      }
+      const dato = v => (v && v !== "-" ? String(v) : "")
+      const registros = cal.registros.items.filter(r => dato(r.tipoDefecto)).map(r => ({
+        origen: `Registro de control #${r.id}`, fecha: r.fechaRegistro, proceso: r.proceso, maquina: r.maquina, codigo: dato(r.codigoProducto),
+        defecto: r.tipoDefecto, nota: [dato(r.tipoMerma) && `merma declarada: ${r.tipoMerma} ${dato(r.cantidadMerma)}`.trim(), r.estadoValidacion && `validación: ${r.estadoValidacion}`].filter(Boolean).join(" · ")
+      }))
+      const noConformes = cal.productoTerminado.items.filter(r => r.resultado === "NO CONFORME")
+      const terminado = await Promise.all(noConformes.slice(0, MAX_DETALLES_PT).map(async r => {
+        let nombres = null, unidades = null
+        try {
+          const d = await C.send("productoTerminado.detalle", { empresa: "INNPACK", id: r.id })
+          if (d.ok) {
+            nombres = [...new Set((d.data?.hallazgos || []).flatMap(h => (h.defectos || []).map(x => x.nombre)))].join("; ")
+            unidades = d.data?.unidadesNoConformes ?? null
+          }
+        } catch {
+          // queda como no disponible
+        }
+        return {
+          origen: `Producto terminado #${r.id}`, fecha: r.fechaRegistro, proceso: r.proceso, maquina: r.maquina, codigo: dato(r.codigoProducto),
+          defecto: nombres, nota: unidades === null ? "No conforme" : `No conforme · ${C.num(unidades)} unidades no conformes en la muestra o lote inspeccionado`
+        }
+      }))
+      return {
+        items: [...registros, ...terminado],
+        fuentes: [["Registros de control", cal.registros.estado], ["Producto terminado", cal.productoTerminado.estado]],
+        sinDetalle: noConformes.length - terminado.length
+      }
+    }
+
+    // Rechazos, cuarentenas y destrucciones ya registrados en la plataforma. Son referencia: no crean líneas ni
+    // cantidades, y una cuarentena no es producto destruido.
+    antecedentes(carga, nc, item, inspeccion) {
+      const codigos = (carga?.data?.items || []).filter(i => String(i.item) === String(item)).map(i => i.itemCode)
+      const delItem = d => !codigos.length || !d.codigo || codigos.includes(d.codigo)
+      const lib = carga?.data?.liberaciones || null
+      const folios = lib && lib.filter(l => /cuarentena|destrucc/i.test(l.BodegaDestino || "") && (!item || String(l.Item) === String(item)))
+      return {
+        folios: folios && folios.map(l => ({ folio: l.Folio, fecha: l.Fecha, destino: l.BodegaDestino, cantidad: l.Cantidad, codigo: l.ItemCode })),
+        inspeccion: inspeccion ? { ...inspeccion, items: inspeccion.items.filter(delItem), otrosCodigos: inspeccion.items.filter(d => !delItem(d)).length } : null,
+        nc: nc && nc.map(x => ({ id: x.id, defecto: x.categoriaDefecto || "", rechazada: x.cantRechazada, estado: x.estadoGestion, causaRaiz: String(x.causaRaiz || "").trim() }))
+      }
+    }
+
+    pintarAntecedentes(ov, a) {
+      const el = ov.querySelector("#cdfAntecedentes")
+      const folios = a.folios === null ? `<div class="subtitle">Folios QCS: ${C.esc(C.ND)}</div>`
+        : !a.folios.length ? `<div class="subtitle">QCS no registra folios a cuarentena ni destrucción para el ítem.</div>`
+        : `<div class="subtitle">Folios QCS a cuarentena o destrucción (la cuarentena no es producto destruido):</div><ul style="margin:2px 0 6px 18px;">${a.folios.map(f => `<li>Folio ${C.esc(f.folio)} · ${C.esc(C.txt(f.fecha))} · ${C.esc(f.destino)} · ${C.num(f.cantidad)} unidades · ${C.esc(f.codigo)}</li>`).join("")}</ul>`
+      const nc = a.nc === null ? `<div class="subtitle">No conformidades: no disponibles o sin permiso.</div>`
+        : !a.nc.length ? `<div class="subtitle">Sin no conformidades de producto para la NP.</div>`
+        : `<div class="subtitle">No conformidades de la NP (todas sus líneas):</div><ul style="margin:2px 0 6px 18px;">${a.nc.map((x, k) => `<li>NC ${C.esc(x.id)} · ${C.esc(x.defecto || "sin defecto")} · rechazadas ${C.num(x.rechazada)} · ${C.esc(C.txt(x.estado))}
+            ${x.defecto ? ` <button type="button" class="btn-secondary" style="padding:1px 6px;" data-usar="defecto" data-k="${k}">Usar defecto</button>` : ""}
+            ${x.causaRaiz ? ` <button type="button" class="btn-secondary" style="padding:1px 6px;" data-usar="causa" data-k="${k}">Usar causa raíz</button> <i>${C.esc(x.causaRaiz)}</i>` : " · sin causa raíz registrada"}</li>`).join("")}</ul>`
+      el.innerHTML = `<div class="card" style="padding:8px 12px;margin-bottom:10px;"><b>Antecedentes registrados en la plataforma</b>${folios}${nc}${this.htmlDefectosInspeccion(a.inspeccion)}</div>`
+      el.querySelectorAll("[data-usar]").forEach(b => {
+        b.onclick = () => {
+          if (b.dataset.usar === "inspeccion") {
+            const d = a.inspeccion.items[Number(b.dataset.k)]
+            return this.agregarTexto(ov.querySelector("#cdfDef"), `${d.defecto} (${d.origen})`)
+          }
+          const x = a.nc[Number(b.dataset.k)]
+          const causa = b.dataset.usar === "causa"
+          this.agregarTexto(ov.querySelector(causa ? "#cdfCausa" : "#cdfDef"), `${causa ? x.causaRaiz : x.defecto} (NC ${x.id})`)
+        }
+      })
+    }
+
+    // Una fuente sin permiso o con error se declara: la lista vacía solo significa "sin defectos" si ambas respondieron.
+    htmlDefectosInspeccion(i) {
+      if (!i) return `<div class="subtitle">Defectos de inspección: ${C.esc(C.ND)}</div>`
+      const caidas = i.fuentes.filter(f => f[1] !== "OK").map(f => `${f[0]}: ${f[1] === "SIN_PERMISO" ? "sin permiso" : "no disponible"}`)
+      const avisos = [
+        ...caidas,
+        i.sinDetalle > 0 ? `${i.sinDetalle} inspección(es) No Conforme de producto terminado sin consultar: revísalas en su módulo` : "",
+        i.otrosCodigos > 0 ? `${i.otrosCodigos} registro(s) de otros códigos de la NP no se muestran` : ""
+      ].filter(Boolean).map(t => `<div class="subtitle" style="color:#92400e;">${C.esc(t)}</div>`).join("")
+      if (!i.items.length) return `<div class="subtitle">Defectos de inspección: ${caidas.length ? "sin resultados en las fuentes consultadas" : "no hay registros con defecto para la NP y el ítem"}.</div>${avisos}`
+      return `<div class="subtitle">Defectos registrados en inspección (referencia, no son cantidades a destruir):</div><ul style="margin:2px 0 6px 18px;max-height:180px;overflow-y:auto;">${i.items.map((d, k) => `<li>${C.esc(d.origen)} · ${C.esc(C.txt(d.fecha))} · ${C.esc(C.txt(d.proceso))} · ${C.esc(C.txt(d.maquina))} · <b>${C.esc(d.defecto === null ? C.ND : d.defecto || "sin defecto marcado")}</b>${d.nota ? ` · ${C.esc(d.nota)}` : ""}
+          ${d.defecto ? ` <button type="button" class="btn-secondary" style="padding:1px 6px;" data-usar="inspeccion" data-k="${k}">Usar defecto</button>` : ""}</li>`).join("")}</ul>${avisos}`
+    }
+
+    // Agrega al campo sin borrar lo escrito y sin repetir el mismo antecedente. El origen queda en el texto.
+    agregarTexto(campo, texto) {
+      if (campo.value.includes(texto)) return
+      campo.value = campo.value.trim() ? `${campo.value.trim()}\n${texto}` : texto
     }
 
     async guardar(o) {
@@ -305,8 +517,12 @@ if (!window.CertificadosDestruccionController) {
         defecto: tr.querySelector(".cdl-defecto").value.trim(), cantidad: Number(tr.querySelector(".cdl-cant").value), unidad: tr.querySelector(".cdl-unidad").value
       }))
       if (detalle.some(d => !(d.cantidad > 0))) return "Cada línea del detalle necesita una cantidad mayor que cero"
+      const itemNum = o.querySelector("#cdfItem").value
+      const itSap = (this._form.carga?.data?.items || []).filter(i => String(i.item) === itemNum)
+      // Al editar sin recargar la NP se conserva la línea SAP ya guardada.
+      const sap = itSap.length === 1 ? C.itemSap(this._form.carga, itSap[0]) : this._form.sap || {}
       const body = {
-        id: this._form.id, np: v("cdfNp"), item: o.querySelector("#cdfItem").value ? Number(o.querySelector("#cdfItem").value) : null, cliente: v("cdfCliente"), razonSocial: v("cdfRazon"),
+        ...sap, id: this._form.id, np: v("cdfNp"), item: o.querySelector("#cdfItem").value ? Number(o.querySelector("#cdfItem").value) : null, cliente: v("cdfCliente"), razonSocial: v("cdfRazon"),
         codigoProducto: v("cdfCodigo"), producto: v("cdfProducto"), formato: v("cdfFormato"), cantidadSolicitada: num("cdfSolic"), cantidadDestruir, fechaFabricacionLote: v("cdfFab") || null,
         motivo: v("cdfMotivo"), categoria: v("cdfCategoria"), area: v("cdfArea"), operador: v("cdfOperador"), jefeSupervisor: v("cdfJefe"), solicitanteNombre: v("cdfSolNom"),
         solicitanteArea: v("cdfSolArea"), solicitanteCargo: v("cdfSolCargo"), fechaSolicitud: v("cdfFecSol") || null, descripcionDefecto: v("cdfDef"), causaRaiz: v("cdfCausa"), observaciones: v("cdfObs"), detalle

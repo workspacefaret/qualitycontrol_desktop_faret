@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using QualityControlCenter.Backend.Services.FpsApi;
 using QualityControlCenter.Backend.Services.InnpackApi;
+using QualityControlCenter.Services;
 using QualityControlCenter.Backend.Services.PlanificacionApi;
 using QualityControlCenter.Backend.Services.SapRecepcionApi;
 
@@ -107,6 +108,32 @@ namespace QualityControlCenter.Modules.Trazabilidad
                     return Ok(resultado);
                 }
 
+                // "Ver registro original" de una corrida: la fila tal como está en FPS (fps-api, solo lectura).
+                if (action == "trazabilidad.registroOriginal")
+                {
+                    if (_fpsTrazabilidad is null)
+                        return Error("El registro original no está disponible en esta instalación.");
+                    var datos = GetDataElement(data);
+                    var np = GetString(datos, "np").Trim();
+                    var corrida = GetString(datos, "corrida").Trim();
+                    if (!FpsTrazabilidadApiService.NpValido(np) || !FpsTrazabilidadApiService.CorridaValida(corrida))
+                        return Error("NP o corrida no válida.");
+                    var (estado, resultado, error) = await _fpsTrazabilidad.ObtenerCorridaAsync(np, corrida);
+                    return estado == "OK" ? Ok(resultado) : Error(error ?? "No se pudo consultar FPS.");
+                }
+
+                // Búsqueda de NP por código o cliente (fps-api sobre las notas de venta de SAP INNPACK, solo lectura).
+                if (action == "trazabilidad.buscar")
+                {
+                    if (_fpsTrazabilidad is null)
+                        return Error("La búsqueda no está disponible en esta instalación.");
+                    var texto = GetString(GetDataElement(data), "texto").Trim();
+                    if (texto.Length < 3 || texto.Length > 60)
+                        return Error("Escribe entre 3 y 60 caracteres.");
+                    var (estadoB, resultadoB, errorB) = await _fpsTrazabilidad.BuscarAsync(texto);
+                    return estadoB == "OK" ? Ok(resultadoB) : Error(errorB ?? "No se pudo buscar.");
+                }
+
                 // Adjuntos (PDF) de guías/facturas/devoluciones/notas de crédito: apisapfaret → Service Layer, solo lectura.
                 if (action == "trazabilidad.noConformidades")
                 {
@@ -151,7 +178,7 @@ namespace QualityControlCenter.Modules.Trazabilidad
         private static readonly Regex NpRegex = new(@"^[0-9A-Za-z._-]{1,40}$", RegexOptions.Compiled);
         private static readonly string[] CamposSubida =
         {
-            "requisitoId", "estado", "nombreArchivo", "contenidoBase64", "fechaDocumento", "lote", "observacion",
+            "requisitoId", "estado", "nombreArchivo", "contenidoBase64", "fechaDocumento", "lote", "observacion", "enlace",
         };
 
         private async Task<string> HandleDocumentos(string action, JsonElement d)
@@ -185,7 +212,7 @@ namespace QualityControlCenter.Modules.Trazabilidad
                 case "trazabilidad.documentos.abrir":
                     return await AbrirDocumento(d);
                 case "trazabilidad.documentos.zip":
-                    return await GuardarZip(np);
+                    return await GuardarZip(np, d.TryGetProperty("sapDocs", out var sapDocs) ? sapDocs : default);
                 case "trazabilidad.factor.list":
                     return await Forward(_docs.FactoresAsync(np));
                 case "trazabilidad.factor.proponer":
@@ -211,9 +238,10 @@ namespace QualityControlCenter.Modules.Trazabilidad
             }
         }
 
-        private static readonly Regex TipoDocumento = new(@"^(guia|factura|devolucion|notacredito)$");
+        private static readonly Regex TipoDocumento = new(@"^(guia|factura|devolucion|notacredito|notaventa|recepcion)$");
 
-        // Adjuntos de un documento de venta de SAP. La empresa es siempre INNPACK (módulo exclusivo): no viaja desde el frontend.
+        // Adjuntos de documentos SAP. Los documentos de venta son siempre de INNPACK (módulo exclusivo). Solo la recepción de
+        // compra de un material consumido puede venir de la sociedad FARET, porque la producción INNPACK consume lotes de ambas.
         private async Task<string> HandleAdjuntosSap(string action, JsonElement d)
         {
             if (_sap is null || !_sap.IsConfigured)
@@ -224,16 +252,17 @@ namespace QualityControlCenter.Modules.Trazabilidad
             if (!TryGetId(d, "docEntry", out var docEntry))
                 return Error("Falta el documento.");
             var baseRuta = $"api/documentos-adjuntos/{tipo}/{docEntry}";
+            var empresa = tipo == "recepcion" && GetString(d, "empresa") == "FARET" ? "FARET" : "INNPACK";
 
             if (action == "trazabilidad.adjuntosSap.list")
             {
-                var (ok, body) = await _sap.GetAsync($"{baseRuta}?empresa=INNPACK");
+                var (ok, body) = await _sap.GetAsync($"{baseRuta}?empresa={empresa}");
                 return TryUnwrapSap(ok, body, out var payload, out var error) ? Ok(payload) : Error(error);
             }
 
             if (!TryGetId(d, "linea", out var linea, permitirCero: true))
                 return Error("Falta el adjunto.");
-            var (okF, contenido, errorF) = await _sap.GetBytesAsync($"{baseRuta}/{linea}/archivo?empresa=INNPACK");
+            var (okF, contenido, errorF) = await _sap.GetBytesAsync($"{baseRuta}/{linea}/archivo?empresa={empresa}");
             if (!okF || contenido is null)
                 return Error(errorF ?? "No se pudo obtener el adjunto.");
             var nombre = Path.GetFileName(GetString(d, "nombre"));
@@ -241,7 +270,9 @@ namespace QualityControlCenter.Modules.Trazabilidad
             if (string.IsNullOrWhiteSpace(nombre)) nombre = $"{tipo}_{docEntry}_{linea}.pdf";
             var carpeta = Path.Combine(Path.GetTempPath(), "QCC_Trazabilidad_SAP");
             Directory.CreateDirectory(carpeta);
-            var ruta = Path.Combine(carpeta, $"{tipo}{docEntry}_{linea}_{nombre}");
+            var ruta = Path.Combine(carpeta, $"{empresa}_{tipo}{docEntry}_{linea}_{nombre}");
+            if (!ArchivosSeguros.SePuedeAbrir(nombre))
+                return Error(ArchivosSeguros.MensajeBloqueo);
             await File.WriteAllBytesAsync(ruta, contenido);
             Process.Start(new ProcessStartInfo { FileName = ruta, UseShellExecute = true });
             return Ok(new { nombreArchivo = nombre, bytes = contenido.Length });
@@ -282,13 +313,15 @@ namespace QualityControlCenter.Modules.Trazabilidad
             var carpeta = Path.Combine(Path.GetTempPath(), "QCC_Trazabilidad");
             Directory.CreateDirectory(carpeta);
             var ruta = Path.Combine(carpeta, $"{id}_{nombre}");
+            if (!ArchivosSeguros.SePuedeAbrir(nombre))
+                return Error(ArchivosSeguros.MensajeBloqueo);
             await File.WriteAllBytesAsync(ruta, contenido);
             Process.Start(new ProcessStartInfo { FileName = ruta, UseShellExecute = true });
             return Ok(new { nombreArchivo = nombre });
         }
 
         // Guarda el ZIP en Descargas (nunca sobrescribe) y lo muestra en el Explorador.
-        private async Task<string> GuardarZip(string np)
+        private async Task<string> GuardarZip(string np, JsonElement sapDocs = default)
         {
             var (ok, body) = await _docs.ZipAsync(np);
             if (!TryUnwrap(body, out var payload, out var error) || !ok)
@@ -308,6 +341,7 @@ namespace QualityControlCenter.Modules.Trazabilidad
             for (var n = 2; File.Exists(ruta); n++)
                 ruta = Path.Combine(destino, $"{baseName}_{DateTime.Now:yyyyMMdd_HHmmss}_{n}.zip");
             await File.WriteAllBytesAsync(ruta, contenido);
+            var anexosSap = await AgregarAnexosSap(ruta, sapDocs);
 
             if (DirectorioPruebas == null)
                 Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = $"/select,\"{ruta}\"", UseShellExecute = true });
@@ -317,7 +351,96 @@ namespace QualityControlCenter.Modules.Trazabilidad
                 ruta,
                 incluidos = payload.GetProperty("incluidos").GetInt32(),
                 faltantes = payload.GetProperty("faltantes").GetInt32(),
+                sapIncluidos = anexosSap.Incluidos,
+                sapFallidos = anexosSap.Fallidos,
             });
+        }
+
+        private const int MaxDocumentosSap = 40;
+        private const long MaxBytesSap = 150L * 1024 * 1024;
+
+        // Agrega al ZIP (carpeta SAP/) los adjuntos de los documentos de venta SAP INNPACK de la NP y de las recepciones de los
+        // lotes consumidos (INNPACK o FARET), con un índice de lo incluido y lo no obtenido. No se clasifican ni se asume que
+        // sean certificados.
+        // Las consultas a SAP van de a una.
+        private async Task<(int Incluidos, int Fallidos)> AgregarAnexosSap(string rutaZip, JsonElement documentos)
+        {
+            if (documentos.ValueKind != JsonValueKind.Array || documentos.GetArrayLength() == 0)
+                return (0, 0);
+            var indice = new List<string> { "Adjuntos SAP de documentos de venta (INNPACK) y de recepciones de los lotes consumidos. SAP no los clasifica: revisar su contenido." };
+            int incluidos = 0, fallidos = 0, revisados = 0;
+            long total = 0;
+            var vistos = new HashSet<string>();
+            using var zip = System.IO.Compression.ZipFile.Open(rutaZip, System.IO.Compression.ZipArchiveMode.Update);
+
+            foreach (var d in documentos.EnumerateArray())
+            {
+                if (d.ValueKind != JsonValueKind.Object) continue;
+                var tipo = GetString(d, "tipo");
+                if (!TipoDocumento.IsMatch(tipo) || !TryGetId(d, "docEntry", out var docEntry))
+                    continue;
+                // Solo una recepción de compra puede venir de la sociedad FARET (material consumido por INNPACK).
+                var empresa = tipo == "recepcion" && GetString(d, "empresa") == "FARET" ? "FARET" : "INNPACK";
+                if (!vistos.Add($"{empresa}|{tipo}|{docEntry}"))
+                    continue;
+                var etiqueta = $"{tipo} {(tipo == "recepcion" ? empresa + " " : "")}{(TryGetId(d, "docNum", out var docNum) ? docNum : docEntry)}";
+                if (++revisados > MaxDocumentosSap)
+                {
+                    indice.Add($"LÍMITE: solo se revisan {MaxDocumentosSap} documentos; faltan los restantes (ábralos desde la pantalla).");
+                    fallidos++;
+                    break;
+                }
+                if (_sap is null || !_sap.IsConfigured)
+                {
+                    indice.Add($"NO INCLUIDO {etiqueta}: la conexión con SAP no está configurada en este equipo.");
+                    fallidos++;
+                    continue;
+                }
+
+                var baseRuta = $"api/documentos-adjuntos/{tipo}/{docEntry}";
+                var (ok, body) = await _sap.GetAsync($"{baseRuta}?empresa={empresa}");
+                if (!TryUnwrapSap(ok, body, out var lista, out var error) || !lista.TryGetProperty("adjuntos", out var adjuntos) || adjuntos.ValueKind != JsonValueKind.Array)
+                {
+                    indice.Add($"NO INCLUIDO {etiqueta}: {error}");
+                    fallidos++;
+                    continue;
+                }
+                if (adjuntos.GetArrayLength() == 0)
+                    indice.Add($"SIN ADJUNTOS {etiqueta}");
+
+                foreach (var a in adjuntos.EnumerateArray())
+                {
+                    if (!TryGetId(a, "numero", out var linea, permitirCero: true)) continue;
+                    var nombre = NombreArchivoSeguro($"{GetString(a, "nombre")}.{GetString(a, "extension")}".TrimEnd('.'), $"adjunto_{linea}");
+                    var (okF, contenido, errorF) = await _sap.GetBytesAsync($"{baseRuta}/{linea}/archivo?empresa={empresa}");
+                    if (!okF || contenido is null || total + contenido.Length > MaxBytesSap)
+                    {
+                        indice.Add($"NO INCLUIDO {etiqueta} / {nombre}: {(okF ? "se superó el tamaño máximo del ZIP" : errorF)}");
+                        fallidos++;
+                        continue;
+                    }
+                    var entrada = $"SAP/{NombreArchivoSeguro(etiqueta, "documento")}/{linea}_{nombre}";
+                    await using (var salida = zip.CreateEntry(entrada).Open())
+                        await salida.WriteAsync(contenido);
+                    total += contenido.Length;
+                    incluidos++;
+                    indice.Add($"INCLUIDO {entrada}");
+                }
+            }
+
+            await using (var escritor = new StreamWriter(zip.CreateEntry("SAP/INDICE_ANEXOS_SAP.txt").Open(), new System.Text.UTF8Encoding(true)))
+                foreach (var l in indice)
+                    await escritor.WriteLineAsync(l);
+            return (incluidos, fallidos);
+        }
+
+        // Nombre de archivo sin rutas ni caracteres inválidos (también los separadores de entradas ZIP).
+        internal static string NombreArchivoSeguro(string nombre, string porDefecto)
+        {
+            foreach (var c in Path.GetInvalidFileNameChars().Concat(new[] { '/', '\\', ':' }))
+                nombre = nombre.Replace(c, '_');
+            nombre = nombre.Trim().Trim('.');
+            return string.IsNullOrWhiteSpace(nombre) ? porDefecto : nombre;
         }
 
         // Solo para pruebas locales: evita abrir el Explorador.

@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\src\Backend\Services\EntornoAislado.cs" />
     <Compile Include="..\..\src\Backend\Modules\EvaluacionMaquinas\EvaluacionMaquinasCalculator.cs" />
     <Compile Include="..\..\src\Backend\Modules\EvaluacionMaquinas\FaretEvaluacionMaquinasParser.cs" />
     <Compile Include="..\..\src\Backend\Modules\EvaluacionMaquinas\FaretEvaluacionMaquinasHandler.cs" />

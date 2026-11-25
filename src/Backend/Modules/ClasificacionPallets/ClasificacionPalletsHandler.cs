@@ -78,6 +78,17 @@ namespace QualityControlCenter.Modules.ClasificacionPallets
             }
         }
 
+        // Lectura para Trazabilidad: exige una NP numérica (sin NP la API devolvería todas las clasificaciones).
+        public async Task<string> PorNp(Dictionary<string, object> payload)
+        {
+            var data = payload.TryGetValue("data", out var raw) && raw is JsonElement el && el.ValueKind == JsonValueKind.Object ? el : default;
+            var np = Texto(data, "np")?.Trim() ?? "";
+            if (!Regex.IsMatch(np, @"^\d{1,9}$"))
+                return Error("NP no válida.");
+            var filtro = JsonSerializer.SerializeToElement(new { np, vista = "vigentes", limite = 200 });
+            return await Handle("clasificacionPallets.list", new Dictionary<string, object> { ["data"] = filtro });
+        }
+
         // Solo los filtros conocidos viajan a la API, validados y codificados (nunca texto libre sin acotar en la URL).
         internal static string Consulta(JsonElement data, bool paginado)
         {

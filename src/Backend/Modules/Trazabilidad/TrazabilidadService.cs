@@ -32,19 +32,19 @@ namespace QualityControlCenter.Modules.Trazabilidad
         public async Task<(
             bool ok,
             List<ProcesoPlanDto> procesos,
-            List<PaletTrazabilidadDto> paletizado,
+            List<PaletTrazabilidadDto>? paletizado,
             string? error
         )> ConsultarNpAsync(string np)
         {
             var procesos = await ObtenerProcesosAsync(np);
-            if (!procesos.ok)
-                return (false, new List<ProcesoPlanDto>(), new List<PaletTrazabilidadDto>(), procesos.error);
+            if (procesos.ok)
+                await AdjuntarMaterialesAsync(procesos.data);
 
-            await AdjuntarMaterialesAsync(procesos.data);
-
+            // El paletizado es otra fuente: se consulta aunque Planificación no responda.
             var paletizado = await _repository.ObtenerPaletizadoPorNp(np);
 
-            return (true, procesos.data, paletizado, null);
+            // Con aviso y sin procesos, Planificación no respondió: el front no lo muestra como cero.
+            return (true, procesos.ok ? procesos.data : new List<ProcesoPlanDto>(), paletizado, procesos.error);
         }
 
         // Materiales reales (FPS, Tipo='INSUMO') por proceso — falla suave: si fps-api no está

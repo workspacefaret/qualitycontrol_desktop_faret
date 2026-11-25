@@ -110,7 +110,7 @@ namespace QualityControlCenter.Modules.EvaluacionMaquinas
         {
             try
             {
-                var ruta = System.IO.Path.Combine(AppContext.BaseDirectory, "config.json");
+                var ruta = QualityControlCenter.Services.EntornoAislado.RutaConfig;
                 if (!System.IO.File.Exists(ruta)) return false;
                 using var doc = JsonDocument.Parse(System.IO.File.ReadAllText(ruta));
                 return doc.RootElement.TryGetProperty("EvaluacionMaquinas", out var s)

@@ -264,7 +264,7 @@ namespace QualityControlCenter.Backend.Services
         {
             try
             {
-                var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
+                var path = QualityControlCenter.Services.EntornoAislado.RutaConfig;
 
                 if (!File.Exists(path))
                     return new UpdateSettings();

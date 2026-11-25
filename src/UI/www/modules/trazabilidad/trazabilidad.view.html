@@ -26,105 +26,30 @@
         <input type="text" id="trzLote" placeholder="Ej: 5433-1" maxlength="36">
       </div>
       <button class="btn-secondary" id="btnTrzBuscarLote">Buscar lote</button>
+      <div class="form-group" style="margin-left:24px;">
+        <label for="trzTexto">Código de producto o cliente</label>
+        <input type="text" id="trzTexto" placeholder="Ej: 4596011040929 o nombre" maxlength="60">
+      </div>
+      <button class="btn-secondary" id="btnTrzBuscarTexto">Buscar NP</button>
+      <button class="btn-secondary" id="btnTrzLimpiar">Limpiar</button>
     </div>
+    <div id="trzBusqueda" style="display:none; margin-top:10px;"></div>
   </div>
 
   <div id="trzEstadoConexion" class="card" style="margin-bottom: 16px; display: none;"></div>
 
   <div id="trzResultado" style="display:none;">
 
-    <div class="card" style="margin-bottom: 16px;">
-      <div class="module-header" style="margin-bottom: 8px;">
-        <div class="module-title" style="font-size: 16px;">Resumen de la NP</div>
-        <button class="btn-secondary" id="btnTrzImprimir">Imprimir Reporte</button>
-      </div>
-      <div class="kpi-row">
-        <div class="kpi-card">
-          <div class="kpi-label">Cliente</div>
-          <div class="kpi-value" id="trzCliente" style="font-size: 16px;">-</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Producto</div>
-          <div class="kpi-value" id="trzProducto" style="font-size: 14px;">-</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Cantidad NP</div>
-          <div class="kpi-value" id="trzCantidad">-</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Procesos planificados</div>
-          <div class="kpi-value" id="trzPlanificados">0</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Procesos pendientes</div>
-          <div class="kpi-value" id="trzPendientes">0</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom: 16px;">
-      <div class="module-title" style="font-size: 16px;">Trazabilidad de Planificación (procesos)</div>
-      <div class="table-container">
-        <table class="table" id="trzTablaProcesos">
-          <thead>
-            <tr>
-              <th>Proceso</th>
-              <th>Sección</th>
-              <th>Máquina</th>
-              <th>Cantidad</th>
-              <th>Cant. Producida</th>
-              <th>Estado</th>
-              <th>Fecha Entrega</th>
-              <th>Materiales</th>
-            </tr>
-          </thead>
-          <tbody id="trzProcesosBody">
-            <tr><td colspan="8" style="text-align:center;">Consulta un NP para ver sus procesos</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="subtitle" style="margin-top: 8px;">
-        Materiales: SKU y nombre del material planificado/asignado por proceso (vía FPS), no necesariamente el lote físico exacto consumido.
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="module-title" style="font-size: 16px;">Terminaciones y Paletizado</div>
-      <div class="table-container">
-        <table class="table" id="trzTablaPaletizado">
-          <thead>
-            <tr>
-              <th>Código Paletizado</th>
-              <th>Fecha</th>
-              <th>Planta</th>
-              <th>Taller</th>
-              <th>Tipo</th>
-              <th>Cantidad</th>
-              <th>Descripción</th>
-            </tr>
-          </thead>
-          <tbody id="trzPaletizadoBody">
-            <tr><td colspan="7" style="text-align:center;">Sin datos</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
     <!-- Trazabilidad integral (Fase 1a): FPS + SAP + liberaciones QCS + Calidad. Solo lectura. -->
-    <div id="trzIntegral" style="margin-top: 16px;">
+    <div id="trzIntegral" style="margin-bottom: 16px;">
       <div class="card" style="margin-bottom: 16px;">
         <div class="module-header" style="margin-bottom: 8px;">
           <div class="module-title" style="font-size: 16px;">Trazabilidad integral (FPS / SAP / Calidad)</div>
           <button class="btn-primary" id="btnTrzPdf">Informe PDF (REG-SGI-TDP-V05)</button>
           <button class="btn-primary" id="btnTrzExcelV05">Informe Excel (REG-SGI-TDP-V05)</button>
       <button class="btn-secondary" id="btnTrzGuardarInforme" data-requiere-editar>Guardar versión del informe</button>
+          <button class="btn-secondary" id="btnTrzVersiones">Versiones guardadas</button>
           <button class="btn-secondary" id="btnTrzExcel">Exportar Excel (datos)</button>
-        </div>
-        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
-          <div class="form-group" style="margin:0;"><label for="trzHoraInicio">Hora real de inicio del ejercicio</label><input type="time" id="trzHoraInicio"></div>
-          <div class="form-group" style="margin:0;"><label for="trzHoraTermino">Hora real de término</label><input type="time" id="trzHoraTermino"></div>
-          <div class="form-group" style="margin:0;"><label for="trzCargo">Cargo de quien realiza</label><input type="text" id="trzCargo" maxlength="80" placeholder="Opcional"></div>
-          <div class="subtitle">Se imprimen en el pie del informe; si quedan vacías aparece SIN INFORMACIÓN.</div>
         </div>
         <div id="trzFuentes" class="subtitle">Consultando fuentes...</div>
         <div class="subtitle" style="margin-top: 8px;">
@@ -140,6 +65,15 @@
         <button class="trz-tab" data-trz-ir="materiales" role="tab">Materiales</button>
         <button class="trz-tab" data-trz-ir="calidad" role="tab">Calidad</button>
         <button class="trz-tab" data-trz-ir="despachos" role="tab">Despachos e inventario</button>
+        <button class="trz-tab" data-trz-ir="documentos" role="tab">Documentos</button>
+      </div>
+
+      <div class="card" data-trz-tab="resumen" style="margin-bottom: 16px;">
+        <div class="module-header" style="margin-bottom: 8px;">
+          <div class="module-title" style="font-size: 16px;">Ficha del producto</div>
+          <div class="form-group" style="margin:0; min-width:320px;"><select id="trzFichaItem" aria-label="Ítem de la ficha"></select></div>
+        </div>
+        <div id="trzFicha" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px 16px;"></div>
       </div>
 
       <div class="card" data-trz-tab="resumen" style="margin-bottom: 16px;">
@@ -167,7 +101,7 @@
               <tr>
                 <th>OT</th><th>Carpeta</th><th>Proceso</th><th>Ítem / código</th><th>Cant. OT</th>
                 <th>Producido (registrado)</th><th>Setup</th><th>Pallet verde</th><th>Pallet azul</th><th>Pallet rojo</th>
-                <th>Corridas</th><th>Máquinas</th><th>Operadores</th><th>Desde</th><th>Hasta</th><th>Estado</th>
+                <th>Corridas</th><th>Etiquetas FPS</th><th>Máquinas</th><th>Operadores</th><th>Desde</th><th>Hasta</th><th>Estado</th>
               </tr>
             </thead>
             <tbody id="trzFpsBody"></tbody>
@@ -180,8 +114,41 @@
         <div class="subtitle" style="margin-bottom: 8px;">A 07-15, B 15-23, C 23-07. FPS no entrega el turno: se calcula con la hora de inicio de cada corrida válida.</div>
         <div class="table-container">
           <table class="table" id="trzTablaTurnos">
-            <thead><tr><th>Turno</th><th>Corridas</th><th>Producido (registrado)</th><th>Máquinas</th><th>Operadores</th></tr></thead>
+            <thead><tr><th>Turno</th><th>Corridas</th><th>Máquinas</th><th>Operadores</th></tr></thead>
             <tbody id="trzTurnosBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-trz-tab="produccion" style="margin-bottom: 16px;">
+        <div class="module-title" style="font-size: 16px;">Control de proceso y limpieza (formularios de producción en FPS)</div>
+        <div id="trzControlesNota" class="subtitle" style="margin-bottom: 8px;"></div>
+        <div class="table-container">
+          <table class="table" id="trzTablaControles">
+            <thead><tr><th>Fecha</th><th>OT</th><th>Proceso</th><th>Máquina</th><th>Respuestas</th><th>Respondidas "No"</th><th>Detalle</th></tr></thead>
+            <tbody id="trzControlesBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-trz-tab="produccion" style="margin-bottom: 16px;">
+        <div class="module-title" style="font-size: 16px;">Pallets clasificados en inspección (AZUL / ROJO / VERDE)</div>
+        <div id="trzPalletsNota" class="subtitle" style="margin-bottom: 8px;"></div>
+        <div class="table-container">
+          <table class="table">
+            <thead><tr><th>Etiqueta FPS</th><th>OT</th><th>Código</th><th>Color vigente</th><th>Defectos</th><th>Proceso</th><th>Máquina</th><th>Operador</th><th>Inspector</th><th>Clasificado</th></tr></thead>
+            <tbody id="trzPalletsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-trz-tab="materiales" style="margin-bottom: 16px;">
+        <div class="module-title" style="font-size: 16px;">Bobinas registradas en los controles</div>
+        <p class="subtitle">El cruce compara el número exacto con el lote, la serie del fabricante o el lote del proveedor de las salidas SAP. Que no coincida no prueba que la bobina no se haya usado.</p>
+        <div class="table-container">
+          <table class="table" id="trzTablaBobinas">
+            <thead><tr><th>Control</th><th>Fecha</th><th>Proceso</th><th>Lote de bobina</th><th>Código</th><th>Descripción</th><th>Observación</th><th>Cruce con consumos SAP</th></tr></thead>
+            <tbody id="trzBobinasBody"></tbody>
           </table>
         </div>
       </div>
@@ -193,7 +160,7 @@
             <thead>
               <tr>
                 <th>Empresa SAP</th><th>Fecha</th><th>Doc. salida</th><th>OT</th><th>Código</th><th>Material</th>
-                <th>Cant. línea</th><th>Unidad</th><th>Lote</th><th>Cant. lote</th><th>Origen del lote</th><th>Proveedor</th>
+                <th>Cant. línea</th><th>Devuelto</th><th>Consumo neto</th><th>Unidad</th><th>Lote</th><th>Cant. lote</th><th>Origen del lote</th><th>Proveedor</th>
               </tr>
             </thead>
             <tbody id="trzConsumosBody"></tbody>
@@ -208,7 +175,7 @@
             <thead>
               <tr>
                 <th>Folio</th><th>Ítem</th><th>Código</th><th>Fecha</th><th>Cantidad</th><th>Bodega origen</th>
-                <th>Bodega destino</th><th>Máquina</th><th>Operador</th><th>Inspector</th><th>Estado</th>
+                <th>Bodega destino</th><th>Máquina</th><th>Operador</th><th>Inspector</th><th>Adhesivos (tipo · lote)</th><th>Embalaje</th><th>Estado</th>
               </tr>
             </thead>
             <tbody id="trzLiberacionesBody"></tbody>
@@ -227,6 +194,27 @@
               </tr>
             </thead>
             <tbody id="trzDespachosBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-trz-tab="calidad" style="margin-bottom: 16px;">
+        <div class="module-title" style="font-size: 16px;">Mermas registradas (QCC)</div>
+        <div class="table-container">
+          <table class="table">
+            <thead><tr><th>Fecha</th><th>Ítem</th><th>Proceso</th><th>Defecto</th><th>Cantidad</th><th>Certeza</th><th>Estado</th><th>En certificados</th><th>Registrado por</th></tr></thead>
+            <tbody id="trzMermasBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-trz-tab="calidad" style="margin-bottom: 16px;">
+        <div class="module-title" style="font-size: 16px;">Certificados de destrucción</div>
+        <div class="subtitle" style="margin-bottom: 8px;">Emitir un certificado no acredita la destrucción física ni modifica el inventario SAP.</div>
+        <div class="table-container">
+          <table class="table">
+            <thead><tr><th>Certificado</th><th>Ítem</th><th>Cantidad</th><th>Motivo</th><th>Estado</th><th>Ejecución física</th><th>Creado por</th><th>Fecha</th></tr></thead>
+            <tbody id="trzCertBody"></tbody>
           </table>
         </div>
       </div>
@@ -256,11 +244,32 @@
         </div>
       </div>
 
+      <div class="card" data-trz-tab="calidad" style="margin-bottom: 16px;">
+        <div class="module-title" style="font-size: 16px;">Muestras de laboratorio de esta NP</div>
+        <div class="table-container">
+          <table class="table">
+            <thead><tr><th>Id</th><th>Fecha ingreso</th><th>Tipo de muestra</th><th>Origen</th><th>Código producto</th><th>Descripción</th><th>Ensayos</th><th>Estado</th><th>Evaluación</th></tr></thead>
+            <tbody id="trzLabBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-trz-tab="despachos" style="margin-bottom: 16px;">
+        <div class="module-title" style="font-size: 16px;">Existencia actual de producto terminado de esta NP (lotes SAP INNPACK)</div>
+        <div class="subtitle" style="margin-bottom: 8px;">Saldo de los lotes que SAP tiene marcados con esta NP. No incluye stock del mismo artículo perteneciente a otras NP.</div>
+        <div class="table-container">
+          <table class="table" id="trzTablaInventario">
+            <thead><tr><th>Código</th><th>Lotes de la NP</th><th>Saldo actual</th><th>Saldo por bodega</th><th>Salida por ventas (lotes de la NP)</th><th>Vínculo con la NV</th></tr></thead>
+            <tbody id="trzInventarioBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card" data-trz-tab="despachos" style="margin-bottom: 16px;">
         <div class="module-title" style="font-size: 16px;">Inventario atribuible a la NP (entradas a bodega, SAP INNPACK)</div>
         <div class="subtitle" style="margin-bottom: 8px;">
           Solo lo que SAP registra como entrada de producción o traslado con esta NP y con ítems de su nota de venta. El stock general del artículo en bodega
-          <b>no</b> se muestra: comparte unidades con otras NP y no se puede asignar a esta NP. Existencia actual por NP: <b>No disponible</b> (sin relación verificable).
+          <b>no</b> se muestra: comparte unidades con otras NP y no se puede asignar a esta NP.
         </div>
         <div class="table-container">
           <table class="table" id="trzTablaEntradas">
@@ -271,9 +280,86 @@
       </div>
     </div>
 
+    <div class="card" data-trz-tab="produccion" style="margin-bottom: 16px;">
+      <div class="module-header" style="margin-bottom: 8px;">
+        <div class="module-title" style="font-size: 16px;">Resumen de la NP</div>
+        <button class="btn-secondary" id="btnTrzImprimir">Imprimir Reporte</button>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-label">Cliente</div>
+          <div class="kpi-value" id="trzCliente" style="font-size: 16px;">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Producto</div>
+          <div class="kpi-value" id="trzProducto" style="font-size: 14px;">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Cantidad NP</div>
+          <div class="kpi-value" id="trzCantidad">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Procesos planificados</div>
+          <div class="kpi-value" id="trzPlanificados">0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Procesos pendientes</div>
+          <div class="kpi-value" id="trzPendientes">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-trz-tab="produccion" style="margin-bottom: 16px;">
+      <div class="module-title" style="font-size: 16px;">Trazabilidad de Planificación (procesos)</div>
+      <div class="table-container">
+        <table class="table" id="trzTablaProcesos">
+          <thead>
+            <tr>
+              <th>Proceso</th>
+              <th>Sección</th>
+              <th>Máquina</th>
+              <th>Cantidad</th>
+              <th>Cant. Producida</th>
+              <th>Estado</th>
+              <th>Fecha Entrega</th>
+              <th>Materiales</th>
+            </tr>
+          </thead>
+          <tbody id="trzProcesosBody">
+            <tr><td colspan="8" style="text-align:center;">Consulta un NP para ver sus procesos</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="subtitle" style="margin-top: 8px;">
+        Materiales: SKU y nombre del material planificado/asignado por proceso (vía FPS), no necesariamente el lote físico exacto consumido.
+      </div>
+    </div>
+
+    <div class="card" data-trz-tab="produccion">
+      <div class="module-title" style="font-size: 16px;">Terminaciones y Paletizado</div>
+      <div class="table-container">
+        <table class="table" id="trzTablaPaletizado">
+          <thead>
+            <tr>
+              <th>Código Paletizado</th>
+              <th>Fecha</th>
+              <th>Planta</th>
+              <th>Taller</th>
+              <th>Tipo</th>
+              <th>Cantidad</th>
+              <th>Descripción</th>
+            </tr>
+          </thead>
+          <tbody id="trzPaletizadoBody">
+            <tr><td colspan="7" style="text-align:center;">Sin datos</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
 
     <!-- Fase 1b: factor unidades/pliego por ítem y panel documental SGI. Se guardan en QCC (API INNPACK). -->
-    <div class="card" style="margin-bottom: 16px;" id="trzFactorCard">
+    <div class="card" data-trz-tab="resumen" style="margin-bottom: 16px;" id="trzFactorCard">
       <div class="module-title" style="font-size: 16px;">Factor unidades por pliego</div>
       <div class="subtitle" style="margin: 4px 0 8px;">
         Lo propone un usuario con permiso de edición y solo se usará en cálculos (Balance de Materiales) cuando lo
@@ -290,7 +376,7 @@
       </div>
     </div>
 
-    <div class="card" style="margin-bottom: 16px;" id="trzDocsCard">
+    <div class="card" data-trz-tab="documentos" style="margin-bottom: 16px;" id="trzDocsCard">
       <div class="module-header" style="margin-bottom: 8px;">
         <div class="module-title" style="font-size: 16px;">Documentos de trazabilidad (checklist SGI)</div>
         <div style="display:flex; gap:8px;">
@@ -303,7 +389,7 @@
         Calidad consulta y carga los documentos; no modifica los registros de otras áreas. Lo que ya vive en un sistema se indica en la columna "Dato en sistema".
       </div>
       <div class="table-container">
-        <table class="table" id="trzTablaDocs">
+        <table class="table cnp-acciones-fijas" id="trzTablaDocs">
           <thead>
             <tr><th>Documento requerido</th><th>Estado</th><th>Dato en sistema</th><th>Archivo</th><th>Fecha doc.</th><th>Lote</th><th>Cargado por</th><th>Acciones</th></tr>
           </thead>
@@ -344,6 +430,25 @@
             </tr>
           </thead>
           <tbody id="trzLoteConsumosBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="module-title" style="font-size: 16px;">Despachos y devoluciones de este lote</div>
+      <div class="table-container">
+        <table class="table">
+          <thead><tr><th>Empresa SAP</th><th>Fecha</th><th>Documento</th><th>Código</th><th>Cliente</th><th>Movimiento</th><th>Cantidad</th></tr></thead>
+          <tbody id="trzLoteVentasBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="module-title" style="font-size: 16px;">Pallets de las órdenes que consumieron el lote</div>
+      <p class="subtitle" id="trzLotePalletsNota"></p>
+      <div class="table-container">
+        <table class="table">
+          <thead><tr><th>Pallet</th><th>NP</th><th>OT del pallet</th><th>Relación</th><th>Color</th><th>Código producto</th><th>Clasificado</th></tr></thead>
+          <tbody id="trzLotePalletsBody"></tbody>
         </table>
       </div>
     </div>

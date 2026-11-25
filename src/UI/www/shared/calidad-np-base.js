@@ -92,6 +92,10 @@ window.CalidadNp = (function () {
         }
     }
 
+    // Mismo número de ítem con códigos distintos: mermas, cierre, certificado y factor se guardan solo por número,
+    // así que no se pueden atribuir a uno de ellos.
+    const itemAmbiguo = (carga, item) => (carga?.data?.items || []).filter(i => Number(i.item) === Number(item)).length > 1
+
     // Factor unidades/pliego CONFIRMADO del ítem (un propuesto nunca se usa en cálculos).
     function factorConfirmado(carga, item) {
         const f = (carga?.factores || []).find(x => Number(x.item) === Number(item) && x.estado === "CONFIRMADO")
@@ -112,30 +116,50 @@ window.CalidadNp = (function () {
 
     // Balance PROVISIONAL por etapa. Entrada = salida de la etapa anterior (FPS no registra entradas).
     // Una diferencia queda como "por conciliar": nunca se asigna sola a merma, destrucción ni error.
+    // La fps-api corregida siempre envía reingresoNc (null si SAP no responde). Si no viene, el despachado es el de la
+    // regla anterior y no se puede rotular como la regla corregida.
+    const AVISO_REGLA_ANTERIOR = "El servidor FPS aún no tiene la corrección de despachos: el despachado y el pendiente pueden estar mal (facturas de reserva y notas de crédito). No usar como cifra validada."
+    const reglaDespachoAnterior = items => (items || []).some(i => i.reingresoNc === undefined)
+
     function balance({ carga, item, mermas }) {
         const advertencias = []
         const d = carga?.data
         if (!d) return { filas: [], advertencias: [`Fuente FPS/SAP no disponible: ${carga?.error || "sin respuesta"}.`], provisional: true }
         const items = d.items || []
-        const it = items.find(i => Number(i.item) === Number(item)) || items[0] || null
+        const sinSeleccion = item === null || item === undefined || item === ""
+        const ambiguo = !sinSeleccion && itemAmbiguo(carga, item)
+        const it = ambiguo ? null : sinSeleccion ? (items.length === 1 ? items[0] : null) : (items.find(i => Number(i.item) === Number(item)) || null)
         const multi = items.length > 1
         const factor = it ? factorConfirmado(carga, it.item) : null
+        if (ambiguo) advertencias.push(`El ítem ${item} tiene más de un código de producto en la nota de venta: no se calculan Calidad, Despacho ni conversiones para no mezclarlos.`)
         if (multi) advertencias.push(`NP con ${items.length} ítems: FPS no separa los procesos por ítem. Se muestran para toda la NP y no se calcula entrada ni diferencia de producción; Calidad y Despacho sí se calculan por ítem.`)
         if (!factor) advertencias.push("Factor unidades/pliego del ítem sin confirmar: no se calculan unidades equivalentes ni conversiones.")
         advertencias.push("Balance PROVISIONAL: las cantidades de FPS las declara el operador; material retenido en proceso, reproceso y saldo en proceso no tienen fuente y no se informan.")
 
         const procs = (d.procesos || []).filter(p => !p.idProcesoDuplicado)
         const ses = (d.sesiones || []).filter(s => Number(s.Status) === 1)
-        const mermasAct = (mermas || []).filter(m => m.estado !== "ANULADA" && (m.item === null || m.item === undefined || !it || Number(m.item) === Number(it.item)))
+        const sinItem = m => m.item === null || m.item === undefined
+        const activas = (mermas || []).filter(m => m.estado !== "ANULADA")
+        const mermasAct = activas.filter(m => (sinItem(m) ? !multi : !it || Number(m.item) === Number(it.item)))
+        const sinAsignar = multi ? activas.filter(sinItem).length : 0
+        if (sinAsignar) advertencias.push(`${sinAsignar} merma(s) sin ítem en una NP con varios ítems: no se suman a ninguno.`)
         let sinConvertir = 0
         const mermaEtapa = (etapa, base) => {
             let conf = 0, est = 0
+            const otras = { conf: {}, est: {} } // mermas en otra unidad: se muestran, no se suman ni se convierten
             for (const m of mermasAct.filter(x => etapaDe(x.proceso) === etapa)) {
                 const v = aBase(m.cantidad, m.unidad, base, factor)
-                if (v === null) { sinConvertir++; continue }
+                if (v === null) {
+                    sinConvertir++
+                    const grupo = otras[m.metodo === "ESTIMADA" ? "est" : "conf"]
+                    const unidad = String(m.unidad).toLowerCase()
+                    grupo[unidad] = (grupo[unidad] || 0) + Number(m.cantidad)
+                    continue
+                }
                 if (m.metodo === "ESTIMADA") est += v; else conf += v
             }
-            return { conf, est }
+            const texto = g => Object.entries(g).map(([u, c]) => `${num(c)} ${u}`).join(" + ") || null
+            return { conf, est, confOtras: texto(otras.conf), estOtras: texto(otras.est) }
         }
 
         const filas = []
@@ -151,24 +175,34 @@ window.CalidadNp = (function () {
             const m = mermaEtapa(etapa, base)
             let entrada = null
             if (!multi && prev && base) entrada = prev.base === base ? prev.salida : aBase(prev.salida, prev.base, base, factor)
-            const equiv = etapa === "Troquelado" && factor && procesado !== null ? procesado * factor : null
-            const dif = entrada === null || procesado === null ? null : entrada - procesado - m.conf - m.est
+            const compuesta = new Set(s.map(x => String(x.IdProceso))).size > 1
+            if (compuesta) {
+                entrada = null
+                advertencias.push(`${etapa}: la cifra suma ${new Set(s.map(x => String(x.IdProceso))).size} procesos o pliegos distintos de FPS; no se compara con la etapa anterior ni se convierte a unidades.`)
+            }
+            const equiv = etapa === "Troquelado" && !multi && !compuesta && factor && procesado !== null ? procesado * factor : null
+            // Con una merma sin convertir la diferencia quedaría mal calculada: no se informa.
+            const dif = entrada === null || procesado === null || m.confOtras || m.estOtras ? null : entrada - procesado - m.conf - m.est
             const fechas = ps.map(p => p.desde).filter(Boolean).sort()
             const hasta = ps.map(p => p.hasta).filter(Boolean).sort().pop()
             filas.push({
                 etapa, base, fechaDesde: fechas[0] || null, fechaHasta: hasta || null,
                 maquinas: [...new Set(ps.flatMap(p => p.maquinas || []))].join(", "),
                 entrada, procesado, equivalentes: equiv, salidaConforme: procesado, mermaConfirmada: m.conf, mermaEstimada: m.est,
+                mermaConfirmadaSinConvertir: m.confOtras, mermaEstimadaSinConvertir: m.estOtras,
                 retenido: null, reproceso: null, diferencia: dif,
+                // Registros que forman la fila (para el detalle verificable).
+                corridas: s, mermasEtapa: mermasAct.filter(x => etapaDe(x.proceso) === etapa),
                 estado: !ps.length ? "Solo mermas registradas (sin corridas FPS)" : s.length ? (ps.some(p => p.enCurso) ? "Registrado en FPS (corrida abierta: estimado)" : "Registrado en FPS") : "REGISTRO NO DISPONIBLE (sin corridas)"
             })
-            if (procesado !== null && base) prev = { base, salida: procesado }
+            // Una etapa compuesta o sin corridas corta la cadena: no se compara la siguiente contra una etapa más antigua.
+            if (compuesta || (ps.length && procesado === null)) prev = null
+            else if (procesado !== null && base) prev = { base, salida: procesado }
             if (etapa === "Troquelado" && equiv !== null) prev = { base: "UNIDADES", salida: equiv }
         }
 
         if (it) {
-            const ultimaUnid = [...filas].reverse().find(f => f.base === "UNIDADES" && f.procesado !== null)
-            const entradaCal = ultimaUnid ? ultimaUnid.procesado : (prev && prev.base === "UNIDADES" ? prev.salida : null)
+            const entradaCal = prev && prev.base === "UNIDADES" ? prev.salida : null
             const cuarentena = saldoBodega(it, "CUARENTENA")
             const destruccion = saldoBodega(it, "DESTRUCCION")
             const liberado = it.liberadoPt
@@ -177,20 +211,32 @@ window.CalidadNp = (function () {
             filas.push({
                 etapa: "Calidad", base: "UNIDADES", fechaDesde: null, fechaHasta: null, maquinas: "", entrada: multi ? null : entradaCal, procesado: null, equivalentes: null,
                 salidaConforme: liberado, mermaConfirmada: m.conf, mermaEstimada: m.est, retenido: cuarentena, reproceso: null,
+                mermaConfirmadaSinConvertir: m.confOtras, mermaEstimadaSinConvertir: m.estOtras,
                 destruccionQcs: destruccion,
-                diferencia: multi || entradaCal === null || salidas === null ? null : entradaCal - salidas - m.conf - m.est,
+                diferencia: multi || entradaCal === null || salidas === null || m.confOtras || m.estOtras ? null : entradaCal - salidas - m.conf - m.est,
                 estado: liberado === null || liberado === undefined ? "Liberaciones QCS no disponibles" : "Confirmado (QCS: liberado, cuarentena y destrucción)"
             })
-            const neto = it.despachado === null || it.despachado === undefined ? null : it.despachado - (it.devuelto || 0)
+            // La API ya entrega el despachado neto de devoluciones y reingresos: no se vuelven a restar.
+            const neto = it.despachado ?? null
             filas.push({
                 etapa: "Despacho", base: "UNIDADES", fechaDesde: null, fechaHasta: null, maquinas: "", entrada: liberado ?? null, procesado: null, equivalentes: null,
                 salidaConforme: neto, mermaConfirmada: 0, mermaEstimada: 0, retenido: null, reproceso: null,
                 diferencia: liberado === null || liberado === undefined || neto === null ? null : liberado - neto,
                 diferenciaEsPendienteDespacho: true,
-                estado: neto === null ? "Despachos SAP no disponibles" : "Confirmado (SAP: guías + facturas directas − devoluciones)"
+                estado: neto === null ? "Despachos SAP no disponibles" : reglaDespachoAnterior([it]) ? "NO VALIDADO (regla de despacho anterior)" : "Confirmado (SAP: guías + facturas directas − devoluciones − reingresos por nota de crédito)"
             })
         }
+        if (it && reglaDespachoAnterior([it])) advertencias.unshift(AVISO_REGLA_ANTERIOR)
         if (sinConvertir) advertencias.push(`${sinConvertir} merma(s) en otra unidad no se pudieron convertir (falta factor confirmado) y no entran al cálculo.`)
+        // mermas = null: la consulta falló. No se informa 0 ni se calculan las diferencias que dependen de ellas.
+        if (mermas === null) {
+            for (const f of filas) {
+                f.mermaConfirmada = f.mermaEstimada = null
+                f.mermasEtapa = null
+                if (!f.diferenciaEsPendienteDespacho) f.diferencia = null
+            }
+            advertencias.unshift("Mermas no disponibles (no se pudieron consultar): no equivale a merma cero y no se calculan las diferencias de proceso.")
+        }
         return { filas, advertencias, provisional: true, item: it?.item ?? null }
     }
 
@@ -234,6 +280,9 @@ window.CalidadNp = (function () {
               <button class="btn-secondary cnp-cancel">${alAceptar ? "Cancelar" : "Cerrar"}</button>
               ${alAceptar ? `<button class="btn-primary cnp-ok">${esc(textoOk)}</button>` : ""}</div></div>`
         document.body.appendChild(ov)
+        // .table trae min-width 1400px y no corta texto (pensado para página completa): en la ventana ocultaría las acciones.
+        ov.querySelectorAll(".table").forEach(t => { t.style.minWidth = "0" })
+        ov.querySelectorAll(".table th, .table td").forEach(x => { x.style.whiteSpace = "normal"; x.style.padding = "6px 8px" })
         ov.querySelector(".cnp-cancel").onclick = () => ov.remove()
         const ok = ov.querySelector(".cnp-ok")
         if (ok) ok.onclick = async () => {
@@ -258,6 +307,8 @@ window.CalidadNp = (function () {
     // Imprime/guarda como PDF un documento HTML completo; espera a que carguen las imágenes (logos) antes de abrir el diálogo.
     async function imprimirHtml(html) {
         const iframe = document.createElement("iframe")
+        // Sin "allow-scripts": el HTML (también el de informes guardados en la base) nunca ejecuta código en la aplicación.
+        iframe.setAttribute("sandbox", "allow-same-origin allow-modals")
         iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;"
         document.body.appendChild(iframe)
         const doc = iframe.contentDocument
@@ -276,6 +327,25 @@ window.CalidadNp = (function () {
         return e.ingresadoPorItem.filter(x => String(x.itemCode) === String(it.itemCode)).reduce((a, x) => a + x.ingresado, 0)
     }
 
+    // Identificación inequívoca de la línea en SAP para guardar junto a mermas, cierres y certificados.
+    function itemSap(carga, it) {
+        if (!it) return {}
+        const lineas = (it.lineasNv || []).map(Number)
+        const nv = (carga?.data?.notaVenta || []).find(l => String(l.ItemCode) === String(it.itemCode) && lineas.includes(Number(l.LineNum)))
+        return { itemCode: it.itemCode || null, nvDocEntry: nv?.DocEntry ?? null, nvLineas: lineas.length ? lineas.join(",") : null }
+    }
+
+    // Inventario SAP actual de los lotes de la NP para el código del ítem. null = fuente caída o sin lotes (nunca 0).
+    function inventarioItem(carga, it) {
+        const x = (carga?.data?.inventarioPt || []).find(p => String(p.itemCode) === String(it?.itemCode))
+        if (!x) return null
+        return {
+            stock: x.saldo ?? null, bodegas: x.bodegas || {},
+            recibidoCompra: x.recepciones?.length ? x.recepciones.reduce((a, r) => a + Number(r.cantidad || 0), 0) : null,
+            otraNp: x.entradasConOtraNp || []
+        }
+    }
+
     // Evidencia de los datos usados al cerrar una NP (se guarda con el cierre; la API le calcula la huella SHA-256).
     function evidenciaItem(carga, it, extra) {
         if (!it) return null
@@ -285,14 +355,24 @@ window.CalidadNp = (function () {
             solicitado: it.solicitado, liberadoPt: it.liberadoPt, despachado: it.despachado, devuelto: it.devuelto,
             foliosLiberacion: it.foliosLiberacion, documentosDespacho: it.documentosDespacho,
             ingresadoBodega: ingresadoItem(carga, it),
+            stockSap: inventarioItem(carga, it)?.stock ?? null,
             ultimaLiberacion: it.ultimaLiberacion ?? null, ultimoDespacho: it.ultimoDespacho ?? null,
             ...extra
         }
     }
 
-    // Compara la evidencia de un cierre con los datos actuales de SAP/QCS: lista lo que cambió después del cierre.
+    // Mermas y certificados registrados en QCC, tal como los entrega cierre.get (baseJustificacion).
+    function registrosQcc(base) {
+        if (!base) return null
+        const mermas = {}, certificados = {}
+        for (const m of base.mermas || []) mermas[`${m.proceso} (${String(m.metodo).toLowerCase()}, ${String(m.unidad).toLowerCase()})`] = Number(m.cantidad)
+        for (const c of base.certificados || []) certificados[c.correlativo || `#${c.id}`] = `${c.estado}, ${num(c.cantidadDestruir)} a destruir, ${c.ejecutada ? `ejecutada ${num(c.cantidadEjecutada)}` : "sin ejecutar"}`
+        return { mermas, certificados }
+    }
+
+    // Compara la evidencia de un cierre con los datos actuales de SAP/QCS y QCC: lista lo que cambió después del cierre.
     // Devuelve null si no hay evidencia (cierres anteriores a esta función) o si las fuentes no están disponibles.
-    function movimientosPosteriores(evidenciaJson, it, carga) {
+    function movimientosPosteriores(evidenciaJson, it, carga, base) {
         if (!evidenciaJson || !it) return null
         let ev
         try { ev = JSON.parse(evidenciaJson) } catch { return null }
@@ -302,15 +382,25 @@ window.CalidadNp = (function () {
             if (antes === null || antes === undefined || ahora === null || ahora === undefined) return
             if (Number(antes) !== Number(ahora)) cambios.push(`${rotulo}: ${num(antes)} → ${num(ahora)}`)
         }
-        it = { ...it, ingresadoBodega: ingresadoItem(carga, it) }
+        it = { ...it, ingresadoBodega: ingresadoItem(carga, it), stockSap: inventarioItem(carga, it)?.stock ?? null }
         dif("liberadoPt", "Liberado")
         dif("ingresadoBodega", "Ingresado a bodega")
         dif("despachado", "Despachado")
+        dif("stockSap", "Inventario SAP de los lotes de la NP")
         dif("foliosLiberacion", "Folios de liberación")
         dif("documentosDespacho", "Documentos de despacho")
         const nueva = (campo, rotulo) => { if (ev[campo] && it[campo] && it[campo] > ev[campo]) cambios.push(`${rotulo} posterior al cierre: ${it[campo]}`) }
         nueva("ultimaLiberacion", "Liberación")
         nueva("ultimoDespacho", "Despacho")
+        const ahora = registrosQcc(base)
+        if (ev.registrosQcc && ahora) {
+            const comparar = (antes, hoy, rotulo, texto) => {
+                for (const k of new Set([...Object.keys(antes), ...Object.keys(hoy)]))
+                    if (antes[k] !== hoy[k]) cambios.push(`${rotulo} ${k}: ${k in antes ? texto(antes[k]) : "no existía"} → ${k in hoy ? texto(hoy[k]) : "ya no está"}`)
+            }
+            comparar(ev.registrosQcc.mermas, ahora.mermas, "Merma", num)
+            comparar(ev.registrosQcc.certificados, ahora.certificados, "Certificado", x => x)
+        }
         return cambios
     }
 
@@ -318,5 +408,15 @@ window.CalidadNp = (function () {
         return sessionStorage.getItem("nombreUsuario") || sessionStorage.getItem("codigoUsuario") || "-"
     }
 
-    return { ND, ETAPAS, esc, num, txt, fecha, fechaHora, send, nivel, puedeEditar, etapaDe, calidadDeNp, cargarNp, evidenciaItem, ingresadoItem, movimientosPosteriores, factorConfirmado, saldoBodega, balance, hoja, guardarLibro, stamp, modal, leerArchivoBase64, imprimirHtml, usuarioActual }
+    // Fecha de hoy en hora local (toISOString entrega la fecha UTC y de noche adelanta un día).
+    const hoyLocal = (ahora = new Date()) => new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+
+    // Totales separados por unidad: pliegos y unidades nunca se suman entre sí.
+    const sumaPorUnidad = (filas, unidadDe, cantidadDe) => {
+        const t = {}
+        for (const f of filas) { const u = String(unidadDe(f) || "SIN UNIDAD").toLowerCase(); t[u] = (t[u] || 0) + Number(cantidadDe(f)) }
+        return Object.entries(t).map(([u, v]) => `${num(v)} ${u}`).join(" · ") || "0"
+    }
+
+    return { AVISO_REGLA_ANTERIOR, reglaDespachoAnterior, ND, ETAPAS, itemAmbiguo, itemSap, inventarioItem, hoyLocal, sumaPorUnidad, esc, num, txt, fecha, fechaHora, send, nivel, puedeEditar, etapaDe, calidadDeNp, cargarNp, evidenciaItem, registrosQcc, ingresadoItem, movimientosPosteriores, factorConfirmado, saldoBodega, balance, hoja, guardarLibro, stamp, modal, leerArchivoBase64, imprimirHtml, usuarioActual }
 })()

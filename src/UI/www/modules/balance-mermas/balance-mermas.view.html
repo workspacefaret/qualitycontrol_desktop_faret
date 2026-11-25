@@ -43,6 +43,7 @@
           <div class="module-title" style="font-size:16px;">Balance por proceso <span class="subtitle">(BALANCE PROVISIONAL)</span></div>
           <div class="module-actions">
             <button class="btn-secondary" id="btnBmExcelBalance">Exportar balance</button>
+            <button class="btn-secondary" id="btnBmPdfBalance">PDF del balance</button>
             <button class="btn-primary" id="btnBmNuevaMerma" data-requiere-editar>Registrar merma</button>
           </div>
         </div>
@@ -59,6 +60,16 @@
           </table>
         </div>
         <p class="subtitle" style="margin-top:8px;">Diferencia = entrada − salida conforme − mermas registradas. La entrada de un proceso es la salida del anterior (FPS no registra entradas). "Por conciliar" no significa merma: concílialo registrando la pérdida con su respaldo o justifícalo en Cierre de NP.</p>
+      </div>
+      <div class="card" style="margin-top:12px;">
+        <div class="module-title" style="font-size:16px;">Certificados de destrucción del ítem</div>
+        <div class="table-container">
+          <table class="table">
+            <thead><tr><th>Certificado</th><th>Ítem</th><th>Cantidad</th><th>Motivo</th><th>Estado documental</th><th>Destrucción física</th></tr></thead>
+            <tbody id="bmCertBody"></tbody>
+          </table>
+        </div>
+        <p class="subtitle" style="margin-top:8px;">Se muestran como respaldo y no se restan de ninguna etapa: emitir un certificado no confirma la destrucción física ni mueve inventario SAP.</p>
       </div>
     </div>
 
@@ -95,7 +106,7 @@
           </div>
         </div>
         <div class="table-container">
-          <table class="table" id="bmTablaMermas">
+          <table class="table cnp-acciones-fijas" id="bmTablaMermas">
             <thead>
               <tr><th>#</th><th>Fecha</th><th>Proceso</th><th>Máquina</th><th>Turno</th><th>Defecto</th><th>Cantidad</th><th>Unidad</th><th>Método</th><th>Estado</th><th>Registró</th><th>Acciones</th></tr>
             </thead>

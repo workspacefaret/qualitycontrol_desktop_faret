@@ -64,3 +64,19 @@
 .trz-tab.active { color: #2563EB; border-bottom-color: #2563EB; }
 .trz-filtro { width: 100%; max-width: 280px; height: 32px; margin: 4px 0 8px; padding: 0 10px; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; }
 .trz-filtro:focus { outline: 2px solid #BFDBFE; border-color: #2563EB; }
+
+/* Trazabilidad y Calidad NP (INNPACK): .table trae min-width 1400px global y cortaba columnas en pantallas normales.
+   Aquí la tabla se ajusta al ancho disponible y solo se desplaza si su contenido no cabe. */
+:is(.trazabilidad-module, .balance-mermas-module, .certificados-destruccion-module, .cierre-np-module) .table {
+    min-width: 100%;
+}
+
+/* Tablas anchas con acciones: la última columna queda fija a la derecha para que los botones no queden ocultos. */
+.cnp-acciones-fijas thead th:last-child,
+.cnp-acciones-fijas tbody td:last-child:not([colspan]) {
+    position: sticky;
+    right: 0;
+    box-shadow: -6px 0 8px -6px rgba(15, 23, 42, .25);
+}
+.cnp-acciones-fijas thead th:last-child { z-index: 3; }
+.cnp-acciones-fijas tbody td:last-child:not([colspan]) { background: #fff; z-index: 1; }

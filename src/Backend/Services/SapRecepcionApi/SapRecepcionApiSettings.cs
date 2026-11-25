@@ -16,7 +16,7 @@ namespace QualityControlCenter.Backend.Services.SapRecepcionApi
         {
             try
             {
-                var configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
+                var configPath = QualityControlCenter.Services.EntornoAislado.RutaConfig;
                 if (!File.Exists(configPath))
                     return new SapRecepcionApiSettings();
 

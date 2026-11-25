@@ -1,0 +1,14 @@
+{
+  "obtenido": "2026-11-25",
+  "origen": "Consultas SELECT escritas aparte de fps-api. SAP INNPACK y Faret_Control_Calidad: login pblectura. FPS (sesiones, sesionesValidas, producido, procesos): por el vinculado CONEXIONFPS, que en el destino se ejecuta como sa (cuenta administradora, contra la regla de pruebas); confirmar esas cuatro cifras con qcc_lectura. Es una foto: movimientos posteriores explican diferencias.",
+  "np": {
+    "3951": { "solicitado": { "1": 4815000, "2": 1790000 }, "liberadoPt": { "1": 3091584, "2": 1264650 }, "despachado": 4356234, "cuarentena": 0, "sesiones": 130, "sesionesValidas": 130, "producido": 3209981, "procesos": 25 },
+    "4007": { "solicitado": { "1": 140000, "2": 140000, "3": 70000, "4": 70000, "5": 30000, "6": 30000 }, "liberadoPt": { "1": 140000, "2": 140000, "3": 78000, "4": 78000, "5": 24000, "6": 24000 }, "despachado": 484000, "cuarentena": 0, "sesiones": 59, "sesionesValidas": 59, "producido": 621655, "procesos": 25 },
+    "4093": { "solicitado": { "1": 900000 }, "liberadoPt": { "1": 450000 }, "despachado": 388500, "cuarentena": 0, "sesiones": 26, "sesionesValidas": 26, "producido": 432599, "procesos": 13 },
+    "4123": { "solicitado": { "1": 2800000, "2": 2800000, "3": 80000, "4": 80000 }, "liberadoPt": { "1": 1394000, "2": 1392000, "3": 83700, "4": 83700 }, "despachado": 2951400, "cuarentena": 60000, "sesiones": 140, "sesionesValidas": 140, "producido": 3443506, "procesos": 27 },
+    "4128": { "solicitado": { "1": 40000, "2": 15000 }, "liberadoPt": { "1": 42508, "2": 16400 }, "despachado": 58908, "cuarentena": 0, "sesiones": 16, "sesionesValidas": 16, "producido": 118155, "procesos": 41 },
+    "4162": { "solicitado": { "1": 910000 }, "liberadoPt": { "1": 501160 }, "despachado": 250580, "cuarentena": 0, "sesiones": 10, "sesionesValidas": 10, "producido": 352613, "procesos": 12 },
+    "4171": { "solicitado": { "1": 273000 }, "liberadoPt": { "1": 279000 }, "despachado": 279000, "cuarentena": 0, "sesiones": 14, "sesionesValidas": 14, "producido": 127636, "procesos": 12 },
+    "4190": { "solicitado": { "1": 950 }, "liberadoPt": { "1": 0 }, "despachado": 0, "cuarentena": 0, "sesiones": 0, "sesionesValidas": 0, "producido": 0, "procesos": 0 }
+  }
+}

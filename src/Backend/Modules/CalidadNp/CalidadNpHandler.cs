@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using QualityControlCenter.Backend.Services.InnpackApi;
+using QualityControlCenter.Services;
 
 namespace QualityControlCenter.Modules.CalidadNp
 {
@@ -32,6 +33,9 @@ namespace QualityControlCenter.Modules.CalidadNp
             ["calidadNp.mermas.anular"] = ("POST", "mermas/{id}/anular"),
             ["calidadNp.cierre.get"] = ("GET", "np/{np}/cierre/{item}"),
             ["calidadNp.cierre.guardar"] = ("POST", "np/{np}/cierre/{item}"),
+            ["calidadNp.cierre.area"] = ("POST", "np/{np}/cierre/{item}/areas"),
+            ["calidadNp.certificados.archivos.agregar"] = ("POST", "certificados/{id}/archivos"),
+            ["calidadNp.certificados.archivos.anular"] = ("POST", "certificados/{id}/archivos/{archivoId}/anular"),
             ["calidadNp.certificados.list"] = ("GET", "certificados"),
             ["calidadNp.certificados.get"] = ("GET", "certificados/{id}"),
             ["calidadNp.certificados.flujo"] = ("GET", "certificados/flujo"),
@@ -63,6 +67,10 @@ namespace QualityControlCenter.Modules.CalidadNp
                     return await AbrirEvidencia(d);
                 if (action is "calidadNp.certificados.exportarExcel" or "calidadNp.certificados.exportarPdf")
                     return await ExportarCertificado(action, d);
+                if (action == "calidadNp.certificados.documento.conservar")
+                    return await ConservarDocumento(d);
+                if (action is "calidadNp.certificados.documento.get" or "calidadNp.certificados.archivo.abrir")
+                    return await LeerArchivoCertificado(action, d);
                 if (!Rutas.TryGetValue(action, out var ruta))
                     return Error($"Acción no reconocida: {action}");
 
@@ -79,6 +87,12 @@ namespace QualityControlCenter.Modules.CalidadNp
                     if (!TryGetInt(d, "id", out var id))
                         return Error("Falta el identificador del registro.");
                     path = path.Replace("{id}", id.ToString());
+                }
+                if (path.Contains("{archivoId}"))
+                {
+                    if (!TryGetInt(d, "archivoId", out var archivoId))
+                        return Error("Falta el archivo.");
+                    path = path.Replace("{archivoId}", archivoId.ToString());
                 }
                 if (path.Contains("{item}"))
                 {
@@ -134,9 +148,54 @@ namespace QualityControlCenter.Modules.CalidadNp
                 return Error(error);
             var nombre = Path.GetFileName(payload.GetProperty("nombreArchivo").GetString() ?? "evidencia");
             var contenido = Convert.FromBase64String(payload.GetProperty("contenidoBase64").GetString() ?? "");
+            if (!ArchivosSeguros.SePuedeAbrir(nombre))
+                return Error(ArchivosSeguros.MensajeBloqueo);
             var carpeta = Path.Combine(Path.GetTempPath(), "QCC_CalidadNp");
             Directory.CreateDirectory(carpeta);
             var ruta = Path.Combine(carpeta, $"merma{id}_{nombre}");
+            await File.WriteAllBytesAsync(ruta, contenido);
+            Process.Start(new ProcessStartInfo { FileName = ruta, UseShellExecute = true });
+            return Ok(new { nombreArchivo = nombre });
+        }
+
+        // Conserva en la API el documento tal como se ve al emitir (la API solo admite uno por certificado).
+        private async Task<string> ConservarDocumento(JsonElement d)
+        {
+            var exportado = await ExportarCertificado("calidadNp.certificados.exportarPdf", d);
+            using var doc = JsonDocument.Parse(exportado);
+            if (!doc.RootElement.GetProperty("ok").GetBoolean())
+                return exportado;
+            TryGetInt(d, "id", out var id);
+            var html = doc.RootElement.GetProperty("data").GetProperty("html").GetString();
+            var (ok, body) = await _client.PostJsonAsync($"{Base}certificados/{id}/archivos", new Dictionary<string, object?> { ["tipo"] = "DOCUMENTO_EMITIDO", ["html"] = html });
+            return Forward(ok, body);
+        }
+
+        // Documento emitido: se devuelve el HTML original (el front lo imprime en un marco sin scripts), verificando su huella.
+        // Evidencia: se escribe en una carpeta temporal y se abre con la aplicación del sistema.
+        private async Task<string> LeerArchivoCertificado(string action, JsonElement d)
+        {
+            if (!TryGetInt(d, "id", out var id) || !TryGetInt(d, "archivoId", out var archivoId))
+                return Error("Falta el certificado o el archivo.");
+            var (ok, body) = await _client.GetAsync($"{Base}certificados/{id}/archivos/{archivoId}");
+            if (!TryUnwrap(body, out var payload, out var error) || !ok)
+                return Error(error);
+            var contenido = Convert.FromBase64String(payload.GetProperty("contenidoBase64").GetString() ?? "");
+            var huella = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(contenido)).ToLowerInvariant();
+            if (!string.Equals(huella, payload.GetProperty("sha256").GetString()?.Trim(), StringComparison.OrdinalIgnoreCase))
+                return Error("El archivo recibido no coincide con la huella registrada: no se muestra.");
+            if (action == "calidadNp.certificados.documento.get")
+            {
+                if (payload.GetProperty("tipoMime").GetString() != "text/html")
+                    return Error("El archivo no es el documento emitido.");
+                return Ok(new { html = System.Text.Encoding.UTF8.GetString(contenido), sha256 = huella });
+            }
+            var nombre = Path.GetFileName(payload.GetProperty("nombreArchivo").GetString() ?? "evidencia");
+            if (!ArchivosSeguros.SePuedeAbrir(nombre))
+                return Error(ArchivosSeguros.MensajeBloqueo);
+            var carpeta = Path.Combine(Path.GetTempPath(), "QCC_CalidadNp");
+            Directory.CreateDirectory(carpeta);
+            var ruta = Path.Combine(carpeta, $"cert{id}_{archivoId}_{nombre}");
             await File.WriteAllBytesAsync(ruta, contenido);
             Process.Start(new ProcessStartInfo { FileName = ruta, UseShellExecute = true });
             return Ok(new { nombreArchivo = nombre });

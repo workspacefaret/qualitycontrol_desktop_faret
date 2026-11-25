@@ -80,8 +80,11 @@ if (!window.BalanceMermasController) {
         else if (id === "btnBmTabBalance") this.tab("balance")
         else if (id === "btnBmTabMermas") this.tab("mermas")
         else if (id === "btnBmExcelBalance") this.exportarBalance()
+        else if (id === "btnBmPdfBalance") this.pdfBalance()
         else if (id === "btnBmExcelMermas") this.exportarMermas()
         else if (id === "btnBmNuevaMerma" || id === "btnBmNuevaMerma2") this.modalMerma()
+        const det = e.target.closest?.("[data-bm-detalle]")
+        if (det) this.verDetalle(det.dataset.bmDetalle)
         const fila = e.target.closest?.("[data-bm-merma]")
         if (fila) this.accionMerma(fila.dataset.bmMerma, Number(fila.dataset.id))
         const reg = e.target.closest?.("[data-bm-registrar]")
@@ -103,6 +106,7 @@ if (!window.BalanceMermasController) {
       this.$("bmEstado").textContent = ""
       this._carga = null
       this._mermas = []
+      this._sinMermas = false
     }
 
     tab(cual) {
@@ -125,6 +129,9 @@ if (!window.BalanceMermasController) {
       if (id !== this._seq) return
       this._carga = carga
       this._mermas = mer.ok ? mer.data || [] : []
+      this._sinMermas = !mer.ok
+      this._certificados = await this.consultarCertificados(carga.np)
+      if (id !== this._seq) return
       this._calidad = null
       const items = carga.data?.items || []
       const sel = this.$("bmItem")
@@ -142,8 +149,36 @@ if (!window.BalanceMermasController) {
       this.refrescarItem()
     }
 
+    // null = no disponible o sin permiso sobre el módulo de origen (nunca equivale a "sin certificados").
+    async consultarCertificados(np) {
+      if (window.App?.nivelModulo && window.App.nivelModulo("certificados-destruccion") === "SIN_ACCESO") return { estado: "SIN_PERMISO", items: null }
+      const r = await C.send("calidadNp.certificados.list", { np })
+      return r.ok && Array.isArray(r.data) ? { estado: "OK", items: r.data.filter(c => String(c.np) === String(np)) } : { estado: "ERROR", items: null }
+    }
+
+    // Filas [certificado, ítem, cantidad, motivo, estado, ejecución] del ítem seleccionado (o sin ítem asignado).
+    certificadosDelItem() {
+      const lista = this._certificados?.items
+      if (!lista) return null
+      const it = this.item()
+      return lista.filter(c => it === null || c.item === null || c.item === undefined || Number(c.item) === it)
+        .map(c => [c.correlativo || `Borrador #${c.id}`, C.txt(c.item), C.num(Number(c.cantidadDestruir)), C.txt(c.motivo), C.txt(c.estado), c.ejecutada ? (c.cantidadEjecutada === null || c.cantidadEjecutada === undefined ? "Confirmada (cantidad no registrada)" : `Confirmada: ${C.num(Number(c.cantidadEjecutada))}`) : "No confirmada"])
+    }
+
+    motivoSinCertificados() {
+      return this._certificados?.estado === "SIN_PERMISO" ? "Sin permiso sobre Certificados de destrucción" : ND
+    }
+
+    tablaCertificadosHtml() {
+      const filas = this.certificadosDelItem()
+      if (filas === null) return `<tr><td colspan="6">${C.esc(this.motivoSinCertificados())}</td></tr>`
+      return filas.map(f => `<tr>${f.map(v => `<td>${C.esc(v)}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="6">Sin certificados de destrucción para este ítem</td></tr>`
+    }
+
     refrescarItem() {
       this.renderBalance()
+      const cert = this.$("bmCertBody")
+      if (cert) cert.innerHTML = this.tablaCertificadosHtml()
       this.renderMermas()
     }
 
@@ -155,7 +190,7 @@ if (!window.BalanceMermasController) {
     // ── Balance ──────────────────────────────────────────────────────────────
 
     calcularBalance() {
-      return C.balance({ carga: this._carga, item: this.item(), mermas: this._mermas })
+      return C.balance({ carga: this._carga, item: this.item(), mermas: this._sinMermas ? null : this._mermas })
     }
 
     renderBalance() {
@@ -172,10 +207,73 @@ if (!window.BalanceMermasController) {
         const unidad = f.base ? ` <span class="subtitle">${f.base === "PLIEGOS" ? "pliegos" : "unid."}</span>` : ""
         return `<tr>
           <td><b>${C.esc(f.etapa)}</b>${unidad}</td><td>${rango}</td><td>${C.esc(C.txt(f.maquinas))}</td><td>${celda(f.entrada)}</td><td>${celda(f.procesado)}</td>
-          <td>${celda(f.equivalentes)}</td><td>${celda(f.salidaConforme)}</td><td>${C.num(f.mermaConfirmada)}</td><td>${C.num(f.mermaEstimada)}</td>
+          <td>${celda(f.equivalentes)}</td><td>${celda(f.salidaConforme)}</td><td>${C.esc(this.mermaTexto(f.mermaConfirmada, f.mermaConfirmadaSinConvertir))}</td><td>${C.esc(this.mermaTexto(f.mermaEstimada, f.mermaEstimadaSinConvertir))}</td>
           <td>${celda(f.retenido)}</td><td><span class="subtitle">${ND}</span></td><td>${dif}</td><td>${C.esc(f.estado)}</td>
-          <td>${f.etapa !== "Despacho" ? `<button class="btn-secondary" style="padding:2px 8px;" data-bm-registrar="${C.esc(f.etapa)}" data-requiere-editar>Registrar merma</button>` : ""}</td></tr>`
+          <td style="white-space:nowrap;"><button class="btn-secondary" style="padding:2px 8px;" data-bm-detalle="${C.esc(f.etapa)}">Ver detalle</button> ${f.etapa !== "Despacho" ? `<button class="btn-secondary" style="padding:2px 8px;" data-bm-registrar="${C.esc(f.etapa)}" data-requiere-editar>Registrar merma</button>` : ""}</td></tr>`
       }).join("") : `<tr><td colspan="14" style="text-align:center;">Sin datos de procesos para esta NP</td></tr>`
+    }
+
+    // Una merma en otra unidad (sin factor confirmado) se nombra: la fila no puede decir que es cero.
+    mermaTexto(valor, sinConvertir) {
+      const C = window.CalidadNp
+      if (!sinConvertir) return C.num(valor)
+      return `${valor ? C.num(valor) + " + " : ""}${sinConvertir} sin convertir`
+    }
+
+    // Registros de origen de una fila del balance. null = la fuente no está disponible.
+    detalleEtapa(etapa) {
+      const f = (this._balance?.filas || []).find(x => x.etapa === etapa)
+      const d = this._carga?.data
+      if (!f || !d) return null
+      const items = d.items || []
+      const it = items.find(i => Number(i.item) === Number(this._balance.item)) || null
+      if (etapa === "Calidad") {
+        const lib = d.liberaciones && it ? d.liberaciones.filter(l => String(l.Item) === String(it.item) && String(l.ItemCode) === String(it.itemCode)) : null
+        return { titulo: "Folios de liberación QCS del ítem", columnas: ["Folio", "Fecha", "Cantidad", "Bodega origen", "Bodega destino", "Inspector"],
+          filas: lib && lib.map(l => [l.Folio, C.txt(l.Fecha), C.num(l.Cantidad), C.txt(l.BodegaOrigen), C.txt(l.BodegaDestino), C.txt(l.Inspector)]), mermas: f.mermasEtapa || [] }
+      }
+      if (etapa === "Despacho") {
+        const lineas = new Set((d.notaVenta || []).filter(l => it && String(l.Item) === String(it.item)).map(l => Number(l.LineNum)))
+        const docs = d.documentos && it ? d.documentos.filter(x => x.LineaNv !== null && x.LineaNv !== undefined && lineas.has(Number(x.LineaNv))) : null
+        return { titulo: "Documentos SAP de las líneas del ítem (no todos suman al despachado)", columnas: ["Tipo", "Número", "Fecha", "Cantidad", "Efecto"],
+          filas: docs && docs.map(x => [x.Tipo, x.DocNum, C.txt(x.DocDate), C.num(Number(x.Cantidad)), this.efectoDocumento(x)]), mermas: [] }
+      }
+      return { titulo: "Corridas válidas de FPS que suman en la etapa", columnas: ["Inicio", "Término", "Máquina", "Operador", "Cantidad (FPS)", "Corrida"],
+        filas: (f.corridas || []).map(s => [C.fechaHora(s.ProductionStartDate || s.SetupStartDate), s.ProductionEndDate ? C.fechaHora(s.ProductionEndDate) : "Abierta", C.txt(s.Maquina), C.txt(s.Operador), C.num(s.ProductionQuantity), s.RecordKey]),
+        mermas: this._sinMermas ? null : f.mermasEtapa || [] }
+    }
+
+    efectoDocumento(x) {
+      if (x.Tipo === "GUIA") return "Suma"
+      if (x.Tipo === "DEVOLUCION") return "Resta"
+      if (x.Tipo === "NOTA_CREDITO") return Number(x.RepusoStock) === 1 ? "Resta (reingresó stock en SAP)" : "No mueve stock"
+      return x.Origen === "DIRECTA" ? "Suma" : "No suma (reserva o factura de guía)"
+    }
+
+    verDetalle(etapa) {
+      const d = this.detalleEtapa(etapa)
+      if (!d) return
+      const tabla = (cols, filas, vacio) => `<div class="table-container"><table class="table"><thead><tr>${cols.map(c => `<th>${C.esc(c)}</th>`).join("")}</tr></thead><tbody>${filas === null ? `<tr><td colspan="${cols.length}">${ND}</td></tr>` : !filas.length ? `<tr><td colspan="${cols.length}">${vacio}</td></tr>` : filas.map(f => `<tr>${f.map(v => `<td>${C.esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+      C.modal("bmDetalle", `Detalle de ${etapa}`, `<p class="subtitle">${C.esc(d.titulo)}</p>${tabla(d.columnas, d.filas, "Sin registros")}
+        <p class="subtitle" style="margin-top:8px;">Mermas registradas en la etapa</p>${tabla(["N°", "Fecha", "Defecto", "Cantidad", "Unidad", "Certeza", "Estado"], d.mermas && d.mermas.map(m => [m.id ?? "-", C.fecha(m.fecha), C.txt(m.defecto), C.num(Number(m.cantidad)), m.unidad, m.metodo, m.estado]), "Sin mermas registradas")}`, "", null, 920)
+    }
+
+    pdfBalance() {
+      const b = this._balance
+      if (!b) return
+      const e = C.esc
+      const v = x => (x === null || x === undefined ? ND : C.num(x))
+      const filas = b.filas.map(f => `<tr><td>${e(f.etapa)}</td><td>${f.base ? (f.base === "PLIEGOS" ? "pliegos" : "unid.") : "-"}</td><td>${v(f.entrada)}</td><td>${v(f.procesado)}</td><td>${v(f.salidaConforme)}</td><td>${e(this.mermaTexto(f.mermaConfirmada, f.mermaConfirmadaSinConvertir))}</td><td>${e(this.mermaTexto(f.mermaEstimada, f.mermaEstimadaSinConvertir))}</td><td>${v(f.retenido)}</td><td>${f.diferencia === null || f.diferencia === undefined ? "No calculable" : C.num(f.diferencia) + (f.diferenciaEsPendienteDespacho ? " (pendiente de despacho)" : "")}</td><td>${e(f.estado)}</td></tr>`).join("") || `<tr><td colspan="10">Sin datos de procesos</td></tr>`
+      const mermas = this.mermasDelItem().filter(m => m.estado !== "ANULADA").map(m => `<tr><td>${e(C.fecha(m.fecha))}</td><td>${e(m.proceso)}</td><td>${e(C.txt(m.defecto))}</td><td>${C.num(Number(m.cantidad))} ${e(String(m.unidad).toLowerCase())}</td><td>${e(m.metodo)}</td><td>${e(m.estado)}</td></tr>`).join("") || `<tr><td colspan="6">${this._sinMermas ? "Mermas no disponibles: no se pudieron consultar" : "Sin mermas registradas (no equivale a merma cero)"}</td></tr>`
+      C.imprimirHtml(`<!doctype html><html><head><meta charset="utf-8"><title>Balance NP ${e(this._carga.np)}</title><style>
+        @page{size:landscape}body{font-family:Arial,sans-serif;font-size:10px;margin:14px;color:#111}h1{font-size:16px;margin:0}h2{font-size:12px;margin:12px 0 4px}
+        table{width:100%;border-collapse:collapse}th,td{border:1px solid #94a3b8;padding:3px 4px;text-align:left}th{background:#e2e8f0}</style></head><body>
+        <h1>INNPACK — BALANCE PROVISIONAL de materiales · NP ${e(this._carga.np)} · ítem ${e(b.item ?? "-")}</h1>
+        <p>Emitido: ${e(new Date().toLocaleString("es-CL"))} · ${e(C.usuarioActual())}. Una diferencia por conciliar no es merma ni destrucción.</p>
+        <table><thead><tr><th>Etapa</th><th>Unidad</th><th>Entrada (est.)</th><th>Procesado</th><th>Salida conforme</th><th>Merma conf.</th><th>Merma est.</th><th>Retenido</th><th>Diferencia</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table>
+        <h2>Mermas registradas</h2><table><thead><tr><th>Fecha</th><th>Proceso</th><th>Defecto</th><th>Cantidad</th><th>Certeza</th><th>Estado</th></tr></thead><tbody>${mermas}</tbody></table>
+        <h2>Certificados de destrucción (respaldo, no se restan de las etapas)</h2><table><thead><tr><th>Certificado</th><th>Ítem</th><th>Cantidad</th><th>Motivo</th><th>Estado documental</th><th>Destrucción física</th></tr></thead><tbody>${this.tablaCertificadosHtml()}</tbody></table>
+        <h2>Advertencias</h2><ul>${b.advertencias.map(a => `<li>${e(a)}</li>`).join("")}</ul></body></html>`)
     }
 
     exportarBalance() {
@@ -185,7 +283,9 @@ if (!window.BalanceMermasController) {
       const x = v => (v === null || v === undefined ? ND : v)
       C.hoja(wb, "Balance", `Balance PROVISIONAL NP ${this._carga.np} ítem ${b.item ?? "-"} — ${C.fechaHora(new Date())}`,
         ["Proceso", "Unidad", "Desde", "Hasta", "Máquina", "Entrada (estimada)", "Procesado (FPS)", "Unid. equivalentes", "Salida conforme", "Merma confirmada", "Merma estimada", "Material retenido", "En reproceso", "Diferencia por conciliar", "Estado del registro"],
-        b.filas.map(f => [f.etapa, f.base || "-", C.fecha(f.fechaDesde), C.fecha(f.fechaHasta), f.maquinas, x(f.entrada), x(f.procesado), x(f.equivalentes), x(f.salidaConforme), f.mermaConfirmada, f.mermaEstimada, x(f.retenido), ND, x(f.diferencia), f.estado]))
+        b.filas.map(f => [f.etapa, f.base || "-", C.fecha(f.fechaDesde), C.fecha(f.fechaHasta), f.maquinas, x(f.entrada), x(f.procesado), x(f.equivalentes), x(f.salidaConforme), f.mermaConfirmadaSinConvertir ? this.mermaTexto(f.mermaConfirmada, f.mermaConfirmadaSinConvertir) : x(f.mermaConfirmada), f.mermaEstimadaSinConvertir ? this.mermaTexto(f.mermaEstimada, f.mermaEstimadaSinConvertir) : x(f.mermaEstimada), x(f.retenido), ND, x(f.diferencia), f.estado]))
+      C.hoja(wb, "Certificados", "Certificados de destrucción (no se restan de las etapas)", ["Certificado", "Ítem", "Cantidad", "Motivo", "Estado documental", "Destrucción física"],
+        this.certificadosDelItem() ?? [[this.motivoSinCertificados()]])
       C.hoja(wb, "Advertencias", "Advertencias del balance", ["Advertencia"], b.advertencias.map(a => [a]))
       C.guardarLibro(wb, `Balance_NP_${this._carga.np}_${C.stamp()}.xlsx`)
     }
@@ -195,16 +295,16 @@ if (!window.BalanceMermasController) {
     renderMermas() {
       const lista = this.mermasDelItem()
       const act = lista.filter(m => m.estado !== "ANULADA")
-      const suma = (arr, f) => arr.filter(f).reduce((a, m) => a + Number(m.cantidad), 0)
+      const suma = (arr, f) => (this._sinMermas ? ND : C.sumaPorUnidad(arr.filter(f), m => m.unidad, m => m.cantidad))
       const conf = m => m.metodo !== "ESTIMADA"
       const cal = (this._balance?.filas || []).find(f => f.etapa === "Calidad")
-      const difTotal = (this._balance?.filas || []).filter(f => !f.diferenciaEsPendienteDespacho && f.diferencia > 0).reduce((a, f) => a + f.diferencia, 0)
+      const difTotal = C.sumaPorUnidad((this._balance?.filas || []).filter(f => !f.diferenciaEsPendienteDespacho && f.diferencia > 0), f => f.base, f => f.diferencia)
       const tarj = (label, valor, nota) => `<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-value">${valor}</div><div class="subtitle">${nota}</div></div>`
       this.$("bmKpis").innerHTML =
-        tarj("Merma confirmada", C.num(suma(act, conf)), "contada o medida (según unidad de cada registro)") +
-        tarj("Merma estimada", C.num(suma(act, m => !conf(m))), "estimaciones: no son confirmadas") +
+        tarj("Merma confirmada", suma(act, conf), "contada o medida, separada por unidad") +
+        tarj("Merma estimada", suma(act, m => !conf(m)), "estimaciones: no son confirmadas") +
         tarj("Cantidad retenida", cal && cal.retenido !== null ? C.num(cal.retenido) : ND, "cuarentena en QCS") +
-        tarj("Diferencia no conciliada", this._balance?.filas.length ? C.num(difTotal) : ND, "suma de diferencias positivas del balance (provisional)")
+        tarj("Diferencia no conciliada", this._balance?.filas.length ? difTotal : ND, "suma de diferencias positivas del balance (provisional)")
       this.$("bmMermasBody").innerHTML = lista.length ? lista.map(m => {
         const acc = []
         if (m.estado !== "ANULADA") {
@@ -217,13 +317,13 @@ if (!window.BalanceMermasController) {
         }
         if (m.tieneEvidencia) acc.push(`<button class="btn-secondary" style="padding:2px 8px;" data-bm-merma="evidencia" data-id="${m.id}">Evidencia</button>`)
         const corr = Number(m.cantidadInicial) !== Number(m.cantidad) ? ` <span class="subtitle">(inicial ${C.num(m.cantidadInicial)})</span>` : ""
-        const comp = Number(m.comprometidoDestruccion) > 0 ? `<div class="subtitle">${C.num(m.comprometidoDestruccion)} en certificados de destrucción</div>` : ""
+        const comp = Number(m.comprometidoDestruccion) > 0 ? `<div class="subtitle">${C.num(m.comprometidoDestruccion)} en certificados de destrucción${m.certificados ? ` (${C.esc(m.certificados)})` : ""}${Number(m.destruidoConfirmado) > 0 ? ` · destrucción confirmada ${C.num(m.destruidoConfirmado)}` : ""}</div>` : ""
         return `<tr${m.estado === "ANULADA" ? ' style="opacity:.55;"' : ""}><td>${m.id}</td><td>${C.fecha(m.fecha)}</td><td>${C.esc(m.proceso)}</td><td>${C.esc(C.txt(m.maquina))}</td>
           <td>${C.esc(C.txt(m.turno))}</td><td>${C.esc(C.txt(m.defecto))}${m.defectoOrigen ? `<div class="subtitle">vinculado: ${C.esc(m.defectoOrigen)}</div>` : ""}</td>
           <td>${C.num(m.cantidad)}${corr}${comp}</td><td>${C.esc(m.unidad)}${m.pallet ? ` <span class="subtitle">pallet ${C.esc(m.pallet)}</span>` : ""}</td>
           <td>${C.esc(m.metodo)}</td><td>${C.esc(ESTADO_MERMA[m.estado] || m.estado)}${m.motivoAnulacion ? `<div class="subtitle">${C.esc(m.motivoAnulacion)}</div>` : ""}</td>
           <td>${C.esc(m.creadoPor)}<div class="subtitle">${C.fechaHora(m.fechaCreacion)}</div></td><td style="white-space:nowrap;">${acc.join(" ")}</td></tr>`
-      }).join("") : `<tr><td colspan="12" style="text-align:center;">Sin mermas registradas para esta NP/ítem</td></tr>`
+      }).join("") : `<tr><td colspan="12" style="text-align:center;">${this._sinMermas ? "Mermas no disponibles: no se pudieron consultar (no equivale a que no existan)" : "Sin mermas registradas para esta NP/ítem"}</td></tr>`
       this.renderAcumulado()
     }
 
@@ -242,15 +342,16 @@ if (!window.BalanceMermasController) {
       const fmt = o => (Object.keys(o).length ? Object.entries(o).map(([u, v]) => `${C.num(v)} ${u === "PLIEGOS" ? "pliegos" : "unid."}`).join(" + ") : "-")
       this.$("bmAcumBody").innerHTML = g.size
         ? [...g.entries()].sort().map(([k, e]) => `<tr><td>${C.esc(por === "fecha" && k !== "-" ? C.fecha(k) : k)}</td><td>${fmt(e.conf)}</td><td>${fmt(e.est)}</td><td>${e.n}</td></tr>`).join("")
-        : `<tr><td colspan="4" style="text-align:center;">Sin mermas</td></tr>`
+        : `<tr><td colspan="4" style="text-align:center;">${this._sinMermas ? ND : "Sin mermas"}</td></tr>`
     }
 
     exportarMermas() {
       if (!this._carga) return
+      if (this._sinMermas) { alert("Las mermas no se pudieron consultar: no se exporta un archivo vacío."); return }
       const wb = XLSX.utils.book_new()
       C.hoja(wb, "Mermas", `Mermas NP ${this._carga.np} — ${C.fechaHora(new Date())}`,
-        ["Id", "Ítem", "Fecha", "Proceso", "Máquina", "Turno", "Corrida", "Defecto", "Inspección vinculada", "Cantidad", "Cantidad inicial", "Unidad", "Pallet", "Método", "Estado", "Motivo anulación", "Registró", "Fecha registro"],
-        this._mermas.map(m => [m.id, m.item ?? "-", C.fecha(m.fecha), m.proceso, C.txt(m.maquina), C.txt(m.turno), C.txt(m.corrida), C.txt(m.defecto), C.txt(m.defectoOrigen), m.cantidad, m.cantidadInicial, m.unidad, C.txt(m.pallet), m.metodo, m.estado, C.txt(m.motivoAnulacion), m.creadoPor, C.fechaHora(m.fechaCreacion)]))
+        ["Id", "Ítem", "Fecha", "Proceso", "Máquina", "Turno", "Corrida", "Defecto", "Inspección vinculada", "Cantidad", "Cantidad inicial", "Unidad", "Pallet", "Método", "Estado", "Motivo anulación", "Registró", "Fecha registro", "Código SAP", "En certificados de destrucción", "Certificados", "Destrucción confirmada"],
+        this._mermas.map(m => [m.id, m.item ?? "-", C.fecha(m.fecha), m.proceso, C.txt(m.maquina), C.txt(m.turno), C.txt(m.corrida), C.txt(m.defecto), C.txt(m.defectoOrigen), m.cantidad, m.cantidadInicial, m.unidad, C.txt(m.pallet), m.metodo, m.estado, C.txt(m.motivoAnulacion), m.creadoPor, C.fechaHora(m.fechaCreacion), C.txt(m.itemCode), m.comprometidoDestruccion ?? ND, C.txt(m.certificados), m.destruidoConfirmado ?? ND]))
       C.guardarLibro(wb, `Mermas_NP_${this._carga.np}_${C.stamp()}.xlsx`)
     }
 
@@ -258,7 +359,7 @@ if (!window.BalanceMermasController) {
 
     async recargarMermas() {
       const r = await C.send("calidadNp.mermas.list", { np: this._carga.np })
-      if (r.ok) this._mermas = r.data || []
+      if (r.ok) { this._mermas = r.data || []; this._sinMermas = false }
       this.refrescarItem()
     }
 
@@ -310,7 +411,7 @@ if (!window.BalanceMermasController) {
       const corridas = (d?.sesiones || []).filter(s => Number(s.Status) === 1)
       const opt = (v, t, sel) => `<option value="${C.esc(v)}"${sel ? " selected" : ""}>${C.esc(t)}</option>`
       const proc = C.ETAPAS.filter(e => e !== "Despacho")
-      const hoy = new Date().toISOString().slice(0, 10)
+      const hoy = C.hoyLocal()
       const cuerpo = `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="form-group"><label>NP</label><input type="text" value="${C.esc(this._carga.np)}" disabled></div>
@@ -324,7 +425,7 @@ if (!window.BalanceMermasController) {
           <div class="form-group"><label>Cantidad *</label><input type="number" min="0" step="any" id="bmfCantidad"></div>
           <div class="form-group"><label>Unidad *</label><select id="bmfUnidad">${opt("UNIDADES", "Unidades")}${opt("PLIEGOS", "Pliegos")}</select></div>
           <div class="form-group"><label>Pallet</label><select id="bmfPallet"><option value="">—</option>${opt("ROJO", "Rojo")}${opt("AZUL", "Azul")}${opt("UNIDADES", "Unidades")}</select></div>
-          <div class="form-group"><label>Evidencia (foto, máx. 10 MB)</label><input type="file" id="bmfEvidencia" accept="image/*,.pdf"></div>
+          <div class="form-group"><label>Evidencia (foto, máx. 10 MB)</label><input type="file" id="bmfEvidencia" accept=".pdf,.jpg,.jpeg,.png,.webp"></div>
         </div>
         <div class="form-group"><label>Método de cuantificación *</label>
           <label><input type="radio" name="bmfMetodo" value="CONTADA"> Contada</label> &nbsp;
@@ -339,7 +440,9 @@ if (!window.BalanceMermasController) {
         const cantidad = o.querySelector("#bmfCantidad").value
         if (cantidad === "" || !Number.isFinite(Number(cantidad)) || Number(cantidad) < 0) return "Indica una cantidad válida (0 o más)"
         if (!o.querySelector("#bmfFecha").value) return "Indica la fecha"
+        const itSap = items.filter(i => String(i.item) === o.querySelector("#bmfItem").value)
         const body = {
+          ...(itSap.length === 1 ? C.itemSap(this._carga, itSap[0]) : {}),
           np: this._carga.np, item: o.querySelector("#bmfItem").value ? Number(o.querySelector("#bmfItem").value) : null, proceso: o.querySelector("#bmfProceso").value,
           fecha: o.querySelector("#bmfFecha").value, turno: o.querySelector("#bmfTurno").value.trim(), maquina: o.querySelector("#bmfMaquina").value.trim(),
           corrida: o.querySelector("#bmfCorrida").value, defecto: o.querySelector("#bmfDefecto").value.trim(), defectoOrigen: origen || "",
@@ -358,6 +461,14 @@ if (!window.BalanceMermasController) {
         await this.recargarMermas()
         this.tab("mermas")
       })
+      // La corrida de FPS ya trae su máquina: se copia sin pisar lo que haya escrito el usuario.
+      let maquinaCopiada = ""
+      ov.querySelector("#bmfCorrida").onchange = e => {
+        const campo = ov.querySelector("#bmfMaquina")
+        if (campo.value && campo.value !== maquinaCopiada) return
+        maquinaCopiada = corridas.find(s => String(s.RecordKey) === e.target.value)?.Maquina || ""
+        campo.value = maquinaCopiada
+      }
       ov.querySelector("#bmfVincular").onclick = () => this.modalVincular(ov, v => {
         origen = v.origen
         ov.querySelector("#bmfDefecto").value = v.defecto
@@ -394,6 +505,7 @@ if (!window.BalanceMermasController) {
     }
 
     destroy() {
+      document.getElementById("bmDetalle")?.remove()
       if (this._click) document.removeEventListener("click", this._click)
       if (this._change) document.removeEventListener("change", this._change)
       this._click = null

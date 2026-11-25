@@ -84,6 +84,8 @@ namespace QualityControlCenter.Services
 
         // Módulos que nunca bajan de VER.
         private static readonly HashSet<string> ModulosInicio = new() { "inicio", "faret" };
+        // Mismo conjunto que usa la API INNPACK para las lecturas compartidas de Trazabilidad y Calidad NP.
+        private static readonly string[] ModulosCalidadNp = { "trazabilidad", "balance-mermas", "cierre-np", "certificados-destruccion" };
 
         // Acciones permitidas sin sesión ni módulo de origen (login/logout/exportar a Excel).
         private static readonly HashSet<string> AccionesPublicas = new()
@@ -156,8 +158,8 @@ namespace QualityControlCenter.Services
             "talleresExternos.catalogos",
             "talleresExternos.historialLiberaciones",
             "clasificacionPallets.defectos", // ranking de defectos (solo lectura)
-            "calidadNp.mermas.evidencia", "calidadNp.certificados.flujo", "calidadNp.resumen", "calidadNp.certificados.exportarExcel", "calidadNp.certificados.exportarPdf", // lecturas (abrir evidencia / cargos del flujo de aprobación)
-            "trazabilidad.consultarNp", "trazabilidad.integral", "trazabilidad.lote", "trazabilidad.noConformidades", "trazabilidad.adjuntosSap.list", "trazabilidad.adjuntosSap.abrir", "trazabilidad.exportarV05Excel", // exportar solo dibuja el modelo recibido
+            "calidadNp.mermas.evidencia", "calidadNp.certificados.flujo", "calidadNp.resumen", "calidadNp.certificados.exportarExcel", "calidadNp.certificados.exportarPdf", "calidadNp.certificados.archivo.abrir", // lecturas (abrir evidencia / cargos del flujo de aprobación)
+            "trazabilidad.consultarNp", "trazabilidad.integral", "trazabilidad.lote", "trazabilidad.registroOriginal", "trazabilidad.noConformidades", "trazabilidad.pallets", "trazabilidad.buscar", "trazabilidad.adjuntosSap.list", "trazabilidad.adjuntosSap.abrir", "trazabilidad.exportarV05Excel", // exportar solo dibuja el modelo recibido
             
             "trazabilidad.documentos.abrir", "trazabilidad.documentos.historial", "trazabilidad.documentos.zip", // solo lectura (el ZIP/archivo se guarda en la PC local)
         };
@@ -272,6 +274,12 @@ namespace QualityControlCenter.Services
                     if (!EsLectura(action) && nivelPallets != Editar)
                         return "Solo vista: no tienes permiso para modificar datos en este módulo.";
                 }
+
+                // Trazabilidad y Calidad NP en INNPACK: trazabilidad.* va directo a FPS/SAP sin pasar por la autorización de la
+                // API, así que declarar otro módulo de origen no puede saltarse el permiso (FARET no cambia).
+                if (_empresa == "INNPACK" && (action.StartsWith("trazabilidad.") || action.StartsWith("calidadNp."))
+                    && ModulosCalidadNp.All(m => NivelEfectivoSinLock(m) == SinAcceso))
+                    return "No tienes acceso a este módulo.";
 
                 // Eliminar formularios (borrado físico, irreversible): solo ADMIN_TI.
                 if (action == "formularios.eliminar" && !EsAdminTiSinLock())

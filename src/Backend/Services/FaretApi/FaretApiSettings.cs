@@ -14,7 +14,7 @@ namespace QualityControlCenter.Backend.Services.FaretApi
         {
             try
             {
-                var configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
+                var configPath = QualityControlCenter.Services.EntornoAislado.RutaConfig;
                 if (!File.Exists(configPath))
                     return new FaretApiSettings();
 

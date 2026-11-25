@@ -165,7 +165,10 @@ namespace QualityControlCenter.Modules.CalidadNp
                 lineas.Add("Aprobaciones adicionales: " + string.Join("; ", aprobaciones.Skip(3).Select(a => $"{Str(a, "cargo")} {Str(a, "estado")}")) + ".");
             if (emitido)
                 lineas.Add(Bool(c, "ejecutada")
-                    ? "Destrucción física confirmada el " + (Date(c, "fechaEjecucion")?.ToString("dd-MM-yyyy", Es) ?? "(fecha no registrada)") + "."
+                    ? "Destrucción física confirmada el " + (Date(c, "fechaEjecucion")?.ToString("dd-MM-yyyy", Es) ?? "(fecha no registrada)")
+                        + (c.TryGetProperty("cantidadEjecutada", out var q) && q.ValueKind == JsonValueKind.Number
+                            ? ": " + q.GetDecimal().ToString("#,##0.##", Es) + " " + (Str(c, "unidad").Length > 0 ? Str(c, "unidad").ToLowerInvariant() : "(unidad no registrada)") + " efectivamente destruidas"
+                            : "") + "."
                     : "Destrucción física: aún NO confirmada (certificado emitido no significa material destruido).");
             if (Str(c, "estado") == "ANULADO" && Str(c, "motivoAnulacion").Length > 0)
                 lineas.Add("ANULADO: " + Str(c, "motivoAnulacion"));

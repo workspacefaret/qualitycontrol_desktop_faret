@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Ejecuta el código real del ZIP consolidado (TrazabilidadHandler, anexos SAP) contra un servidor HTTP local
+       simulado; datos ficticios, sin red ni producción. Abre el ZIP resultante y revisa su contenido. `dotnet run`. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\QualityControlCenter.csproj" />
+  </ItemGroup>
+
+  <!-- La referencia al escritorio copia su config.json (con credenciales) a esta salida: se elimina. -->
+  <Target Name="QuitarConfigCopiado" AfterTargets="Build">
+    <Delete Files="$(OutDir)config.json" />
+  </Target>
+
+</Project>

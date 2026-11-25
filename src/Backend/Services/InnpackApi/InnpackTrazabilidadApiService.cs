@@ -22,11 +22,12 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
             _client = client;
         }
 
-        public async Task<List<PaletTrazabilidadDto>> ObtenerPaletizadoPorNp(string np)
+        // null = no se pudo consultar (nunca equivale a "sin registros").
+        public async Task<List<PaletTrazabilidadDto>?> ObtenerPaletizadoPorNp(string np)
         {
             var (ok, body) = await _client.GetAsync($"api/trazabilidad/paletizado?np={System.Uri.EscapeDataString(np)}");
             if (!ok)
-                return new List<PaletTrazabilidadDto>();
+                return null;
 
             try
             {
@@ -34,17 +35,17 @@ namespace QualityControlCenter.Backend.Services.InnpackApi
                 var root = doc.RootElement;
 
                 if (!root.TryGetProperty("success", out var s) || !s.GetBoolean())
-                    return new List<PaletTrazabilidadDto>();
+                    return null;
 
                 if (!root.TryGetProperty("data", out var d))
-                    return new List<PaletTrazabilidadDto>();
+                    return null;
 
                 return JsonSerializer.Deserialize<List<PaletTrazabilidadDto>>(d.GetRawText(), _jsonOpts)
                     ?? new List<PaletTrazabilidadDto>();
             }
             catch
             {
-                return new List<PaletTrazabilidadDto>();
+                return null;
             }
         }
     }

@@ -31,6 +31,16 @@ namespace QualityControlCenter.Backend.Services.FpsApi
         public Task<(string estado, JsonElement data, string? error)> ObtenerLoteAsync(string lote) =>
             ObtenerAsync("trazabilidad/lote?lote=" + System.Uri.EscapeDataString(lote));
 
+        private static readonly Regex CorridaRegex = new(@"^[A-Za-z0-9\-]{1,50}$");
+
+        public static bool CorridaValida(string corrida) => CorridaRegex.IsMatch(corrida);
+
+        public Task<(string estado, JsonElement data, string? error)> ObtenerCorridaAsync(string np, string corrida) =>
+            ObtenerAsync("trazabilidad/corrida?np=" + np + "&corrida=" + System.Uri.EscapeDataString(corrida));
+
+        public Task<(string estado, JsonElement data, string? error)> BuscarAsync(string texto) =>
+            ObtenerAsync("trazabilidad/buscar?texto=" + System.Uri.EscapeDataString(texto));
+
         private async Task<(string estado, JsonElement data, string? error)> ObtenerAsync(string ruta)
         {
             if (!_client.IsConfigured)

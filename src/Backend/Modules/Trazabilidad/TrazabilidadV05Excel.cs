@@ -29,7 +29,7 @@ namespace QualityControlCenter.Modules.Trazabilidad
             foreach (var b in Arr(m, "bloques"))
                 fila = Bloque(ws, b, fila);
 
-            var pie = $"Fecha de emisión documento: {Str(m, "emision")}   ·   Hora de inicio: {Str(m, "horaInicio")}   ·   Hora de término: {Str(m, "horaTermino")}   ·   Realizado por: {Str(m, "realizadoPor")}   ·   Cargo: {Str(m, "cargo")}";
+            var pie = $"Fecha de emisión documento: {Str(m, "emision")}   ·   Hora de inicio: ________   ·   Hora de término: ________   ·   Realizado por: {Str(m, "realizadoPor")}   ·   Cargo: ________________";
             ws.PageSetup.Footer.Center.AddText(pie.Replace("&", "&&"));
             ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
             ws.PageSetup.PaperSize = XLPaperSize.LetterPaper;
@@ -65,9 +65,9 @@ namespace QualityControlCenter.Modules.Trazabilidad
             }
 
             Caja(ws, 4, 1, 4, 7, "Fecha de emisión: " + Str(m, "emision"));
-            Caja(ws, 4, 8, 4, 12, "Hora de inicio: " + Str(m, "horaInicio"));
-            Caja(ws, 4, 13, 4, 17, "Hora de término: " + Str(m, "horaTermino"));
-            Caja(ws, 4, 18, 4, 24, "Realizado por: " + Str(m, "realizadoPor") + " · Cargo: " + Str(m, "cargo"));
+            Caja(ws, 4, 8, 4, 12, "Hora de inicio: ________");
+            Caja(ws, 4, 13, 4, 17, "Hora de término: ________");
+            Caja(ws, 4, 18, 4, 24, "Realizado por: " + Str(m, "realizadoPor") + " · Cargo: ________________");
             ws.Row(4).Height = 30;
             ws.Range(4, 1, 4, Grilla).Style.Alignment.WrapText = true;
             return 6;
