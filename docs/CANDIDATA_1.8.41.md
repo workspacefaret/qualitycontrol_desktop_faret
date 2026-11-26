@@ -9,12 +9,12 @@ Carpeta `Desktop\Proyectos\_releases\qcc_1.8.41\` (hashes en `SHA256SUMS.txt`; l
 
 | Paquete | Origen (commit local, sin push) | Notas |
 |---|---|---|
-| `desktop\QualityControlCenter_Setup_v1.8.41.exe` | escritorio `8e00b0d` | También en `C:\Installers\`. `QCC.Updater` sin cambios |
+| `desktop\QualityControlCenter_Setup_v1.8.41.exe` | escritorio `0f9282a` | También en `C:\Installers\`. `QCC.Updater` sin cambios |
 | `api-innpack\` (DLL + PDB) | API INNPACK `6c95fb8`, SDK 10.0.404 | **Exige** la migración 2026_12 |
 | `apisapfaret\` (DLL + PDB) | apisapfaret `d87d118`, SDK 9.0.318 | Incluye adjuntos SAP y despacho por nota de venta |
 | `fps-api\src\` (2 archivos) | sin git | `trazabilidad.service.js` y `trazabilidad.routes.js` |
 | `sql\` | repo API INNPACK | Respaldo, migración, verificación y rollback |
-| `web\qcc-web-0.11.0_photino-1.8.41_...\` | web `2580a10` | Compuerta completa aprobada |
+| `web\qcc-web-0.11.0_photino-1.8.41_...\` | web `4b2da32` | Compuerta completa aprobada |
 
 Antes de reemplazar una DLL: comparar la de producción con una compilación del commit que está desplegado. Si no
 coincide, detenerse (la rama puede traer cambios que no son de este requerimiento).
@@ -83,6 +83,20 @@ La huella de permisos de la web la aprobó Claude tras comprobar que Java aplica
 Calidad NP: **requiere revisión de una persona**.
 
 **Simuladas:** E2E con NP ficticia 9999 en navegador y vistas con datos ficticios. No son Photino ni datos reales.
+
+**Funcional de punta a punta (26-11, `tools/e2e_aislado`: front y `MessageRouter` reales en navegador, API INNPACK
+local sobre LocalDB, FPS ficticio; no es la ventana Photino):**
+
+- OK: ficha e indicadores por ítem; navegación entre los cuatro módulos; factor; mermas (validar, corregir, anular);
+  balance; cierre (borrador, cierre, historial); certificados (saldo por merma, aprobación, emisión, ejecución parcial
+  con observación obligatoria, anulación que conserva el correlativo); documentos, ZIP con índice y faltantes;
+  informe V05 con versión guardada; detalle de corrida y registro original; PDF y Excel generados;
+  `prueba.ver` sin botones de escritura y escritura rechazada; `prueba.sinacceso` sin los cuatro módulos.
+- Corregido (`0f9282a`): indicadores que mezclaban ítems; responsable de la cantidad manual ausente en PDF/Excel del
+  cierre; rótulos "(borrador)" en un certificado pendiente y "factor no confirmado" en NP de varios ítems.
+- No comprobable con el simulador: NP inexistente (devuelve siempre la 9999; cubierta por prueba automática),
+  búsqueda por lote (sin filas), inspección de camión (sin Formularios), adjuntos SAP (sin apisapfaret).
+- La API aceptó aprobar en cualquier orden y que el creador aprobara los tres cargos (cuestionario, punto 2).
 
 **Reales:** solo la validación parcial de 8 NP con la fps-api desplegada (versión anterior; 85 coinciden, 7 difieren).
 

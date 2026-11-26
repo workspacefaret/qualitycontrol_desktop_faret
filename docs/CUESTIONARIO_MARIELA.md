@@ -7,7 +7,8 @@ indícalo así.
 
 1. **Cierre de una NP:** ¿qué cargo lo pide y qué cargo lo aprueba? ¿Qué áreas participan y quién responde por cada una?
 2. **Certificado de destrucción:** ¿quién lo aprueba, lo firma, lo emite y puede anularlo? ¿Puede aprobarlo la misma
-   persona que lo creó? ¿Qué firma es válida?
+   persona que lo creó? ¿Hay un **orden** obligatorio entre Jefatura de Calidad, Ejecutivo Comercial y Gerencia
+   Comercial (hoy se aceptan en cualquier orden)? ¿Qué firma es válida?
 3. **Causa raíz escrita a mano** (sin una no conformidad asociada): ¿se permite? ¿Alguien debe autorizarla?
 
 **Cómo se calcula**

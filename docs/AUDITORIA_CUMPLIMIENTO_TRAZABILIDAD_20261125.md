@@ -444,6 +444,21 @@ compila. El porcentaje de la matriz no cambia hasta la revisión visual y con da
 - MCC Faret: sigue sin equivalencia activo–máquina verificable; no integrado.
 - Validación con datos reales: **no iniciada**. El porcentaje no cambia.
 
+## Undécima iteración (26-11, validación funcional de punta a punta, candidata `0f9282a`)
+
+Navegador con front y `MessageRouter` reales, API local en LocalDB y FPS ficticio. **No es Photino ni datos reales**,
+por lo que no cambia el conteo de la matriz.
+
+| Requerimiento | Resultado | Límite |
+|---|---|---|
+| Trazabilidad integral | OK: ficha, seis pestañas, documentos, ZIP, V05 y versiones | NP inexistente y lote no reproducibles con el simulador |
+| Balance y mermas | OK, incluida prueba 16 (saldo por merma) | Diferencias de producción no atribuibles con varios ítems |
+| Cierre de producción | OK: borrador, cierre, versiones, historial, exportaciones | Roles y aprobaciones sin definición |
+| Certificado V11 | OK: aprobación, emisión, ejecución parcial, anulación sin reutilizar correlativo | Sin orden ni segregación de aprobadores |
+| Permisos | OK: solo vista y sin acceso | FARET no configurado en el entorno |
+
+Corregidos cuatro defectos de presentación y exportación (detalle en `docs/CANDIDATA_1.8.41.md`).
+
 ## Las 16 pruebas del requerimiento (situación de la primera auditoría)
 
 "Automática" usa datos de prueba (Node, LocalDB, SAP/FPS simulados). Ninguna escribió en producción.
