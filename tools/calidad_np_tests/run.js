@@ -228,6 +228,44 @@ dp._integral = { np: "1", mermas: { estado: "ERROR", items: null }, data: { proc
 const x = dp.detalleProceso(1)
 check("proceso: solo sus corridas y controles", x.corridas.length === 1 && x.controles.length === 1 && x.controles[0].RecordKey === 10 && x.mermas === null, x)
 
+// Detalle 02.04: unidades equivalentes solo con factor de una NP de un ítem; en pegado la cantidad ya son unidades.
+const det2 = new ctx.window.TrazabilidadController()
+det2._integral = { np: "1", data: { items: [item(1)] } }
+det2._sgi = { factores: [{ item: 1, estado: "CONFIRMADO", unidadesPorPliego: 4 }] }
+const corridaDet = { RecordKey: 7, Status: 1, ProductionQuantity: 100 }
+const filaDet = (etapa, s = corridaDet) => det2.filasDetalleProceso({ etapa, proceso: { NrPl: 2 }, corridas: [s] })[0]
+check("detalle 02.04: 17 columnas con factor aplicado", filaDet("Troquelado").length === 17 && filaDet("Troquelado")[12] === 400 && filaDet("Troquelado")[5] === "1", filaDet("Troquelado"))
+check("detalle 02.04: pegado no multiplica", filaDet("Pegado")[12] === 100)
+check("detalle 02.04: sin cantidad no es 0", filaDet("Troquelado", { RecordKey: 8, Status: 1 })[12] !== 0)
+det2._integral.data.items = [item(1), item(2)]
+check("detalle 02.04: varios ítems no convierte", filaDet("Troquelado")[12] === "No calculable (varios ítems)")
+
+// Checklist 02.07/02.08: lo que otro sistema ya entrega no se pide de nuevo; fuente caída o sin permiso se declara.
+const chk = new ctx.window.TrazabilidadController()
+chk._integral = { np: "1", data: { documentos: [{ Tipo: "GUIA", DocNum: 5 }, { Tipo: "GUIA", DocNum: 5 }], sesiones: [], liberaciones: [], consumos: null,
+    fuentes: { fps: { ok: true }, sapDespachos: { ok: true }, liberaciones: { ok: false }, sapConsumos: { ok: false } } },
+    calidad: { registros: { estado: "SIN_PERMISO", items: null }, productoTerminado: { estado: "OK", items: [] } },
+    certificados: { estado: "OK", items: [{ estado: "BORRADOR" }] } }
+const est = codigo => chk.registroEnOrigen(codigo)
+check("checklist: guías repetidas cuentan una", est("LOG-GUIA").estado === "DISPONIBLE" && est("LOG-GUIA").detalle.startsWith("1 "), est("LOG-GUIA"))
+check("checklist: sin registros sigue pendiente", est("LOG-FAC") === null && est("PRO-REG") === null)
+check("checklist: fuente caída es error de integración", est("CAL-CERT").estado === "ERROR_INTEGRACION" && est("TIN-LOTE").estado === "ERROR_INTEGRACION")
+check("checklist: sin permiso se declara", est("CAL-INSP").estado === "SIN_PERMISO")
+check("checklist: certificado en borrador no es documento", est("CAL-DEST") === null)
+check("checklist: documento sin fuente propia sigue pendiente", est("PLA-CERT") === null)
+const faltan = chk.documentosFaltantes([{ codigo: "LOG-GUIA", vigente: null }, { codigo: "PLA-CERT", vigente: null },
+    { codigo: "LOG-GUIA", vigente: { estado: "EN_REVISION" } }, { codigo: "CAL-CERT", vigente: null }])
+check("checklist: faltantes excluyen lo disponible en origen", faltan.map(r => r.codigo).join() === "PLA-CERT,LOG-GUIA,CAL-CERT", faltan)
+check("checklist: motivo de la falla", chk.motivoFaltante({ codigo: "CAL-CERT", vigente: null }).startsWith("Error de integración"))
+
+chk._sgi = { np: "1", requisitos: [{ id: 1, codigo: "LOG-GUIA", area: "Logística", nombre: "Guías de despacho", vigente: null, totalVersiones: 0 },
+    { id: 2, codigo: "PLA-CERT", area: "Control de plagas", nombre: "Certificado", vigente: null, totalVersiones: 0 }] }
+chk.puedeEditar = () => false
+chk.renderDocumentos()
+const htmlDocs = el("trzDocsBody").innerHTML
+check("checklist en pantalla: disponible en origen con Consultar", htmlDocs.includes("Disponible en origen") && htmlDocs.includes('data-trzdoc="origen"') && htmlDocs.includes('data-tab="despachos"'))
+check("checklist en pantalla: el resto sigue Pendiente", htmlDocs.includes("● Pendiente"))
+
 // ZIP: un documento SAP por tipo+DocEntry, solo con adjunto y solo de la NP del panel.
 dp._sgi = { np: "1" }
 dp._integral.data = { notaVenta: [{ DocEntry: 5, DocNum: 1 }], documentos: [{ Tipo: "GUIA", DocEntry: 9, DocNum: 90, TieneAdjunto: 1 }, { Tipo: "GUIA", DocEntry: 9, DocNum: 90, TieneAdjunto: 1 }, { Tipo: "FACTURA", DocEntry: 8, TieneAdjunto: 0 }] }

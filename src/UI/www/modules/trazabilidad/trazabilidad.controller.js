@@ -3,6 +3,9 @@ if (!window.TrazabilidadController) {
   const ND = "No disponible"
   const SI = "SIN INFORMACIÓN"
   const ESTADO_DOC = { PENDIENTE: ["#b45309", "Pendiente"], DISPONIBLE: ["#15803d", "Disponible"], EN_REVISION: ["#b45309", "En revisión"], NO_DIGITALIZADO: ["#c2410c", "No digitalizado"], NO_APLICA: ["#64748b", "No aplica"] }
+  const COLUMNAS_CORRIDA = ["Inicio", "Término", "Turno (est.)", "Máquina", "Operador", "NP", "Ítem(s) de la NP", "N° de pliego", "Perfil", "Pliegos / cantidad procesada", "Puesta a punto", "Unidades por pliego", "Unidades equivalentes", "Etiquetas", "Corrida", "Sistema", "Estado"]
+  // Estados calculados de un requisito sin documento cargado: salen del sistema de origen.
+  const ESTADO_ORIGEN = { DISPONIBLE: ["#15803d", "Disponible en origen"], ERROR_INTEGRACION: ["#b91c1c", "Error de integración"], SIN_PERMISO: ["#b91c1c", "Sin permiso"] }
 
   // Procesos del formato REG-SGI-TDP-V05, en el orden del documento. `balance` = nombre en la tabla de balance.
   const PROCESOS_V05 = [
@@ -822,16 +825,16 @@ if (!window.TrazabilidadController) {
       const anexos = conRespaldo.map(r => [dato(r.area), dato(r.nombre), r.vigente.nombreArchivo ? `${r.vigente.nombreArchivo} (v${r.vigente.version})` : dato(r.vigente.enlace),
         (r.vigente.estado === "EN_REVISION" ? "Documento del checklist EN REVISIÓN" : "Documento del checklist") + (r.vigente.nombreArchivo ? "" : " (solo enlace)")])
       for (const c of certs || []) if (c.correlativo) anexos.push(["Calidad", "Certificado de destrucción", dato(c.correlativo), `Certificado relacionado (${c.estado})`])
-      const folios = (t.data?.liberaciones || []).length
-      if (folios) anexos.push(["Calidad", "Folios de liberación QCS", `${folios} folio(s)`, "Registro en el sistema de origen"])
-      const registros = (t.calidad?.registros?.items?.length || 0) + (t.calidad?.productoTerminado?.items?.length || 0)
-      if (registros) anexos.push(["Calidad", "Registros de control y producto terminado QCC", `${registros} registro(s)`, "Registros y evidencias en QCC"])
+      for (const r of reqs || []) {
+        const origen = r.vigente ? null : this.registroEnOrigen(r.codigo)
+        if (origen?.estado === "DISPONIBLE") anexos.push([dato(r.area), dato(r.nombre), origen.detalle, "Registro en el sistema de origen"])
+      }
       bloques.push({
         titulo: "12. ANEXOS", columnas: ["ÁREA", "DOCUMENTO / REGISTRO", "ARCHIVO O REFERENCIA", "TIPO"], pesos: [4, 8, 8, 5],
         filas: anexos, vacio: reqs ? "Sin anexos cargados para esta NP" : "REGISTRO NO DISPONIBLE (checklist documental no consultado)",
         nota: "\"Descargar anexos\" incluye los archivos cargados en el checklist. También agrega, en la carpeta SAP, los adjuntos de la nota de venta, de los documentos de venta con adjunto y de las recepciones de los lotes consumidos, con un índice de lo no obtenido. SAP no clasifica esos adjuntos.",
       })
-      const faltantes = (reqs || []).filter(r => !r.vigente || (r.vigente.estado !== "DISPONIBLE" && r.vigente.estado !== "NO_APLICA"))
+      const faltantes = this.documentosFaltantes(reqs)
       const noAplica = (reqs || []).filter(r => r.vigente?.estado === "NO_APLICA")
       bloques.push({
         titulo: "13. DOCUMENTOS FALTANTES", columnas: ["DOCUMENTO", "ÁREA RESPONSABLE", "MOTIVO DE AUSENCIA"], pesos: [9, 5, 10],
@@ -843,6 +846,9 @@ if (!window.TrazabilidadController) {
     }
 
     motivoFaltante(r) {
+      const origen = r.vigente ? null : this.registroEnOrigen(r.codigo)
+      if (origen?.estado === "ERROR_INTEGRACION") return "Error de integración: no se pudo consultar el sistema de origen"
+      if (origen?.estado === "SIN_PERMISO") return "Sin permiso sobre el módulo de origen"
       if (r.vigente?.estado === "EN_REVISION") return "En revisión: aún no está disponible"
       if (r.vigente?.estado === "NO_DIGITALIZADO") return `Existe sin digitalizar: ${r.vigente.observacion || "sin ubicación indicada"}`
       return "Sin documento cargado en QCC" + (r.fuenteSistema ? ". Puede existir información en el sistema de origen; no reemplaza al documento" : "")
@@ -1128,19 +1134,47 @@ if (!window.TrazabilidadController) {
       const x = this.detalleProceso(idProceso)
       if (!x) return
       const tabla = (cols, filas, vacio) => `<div class="table-container"><table class="table"><thead><tr>${cols.map(c => `<th>${this.esc(c)}</th>`).join("")}</tr></thead><tbody>${filas === null ? `<tr><td colspan="${cols.length}">${ND}</td></tr>` : !filas.length ? `<tr><td colspan="${cols.length}">${vacio}</td></tr>` : filas.map(f => `<tr>${f.map(v => `<td>${this.esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
-      const corridas = x.corridas.map(s => [this.txt(s.ProductionStartDate || s.SetupStartDate), this.txt(s.ProductionEndDate), this.txt(s.TurnoEstimado), this.txt(s.Maquina), this.txt(s.Operador),
-        this.num(s.ProductionQuantity), this.num(s.SetupQuantity), this.num(s.Etiquetas), s.RecordKey, Number(s.Status) === 1 ? "Válida" : "Anulada (no suma)"])
+      const corridas = this.filasDetalleProceso(x).map(f => f.map(v => (typeof v === "number" ? this.num(v) : v)))
       const controles = x.controles && x.controles.map(g => [this.txt(g.Fecha), g.RecordKey, this.txt(g.Formulario), g.respuestas.length, g.respuestas.map(r => `${r.Pregunta}: ${r.Respuesta}`).join(" · ")])
       const mermas = x.mermas && x.mermas.map(m => [this.fechaCorta(m.fecha), this.txt(m.defecto), `${this.num(m.cantidad)} ${String(m.unidad || "").toLowerCase()}`, this.txt(m.metodo), this.txt(m.estado)])
       const defectos = x.defectos && x.defectos.map(r => [this.txt(r.fechaRegistro), r.id, this.txt(r.maquina), this.txt(r.codigoProducto), r.tipoDefecto, this.txt(r.estadoValidacion)])
       const originales = x.corridas.map(s => `<button type="button" class="btn-secondary" style="padding:1px 6px;margin:0 4px 4px 0;" data-trz-corrida="${this.esc(s.RecordKey)}">Ver registro original ${this.esc(s.RecordKey)}</button>`).join("")
       window.CalidadNp.modal("trzProcesoModal", `${x.proceso.NombreProceso || "Proceso"} · OT ${x.proceso.OrdenTrabajo}`, `
         <p class="subtitle">Registro de origen en FPS: proceso ${this.esc(x.proceso.IdProceso)}. El turno es estimado por la hora de inicio; la cantidad es la declarada por el operador.</p>
-        <b>Corridas</b>${tabla(["Inicio", "Término", "Turno (est.)", "Máquina", "Operador", "Producido", "Puesta a punto", "Etiquetas", "Corrida", "Estado"], corridas, "Sin corridas")}
+        <b>Corridas</b> <button type="button" class="btn-secondary" style="padding:1px 8px;" id="trzProcesoExportar">Exportar datos</button>${tabla(COLUMNAS_CORRIDA, corridas, "Sin corridas")}
         <div style="margin:6px 0;">${originales}</div><div id="trzRegistroOriginal"></div>
         <b>Defectos registrados en inspección para esta etapa (no ligados a una corrida concreta)</b>${tabla(["Fecha", "Registro", "Máquina", "Código", "Defecto", "Validación"], defectos, "Sin registros de control con defecto en la etapa")}
         <b>Controles de proceso y limpieza de estas corridas</b>${tabla(["Fecha", "Corrida", "Formulario", "Respuestas", "Detalle"], controles, "FPS no tiene formularios para estas corridas")}
         <b>Mermas registradas en la etapa ${this.esc(x.etapa || "")} (no ligadas a una corrida concreta)</b>${tabla(["Fecha", "Defecto", "Cantidad", "Certeza", "Estado"], mermas, "Sin mermas registradas")}`, "", null, 1100)
+      const exportar = document.getElementById("trzProcesoExportar")
+      if (exportar) exportar.onclick = () => this.exportarProceso(idProceso)
+    }
+
+    // Una fila por corrida con los datos pedidos para el detalle (02.04). Los pliegos ingresados no existen en FPS.
+    // Unidades equivalentes solo con proceso en pliegos y factor confirmado de una NP de un solo ítem.
+    filasDetalleProceso(x) {
+      const items = this._integral?.data?.items || []
+      const factor = this.factorUnico()
+      const enUnidades = x.etapa === "Pegado" || x.etapa === "Termoformado" || x.etapa === "Paletizado"
+      const equivalentes = s => {
+        if (s.ProductionQuantity === null || s.ProductionQuantity === undefined) return ND
+        if (enUnidades) return Number(s.ProductionQuantity)
+        if (factor) return Number(s.ProductionQuantity) * factor
+        return items.length > 1 ? "No calculable (varios ítems)" : "Factor no confirmado"
+      }
+      return x.corridas.map(s => [this.txt(s.ProductionStartDate || s.SetupStartDate), this.txt(s.ProductionEndDate), this.txt(s.TurnoEstimado), this.txt(s.Maquina), this.txt(s.Operador),
+        String(this._integral.np), items.map(i => i.item).join(", ") || ND, this.txt(x.proceso.NrPl), this.perfilUnico() || ND,
+        s.ProductionQuantity === null || s.ProductionQuantity === undefined ? ND : Number(s.ProductionQuantity), this.num(s.SetupQuantity),
+        enUnidades ? "No aplica (unidades)" : factor || ND, equivalentes(s), this.num(s.Etiquetas), String(s.RecordKey), "FPS", Number(s.Status) === 1 ? "Válida" : "Anulada (no suma)"])
+    }
+
+    exportarProceso(idProceso) {
+      const x = this.detalleProceso(idProceso)
+      if (!x || typeof XLSX === "undefined") return
+      const wb = XLSX.utils.book_new()
+      this.hoja(wb, "Corridas", `${x.proceso.NombreProceso || "Proceso"} · OT ${x.proceso.OrdenTrabajo} · NP ${this._integral.np}. La NP, el ítem y el pliego se registran por proceso; FPS no separa corridas por ítem.`,
+        COLUMNAS_CORRIDA, this.filasDetalleProceso(x))
+      window.CalidadNp.guardarLibro(wb, `Proceso_NP_${this._integral.np}_${x.proceso.IdProceso}_${window.CalidadNp.stamp()}.xlsx`)
     }
 
     async verRegistroOriginal(corrida) {
@@ -1219,7 +1253,7 @@ if (!window.TrazabilidadController) {
             <td>${k ? "" : this.num(c.devuelto)}</td>
             <td>${k ? "" : this.num(c.neto)}</td>
             <td>${k ? "" : this.esc(this.txt(c.unidad))}</td>
-            <td>${l ? `<a href="#" data-trz-lote="${this.esc(l.lote)}" onclick="return false;">${this.esc(l.lote)}</a>` : "Sin lote"}${l?.estado && l.estado !== "Liberado" ? `<div style="font-size:11px;color:#b91c1c;">Hoy en SAP: ${this.esc(l.estado)}</div>` : ""}</td>
+            <td>${l ? `<a href="#" data-trz-lote="${this.esc(l.lote)}" onclick="return false;">${this.esc(l.lote)}</a>` : "Sin lote<div style=\"font-size:11px;color:#b91c1c;\">VÍNCULO DE LOTE NO CONFIRMADO</div>"}${l?.estado && l.estado !== "Liberado" ? `<div style="font-size:11px;color:#b91c1c;">Hoy en SAP: ${this.esc(l.estado)}</div>` : ""}</td>
             <td>${l ? this.num(l.cantidad) : "-"}</td>
             <td>${l ? this.esc([l.origenTipo, l.origenDocNum, l.origenFecha].filter(Boolean).join(" ") || ND) : "-"}${l?.recepcionDocEntry ? ` <button class="btn-secondary" style="padding:2px 8px;" title="Archivos que SAP tiene adjuntos a la recepción. No están clasificados: no se asume que sean certificados del proveedor." data-trz-adjunto data-tipo="recepcion" data-empresa="${this.esc(c.base)}" data-doc="${this.esc(l.recepcionDocEntry)}">Ver adjuntos</button>` : ""}${l && l.origenCantidad !== null && l.origenCantidad !== undefined ? `<div style="font-size:11px;color:#6b7280;">Ingresó del lote: ${this.num(l.origenCantidad)} ${this.esc(c.unidad || "")}</div>` : ""}</td>
             <td>${l ? this.esc(this.txt(l.origenNombre)) : "-"}</td>
@@ -1598,7 +1632,7 @@ if (!window.TrazabilidadController) {
       for (const c of d.consumos || []) {
         const lotes = c.lotes.length ? c.lotes : [null]
         lotes.forEach((l, k) => consumos.push([c.base, c.fecha, c.docNum, c.linea, c.ordenTrabajo, c.itemCode, c.descripcion, c.categoria,
-          k ? "" : this.xl(c.cantidad), k ? "" : this.xl(c.devuelto), k ? "" : this.xl(c.neto), c.unidad, c.bodega, l ? l.lote : "Sin lote", l ? this.xl(l.cantidad) : "", l ? l.serieFabricante : "",
+          k ? "" : this.xl(c.cantidad), k ? "" : this.xl(c.devuelto), k ? "" : this.xl(c.neto), c.unidad, c.bodega, l ? l.lote : "VÍNCULO DE LOTE NO CONFIRMADO", l ? this.xl(l.cantidad) : "", l ? l.serieFabricante : "",
           l ? l.loteProveedor : "", l ? (l.origenTipo || ND) : "", l ? l.origenDocNum : "", l ? l.origenFecha : "", l ? l.origenNombre : "",
           l ? this.xl(l.origenCantidad) : "", l ? (l.estado || ND) : "",
           `SAP ${c.base} OIGE ${c.docNum} línea ${c.linea}`]))
@@ -1816,6 +1850,55 @@ if (!window.TrazabilidadController) {
       }
     }
 
+    // Registros que otro sistema ya entrega: el checklist los da por disponibles en su origen y lleva a consultarlos,
+    // sin pedir que se carguen de nuevo (requerimiento 02.07/02.08). Solo con al menos un registro; una fuente caída o
+    // sin permiso se declara. null = sin fuente propia o sin registros: el documento sigue pendiente.
+    registroEnOrigen(codigo) {
+      const i = this._integral
+      if (!i) return null
+      const d = i.data
+      const hallado = (n, sistema, que, tab) => (n > 0 ? { estado: "DISPONIBLE", detalle: `${this.num(n)} ${que} en ${sistema}`, tab } : null)
+      const deFuente = (fuente, filas, sistema, que, tab) => {
+        if (!d || !filas || d.fuentes?.[fuente]?.ok === false) return { estado: "ERROR_INTEGRACION" }
+        return hallado(filas.length, sistema, que, tab)
+      }
+      const deQcc = (listas, que, filtro) => {
+        const n = listas.reduce((a, r) => a + (r?.items ? r.items.filter(filtro || (() => true)).length : 0), 0)
+        if (n > 0) return hallado(n, "QCC", que, "calidad")
+        if (listas.some(r => r?.estado === "SIN_PERMISO")) return { estado: "SIN_PERMISO" }
+        return listas.some(r => r?.estado === "ERROR") ? { estado: "ERROR_INTEGRACION" } : null
+      }
+      const lotes = () => d?.consumos && d.consumos.flatMap(c => (c.lotes || []).map(l => ({ ...l, categoria: c.categoria })))
+      const distintos = (filas, clave) => filas && [...new Set(filas.map(clave))]
+      const documentos = tipo => d?.documentos && d.documentos.filter(x => x.Tipo === tipo)
+      const corridas = () => d?.sesiones && d.sesiones.filter(s => Number(s.Status) === 1)
+      switch (codigo) {
+        case "COM-NV": return deFuente("sapNotaVenta", d?.notaVenta && distintos(d.notaVenta.filter(l => l.Cancelada !== "Y"), l => l.DocNum), "SAP", "nota(s) de venta", "resumen")
+        case "BOD-REC": return deFuente("sapConsumos", lotes() && distintos(lotes().filter(l => l.recepcionDocEntry), l => l.recepcionDocEntry), "SAP", "recepción(es) de los lotes consumidos", "materiales")
+        case "TIN-LOTE": return deFuente("sapConsumos", lotes() && distintos(lotes().filter(l => /tinta/i.test(l.categoria || "")), l => l.lote), "SAP", "lote(s) de tinta", "materiales")
+        case "PRO-REG": return deFuente("fps", corridas(), "FPS", "corrida(s)", "produccion")
+        case "CAL-ETIQ": {
+          const ses = corridas()
+          if (!ses || d.fuentes?.fps?.ok === false) return { estado: "ERROR_INTEGRACION" }
+          return hallado(ses.reduce((a, s) => a + (Number(s.Etiquetas) || 0), 0), "FPS", "etiqueta(s)", "produccion")
+        }
+        case "CAL-CERT": return deFuente("liberaciones", d?.liberaciones, "QCS", "folio(s) de liberación", "calidad")
+        case "CAL-INSP": return deQcc([i.calidad?.registros, i.calidad?.productoTerminado], "registro(s) de inspección")
+        case "CAL-RECH": return deQcc([i.nc], "no conformidad(es) de producto")
+        case "CAL-DEST": return deQcc([i.certificados], "certificado(s) emitido(s)", c => c.estado === "EMITIDO")
+        case "LOG-GUIA": return deFuente("sapDespachos", documentos("GUIA") && distintos(documentos("GUIA"), x => x.DocNum), "SAP", "guía(s)", "despachos")
+        case "LOG-FAC": return deFuente("sapDespachos", documentos("FACTURA") && distintos(documentos("FACTURA"), x => x.DocNum), "SAP", "factura(s)", "despachos")
+        default: return null
+      }
+    }
+
+    // Requisitos sin respaldo: ni documento en el checklist, ni "no aplica", ni registro disponible en el origen.
+    documentosFaltantes(reqs) {
+      return (reqs || []).filter(r => (r.vigente
+        ? r.vigente.estado !== "DISPONIBLE" && r.vigente.estado !== "NO_APLICA"
+        : this.registroEnOrigen(r.codigo)?.estado !== "DISPONIBLE"))
+    }
+
     // NC y certificados llegan después que el checklist: se repinta para mostrar su antecedente.
     refrescarDocumentos(np) {
       if (this._sgi?.requisitos && String(this._sgi.np) === String(np)) this.renderDocumentos()
@@ -1833,14 +1916,16 @@ if (!window.TrazabilidadController) {
           filas.push(`<tr><td colspan="8" style="background:rgba(100,116,139,.12);font-weight:700;">${this.esc(area)}</td></tr>`)
         }
         const v = r.vigente
-        const [color, rotulo] = ESTADO_DOC[v?.estado] || ESTADO_DOC.PENDIENTE
+        const origen = v ? null : this.registroEnOrigen(r.codigo)
+        const [color, rotulo] = ESTADO_DOC[v?.estado] || ESTADO_ORIGEN[origen?.estado] || ESTADO_DOC.PENDIENTE
         const estado = `<span style="color:${color};">● ${rotulo}</span>`
         const conRespaldo = v?.estado === "DISPONIBLE" || v?.estado === "EN_REVISION"
         const enlace = v?.enlace ? `<div class="subtitle" style="user-select:all;word-break:break-all;">Enlace: ${this.esc(v.enlace)}</div>` : ""
         const nota = v?.observacion ? `<div class="subtitle">${this.esc(v.observacion)}</div>` : ""
-        const arch = !v ? "-" : conRespaldo ? `${v.nombreArchivo ? this.esc(v.nombreArchivo) : "Solo enlace"} <span class="subtitle">v${v.version}</span>${enlace}${nota}` : this.esc(v.observacion || "")
+        const arch = !v ? (origen?.detalle ? this.esc(origen.detalle) : "-") : conRespaldo ? `${v.nombreArchivo ? this.esc(v.nombreArchivo) : "Solo enlace"} <span class="subtitle">v${v.version}</span>${enlace}${nota}` : this.esc(v.observacion || "")
         const btn = (acc, txt, extra = "", editar = false) => `<button class="btn-secondary" style="padding:2px 8px;" data-trzdoc="${acc}" data-req="${r.id}" ${extra} ${editar ? "data-requiere-editar" : ""}>${txt}</button>`
         const acciones = []
+        if (origen?.tab) acciones.push(btn("origen", "Consultar", `data-tab="${origen.tab}"`))
         if (conRespaldo) {
           if (v.nombreArchivo) acciones.push(btn("ver", "Ver", `data-id="${v.id}"`))
           if (edit) acciones.push(btn("subir", "Nueva versión", "", true), btn("anular", "Anular", `data-id="${v.id}"`, true))
@@ -1924,7 +2009,9 @@ if (!window.TrazabilidadController) {
       const acc = b.getAttribute("data-trzdoc"), req = Number(b.getAttribute("data-req")), id = Number(b.getAttribute("data-id"))
       const np = this._sgi.np
       const campo = (lab, html) => `<div class="form-group" style="margin-bottom:8px;"><label>${lab}</label>${html}</div>`
-      if (acc === "ver") {
+      if (acc === "origen") {
+        this.activarTab(b.getAttribute("data-tab"))
+      } else if (acc === "ver") {
         const r = await this.llamarSgi("trazabilidad.documentos.abrir", { id })
         if (!r.ok) alert(r.error)
       } else if (acc === "subir") {
@@ -2260,7 +2347,7 @@ if (!window.TrazabilidadController) {
           if (!f[k]?.ok) advertencias.push(`Fuente ${nombre} no disponible${f[k]?.error ? " (" + f[k].error + ")" : ""}.`)
         }
       }
-      const faltantes = (this._sgi?.requisitos || []).filter(r => !r.vigente || (r.vigente.estado !== "DISPONIBLE" && r.vigente.estado !== "NO_APLICA"))
+      const faltantes = this.documentosFaltantes(this._sgi?.requisitos)
       if (!this._sgi?.requisitos) advertencias.push("Checklist documental SGI no disponible: no se pudo verificar.")
       else if (faltantes.length) advertencias.push(`Documentos SGI pendientes: ${faltantes.length} de ${this._sgi.requisitos.length} (ver panel documental de la NP).`)
       if (advertencias.length) bloques.push({ titulo: "ADVERTENCIAS DE INFORMACIÓN FALTANTE", texto: advertencias.map(a => "• " + a).join("\n") })

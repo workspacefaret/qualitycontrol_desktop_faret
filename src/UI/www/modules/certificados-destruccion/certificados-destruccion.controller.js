@@ -320,7 +320,7 @@ if (!window.CertificadosDestruccionController) {
           <div class="form-group"><label>Motivo *</label><select id="cdfMotivo">${o("RECHAZO_INTERNO", "Rechazo interno", c.motivo)}${o("RECHAZO_EXTERNO", "Rechazo externo", c.motivo)}${o("EXCEDENTES", "Excedentes", c.motivo)}</select></div>
           <div class="form-group"><label>Categoría *</label><select id="cdfCategoria">${o("CALIDAD", "Calidad", c.categoria)}${o("INOCUIDAD", "Inocuidad", c.categoria)}${o("LEGALIDAD", "Legalidad", c.categoria)}</select></div>
           <div class="form-group"><label>Área</label><input type="text" id="cdfArea" value="${iv("area")}"></div>
-          <div class="form-group"><label>Operador</label><input type="text" id="cdfOperador" value="${iv("operador")}"></div>
+          <div class="form-group"><label>Operador</label><input type="text" id="cdfOperador" list="cdfOperadores" value="${iv("operador")}" placeholder="Escribir o elegir de FPS"><datalist id="cdfOperadores"></datalist></div>
           <div class="form-group"><label>Jefe / Supervisor</label><input type="text" id="cdfJefe" value="${iv("jefeSupervisor")}"></div>
           <div class="form-group"><label>Solicitante (nombre)</label><input type="text" id="cdfSolNom" value="${iv("solicitanteNombre", C.usuarioActual())}"></div>
           <div class="form-group"><label>Solicitante (área)</label><input type="text" id="cdfSolArea" value="${iv("solicitanteArea")}"></div>
@@ -387,6 +387,7 @@ if (!window.CertificadosDestruccionController) {
         const sel = ov.querySelector("#cdfItem")
         const verAntecedentes = () => this.pintarAntecedentes(ov, this.antecedentes(carga, nc, sel.value, inspeccion))
         this.pintarLotes(ov, carga.data)
+        this.pintarOperadores(ov, carga.data)
         if (items.length) {
           sel.innerHTML = items.map(i => `<option value="${i.item}">${C.esc(i.item)} — ${C.esc(i.itemCode || "")}</option>`).join("")
           const pedidoItem = String(this._form.itemPedido ?? "")
@@ -427,6 +428,14 @@ if (!window.CertificadosDestruccionController) {
         porFecha.set(fecha, g)
       }
       return [...porFecha.values()].sort((a, b) => a.fecha.localeCompare(b.fecha)).map(g => ({ ...g, maquinas: [...g.maquinas] }))
+    }
+
+    // Operadores que FPS registra en las corridas de la NP, para elegirlos sin digitarlos (06.09).
+    pintarOperadores(ov, data) {
+      const lista = ov.querySelector("#cdfOperadores")
+      if (!lista) return
+      const nombres = [...new Set((data?.sesiones || []).filter(s => Number(s.Status) === 1).map(s => String(s.Operador || "").trim()).filter(Boolean))].sort()
+      lista.innerHTML = nombres.map(n => `<option value="${C.esc(n)}">`).join("")
     }
 
     // Con una sola fecha se autocompleta; con varias elige la persona. Lo escrito a mano no se reemplaza.
