@@ -469,6 +469,10 @@ if (!window.CierreNpController) {
       await this.cargarCierre()
     }
 
+    responsableManual() {
+      return this.$("cnOrigen").value === "MANUAL" ? this.$("cnManualResp").value.trim() : ""
+    }
+
     excel() {
       if (!this._carga) return
       const c = this.calculo()
@@ -476,7 +480,7 @@ if (!window.CierreNpController) {
       const wb = XLSX.utils.book_new()
       C.hoja(wb, "Cierre", `Cierre de NP ${this._carga.np} ítem ${it?.item} — ${C.fechaHora(new Date())}`, ["Concepto", "Valor"], [
         ["Fecha y hora de emisión", new Date().toLocaleString("es-CL")], ["NP", this._carga.np], ["Ítem", it?.item], ["Cliente", C.txt(this._carga.data?.ordenes?.[0]?.Cliente)], ["Producto", C.txt(it?.descripcion)],
-        ["Cantidad solicitada", c.solicitada ?? ND], ["Cantidad fabricada", c.fabricada ?? "PENDIENTE DE CONFIRMACIÓN"], ["Origen de la cantidad fabricada", c.origen],
+        ["Cantidad solicitada", c.solicitada ?? ND], ["Cantidad fabricada", c.fabricada ?? "PENDIENTE DE CONFIRMACIÓN"], ["Origen de la cantidad fabricada", c.origen], ["Responsable de la cantidad manual", this.responsableManual() || "No aplica"],
         ["Diferencia", c.dif ?? ND], ["Cumplimiento %", c.cumpl === null ? ND : Number(c.cumpl.toFixed(2))], ["Total justificado", c.justificado], ["Diferencia pendiente", c.pendiente ?? ND],
         ["Observaciones", this.$("cnObs").value || "-"], ["Responsable", C.usuarioActual()]])
       C.hoja(wb, "Justificación", "Detalle de pérdidas justificadas", ["Concepto", "Cantidad (unidades)", "Certeza", "Origen"], this._lineas.map(l => [l.concepto, Number(l.cantidad) || 0, l.certeza, this.origenLegible(l.origen)]))
@@ -505,7 +509,7 @@ if (!window.CierreNpController) {
         <p>Cierre interno de Calidad (previo a certificados de destrucción) · Emitido: ${e(new Date().toLocaleString("es-CL"))} · Responsable: ${e(C.usuarioActual())}</p>
         <table class="k"><tr><td>NP / Ítem</td><td>${e(this._carga.np)} / ${e(it?.item)}</td></tr><tr><td>Cliente</td><td>${e(C.txt(this._carga.data?.ordenes?.[0]?.Cliente))}</td></tr>
         <tr><td>Producto</td><td>${e(C.txt(it?.descripcion))} (${e(C.txt(it?.itemCode))})</td></tr>
-        <tr><td>Cantidad solicitada</td><td>${C.num(c.solicitada)}</td></tr><tr><td>Cantidad fabricada</td><td>${c.fabricada === null ? "PENDIENTE DE CONFIRMACIÓN" : C.num(c.fabricada)} (${e(c.origen)})</td></tr>
+        <tr><td>Cantidad solicitada</td><td>${C.num(c.solicitada)}</td></tr><tr><td>Cantidad fabricada</td><td>${c.fabricada === null ? "PENDIENTE DE CONFIRMACIÓN" : C.num(c.fabricada)} (${e(c.origen)}${this.responsableManual() ? ` · responsable: ${e(this.responsableManual())}` : ""})</td></tr>
         <tr><td>Diferencia</td><td>${c.dif === null ? ND : C.num(c.dif)}</td></tr><tr><td>Cumplimiento</td><td>${c.cumpl === null ? ND : c.cumpl.toLocaleString("es-CL", { maximumFractionDigits: 1 }) + "%"}</td></tr>
         <tr><td>Estado de conciliación</td><td>${estado}</td></tr></table>
         <h2>Detalle de pérdidas</h2><table><thead><tr><th>Concepto</th><th>Cantidad (unid.)</th><th>Certeza</th><th>Origen</th></tr></thead><tbody>${filas}</tbody></table>

@@ -541,7 +541,10 @@ if (!window.TrazabilidadController) {
         <div class="card npd-kpi ${tono}"><div class="npd-kpi-head">${this.esc(titulo)}</div>
           <div class="npd-kpi-val ${valor === ND ? "nd" : ""}">${this.esc(valor)}</div><div class="npd-kpi-sub">${this.esc(sub)}</div></div>`
       if (!d) { el.innerHTML = ""; return }
-      const items = d.items
+      // Con varios productos las cifras son del ítem elegido en la ficha: nunca se suman productos distintos.
+      const elegido = d.items?.length > 1 ? d.items[Number(document.getElementById("trzFichaItem")?.value || 0)] || d.items[0] : null
+      const items = elegido ? [elegido] : d.items
+      const delItem = elegido ? `Ítem ${this.txt(elegido.item)} · ` : ""
       const n = v => (v === null ? ND : this.num(v))
       const solicitado = items ? this.sumaItems("solicitado", items) : null
       const liberado = items ? this.sumaItems("liberadoPt", items) : null
@@ -549,17 +552,18 @@ if (!window.TrazabilidadController) {
       const anterior = !!window.CalidadNp?.reglaDespachoAnterior(items)
       const pendiente = solicitado !== null && despachado !== null ? solicitado - despachado : null
       // Sin la nota de venta no se puede saber qué entradas son de sus ítems.
-      const ingresado = d.entradas && d.items?.length ? d.entradas.ingresadoPorItem.reduce((a, x) => a + x.ingresado, 0) : null
+      const ingresado = d.entradas && d.items?.length
+        ? d.entradas.ingresadoPorItem.filter(x => !elegido || String(x.itemCode) === String(elegido.itemCode)).reduce((a, x) => a + x.ingresado, 0) : null
       const nc = this._integral.nc
       const cal = this._integral.calidad
       const controles = cal?.registros?.estado === "OK" && cal.productoTerminado?.estado === "OK"
         ? cal.registros.items.length + cal.productoTerminado.items.length : null
       el.innerHTML = [
-        kpi("Solicitado (NV)", n(solicitado), "unidades de la nota de venta"),
-        kpi("Ingresado a bodega", n(ingresado), "entradas SAP con esta NP"),
-        kpi("Liberado PT", n(liberado), "certificados QCS"),
-        kpi("Despachado", n(despachado), anterior ? "NO VALIDADO: el servidor FPS aún usa la regla anterior" : "guías y facturas directas − devoluciones y reingresos por NC", anterior ? "t-bad" : ""),
-        kpi("Pendiente despacho", n(pendiente), anterior ? "NO VALIDADO: depende del despachado" : "estimado, no es merma", anterior ? "t-bad" : pendiente > 0 ? "t-warn" : ""),
+        kpi("Solicitado (NV)", n(solicitado), delItem + "unidades de la nota de venta"),
+        kpi("Ingresado a bodega", n(ingresado), delItem + "entradas SAP con esta NP"),
+        kpi("Liberado PT", n(liberado), delItem + "certificados QCS"),
+        kpi("Despachado", n(despachado), delItem + (anterior ? "NO VALIDADO: el servidor FPS aún usa la regla anterior" : "guías y facturas directas − devoluciones y reingresos por NC"), anterior ? "t-bad" : ""),
+        kpi("Pendiente despacho", n(pendiente), delItem + (anterior ? "NO VALIDADO: depende del despachado" : "estimado, no es merma"), anterior ? "t-bad" : pendiente > 0 ? "t-warn" : ""),
         kpi("Controles de Calidad", n(controles), "registros de control + producto terminado"),
         kpi("No conformidades", nc && nc.estado === "OK" ? this.num(nc.items.length) : ND, "producto, esta NP", nc && nc.estado === "OK" && nc.items.length ? "t-bad" : "")
       ].join("")
@@ -976,7 +980,7 @@ if (!window.TrazabilidadController) {
         ["NP", this._integral.np], ["Ítem", this.txt(i.item)], ["Código", this.txt(i.itemCode)], ["Descripción", this.txt(i.descripcion)],
         ["Cliente", this.txt(nv?.CardName)], ["Nota de venta SAP", nv ? `${nv.DocNum} del ${this.fechaCorta(nv.DocDate)}` : ND],
         ["Estado de la nota de venta", nv ? (nv.DocStatus === "O" ? "Abierta" : nv.DocStatus === "C" ? "Cerrada" : this.txt(nv.DocStatus)) : ND],
-        ["Entrega comprometida", nv?.DocDueDate ? this.fechaCorta(nv.DocDueDate) : ND], ["Líneas de la NV", unir(i.lineasNv || [])],
+        ["Entrega comprometida", nv?.DocDueDate ? this.fechaCorta(nv.DocDueDate) : ND], ["Línea(s) de la NV en SAP (LineNum)", unir(i.lineasNv || [])],
         ["Cantidad solicitada", `${this.num(i.solicitado)} ${i.unidad || ""}`.trim()], ["Liberado PT (QCS)", this.num(i.liberadoPt)], ["Despachado (SAP)", this.num(i.despachado)],
         ["Pendiente de despacho (estimado)", this.num(this.pendienteDespacho(i))], ["Unidades por pliego", factor ? `${this.num(factor)} (confirmado)` : "Sin factor confirmado"],
         ["OT de la NP", unir(ordenes.map(o => o.OrdenTrabajo))], ["NV FARET de la NP", unir(ordenes.map(o => o.NotaVentaFaret))],
@@ -995,11 +999,11 @@ if (!window.TrazabilidadController) {
       if (sel.dataset.clave !== clave) {
         sel.dataset.clave = clave
         sel.innerHTML = items.map((i, n) => `<option value="${n}">Ítem ${this.esc(this.txt(i.item))} — ${this.esc(i.itemCode)} ${this.esc(i.descripcion)}</option>`).join("")
-        sel.onchange = () => this.renderFicha()
+        sel.onchange = () => { this.renderFicha(); this.renderKpis() }
       }
       if (items.length && this._itemPedido !== null && this._itemPedido !== undefined) {
         const k = items.findIndex(i => String(i.item) === String(this._itemPedido))
-        if (k >= 0) sel.value = String(k)
+        if (k >= 0) { sel.value = String(k); this.renderKpis() }
         this._itemPedido = null
       }
       const pares = this.fichaItem(Number(sel.value || 0))
@@ -2125,7 +2129,8 @@ if (!window.TrazabilidadController) {
       const nombresMat = re => [...new Set(materiales(re).map(c => c.descripcion))].join("\n") || SI
       const lotesMat = re => [...new Set(materiales(re).flatMap(c => (c.lotes || []).map(l => l.lote)))].join(", ") || SI
       const unidadesV05 = pliegos => (pliegos === null ? null : factor ? pliegos * factor : null)
-      const sinFactor = "FACTOR NO CONFIRMADO"
+      // Con varios productos el factor existe por ítem, pero FPS no separa los procesos: no es que falte confirmarlo.
+      const sinFactor = items.length > 1 ? "NO CALCULABLE (varios ítems)" : "FACTOR NO CONFIRMADO"
       const unidadesFila = s => (s.ProductionQuantity === null || s.ProductionQuantity === undefined ? SI : factor ? n(Number(s.ProductionQuantity) * factor) : sinFactor)
 
       const filasProceso = {
@@ -2222,7 +2227,7 @@ if (!window.TrazabilidadController) {
       const fuentesOk = !!d && ["fps", "sapNotaVenta", "sapDespachos", "sapConsumos", "liberaciones"].every(k => f[k]?.ok)
       const motivos = []
       if (!fuentesOk) motivos.push("alguna fuente (FPS, SAP o liberaciones QCS) no está disponible")
-      if (factor === null) motivos.push("el factor unidades/pliego no está confirmado o la NP tiene más de un ítem")
+      if (factor === null && items.length < 2) motivos.push("el factor unidades/pliego no está confirmado")
       if ((d?.procesos || []).some(p => p.enCurso)) motivos.push("hay corridas FPS en curso")
       if (bal.some(r => (r.pliegos === null && !r.enUnidades) || r.unidades === null)) motivos.push("hay cantidades sin registro")
       if (bal.some(r => r.compuesta)) motivos.push("hay etapas que reúnen varios procesos o pliegos de FPS")

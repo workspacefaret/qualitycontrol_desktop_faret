@@ -249,7 +249,7 @@ check("sin accesos snake_case a filas de la API", !/\b[cm]\.(cantidad_destruir|c
 dp._integral = { np: "1", data: { items: [{ item: 1, itemCode: "A", lineasNv: [0], solicitado: 10 }, { item: 2, itemCode: "B", lineasNv: [1], solicitado: 20 }], sesiones: [], ordenes: [{ OrdenTrabajo: 100 }],
   notaVenta: [{ LineNum: 0, DocNum: 1, CardName: "ANULADO", Cancelada: "Y" }, { LineNum: 0, DocNum: 1, CardName: "CLIENTE UNO", DocStatus: "O" }, { LineNum: 1, DocNum: 1, CardName: "CLIENTE UNO", DocStatus: "C" }] } }
 const f2 = Object.fromEntries(dp.fichaItem(1))
-check("ficha: ítem elegido sin mezclar", f2["Código"] === "B" && f2["Líneas de la NV"] === "1" && f2["Estado de la nota de venta"] === "Cerrada" && Object.fromEntries(dp.fichaItem(0))["Cliente"] === "CLIENTE UNO", f2)
+check("ficha: ítem elegido sin mezclar", f2["Código"] === "B" && f2["Línea(s) de la NV en SAP (LineNum)"] === "1" && f2["Estado de la nota de venta"] === "Cerrada" && Object.fromEntries(dp.fichaItem(0))["Cliente"] === "CLIENTE UNO", f2)
 
 dp._sgi = { np: "1", factores: [{ item: 2, estado: "CONFIRMADO", unidadesPorPliego: 8 }] }
 check("ficha: factor confirmado del panel", Object.fromEntries(dp.fichaItem(1))["Unidades por pliego"] === "8 (confirmado)" && Object.fromEntries(dp.fichaItem(0))["Unidades por pliego"] === "Sin factor confirmado")
