@@ -112,3 +112,12 @@ pallets de Trazabilidad. Además, con la API nueva debe probarse su confirmació
 - Web Java: **después** del commit del escritorio y de la API INNPACK nueva, ejecutar su sincronización y control de
   contrato (`tools/sync-photino-www.ps1`, ejecución supervisada, sin evadir la política de ejecución), probar en navegador
   los adjuntos SAP, el ZIP, la evidencia de certificado y la confirmación de destrucción, y recién entonces desplegarla.
+
+### Precisiones del 26-11-2026
+
+- Orden previo a la tabla: (1) validación con datos reales; (2) migración probada en un **SQL Server 2016** con una base
+  no productiva. Falta definir en qué instancia: crear una base de prueba en `SAP_NEW` es escritura en el servidor
+  productivo y requiere autorización.
+- Instalador definitivo: usar un número nuevo (propuesto **1.8.41**) para no confundirlo con el 1.8.40 descartado;
+  confirmar contra `latest.json` antes de compilar.
+- El piloto (paso 4) incluye la web Java, con el contrato sin acciones en REVISAR.

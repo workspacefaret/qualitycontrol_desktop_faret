@@ -36,24 +36,24 @@ Siglas: FPS = `FPS_PRODUCCION`; SAP = SAP B1 INNPACK/FARET; QCS = `Faret_Control
 | 02.02b | Unidades por pliego | factor manual CDB; FPS texto libre | api | TR | T,R | P | Calidad confirma por ítem; sin fuente estructurada |
 | 02.02c | Guía técnica | FPS `ZZZMasterOT.Obs2` (texto libre por OT) | fps | TR | T,R(L) | P | Revisión estructurada: ND |
 | 02.02d | Revisión, perfil/molde | SAP FARET `OITM.U_Perfil_de_Articulo`; `cpm_perfiles/moldes` | — | TR | R | P | Perfil vigente del maestro SAP integrado en ficha y V05 (L; SQL contrastado con datos reales). Faltan revisión de guía y molde, y la versión usada al fabricar |
-| 02.02e | Fechas de fabricación, estado de orden, botones de ficha, ver NV | SAP adjuntos NV | sapapi | TR | T(L) | P | Ficha muestra fechas y estado de la NV; falta estado de la orden de producción |
+| 02.02e | Fechas de fabricación, estado de orden, botones de ficha, ver NV | SAP adjuntos NV | sapapi | TR | T(L) | P | Fechas y estado de la NV; estado de la OT según FPS (L, requiere desplegar fps-api; sin dato real). Falta validar |
 | 02.03 | Historial por proceso/corrida, NO APLICA / REGISTRO NO DISPONIBLE | FPS `WorkOrderRecords` | fps | TR | T,R | P | "Ver detalle" por proceso hecho (L); falta confirmar orden proceso-fecha-máquina |
 | 02.04a | Detalle: fecha, turno, máquina, operador, pliego, procesados, ID, origen | FPS | fps | TR | T(L) | P | Detalle por corrida en pantalla (L); turno solo estimado |
 | 02.04b | Pliegos ingresados | — | — | TR | R | ND | FPS no lo registra |
 | 02.04c | Factor por registro, unidades equivalentes, sin duplicar | FPS + factor | fps | TR/BM | T(L) | P | Etapas con varios pliegos quedan "no calculable" |
-| 02.04d | Botones por registro (original, controles, defectos, mermas) | — | — | TR | T(L) | P | Detalle con corridas, controles y mermas de la etapa; faltan defectos y abrir el registro en origen |
+| 02.04d | Botones por registro (original, controles, defectos, mermas) | — | — | TR | T(L) | P | Detalle con corridas, controles, mermas y defectos de inspección de la etapa (no ligados a corrida) y registro original de FPS (L). Falta validar con datos reales |
 | 02.05a | Materiales consumidos con lote, proveedor, cantidad | SAP `OIGE/IGE1/OITL/OBTN` | fps | TR | T,R | C | Vínculo es por OT, no por corrida |
 | 02.05b | Categorías, cantidad recibida, recepción, estado | SAP `OPDN/PDN1` | — | TR | T(L) | P | Recepción, proveedor, adjuntos (también en el ZIP) y bobinas de los controles cruzadas con consumos (L); faltan categorías, cantidad recibida y estado |
 | 02.05c | Certificado de proveedor | SAP adjuntos `OPDN` (39/45 INNPACK, 3/37 FARET tienen algún PDF) | — | TR | R | N | Adjuntos de recepción en pantalla y ZIP (L, sin probar contra Service Layer real); ninguno identificado como certificado: validar con Bodega |
 | 02.06 | Lote → NP, procesos, productos, pallets, despachos, clientes | SAP, FPS | fps | TR | T | P | Faltan corridas, pallets y despachos desde el lote |
 | 02.07a | Checklist de áreas A–I (23 requisitos) con carga manual | CDB | api | TR | T | C | Checklist rotulado provisional hasta validar SGI |
 | 02.07b | A Comercial: nota de venta | SAP `ORDR` adjuntos | sapapi | TR | T(L) | P | Los adjuntos parecen la OC del cliente: confirmar |
-| 02.07c | B/C Adquisiciones y Bodega: facturas MP, packing list, certificados, camión | SAP `OPDN/OPCH`; `U_InocuidadCamionCumple` casi sin uso | — | TR | R | N | Packing list: no encontrado |
+| 02.07c | B/C Adquisiciones y Bodega: facturas MP, packing list, certificados, camión | SAP `OPDN/OPCH`; `U_InocuidadCamionCumple` casi sin uso | — | TR | R | P | Antecedentes de recepción y adjuntos SAP; inspección de camión elegida por la usuaria por rango de fechas y rotulada como asociación MANUAL (L). Packing list: no encontrado |
 | 02.07d | D Producción: registros y POES / control de proceso | FPS `ZZZProcessControlResults` | fps | TR | T,R(L) | P | Sin cobertura en pegado, folia y otros; desde 01-08-2026 |
-| 02.07e | E Sala de tintas: formulación y batch | Barniz con lote; tintas sin lote | — | TR | R | ND | Formulación no encontrada en lo revisado |
+| 02.07e | E Sala de tintas: formulación y batch | Barniz con lote; tintas sin lote | — | TR | R | ND | Formulación y batch no encontrados. El checklist muestra los lotes de tinta consumidos según SAP (L); sin salida con lote no significa que no se usaron |
 | 02.07f | F Calidad: certificados, inspecciones, liberaciones, rechazos, destrucción, etiquetas FPS | QCS, CDB, FPS `ETIQUETAS_*` | fps, api | TR | R | P | Etiquetas FPS solo como conteo por corrida (L); mermas, NC y certificados en el informe; adhesivos enlazados a búsqueda de lote SAP (L) |
-| 02.07g | G Mantención preventiva, correctiva, lubricantes | FPS `mant.FracttalOtTarea` | — | TR | R | N | Falta equivalencia activo–máquina; espejo posiblemente atrasado |
-| 02.07h | H Logística: guías, facturas, inspección de camiones | SAP `ODLN/OINV` | sapapi | TR | T,R | P | Inspección de camiones sin vínculo con NP |
+| 02.07g | G Mantención preventiva, correctiva, lubricantes | FPS `mant.FracttalOtTarea` | — | TR | R | N | El sistema vigente es MCC Faret (no Fracttal). Falta equivalencia máquina FPS (código y nombre) a activo MCC, validada por Mantención, y un acceso de solo lectura para sistemas en MCC (hoy solo sesión de usuario). Carga manual |
+| 02.07h | H Logística: guías, facturas, inspección de camiones | SAP `ODLN/OINV` | sapapi | TR | T,R | P | Inspección de camiones: asociación manual por fecha (L); no existe vínculo automático con la NP |
 | 02.07i | I Control de plagas: certificado | Solo facturas sin adjunto | — | TR | R | ND | Carga manual |
 | 02.08a | Campos por documento y carga manual con historial | CDB | api | TR | T | P | Enlace http(s) o carpeta de red implementado (L, LocalDB); requiere migración 2026_12 |
 | 02.08b | Siete estados | CDB `CK_trazabilidad_documento_estado` | api | TR | K | P | Disponible, En revisión, No digitalizado, No aplica y Pendiente (L, LocalDB); requiere migración 2026_12; confirmar lista de estados |
@@ -62,7 +62,7 @@ Siglas: FPS = `FPS_PRODUCCION`; SAP = SAP B1 INNPACK/FARET; QCS = `Faret_Control
 | 02.09a | Informe REG-SGI-TDP secciones 01–11 | FPS, SAP, QCS | fps | TR | T,R(L) | P | Sustrato, medidas, materiales por corrida; mermas registradas no entran |
 | 02.09b | Secciones 12–13: anexos y faltantes con área y motivo; calidad, NC, destrucciones | CDB | api | TR | T(L) | C | Secciones 12 y 13, mermas, NC y certificados; falta verlo con datos reales y checklist oficial |
 | 02.09c | PDF, Excel, anexos, guardar sin sobrescribir | CDB `np_informe` | api | TR | T | P | Versiones se abren desde la pantalla (L); PDF emitido sin archivo almacenado (SQL); ZIP SAP sin Service Layer real |
-| 02.09d | Fecha-hora, usuario, versión, advertencias | — | — | TR | K | P | Fecha-hora agregada (L); el número de versión guardada no se imprime |
+| 02.09d | Fecha-hora, usuario, versión, advertencias | — | — | TR | K | P | Fecha-hora y, al reabrir, número de versión guardada impreso (L). Falta validar en Photino |
 | 03.1 | Consulta y tabla de balance por etapa | FPS | fps | BM | T(L) | P | Saldo en proceso y reproceso: ND |
 | 03.2 | Reglas: factor real, misma unidad, diferencia ≠ merma, provisional | FPS, factor | fps, api | BM | T(L) | P | Factor es por NP+ítem, no por corrida |
 | 03.3 | Varias corridas sin duplicar ni sumar el mismo material | FPS | fps | BM | T(L) | P | FPS no identifica reprocesos |
@@ -80,9 +80,9 @@ Siglas: FPS = `FPS_PRODUCCION`; SAP = SAP B1 INNPACK/FARET; QCS = `Faret_Control
 | 05.6 | Informe PDF/Excel y guardar versionado | CDB `np_cierre` | api | CN | T(L) | P | Excel suma Áreas e Historial; PDF suma cifras y áreas (L, datos ficticios); falta revisar con datos reales |
 | 05.7 | Ver liberaciones, despachos, inventario y solicitar cierre | QCS, SAP | fps | CN | T(L) | P | Suma inventario SAP actual de los lotes de la NP y aviso si cambia tras el cierre; estado por área informativo (L, requiere 2026_12 para áreas); falta definición de quién solicita y aprueba el cierre |
 | 05.8 | Cierre interno que no toca SAP | — | — | CN | K | C | — |
-| 06.1 | Pestañas por estado | CDB | api | CD | K | P | Se resuelve con filtro |
-| 06.3 | Datos 01–09 autocompletados | SAP, FPS | fps | CD | K | P | Fecha y lote manuales; razón social fija en la plantilla |
-| 06.4a | Buscar defectos, rechazos, cuarentenas y mermas | CDB, QCS | api | CD | T(L) | P | Antecedentes de rechazo, cuarentena y NC (referencia); faltan defectos de inspección |
+| 06.1 | Pestañas por estado | CDB | api | CD | K | P | Chips por estado sobre la lista (L). Falta validar en Photino |
+| 06.3 | Datos 01–09 autocompletados | SAP, FPS | fps | CD | K | P | Lote y fecha de fabricación sugeridos desde las corridas FPS y razón social seleccionable (L). Falta validar con datos reales |
+| 06.4a | Buscar defectos, rechazos, cuarentenas y mermas | CDB, QCS | api | CD | T(L) | P | Antecedentes de rechazo, cuarentena, NC y defectos de inspección; sin fuente o permiso se declara (L) |
 | 06.4b | Parcial, varios lotes/pallets, saldo disponible y sin duplicar | CDB | api | CD | T(L) | P | Pallet sin merma: bloqueo en un solo certificado; aviso de otros certificados de la NP y rechazo de doble envío (L); lote sin pallet no tiene saldo conocido |
 | 06.4c | Evidencias y fotos del certificado | — | — | CD | T(L) | P | Evidencias y fotos con huella, apertura y anulación con historial (L, LocalDB); requiere migración 2026_12; falta Photino real |
 | 06.5 | Motivo, categoría, descripción | CDB | api | CD | T | P | Descripción sin selector ni fotos |
@@ -91,9 +91,9 @@ Siglas: FPS = `FPS_PRODUCCION`; SAP = SAP B1 INNPACK/FARET; QCS = `Faret_Control
 | 06.11 | Flujo de tres cargos; aprobado ≠ ejecutado | CDB | api | CD | T | P | **Validación Calidad/SGI:** quién aprueba, firma, segregación y quién emite/anula |
 | 06.12 | Correlativo único, bloqueo sin aprobación, anular con historial, PDF V11 | CDB | api | CD | T | P | Documento V11 emitido conservado como HTML inmutable con huella, uno por certificado (L, LocalDB; lo genera el escritorio, la API lo conserva); requiere 2026_12 |
 | 06.13 | Emisión y ejecución actualizan historial, balance y conciliación | CDB | api | CD/BM/TR | T(L) | P | Cantidad efectivamente destruida separada de la aprobada y visible en Balance, Cierre y Trazabilidad (L); requiere 2026_12; conciliación automática pendiente de definición |
-| 07 | Módulos encadenados | — | — | todos | K | P | Certificados no retroalimentan |
+| 07 | Módulos encadenados | — | — | todos | K | P | Navegación NP e ítem entre los cuatro módulos y desde un certificado a su NP, según permisos (L). Falta validar en Photino |
 | 08.1 | Integración FPS y SAP de solo lectura | FPS, SAP | fps, sapapi | TR | T,R | C | — |
-| 08.2 | Sistemas internos y repositorio documental | FPS mant, Formularios | — | TR | R | N | — |
+| 08.2 | Sistemas internos y repositorio documental | FPS mant, Formularios | — | TR | R | N | MCC Faret revisado: sin equivalencia de activos ni acceso para sistemas. POES productivo y plagas sin fuente encontrada |
 | 09 | Entidades lógicas y auditoría | CDB | api | todos | T | P | Cierre sin estados por área ni aprobador |
 | RG-A | RG-001/002/003 sin duplicar, clave real, relación completa | varias | fps | todos | T | P | FPS sin ítem por corrida; liberaciones QCS solo por ítem+código |
 | RG-B | RG-004/005 unidad en toda cantidad, sin mezclar | — | — | todos | T(L) | P | Cierre y certificado no guardan unidad en la cabecera |
@@ -431,6 +431,19 @@ El porcentaje de la matriz no cambia.
 **Pruebas:** calidad_np 105, fps-api 72, entorno y solo-lectura 11, ZIP/permisos 24, web Java 1.337 (6 nuevas); escritorio
 compila. El porcentaje de la matriz no cambia hasta la revisión visual y con datos reales.
 
+## Novena iteración (26-11, preparación de la validación real y contrato web)
+
+- Publicación verificada: `latest.json` en 1.8.39; commits del 25-11 en sus remotos (API INNPACK sin remoto).
+- Acceso FPS: pendiente de ejecución por el usuario. La comprobación de permisos cubre ahora también las tablas al otro
+  lado de `CONEXIONSAP`.
+- Web Java: contrato contra `1be13ab` **342/342** tras revisar 55 acciones (código y pruebas simuladas) y corregir 3
+  brechas; además, una regresión FARET del escritorio. Sin commit; snapshot sin cambios (1.8.39); sin navegador real.
+- **26-11, incidente:** excepción interna en SAP-B1 al crear la cuenta de lectura `qcc_sap_ro` (quedó deshabilitada,
+  sin permisos). Creación de cuentas suspendida. Con la API de producción (versión del 24-11) solo cabe una validación
+  parcial, sin despachos ni lo corregido el 25-11, y requiere autorización.
+- MCC Faret: sigue sin equivalencia activo–máquina verificable; no integrado.
+- Validación con datos reales: **no iniciada**. El porcentaje no cambia.
+
 ## Las 16 pruebas del requerimiento (situación de la primera auditoría)
 
 "Automática" usa datos de prueba (Node, LocalDB, SAP/FPS simulados). Ninguna escribió en producción.
@@ -443,7 +456,7 @@ compila. El porcentaje de la matriz no cambia hasta la revisión visual y con da
 | 04 | Documento no disponible | Automática OK (ZIP con faltantes y área) | Origen y motivo no figuran en el informe |
 | 05 | Informe de trazabilidad | Parcial | Modelo V05 probado; PDF sin revisión visual; secciones 12–13 incompletas |
 | 06 | Unidades desde pliegos | Automática OK (L) | Antes fallaba (multiplicaba pegado). Falta factor confirmado real |
-| 07 | Merma estimada | Automática OK | — |
+| 07 | Merma estimada | Automática OK | Navegación NP e ítem entre los cuatro módulos y desde un certificado a su NP, según permisos (L). Falta validar en Photino |
 | 08 | Vincular defecto | Automática OK (LocalDB) | — |
 | 09 | Brecha sin destrucción | Automática OK (L) | — |
 | 10 | Crear certificado | Parcial | API probada; sin evidencias adjuntas ni integración al balance |
@@ -565,11 +578,79 @@ Mismos 81 IDs y criterios.
 | Tras la segunda iteración (local) | 81 | 18 | 53 | 7 | 3 | 57 % | 23 % |
 | Tras la tercera iteración (local) | 81 | 18 | 54 | 6 | 3 | 58 % | 23 % |
 | Tras la cuarta iteración (local) | 81 | 18 | 55 | 5 | 3 | 58 % | 23 % |
+| Consolidación 26-11 (local) | 81 | 18 | 56 | 4 | 3 | 59 % | 23 % |
 
 - Ponderado = (C + 0,5·P) / (total − ND). Estricto = C / (total − ND).
 - Suben a C: 02.01b, 02.02a, 02.09b y RG-G. Los cuatro **dependen de cambios sin desplegar**.
 - De N a P: 02.01c, 02.04d, 02.05b, 05.7 y 06.13. En la tercera iteración, 02.02d.
 - La tercera iteración aporta sobre todo validación y correcciones, no alcance nuevo: sube 1 punto.
 - Cuarta iteración: 06.4c pasa de N a P. El resto profundiza filas ya parciales; ninguna sube a C sin validación real.
-- Siguen en N: 02.05c, 02.07c, 02.07g, 08.2 y 14.11.
+- Consolidación 26-11: 02.07c pasa de N a P. Siguen en N: 02.05c, 02.07g, 08.2 y 14.11.
 - Es alcance implementado en local, no aceptación. Confirmados de extremo a extremo en Photino con datos de producción: **0**.
+
+## Décima iteración (26-11, validación real parcial con la API de producción)
+
+### Tres niveles que no deben mezclarse
+
+| Nivel | Qué hay |
+|---|---|
+| **Validación real parcial** | 8 NP por la `fps-api` **desplegada el 24-11** (la ejecutó TI): 85 coinciden, 7 difieren, 24 no validables, 0 no disponibles. No cubre el código local, Photino, exportaciones ni la API INNPACK nueva |
+| **Pruebas simuladas** | Pruebas automáticas y E2E con NP ficticia 9999, LocalDB y navegador (no la ventana Photino) |
+| **Pendiente** | Código local con datos reales; despachos; Balance y Mermas, Cierre y Certificados con NP reales; ventana Photino; Service Layer; SQL 2016; tiempos del ejercicio; web en navegador; Mariela |
+
+El porcentaje de la matriz **no cambia**: ningún requisito queda aceptado solo con esta prueba.
+
+**Composición:** 92,39 % = 85/92. De las 85, 58 son cifras distintas de cero, 11 son cero contra cero y 16 son controles
+internos (ítems sin referencia y corridas repetidas). Solo con cifras distintas de cero: 58/65 = 89,2 %. Las 24 no
+validables son despachos, balance de despacho y documentos sin ítem (20 con igual número, que tampoco cuentan).
+40,1 s incluyen 35 s de pausas: las 8 consultas suman 4,9 s (268 a 1.048 ms). No mide Photino ni el ejercicio.
+
+**Referencia** (sin modificar): consultas del 25-11 cerca de las 16:30; producción el 26-11 a las 10:05. Límites: las
+cifras FPS se obtuvieron por `CONEXIONFPS` (como `sa`); las de liberaciones **sumaban solo por bodega de destino**, sin
+restar el origen como hace la aplicación; las de despacho usan las mismas reglas que el código local, así que
+coincidir con ellas no sería una validación independiente.
+
+### Diferencias comparables (7)
+
+El cálculo de corridas y de saldos por bodega es **igual** en la versión desplegada y la local.
+
+| NP · dato | Referencia → producción | Evaluación | Falta |
+|---|---|---|---|
+| 4123 liberado PT ítems 1 y 2 | +30.000 cada uno | **Cambió el origen respecto de la referencia:** el saldo neto no puede superar la suma bruta por destino, así que hay filas con destino PT que la consulta del 25-11 no devolvió (nuevas, cerradas o editadas). Motivo operativo sin acreditar | Folios con fecha, origen y destino |
+| 4123 cuarentena | 60.000 → 0 | **No concluyente: las definiciones no son equivalentes** (bruto contra neto). Un traslado anterior a la referencia ya daría esta diferencia. En la referencia la cuarentena era solo del ítem 1 y las altas son de 30.000 en los ítems 1 y 2; el total liberado QCS sigue en 3.013.400. No se puede afirmar un traslado de 60.000 | Saldo por ítem y folios |
+| 4123 corridas y válidas | 140 → 149 | Hay 9 filas más con la misma definición, 27 procesos y sin repetidas. **Compatible** con producción posterior; no probado | `RecordKey` y fechas |
+| 4123 producido | +131.925 | Igual que las corridas; que corresponda a esas 9 no está probado | Cantidad por corrida |
+| 4190 liberado PT | 0 → 950 | **Cambió el origen:** el 25-11 la consulta no devolvió ningún folio, ni sin cerrar. Fecha y causa sin acreditar. Sigue sin OT ni corridas en FPS | Folio y fecha |
+
+No hay evidencia de error de cálculo en estas 7. Tampoco está probado que sean evolución natural.
+
+### Despachos (no validables)
+
+La versión desplegada **cuenta las facturas de reserva** (no mueven stock), omite las guías emitidas sobre ellas, no
+resta notas de crédito con reingreso y no excluye NV anuladas (verificado en su código). El 25-11 SAP tenía facturas de
+reserva basadas en NV (10 líneas, 6 documentos en el conjunto consultado); no está identificado a qué NP pertenecen.
+
+| NP | Evidencia del 25-11 | Hipótesis abiertas |
+|---|---|---|
+| 4162 (+100.500) | Guías 250.580, sin facturas directas, devoluciones ni NC. Compras: 128.640 + 121.940 + **100.500** (doc. 27122) + 150.080 = 501.160; salidas de venta 250.580 (= las dos primeras) | A) despacho posterior. B) factura de reserva ya existente, sumada por la versión desplegada. La igualdad de cantidades no lo prueba |
+| 4123 (+48.000) | Facturas directas 2.951.400, sin guías, devoluciones ni NC. Aparte, 48.000 del ítem 2 en lotes marcados 41232 | A o B. La coincidencia con los lotes 41232 no tiene mecanismo conocido: el cálculo por documentos no usa la marca del lote |
+
+Descartado como causa: NV anulada (alteraría el solicitado, que coincide). NC y devoluciones eran 0 el 25-11.
+
+### ¿Lo resuelven las correcciones locales?
+
+- **Liberaciones y corridas:** no cambian; con los mismos datos darían lo mismo.
+- **Despachos:** las del 25-11 resolverían la hipótesis B; **no comprobado con datos reales**.
+- **26-11:** comparador, barreras, regresión FARET y web Java; no cambian estas cifras.
+- **Riesgo vigente:** la API desplegada puede **sobrestimar el despacho** de NP con factura de reserva, en la
+  aplicación publicada. No está atribuido a ninguna NP concreta.
+
+### Siguiente paso
+
+`tools/entorno_aislado/evidencia_diferencias.js` (**sin ejecutar**, solo sintaxis): un GET a cada una de 4123, 4162 y
+4190, guarda documentos, folios y corridas con fecha. Criterio:
+- Filas fechadas después de la referencia que sumen exactamente la diferencia → evolución de datos.
+- 4162: factura con base NV fechada hasta el 25-11 → solo puede ser reserva (u otro cambio posterior de estado), porque
+  la referencia no tenía facturas directas. 4123: identificar qué factura excede los 2.951.400.
+- La API no entrega la marca de reserva ni la fecha de creación (`DocDate` admite fecha anterior): lo que quede dudoso
+  se confirma con Calidad o TI mirando el documento en SAP.
