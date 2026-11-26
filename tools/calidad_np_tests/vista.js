@@ -85,6 +85,8 @@ const FIX = ${JSON.stringify(fix).replace(/</g, "\\u003c")}
 const capturar = d => { const t = document.createElement("textarea"); t.className = "xlsx"; t.dataset.nombre = d.fileName; t.textContent = d.base64; document.body.appendChild(t); return { ok: true } }
 window.PhotinoBridge = { send: async ({ action, data }) => action === "excel.guardar" ? capturar(data) : action in FIX ? { ok: true, success: true, data: structuredClone(FIX[action]) } : { ok: false, error: "Sin datos en la vista aislada (" + action + ")" } }
 sessionStorage.setItem("nombreUsuario", "Usuario de prueba")
+// Navegación entre módulos: aquí cada pantalla es un archivo, así que solo se anota a dónde iría.
+window.App = { nivelModulo: () => "EDITAR", loadModule: m => { document.title = "ir:" + m } }
 </script>
 ${scripts.map(s => `<script src="${s}"></script>`).join("\n")}
 <script>
@@ -102,6 +104,8 @@ Promise.resolve(c.init && c.init()).then(() => setTimeout(() => {
     proceso: () => c.verProceso(2), informe: () => enPagina(c.htmlInforme()), detalle: () => c.verDetalle("Troquelado"),
     pdf: () => { window.CalidadNp.imprimirHtml = enPagina; c.pdfBalance() },
     cert: () => c.accion("ver", 3),
+    lista: () => { c.abrirContexto({ np: "9999" }) },
+    nuevo: () => { c.abrirContexto({ np: "9999", item: 1, nuevo: true }) },
     formulario: () => c.formulario(null).then(() => { document.getElementById("cdfNp").value = "9999"; document.getElementById("cdfCargar").click() })
   }
   const accion = acciones[location.hash.slice(1)]

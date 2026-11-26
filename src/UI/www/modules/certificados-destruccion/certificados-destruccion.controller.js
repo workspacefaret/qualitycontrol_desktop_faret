@@ -1,6 +1,7 @@
 if (!window.CertificadosDestruccionController) {
   const C = window.CalidadNp
   const ESTADO = { BORRADOR: "Borrador", PENDIENTE_REVISION: "Pendiente de revisión", PENDIENTE_APROBACION: "Pendiente de aprobación", APROBADO: "Aprobado", RECHAZADO: "Rechazado", EMITIDO: "Emitido", ANULADO: "Anulado" }
+  const RAZON_SOCIAL = "INNPACK SPA" // módulo exclusivo de INNPACK: el V11 marca esa casilla
   const MOTIVO = { RECHAZO_INTERNO: "Rechazo interno", RECHAZO_EXTERNO: "Rechazo externo", EXCEDENTES: "Excedentes" }
   const CATEGORIA = { CALIDAD: "Calidad", INOCUIDAD: "Inocuidad", LEGALIDAD: "Legalidad" }
 
@@ -14,6 +15,16 @@ if (!window.CertificadosDestruccionController) {
     async init() {
       this.bind()
       this.montarResumen()
+      const ctx = C.tomarContexto("certificados-destruccion")
+      if (ctx) await this.abrirContexto(ctx)
+    }
+
+    // Llegada desde otro módulo: lista de la NP y, si se pidió, certificado nuevo con la NP y el ítem ya cargados.
+    async abrirContexto(ctx) {
+      this.$("cdFiltroNp").value = ctx.np
+      this.verLista(true)
+      if (ctx.certificadoId) await this.accion("ver", ctx.certificadoId)
+      else if (ctx.nuevo && C.puedeEditar("certificados-destruccion")) await this.formulario(null, { np: ctx.np, item: ctx.item })
     }
 
     // ── Dashboard de inicio (resumen agregado en la API; la lista completa sigue disponible aparte) ──
@@ -82,6 +93,8 @@ if (!window.CertificadosDestruccionController) {
         else if (id === "btnCdLista") this.verLista(false)
         else if (id === "btnCdResumen") this.verResumen()
         else if (id === "btnCdExcel") this.excel()
+        const vistaEstado = e.target.closest?.("[data-cd-estado]")
+        if (vistaEstado) { this.$("cdFiltroEstado").value = vistaEstado.dataset.cdEstado; this.buscar() }
         const a = e.target.closest?.("[data-cd]")
         if (a) this.accion(a.dataset.cd, Number(a.dataset.id))
       }
@@ -104,6 +117,8 @@ if (!window.CertificadosDestruccionController) {
           <td>${C.num(x.cantidadDestruir)}</td><td>${C.esc(MOTIVO[x.motivo] || x.motivo)}</td><td>${C.esc(CATEGORIA[x.categoria] || x.categoria)}</td><td>${C.esc(ESTADO[x.estado] || x.estado)}</td>
           <td>${x.estado === "EMITIDO" ? (x.ejecutada ? `Ejecutada${x.cantidadEjecutada === null || x.cantidadEjecutada === undefined ? "" : ": " + C.num(x.cantidadEjecutada)}` : "Sin confirmar") : "-"}${x.evidencias ? `<div class="subtitle">${C.esc(x.evidencias)} evidencia(s)</div>` : ""}${x.estado === "EMITIDO" && x.documentoEmitido === 0 ? `<div class="subtitle" style="color:#b45309;">Documento emitido sin conservar</div>` : ""}</td><td>${C.esc(x.creadoPor)}<div class="subtitle">${C.fecha(x.fechaCreacion)}</div></td><td style="white-space:nowrap;">${acc.join(" ")}</td></tr>`
       }).join("") : `<tr><td colspan="11" style="text-align:center;">Sin certificados</td></tr>`
+      this.$("cdEstados")?.querySelectorAll("[data-cd-estado]").forEach(b => { b.className = b.dataset.cdEstado === this.$("cdFiltroEstado").value ? "btn-primary" : "btn-secondary" })
+      C.barraNp(this.$("cdVistaLista"), "certificados-destruccion", () => ({ np: this.$("cdFiltroNp").value.trim() }))
     }
 
     excel() {
@@ -182,6 +197,7 @@ if (!window.CertificadosDestruccionController) {
         }), "btn-primary")
         if (c.estado !== "ANULADO" && !c.ejecutada) mk("Anular", abrir("Anular certificado", "Motivo de anulación *", "anular", true))
       }
+      if (C.destinosNp("certificados-destruccion").some(x => x.modulo === "trazabilidad")) mk("Ver NP relacionada", () => { document.getElementById("cdDetalle")?.remove(); C.irA("trazabilidad", { np: c.np, item: c.item }) })
       mk("PDF (REG-SGI-CDD-V11)", () => this.exportarV11(d, "pdf"))
       mk("Excel (REG-SGI-CDD-V11)", () => this.exportarV11(d, "excel"))
       const cuerpo = `
@@ -270,7 +286,7 @@ if (!window.CertificadosDestruccionController) {
 
     // ── Formulario REG-SGI-CDD-V11 ───────────────────────────────────────────
 
-    async formulario(id) {
+    async formulario(id, pedido) {
       let c = {}
       let detalle = []
       if (id) {
@@ -293,13 +309,14 @@ if (!window.CertificadosDestruccionController) {
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
           <div class="form-group"><label>Ítem</label><select id="cdfItem"><option value="${iv("item")}">${iv("item", "—")}</option></select></div>
           <div class="form-group"><label>Cliente</label><input type="text" id="cdfCliente" value="${iv("cliente")}"></div>
-          <div class="form-group"><label>Razón social</label><input type="text" id="cdfRazon" value="${iv("razonSocial")}"></div>
-          <div class="form-group"><label>Código producto</label><input type="text" id="cdfCodigo" value="${iv("codigoProducto")}"></div>
+          <div class="form-group"><label>Razón social</label><select id="cdfRazon">${[...new Set([c.razonSocial, RAZON_SOCIAL].filter(Boolean))].map(v => o(v, v, c.razonSocial || RAZON_SOCIAL)).join("")}</select></div>
+          <div class="form-group"><label>Código o N° de pliego</label><input type="text" id="cdfCodigo" value="${iv("codigoProducto")}"></div>
           <div class="form-group"><label>Producto</label><input type="text" id="cdfProducto" value="${iv("producto")}"></div>
           <div class="form-group"><label>Formato</label><select id="cdfFormato">${o("PRODUCTO", "Producto", c.formato)}${o("PLIEGO", "Pliego", c.formato)}${o("OTROS", "Otros", c.formato)}</select></div>
           <div class="form-group"><label>Cantidad solicitada</label><input type="number" step="any" id="cdfSolic" value="${iv("cantidadSolicitada")}"></div>
           <div class="form-group"><label>Cantidad total a destruir *</label><input type="number" step="any" min="0" id="cdfCant" value="${iv("cantidadDestruir")}"></div>
-          <div class="form-group"><label>Fecha fabricación/lote</label><input type="date" id="cdfFab" value="${C.esc(String(c.fechaFabricacionLote || "").slice(0, 10))}"></div>
+          <div class="form-group"><label>Fecha fabricación/lote</label><input type="date" id="cdfFab" value="${C.esc(String(c.fechaFabricacionLote || "").slice(0, 10))}">
+            <select id="cdfLote" style="display:none;margin-top:4px;" aria-label="Fecha de producción registrada en FPS"></select><div id="cdfLoteNota" class="subtitle"></div></div>
           <div class="form-group"><label>Motivo *</label><select id="cdfMotivo">${o("RECHAZO_INTERNO", "Rechazo interno", c.motivo)}${o("RECHAZO_EXTERNO", "Rechazo externo", c.motivo)}${o("EXCEDENTES", "Excedentes", c.motivo)}</select></div>
           <div class="form-group"><label>Categoría *</label><select id="cdfCategoria">${o("CALIDAD", "Calidad", c.categoria)}${o("INOCUIDAD", "Inocuidad", c.categoria)}${o("LEGALIDAD", "Legalidad", c.categoria)}</select></div>
           <div class="form-group"><label>Área</label><input type="text" id="cdfArea" value="${iv("area")}"></div>
@@ -369,8 +386,12 @@ if (!window.CertificadosDestruccionController) {
         const items = carga.data?.items || []
         const sel = ov.querySelector("#cdfItem")
         const verAntecedentes = () => this.pintarAntecedentes(ov, this.antecedentes(carga, nc, sel.value, inspeccion))
+        this.pintarLotes(ov, carga.data)
         if (items.length) {
           sel.innerHTML = items.map(i => `<option value="${i.item}">${C.esc(i.item)} — ${C.esc(i.itemCode || "")}</option>`).join("")
+          const pedidoItem = String(this._form.itemPedido ?? "")
+          this._form.itemPedido = null
+          if (pedidoItem && items.some(i => String(i.item) === pedidoItem)) sel.value = pedidoItem
           const llenar = () => {
             const it = items.find(i => String(i.item) === sel.value)
             if (!it) return
@@ -387,6 +408,46 @@ if (!window.CertificadosDestruccionController) {
         const msgMermas = this._form.sinMermas ? "Mermas no disponibles (no se pudieron consultar)" : `${this._form.mermas.length} merma(s) con saldo`
         ov.querySelector("#cdfMsg").textContent = carga.data ? msgMermas : `FPS/SAP no disponible: completa los datos a mano. ${this._form.sinMermas ? msgMermas : ""}`
       }
+      if (!id && pedido?.np) {
+        ov.querySelector("#cdfNp").value = pedido.np
+        this._form.itemPedido = pedido.item
+        await ov.querySelector("#cdfCargar").onclick()
+      }
+    }
+
+    // Fechas de producción de la NP según las corridas válidas de FPS. FPS registra por OT: no se atribuyen a un ítem.
+    lotesProduccion(data) {
+      const porFecha = new Map()
+      for (const s of data?.sesiones || []) {
+        const fecha = String(s.ProductionStartDate || "").slice(0, 10)
+        if (Number(s.Status) !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue
+        const g = porFecha.get(fecha) || { fecha, corridas: 0, maquinas: new Set() }
+        g.corridas++
+        if (s.Maquina) g.maquinas.add(String(s.Maquina).trim())
+        porFecha.set(fecha, g)
+      }
+      return [...porFecha.values()].sort((a, b) => a.fecha.localeCompare(b.fecha)).map(g => ({ ...g, maquinas: [...g.maquinas] }))
+    }
+
+    // Con una sola fecha se autocompleta; con varias elige la persona. Lo escrito a mano no se reemplaza.
+    pintarLotes(ov, data) {
+      const campo = ov.querySelector("#cdfFab")
+      const sel = ov.querySelector("#cdfLote")
+      const nota = ov.querySelector("#cdfLoteNota")
+      if (campo.value && campo.value === this._form.fabAuto) campo.value = "" // venía de la NP consultada antes
+      this._form.fabAuto = null
+      const lotes = this.lotesProduccion(data)
+      const incompleto = data?.sesionesTruncadas ? " FPS entregó las corridas recortadas: puede faltar alguna fecha." : ""
+      sel.style.display = lotes.length > 1 ? "" : "none"
+      sel.innerHTML = lotes.length > 1
+        ? `<option value="">Elegir fecha de producción (${lotes.length})</option>` + lotes.map(l => `<option value="${l.fecha}">${C.fecha(l.fecha)} · ${l.corridas} corrida(s)${l.maquinas.length ? " · " + C.esc(l.maquinas.join(", ")) : ""}</option>`).join("")
+        : ""
+      sel.onchange = () => { if (sel.value) campo.value = sel.value }
+      if (lotes.length === 1 && !campo.value) campo.value = this._form.fabAuto = lotes[0].fecha
+      nota.textContent = (!data ? "Producción no disponible: ingresa la fecha a mano."
+        : !lotes.length ? "FPS no registra corridas válidas con fecha de producción: ingresa la fecha a mano."
+        : lotes.length > 1 ? "La NP tiene varias fechas de producción en FPS (de todos sus ítems): elige la del lote."
+        : campo.value === lotes[0].fecha ? "Tomada de la producción registrada en FPS." : `FPS registra producción el ${C.fecha(lotes[0].fecha)}.`) + incompleto
     }
 
     // Aviso para no duplicar: certificados vigentes que ya existen para la NP.

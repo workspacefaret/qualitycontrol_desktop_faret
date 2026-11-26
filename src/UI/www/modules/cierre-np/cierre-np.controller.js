@@ -18,6 +18,25 @@ if (!window.CierreNpController) {
     async init() {
       this.bind()
       this.montarResumen()
+      const ctx = C.tomarContexto("cierre-np")
+      if (ctx) await this.abrirContexto(ctx)
+    }
+
+    // Llegada desde otro módulo con la NP y el ítem ya elegidos.
+    async abrirContexto(ctx) {
+      this.vista(true)
+      this.$("cnNp").value = ctx.np
+      this._itemPedido = ctx.item ?? null
+      await this.consultar()
+    }
+
+    // Lo que la persona puede cambiar en pantalla: sirve para avisar antes de salir sin guardar.
+    foto() {
+      return JSON.stringify([this._lineas, ...["cnObs", "cnOrigen", "cnManualCant", "cnManualResp"].map(id => this.$(id)?.value ?? "")])
+    }
+
+    confirmarSalida() {
+      return this._foto === this.foto() || confirm("Hay cambios sin guardar en el cierre. ¿Salir sin guardarlos?")
     }
 
     // ── Dashboard de inicio: estado vigente (última versión) de cada NP con cierre guardado. Una NP sin cierre guardado no aparece:
@@ -136,7 +155,22 @@ if (!window.CierreNpController) {
         : `<option value="">${carga.data ? "Sin ítems" : "SAP no disponible"}</option>`
       this.$("cnEstado").textContent = carga.data ? `NP ${np} consultada ${carga.consultadoEn.toLocaleString("es-CL")}` : `Fuente FPS/SAP no disponible: ${carga.error || "sin respuesta"}. No se puede calcular el cierre.`
       if (!carga.data || !items.length) return
+      const pedido = String(this._itemPedido ?? "")
+      this._itemPedido = null
+      if (pedido && items.some(i => String(i.item) === pedido)) this.$("cnItem").value = pedido
       await this.cargarCierre()
+    }
+
+    // La clave guardada ("MERMA:proceso|método|unidad", "CERT:id", "QCS:bodega") se muestra en palabras; no cambia lo guardado.
+    origenLegible(origen) {
+      const [tipo, resto = ""] = String(origen || "").split(/:(.*)/s)
+      if (tipo === "MERMA") {
+        const [proceso, metodo, unidad] = resto.split("|")
+        return `Mermas registradas: ${proceso} (${String(metodo || "").toLowerCase()}, en ${String(unidad || "").toLowerCase()})`
+      }
+      if (tipo === "CERT") return `Certificado de destrucción (registro ${resto})`
+      if (tipo === "QCS") return `Bodega ${resto.toLowerCase()} de QCS`
+      return C.txt(origen)
     }
 
     // Cantidad fabricada según el origen elegido (null = pendiente de confirmación, nunca 0).
@@ -182,6 +216,8 @@ if (!window.CierreNpController) {
       this.actualizarOrigen()
       this.$("cnResultado").style.display = ""
       this.renderTodo()
+      this._foto = this.foto()
+      C.barraNp(this.$("cnResultado"), "cierre-np", () => ({ np: this._carga?.np, item: this.item() }), () => this.confirmarSalida())
     }
 
     actualizarOrigen() {
@@ -319,7 +355,7 @@ if (!window.CierreNpController) {
       let lineas = null
       try { lineas = v.justificacionesJson === undefined ? null : JSON.parse(v.justificacionesJson || "[]") } catch { lineas = null }
       const filas = lineas === null ? `<tr><td colspan="4">${ND}</td></tr>` : !lineas.length ? `<tr><td colspan="4">Sin líneas de justificación</td></tr>`
-        : lineas.map(l => `<tr><td>${C.esc(l.concepto)}</td><td>${C.num(Number(l.cantidad))}</td><td>${C.esc(l.certeza)}</td><td>${C.esc(C.txt(l.origen))}</td></tr>`).join("")
+        : lineas.map(l => `<tr><td>${C.esc(l.concepto)}</td><td>${C.num(Number(l.cantidad))}</td><td>${C.esc(l.certeza)}</td><td>${C.esc(this.origenLegible(l.origen))}</td></tr>`).join("")
       C.modal("cnVersion", `Cierre versión ${v.version} (${v.estado})`, `<p>Guardado por <b>${C.esc(v.creadoPor)}</b> el ${C.fechaHora(v.fecha)}. Solicitada ${C.num(v.cantidadSolicitada)} · fabricada ${C.num(v.cantidadFabricada)} (${C.esc(v.origenFabricada)}${v.responsableFabricada ? ", " + C.esc(v.responsableFabricada) : ""}) · pendiente ${v.diferenciaPendiente === null ? ND : C.num(v.diferenciaPendiente)}.</p>
         <table class="table"><thead><tr><th>Concepto</th><th>Cantidad</th><th>Certeza</th><th>Origen</th></tr></thead><tbody>${filas}</tbody></table>
         <p><b>Observaciones:</b> ${C.esc(v.observaciones === undefined ? ND : v.observaciones || "-")}</p>`, "", null, 820)
@@ -393,7 +429,7 @@ if (!window.CierreNpController) {
       this.$("cnJustBody").innerHTML = this._lineas.length ? this._lineas.map((l, k) => `<tr>
         <td><input type="text" data-cn-campo="concepto" data-idx="${k}" value="${C.esc(l.concepto)}" style="width:100%"></td>
         <td><input type="number" min="0" step="any" data-cn-campo="cantidad" data-idx="${k}" value="${Number(l.cantidad) || 0}" style="width:130px"></td>
-        <td>${sel(l.certeza, k)}</td><td class="subtitle">${C.esc(C.txt(l.origen))}</td>
+        <td>${sel(l.certeza, k)}</td><td class="subtitle">${C.esc(this.origenLegible(l.origen))}</td>
         <td><button class="btn-secondary" style="padding:2px 8px;" data-cn-del="${k}" data-requiere-editar>Quitar</button></td></tr>`).join("")
         : `<tr><td colspan="5" style="text-align:center;">Sin líneas: la diferencia queda sin justificar</td></tr>`
       // Solo vista: la justificación y las observaciones se leen, no se editan.
@@ -443,7 +479,7 @@ if (!window.CierreNpController) {
         ["Cantidad solicitada", c.solicitada ?? ND], ["Cantidad fabricada", c.fabricada ?? "PENDIENTE DE CONFIRMACIÓN"], ["Origen de la cantidad fabricada", c.origen],
         ["Diferencia", c.dif ?? ND], ["Cumplimiento %", c.cumpl === null ? ND : Number(c.cumpl.toFixed(2))], ["Total justificado", c.justificado], ["Diferencia pendiente", c.pendiente ?? ND],
         ["Observaciones", this.$("cnObs").value || "-"], ["Responsable", C.usuarioActual()]])
-      C.hoja(wb, "Justificación", "Detalle de pérdidas justificadas", ["Concepto", "Cantidad (unidades)", "Certeza", "Origen"], this._lineas.map(l => [l.concepto, Number(l.cantidad) || 0, l.certeza, C.txt(l.origen)]))
+      C.hoja(wb, "Justificación", "Detalle de pérdidas justificadas", ["Concepto", "Cantidad (unidades)", "Certeza", "Origen"], this._lineas.map(l => [l.concepto, Number(l.cantidad) || 0, l.certeza, this.origenLegible(l.origen)]))
       C.hoja(wb, "Etapas", "Producción, liberación, inventario y despacho del ítem", ["Concepto", "Cantidad (unidades)", "Qué significa"], this.etapas().map(([a, v, q]) => [a, v ?? ND, q]))
       C.hoja(wb, "Certificados", "Certificados de destrucción relacionados", ["Certificado", "Estado", "Cant. a destruir", "Contada como merma", "Ejecutada", "Cant. efectivamente destruida"],
         (this._cierre?.baseJustificacion?.certificados || []).map(x => [x.correlativo || `#${x.id}`, x.estado, x.cantidadDestruir, x.cantidadConMerma, x.ejecutada ? "Sí" : "No", x.ejecutada ? x.cantidadEjecutada ?? ND : "-"]))
@@ -459,7 +495,7 @@ if (!window.CierreNpController) {
       const c = this.calculo()
       const it = this.itemObj()
       const e = C.esc
-      const filas = this._lineas.map(l => `<tr><td>${e(l.concepto)}</td><td style="text-align:right">${C.num(l.cantidad)}</td><td>${l.certeza === "CONFIRMADA" ? "Confirmada" : "Estimada"}</td><td>${e(C.txt(l.origen))}</td></tr>`).join("") || `<tr><td colspan="4">Sin líneas de justificación</td></tr>`
+      const filas = this._lineas.map(l => `<tr><td>${e(l.concepto)}</td><td style="text-align:right">${C.num(l.cantidad)}</td><td>${l.certeza === "CONFIRMADA" ? "Confirmada" : "Estimada"}</td><td>${e(this.origenLegible(l.origen))}</td></tr>`).join("") || `<tr><td colspan="4">Sin líneas de justificación</td></tr>`
       const certs = (this._cierre?.baseJustificacion?.certificados || []).map(x => `<tr><td>${e(x.correlativo || "#" + x.id)}</td><td>${e(x.estado)}</td><td style="text-align:right">${C.num(x.cantidadDestruir)}</td><td>${this.textoEjecucion(x)}</td></tr>`).join("") || `<tr><td colspan="4">${this._errorCierre ? ND : "Sin certificados aprobados o emitidos"}</td></tr>`
       const estado = c.pendiente === null ? "NO CALCULABLE" : c.pendiente === 0 ? "CONCILIADO" : `DIFERENCIA PENDIENTE: ${C.num(c.pendiente)}`
       C.imprimirHtml(`<!doctype html><html><head><meta charset="utf-8"><title>Cierre NP ${e(this._carga.np)}</title><style>

@@ -17,6 +17,17 @@ if (!window.BalanceMermasController) {
     async init() {
       this.bind()
       this.montarResumen()
+      const ctx = C.tomarContexto("balance-mermas")
+      if (ctx) await this.abrirContexto(ctx)
+    }
+
+    // Llegada desde otro módulo con la NP y el ítem ya elegidos.
+    async abrirContexto(ctx) {
+      this.vista(true)
+      this.$("bmNp").value = ctx.np
+      this._itemPedido = ctx.item ?? null
+      await this.consultar()
+      if (ctx.tab === "mermas") this.tab("mermas")
     }
 
     // ── Dashboard de inicio: cifras agregadas por la API (nunca se descarga el historial al navegador) ──
@@ -81,6 +92,7 @@ if (!window.BalanceMermasController) {
         else if (id === "btnBmTabMermas") this.tab("mermas")
         else if (id === "btnBmExcelBalance") this.exportarBalance()
         else if (id === "btnBmPdfBalance") this.pdfBalance()
+        else if (id === "btnBmVerCalidad" && this._carga) C.irA("trazabilidad", { np: this._carga.np, item: this.item(), tab: "calidad" })
         else if (id === "btnBmExcelMermas") this.exportarMermas()
         else if (id === "btnBmNuevaMerma" || id === "btnBmNuevaMerma2") this.modalMerma()
         const det = e.target.closest?.("[data-bm-detalle]")
@@ -139,7 +151,9 @@ if (!window.BalanceMermasController) {
       sel.innerHTML = items.length
         ? items.map(i => `<option value="${i.item}">${C.esc(i.item)} — ${C.esc(i.itemCode || "")} ${C.esc(i.descripcion || "")}</option>`).join("")
         : `<option value="">${items.length === 0 && !carga.data ? "SAP no disponible" : "Sin ítems"}</option>`
-      if (previo && [...sel.options].some(o => o.value === previo)) sel.value = previo
+      const pedido = String(this._itemPedido ?? previo ?? "")
+      this._itemPedido = null
+      if (pedido && [...sel.options].some(o => o.value === pedido)) sel.value = pedido
       const avisos = []
       if (!carga.data) avisos.push(`Fuente FPS/SAP no disponible: ${carga.error || "sin respuesta"}.`)
       if (!mer.ok) avisos.push(`Mermas: ${mer.error}`)
@@ -147,6 +161,7 @@ if (!window.BalanceMermasController) {
       this.$("bmEstado").textContent = avisos.join(" ") || `NP ${carga.np} consultada ${carga.consultadoEn.toLocaleString("es-CL")}`
       this.$("bmResultado").style.display = ""
       this.refrescarItem()
+      C.barraNp(this.$("bmResultado"), "balance-mermas", () => ({ np: this._carga?.np, item: this.item() }))
     }
 
     // null = no disponible o sin permiso sobre el módulo de origen (nunca equivale a "sin certificados").

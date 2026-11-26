@@ -143,6 +143,20 @@ namespace QualityControlCenter.Modules.Trazabilidad
                     return await Forward(_innpack.GetAsync($"api/no-conformidades/por-np?np={npNc}"));
                 }
 
+                // Despacho de la nota de venta INNPACK calculado por apisapfaret (Service Layer, solo lectura).
+                if (action == "trazabilidad.despachoSap")
+                {
+                    if (_sap is null || !_sap.IsConfigured)
+                        return Error("La conexión con SAP no está configurada en este equipo.");
+                    if (!TryGetId(GetDataElement(data), "docEntry", out var docEntryNv))
+                        return Error("Falta la nota de venta.");
+                    var (okSap, cuerpo) = await _sap.GetAsync($"api/documentos/notaventa/{docEntryNv}/despacho?empresa=INNPACK");
+                    return TryUnwrapSap(okSap, cuerpo, out var despacho, out var errorSap)
+                        && despacho.TryGetProperty("ok", out var fin) && fin.ValueKind == JsonValueKind.True
+                        ? Ok(despacho)
+                        : Error(errorSap);
+                }
+
                 if (action is "trazabilidad.adjuntosSap.list" or "trazabilidad.adjuntosSap.abrir")
                     return await HandleAdjuntosSap(action, GetDataElement(data));
 

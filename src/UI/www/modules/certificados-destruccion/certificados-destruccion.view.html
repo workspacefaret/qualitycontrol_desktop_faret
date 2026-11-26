@@ -15,6 +15,15 @@
   <div id="cdDash"></div>
 
   <div id="cdVistaLista" style="display:none;">
+  <div id="cdEstados" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button type="button" class="btn-primary" data-cd-estado="">Todos</button>
+    <button type="button" class="btn-secondary" data-cd-estado="BORRADOR">Borradores</button>
+    <button type="button" class="btn-secondary" data-cd-estado="PENDIENTE_APROBACION">Pendientes</button>
+    <button type="button" class="btn-secondary" data-cd-estado="APROBADO">Aprobados</button>
+    <button type="button" class="btn-secondary" data-cd-estado="EMITIDO">Emitidos</button>
+    <button type="button" class="btn-secondary" data-cd-estado="RECHAZADO">Rechazados</button>
+    <button type="button" class="btn-secondary" data-cd-estado="ANULADO">Anulados</button>
+  </div>
   <div class="card" style="margin-bottom: 16px;">
     <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
       <div class="form-group">

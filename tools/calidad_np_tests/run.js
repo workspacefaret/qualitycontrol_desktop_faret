@@ -364,7 +364,141 @@ trz._integral = { data: { procesos: [{ IdProceso: 1, NombreProceso: "TROQUELADO"
 check("detalle de proceso: defectos solo de su etapa", trz.detalleProceso(1).defectos.map(r => r.id).join() === "5", trz.detalleProceso(1).defectos)
 trz._integral.calidad.registros.estado = "ERROR"
 check("detalle de proceso: fuente caída = no disponible", trz.detalleProceso(1).defectos === null)
-pruebaDefectos().catch(err => { fallas++; console.log("FALLA: defectos", err.message) }).then(() => {
+// 06.3: la fecha de fabricación sale de las corridas válidas; con varias fechas no se elige sola.
+{
+    const cdf = new ctx.window.CertificadosDestruccionController()
+    const dia = (f, extra = {}) => ({ Status: 1, ProductionStartDate: f + "T08:00:00Z", Maquina: "M1", ...extra })
+    const lotes = cdf.lotesProduccion({ sesiones: [dia("2026-10-02"), dia("2026-10-01"), dia("2026-10-02", { Maquina: "M2" }), dia("2026-10-03", { Status: 0 }), { Status: 1, SetupStartDate: "2026-10-04T08:00:00" }] })
+    check("lotes: fechas válidas, ordenadas y sin anuladas ni solo puesta a punto", lotes.map(l => l.fecha + ":" + l.corridas).join() === "2026-10-01:1,2026-10-02:2", lotes)
+    const campos = {}
+    const ov = { querySelector: s => (campos[s] ||= { value: "", style: {} }) }
+    cdf._form = {}
+    cdf.pintarLotes(ov, { sesiones: [dia("2026-10-01")] })
+    check("lotes: una fecha se autocompleta", campos["#cdfFab"].value === "2026-10-01" && campos["#cdfLote"].style.display === "none")
+    cdf.pintarLotes(ov, { sesiones: [dia("2026-10-05"), dia("2026-10-06")] })
+    check("lotes: varias fechas se eligen y no queda la de la NP anterior", campos["#cdfFab"].value === "" && campos["#cdfLote"].style.display === "" && campos["#cdfLote"].innerHTML.includes("2026-10-06"))
+    campos["#cdfFab"].value = "2026-09-30"
+    cdf.pintarLotes(ov, { sesiones: [dia("2026-10-01")] })
+    check("lotes: no reemplaza lo escrito a mano e informa la de FPS", campos["#cdfFab"].value === "2026-09-30" && campos["#cdfLoteNota"].textContent.startsWith("FPS registra"))
+    cdf.pintarLotes(ov, null)
+    check("lotes: fuente caída no inventa fecha", campos["#cdfLoteNota"].textContent.startsWith("Producción no disponible"))
+}
+// Despacho por Service Layer cuando fps-api todavía usa la regla anterior: todo o nada.
+async function pruebaDespachoSap() {
+    const antiguo = () => {
+        const i = item(1, { lineasNv: [0, 1], despachado: 999000 })
+        delete i.reingresoNc
+        return { np: 4000, items: [i], notaVenta: [{ DocEntry: 77, Cancelada: "N", LineNum: 0, Item: 1 }], documentos: [{ Tipo: "FACTURA" }], sinAsignar: { documentos: [{}], liberaciones: [] }, fuentes: { sapDespachos: { ok: true } } }
+    }
+    const linea = (lineNum, despachado, extra = {}) => ({ lineNum, itemCode: "COD1", guias: despachado, facturadoDirecto: 0, facturadoDeGuia: 0, facturadoReserva: 5, devuelto: 0, notasCredito: 0, reingresoNc: 0, despachado, ultimoDespacho: "2026-10-0" + (lineNum + 1), ...extra })
+    const sap = extra => ({ ok: true, data: [{ docNum: 4000, cancelada: false, lineas: [linea(0, 100), linea(1, 20)], documentos: [{ tipo: "GUIA", docEntry: 1, docNum: 10, lineaNv: 0, cantidad: 100, repusoStock: false, tieneAdjunto: true }], ...extra }] })
+    const previo = ctx.window.PhotinoBridge
+    const correr = async respuesta => {
+        const pedidos = []
+        ctx.window.PhotinoBridge = { send: async m => { pedidos.push(m); return respuesta } }
+        const data = antiguo()
+        await C.completarDespachoSap(data)
+        return { data, pedidos }
+    }
+    let { data, pedidos } = await correr({ ok: true, data: sap() })
+    check("despacho SAP: pide la NV y suma sus líneas", pedidos.length === 1 && pedidos[0].action === "trazabilidad.despachoSap" && data.items[0].despachado === 120 && data.items[0].ultimoDespacho === "2026-10-02", data.items[0])
+    check("despacho SAP: quita la marca de regla anterior y reemplaza documentos", !C.reglaDespachoAnterior(data.items) && data.documentos[0].Tipo === "GUIA" && data.documentos[0].TieneAdjunto === 1 && data.sinAsignar.documentos.length === 0)
+    for (const [nombre, respuesta] of [
+        ["endpoint sin desplegar", { ok: false, error: "HTTP 404" }],
+        ["otra nota de venta", { ok: true, data: sap({ docNum: 1 }) }],
+        ["líneas que no calzan", { ok: true, data: sap({ lineas: [linea(0, 100)] }) }],
+        ["otro código en la línea", { ok: true, data: sap({ lineas: [linea(0, 100), linea(1, 20, { itemCode: "X" })] }) }]
+    ]) {
+        ({ data } = await correr(respuesta))
+        check("despacho SAP: " + nombre + " conserva cifra marcada como no validada", data.items[0].despachado === 999000 && C.reglaDespachoAnterior(data.items) && !!data.despachoSapError && data.documentos[0].Tipo === "FACTURA")
+    }
+    let llamadas = 0
+    ctx.window.PhotinoBridge = { send: async () => { llamadas++ } }
+    await C.completarDespachoSap({ np: 4000, items: [item(1, { reingresoNc: 0 })], notaVenta: [] })
+    check("despacho SAP: con fps-api corregida no consulta", llamadas === 0)
+    ctx.window.PhotinoBridge = previo
+}
+// Navegación entre los cuatro módulos: el contexto viaja una sola vez y respeta los permisos.
+async function pruebaNavegacion() {
+    const cargados = []
+    let niveles = {}
+    ctx.window.App = { nivelModulo: m => niveles[m] || "EDITAR", loadModule: m => cargados.push(m) }
+    C.irA("balance-mermas", { np: "4007", item: 2 })
+    const c1 = C.tomarContexto("balance-mermas")
+    check("navegación: entrega NP e ítem al destino", cargados[0] === "balance-mermas" && c1.np === "4007" && c1.item === 2)
+    check("navegación: el contexto se usa una sola vez", C.tomarContexto("balance-mermas") === null)
+    C.irA("cierre-np", { np: "4007" })
+    check("navegación: otro módulo no hereda el contexto", C.tomarContexto("trazabilidad") === null && C.tomarContexto("cierre-np") === null)
+    check("navegación: ofrece los otros tres y certificado nuevo", C.destinosNp("trazabilidad").map(d => d.modulo).join() === "balance-mermas,cierre-np,certificados-destruccion,certificados-destruccion")
+    niveles = { "balance-mermas": "SIN_ACCESO", "certificados-destruccion": "VER" }
+    check("navegación: sin acceso no se ofrece y VER no crea certificados", C.destinosNp("trazabilidad").map(d => d.titulo).join() === "Cierre de NP,Certificados de destrucción")
+    const antes = cargados.length
+    C.irA("balance-mermas", { np: "4007" })
+    check("navegación: sin acceso no navega", cargados.length === antes)
+
+    // Cada controlador consulta solo, sin que la persona vuelva a escribir la NP.
+    const bm = new ctx.window.BalanceMermasController()
+    const pasos = []
+    bm.vista = () => {}; bm.consultar = async () => pasos.push("bm:" + el("bmNp").value + ":" + bm._itemPedido); bm.tab = t => pasos.push("tab:" + t)
+    await bm.abrirContexto({ np: "4007", item: 2, tab: "mermas" })
+    const cd = new ctx.window.CertificadosDestruccionController()
+    niveles = {}
+    cd.verLista = () => pasos.push("lista:" + el("cdFiltroNp").value); cd.formulario = async (id, p) => pasos.push(`nuevo:${id}:${p.np}:${p.item}`); cd.accion = async (a, id) => pasos.push(`${a}:${id}`)
+    await cd.abrirContexto({ np: "4007", item: 2, nuevo: true })
+    await cd.abrirContexto({ np: "4007", certificadoId: 9 })
+    niveles = { "certificados-destruccion": "VER" }
+    await cd.abrirContexto({ np: "4007", item: 2, nuevo: true })
+    check("navegación: balance y certificados se abren con el contexto", pasos.join("|") === "bm:4007:2|tab:mermas|lista:4007|nuevo:null:4007:2|lista:4007|ver:9|lista:4007", pasos)
+    delete ctx.window.App
+}
+// Antecedentes automáticos del checklist: nunca 0 cuando la fuente no respondió.
+{
+    const t = new ctx.window.TrazabilidadController()
+    t._integral = { np: "1", data: { consumos: [{ lotes: [{ origenDocNum: 5 }, {}] }], sesiones: [{ Status: 1, Etiquetas: 3 }, { Status: 1, Etiquetas: 2 }] } }
+    check("antecedente: materiales con origen", t.datoEnSistema(null, "BOD-REC").startsWith("2 lote(s) de material consumido, 1 con documento"))
+    check("antecedente: etiquetas FPS", t.datoEnSistema(null, "CAL-ETIQ") === "5 etiqueta(s) en las corridas de FPS")
+    check("antecedente: pendiente de llegar no es 0", t.datoEnSistema("CALIDAD", "CAL-RECH") === "Consultando...")
+    t._integral.nc = { estado: "ERROR", items: [] }
+    t._integral.certificados = { estado: "SIN_PERMISO", items: null }
+    check("antecedente: fuente caída o sin permiso no es 0", !/^0 /.test(t.datoEnSistema("CALIDAD", "CAL-RECH")) && t.datoEnSistema(null, "CAL-DEST") === "Sin permiso sobre el módulo de origen")
+    t._integral.data.sesiones[0].Etiquetas = null
+    check("antecedente: etiquetas incompletas no se suman", !/etiqueta/.test(t.datoEnSistema(null, "CAL-ETIQ")))
+    check("antecedente: sin fuente propia queda en '-'", t.datoEnSistema(null, "PLA-CERT") === "-")
+}
+{
+    const t = new ctx.window.TrazabilidadController()
+    const html = "<html><body><p>informe</p></body></html>"
+    const conNumero = t.conVersion(html, { version: 3, generadoPor: "<x>" })
+    check("informe reabierto: imprime la versión y escapa el autor", conNumero.includes("Versión guardada N° 3") && !conNumero.includes("<x>") && conNumero.endsWith("<p>informe</p></body></html>"))
+    check("informe reabierto: sin número no inventa", t.conVersion(html, {}) === html)
+}
+{
+    vm.runInContext(fs.readFileSync(path.join(www, "modules/cierre-np/cierre-np.controller.js"), "utf8"), ctx, { filename: "cierre-np" })
+    const cn = new ctx.window.CierreNpController()
+    check("cierre: origen en palabras", cn.origenLegible("MERMA:Pegado|ESTIMADA|UNIDADES") === "Mermas registradas: Pegado (estimada, en unidades)" && cn.origenLegible("CERT:3") === "Certificado de destrucción (registro 3)" && cn.origenLegible("QCS:DESTRUCCION") === "Bodega destruccion de QCS")
+}
+{
+    const t = new ctx.window.TrazabilidadController()
+    t._integral = { data: { documentos: [{ Tipo: "GUIA", DocDate: "2026-10-05" }, { Tipo: "FACTURA", DocDate: "2026-01-01" }, { Tipo: "GUIA", DocDate: "2026-10-02T00:00:00" }], consumos: [{ lotes: [{ origenFecha: "2026-09-01" }, {}] }] } }
+    check("inspección: rango logístico sale solo de las guías", JSON.stringify(t.rangoInspeccion("LOG-CAM")) === '{"desde":"2026-10-02","hasta":"2026-10-05"}')
+    check("inspección: rango de bodega sale de la recepción de lotes", t.rangoInspeccion("BOD-CAM").desde === "2026-09-01")
+    t._integral = { data: {} }
+    check("inspección: sin fechas no propone rango", t.rangoInspeccion("LOG-CAM").desde === "")
+    const obs = t.observacionInspeccion({ id: 12, patente: "AB1234", conductor: "x".repeat(900), totalNoCumple: 0 })
+    check("inspección: la observación declara asociación manual y respeta 500", obs.startsWith("Asociación MANUAL") && obs.includes("#12") && obs.length === 500)
+    check("inspección: solo en los requisitos de camión", t.puedeElegirInspeccion("BOD-CAM") && !t.puedeElegirInspeccion("PLA-CERT"))
+}
+{
+    const t = new ctx.window.TrazabilidadController()
+    t._integral = { np: "1", data: { consumos: [{ categoria: "TINTAS OFFSET", lotes: [{ lote: "T-1" }, { lote: "T-1" }] }, { categoria: "CARTULINAS", lotes: [{ lote: "C-9" }] }] } }
+    check("antecedente: solo lotes de categoría tinta, sin repetir", t.datoEnSistema(null, "TIN-LOTE") === "1 lote(s) de tinta consumidos según SAP: T-1")
+    t._integral.data = { items: [{ item: 1, itemCode: "COD1", lineasNv: [] }], ordenes: [{ OrdenTrabajo: 10, EstadoOt: "Produccion " }, { OrdenTrabajo: 11 }] }
+    const estado = d => t.fichaItem(0).find(f => f[0] === "Estado de la OT en FPS")[1]
+    check("ficha: estado de la OT desde FPS", estado() === "10: Produccion", estado())
+    t._integral.data.ordenes = [{ OrdenTrabajo: 10 }]
+    check("ficha: fps-api sin el campo queda No disponible", estado() === C.ND, estado())
+}
+pruebaDefectos().then(pruebaDespachoSap).then(pruebaNavegacion).catch(err => { fallas++; console.log("FALLA: defectos", err.message) }).then(() => {
 console.log(`\n${ok} OK, ${fallas} fallas`)
 process.exit(fallas ? 1 : 0)
 })

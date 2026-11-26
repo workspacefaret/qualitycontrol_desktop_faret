@@ -78,6 +78,7 @@ window.CalidadNp = (function () {
             error = (resolucion?.avisos || []).join(" ") || "El número no corresponde a una NP INNPACK."
             data = null
         }
+        if (data) await completarDespachoSap(data)
         const npReal = data ? String(data.np) : String(np)
         if (npReal !== String(np)) factores = await send("trazabilidad.factor.list", { np: npReal })
         return {
@@ -120,6 +121,46 @@ window.CalidadNp = (function () {
     // regla anterior y no se puede rotular como la regla corregida.
     const AVISO_REGLA_ANTERIOR = "El servidor FPS aún no tiene la corrección de despachos: el despachado y el pendiente pueden estar mal (facturas de reserva y notas de crédito). No usar como cifra validada."
     const reglaDespachoAnterior = items => (items || []).some(i => i.reingresoNc === undefined)
+
+    const CAMPOS_DESPACHO = ["guias", "facturadoDirecto", "facturadoDeGuia", "facturadoReserva", "devuelto", "notasCredito", "reingresoNc", "despachado"]
+
+    // Con una fps-api que aún usa la regla anterior, el despacho se toma de SAP por Service Layer (apisapfaret) con la
+    // regla corregida. Se reemplaza todo o nada: ante cualquier duda quedan las cifras anteriores y su aviso.
+    async function completarDespachoSap(data) {
+        const items = data?.items || []
+        if (!items.length || !reglaDespachoAnterior(items)) return data
+        const nvs = [...new Set((data.notaVenta || []).filter(l => l.Cancelada !== "Y").map(l => l.DocEntry))]
+        if (nvs.length !== 1 || !nvs[0]) return data
+        const fallar = motivo => ((data.despachoSapError = motivo), data)
+        let r
+        try {
+            r = await send("trazabilidad.despachoSap", { docEntry: String(nvs[0]) })
+        } catch (err) {
+            return fallar(err?.message || "sin respuesta")
+        }
+        const sap = r.ok ? r.data?.data?.[0] : null
+        if (!sap) return fallar(r.error || "SAP no respondió la consulta de despacho")
+        if (sap.cancelada || String(sap.docNum) !== String(data.np)) return fallar("SAP devolvió una nota de venta distinta o cancelada")
+        const porLinea = new Map((sap.lineas || []).map(l => [Number(l.lineNum), l]))
+        const calza = i => (i.lineasNv || []).length && i.lineasNv.every(n => String(porLinea.get(Number(n))?.itemCode || "").trim() === String(i.itemCode || "").trim())
+        if (!items.every(calza)) return fallar("Las líneas de la nota de venta en SAP no coinciden con las de la trazabilidad")
+
+        for (const i of items) {
+            const lineas = i.lineasNv.map(Number)
+            for (const k of CAMPOS_DESPACHO) i[k] = lineas.reduce((a, n) => a + Number(porLinea.get(n)[k] || 0), 0)
+            const docs = (sap.documentos || []).filter(d => lineas.includes(Number(d.lineaNv)))
+            i.documentosDespacho = new Set(docs.map(d => `${d.tipo}|${d.docNum}`)).size
+            i.ultimoDespacho = lineas.map(n => porLinea.get(n).ultimoDespacho).filter(Boolean).sort().pop() || null
+        }
+        data.documentos = (sap.documentos || []).map(d => ({
+            Tipo: d.tipo, DocEntry: d.docEntry, DocNum: d.docNum, FolioNum: d.folioNum, DocDate: d.docDate, LineNum: d.lineNum, ItemCode: d.itemCode,
+            Cantidad: d.cantidad, LineaNv: d.lineaNv, Origen: d.origen, RepusoStock: d.repusoStock ? 1 : 0, Pallets: d.pallets, TieneAdjunto: d.tieneAdjunto ? 1 : 0, CardName: d.cardName
+        }))
+        if (data.sinAsignar) data.sinAsignar.documentos = []
+        if (data.fuentes) data.fuentes.sapDespachos = { ok: true }
+        data.despachoOrigen = "SERVICE_LAYER"
+        return data
+    }
 
     function balance({ carga, item, mermas }) {
         const advertencias = []
@@ -294,6 +335,55 @@ window.CalidadNp = (function () {
         return ov
     }
 
+    // ── Navegación entre los cuatro módulos conservando NP e ítem ─────────────
+
+    const MODULOS_NP = [["trazabilidad", "Trazabilidad"], ["balance-mermas", "Balance y mermas"], ["cierre-np", "Cierre de NP"], ["certificados-destruccion", "Certificados de destrucción"]]
+    let contextoPendiente = null
+
+    // contexto: { np, item?, tab?, nuevo? (certificado nuevo con la NP cargada), certificadoId? }
+    function irA(modulo, contexto) {
+        if (nivel(modulo) === "SIN_ACCESO") return
+        contextoPendiente = { ...contexto, modulo }
+        window.App.loadModule(modulo)
+    }
+
+    // El módulo de destino lo toma una sola vez al iniciar: volver por el menú no repite la consulta.
+    function tomarContexto(modulo) {
+        const c = contextoPendiente
+        contextoPendiente = null
+        return c && c.modulo === modulo && c.np ? c : null
+    }
+
+    function destinosNp(actual) {
+        const lista = MODULOS_NP.filter(([m]) => m !== actual && nivel(m) !== "SIN_ACCESO").map(([modulo, titulo]) => ({ modulo, titulo, extra: {} }))
+        if (puedeEditar("certificados-destruccion")) lista.push({ modulo: "certificados-destruccion", titulo: "Nuevo certificado para esta NP", extra: { nuevo: true } })
+        return lista
+    }
+
+    // Barra "continuar con esta NP". `obtener` se evalúa al hacer clic (ítem seleccionado en ese momento).
+    // `antesDeSalir` permite cancelar si hay cambios sin guardar.
+    function barraNp(contenedor, actual, obtener, antesDeSalir) {
+        if (!contenedor) return
+        let barra = contenedor.querySelector(":scope > .cnp-nav")
+        if (!barra) {
+            barra = document.createElement("div")
+            barra.className = "cnp-nav"
+            barra.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;"
+            contenedor.prepend(barra)
+        }
+        const destinos = destinosNp(actual)
+        const np = obtener()?.np
+        barra.style.display = np && destinos.length ? "flex" : "none"
+        barra.innerHTML = `<span class="subtitle">Continuar con la NP ${esc(np)}:</span>` + destinos.map((d, k) => `<button type="button" class="btn-secondary" data-cnp-ir="${k}">${esc(d.titulo)}</button>`).join("")
+        barra.querySelectorAll("[data-cnp-ir]").forEach(b => {
+            b.onclick = () => {
+                if (antesDeSalir && !antesDeSalir()) return
+                const d = destinos[Number(b.dataset.cnpIr)]
+                irA(d.modulo, { ...obtener(), ...d.extra })
+            }
+        })
+    }
+
     function leerArchivoBase64(file) {
         return new Promise((resolve, reject) => {
             const r = new FileReader()
@@ -357,6 +447,8 @@ window.CalidadNp = (function () {
             ingresadoBodega: ingresadoItem(carga, it),
             stockSap: inventarioItem(carga, it)?.stock ?? null,
             ultimaLiberacion: it.ultimaLiberacion ?? null, ultimoDespacho: it.ultimoDespacho ?? null,
+            // De dónde salió la cifra de despacho que se está respaldando.
+            despachoOrigen: reglaDespachoAnterior([it]) ? "NO_VALIDADO_REGLA_ANTERIOR" : carga?.data?.despachoOrigen || "FPS_API",
             ...extra
         }
     }
@@ -418,5 +510,5 @@ window.CalidadNp = (function () {
         return Object.entries(t).map(([u, v]) => `${num(v)} ${u}`).join(" · ") || "0"
     }
 
-    return { AVISO_REGLA_ANTERIOR, reglaDespachoAnterior, ND, ETAPAS, itemAmbiguo, itemSap, inventarioItem, hoyLocal, sumaPorUnidad, esc, num, txt, fecha, fechaHora, send, nivel, puedeEditar, etapaDe, calidadDeNp, cargarNp, evidenciaItem, registrosQcc, ingresadoItem, movimientosPosteriores, factorConfirmado, saldoBodega, balance, hoja, guardarLibro, stamp, modal, leerArchivoBase64, imprimirHtml, usuarioActual }
+    return { irA, tomarContexto, barraNp, destinosNp, AVISO_REGLA_ANTERIOR,reglaDespachoAnterior, completarDespachoSap, ND, ETAPAS, itemAmbiguo, itemSap, inventarioItem, hoyLocal, sumaPorUnidad, esc, num, txt, fecha, fechaHora, send, nivel, puedeEditar, etapaDe, calidadDeNp, cargarNp, evidenciaItem, registrosQcc, ingresadoItem, movimientosPosteriores, factorConfirmado, saldoBodega, balance, hoja, guardarLibro, stamp, modal, leerArchivoBase64, imprimirHtml, usuarioActual }
 })()

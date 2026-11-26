@@ -101,6 +101,23 @@ if (!window.TrazabilidadController) {
       console.log("INIT TRAZABILIDAD")
       this.bindEvents()
       this.montarPanel()
+      const ctx = window.CalidadNp?.tomarContexto?.("trazabilidad")
+      if (ctx) await this.abrirContexto(ctx)
+    }
+
+    // Llegada desde otro módulo con la NP, el ítem y la pestaña ya elegidos.
+    async abrirContexto(ctx) {
+      this._tab = ctx.tab || "resumen"
+      this._itemPedido = ctx.item ?? null
+      document.getElementById("trzNp").value = ctx.np
+      await this.consultar()
+    }
+
+    // NP e ítem elegidos en la ficha, para continuar en otro módulo.
+    contextoNp() {
+      const items = this._integral?.data?.items || []
+      const k = Number(document.getElementById("trzFichaItem")?.value || 0)
+      return { np: this._integral?.data ? this._integral.np : null, item: items[k]?.item ?? null }
     }
 
     bindEvents() {
@@ -414,6 +431,8 @@ if (!window.TrazabilidadController) {
         error = (resolucion?.avisos || []).join(" ") || "El número no corresponde a una NP INNPACK."
         data = null
       }
+      if (data) await window.CalidadNp?.completarDespachoSap?.(data) // solo actúa si fps-api usa la regla anterior
+      if (id !== this._consultaId) return
       const npReal = data ? String(data.np) : np
       let calidadReal = calidad
       if (data && npReal !== String(np)) calidadReal = await this.consultarCalidad(npReal)
@@ -435,6 +454,7 @@ if (!window.TrazabilidadController) {
       this.renderInventario()
       this.renderKpis()
       this.activarTab(this._tab)
+      window.CalidadNp?.barraNp?.(document.getElementById("trzIntegral"), "trazabilidad", () => this.contextoNp())
       this.cargarNc(npReal, id)
       this.cargarPallets(npReal, id)
       this.cargarMermasYCertificados(npReal, id)
@@ -625,6 +645,7 @@ if (!window.TrazabilidadController) {
       }
       if (id !== this._consultaId) return
       this._integral.nc = nc
+      this.refrescarDocumentos(np)
       if (nc.estado !== "OK") this.filasVacias("trzNcBody", 10, ND)
       else if (nc.items.length === 0) this.filasVacias("trzNcBody", 10, "Sin no conformidades de producto para esta NP")
       else document.getElementById("trzNcBody").innerHTML = nc.items.map(x => `
@@ -736,6 +757,7 @@ if (!window.TrazabilidadController) {
       if (certificados.items) certificados.items = certificados.items.filter(c => String(c.np) === String(np))
       this._integral.mermas = mermas
       this._integral.certificados = certificados
+      this.refrescarDocumentos(np)
       const motivo = r => (r.estado === "SIN_PERMISO" ? "Sin permiso sobre el módulo de origen" : ND)
       if (!mermas.items) this.filasVacias("trzMermasBody", 9, motivo(mermas))
       else if (!mermas.items.length) this.filasVacias("trzMermasBody", 9, "Sin mermas registradas en QCC para esta NP")
@@ -885,6 +907,8 @@ if (!window.TrazabilidadController) {
         partes.push(this.estadoFuente("FPS (órdenes y corridas)", f.fps))
         partes.push(this.estadoFuente("SAP nota de venta", f.sapNotaVenta))
         partes.push(this.estadoFuente("SAP despachos", f.sapDespachos))
+        if (data.despachoOrigen === "SERVICE_LAYER") partes.push(`<span style="color:#1d4ed8;">ℹ Despacho calculado desde SAP por Service Layer</span>`)
+        else if (data.despachoSapError) partes.push(`<span style="color:#92400e;">ℹ No se pudo calcular el despacho por Service Layer: ${this.esc(data.despachoSapError)}</span>`)
         partes.push(this.estadoFuente("SAP consumos", f.sapConsumos))
         partes.push(this.estadoFuente("Liberaciones QCS", f.liberaciones))
         const nv = (data.notaVenta || []).find(l => l.Cancelada !== "Y")
@@ -956,6 +980,7 @@ if (!window.TrazabilidadController) {
         ["Cantidad solicitada", `${this.num(i.solicitado)} ${i.unidad || ""}`.trim()], ["Liberado PT (QCS)", this.num(i.liberadoPt)], ["Despachado (SAP)", this.num(i.despachado)],
         ["Pendiente de despacho (estimado)", this.num(this.pendienteDespacho(i))], ["Unidades por pliego", factor ? `${this.num(factor)} (confirmado)` : "Sin factor confirmado"],
         ["OT de la NP", unir(ordenes.map(o => o.OrdenTrabajo))], ["NV FARET de la NP", unir(ordenes.map(o => o.NotaVentaFaret))],
+        ["Estado de la OT en FPS", unir(ordenes.filter(o => String(o.EstadoOt ?? "").trim()).map(o => `${o.OrdenTrabajo}: ${String(o.EstadoOt).trim()}`))],
         ["Fabricación de la NP (FPS)", inicios.length ? `${this.fechaCorta(inicios[0])} a ${this.fechaCorta(inicios[inicios.length - 1])}` : ND],
         ["Guía técnica de la NP (texto libre FPS)", unir(guias.map(g => g.texto))], ["Perfil (maestro SAP vigente)", this.textoPerfil(i)], ["Revisión de guía y molde", "No disponible: sin fuente vinculada"]
       ]
@@ -971,6 +996,11 @@ if (!window.TrazabilidadController) {
         sel.dataset.clave = clave
         sel.innerHTML = items.map((i, n) => `<option value="${n}">Ítem ${this.esc(this.txt(i.item))} — ${this.esc(i.itemCode)} ${this.esc(i.descripcion)}</option>`).join("")
         sel.onchange = () => this.renderFicha()
+      }
+      if (items.length && this._itemPedido !== null && this._itemPedido !== undefined) {
+        const k = items.findIndex(i => String(i.item) === String(this._itemPedido))
+        if (k >= 0) sel.value = String(k)
+        this._itemPedido = null
       }
       const pares = this.fichaItem(Number(sel.value || 0))
       caja.innerHTML = pares
@@ -1049,7 +1079,8 @@ if (!window.TrazabilidadController) {
       if (!np) { alert("Consulta una NP primero"); return }
       const r = await window.CalidadNp.send("calidadNp.informes.list", { np })
       if (!r.ok) { alert(r.error || "No se pudo consultar el historial"); return }
-      const filas = (r.data || []).map(v => `<tr><td>${this.esc(v.version)}</td><td>${this.esc(v.formato)}</td><td>${this.esc(v.generadoPor)}</td><td>${this.esc(window.CalidadNp.fechaHora(v.fecha))}</td><td><button class="btn-secondary" style="padding:2px 8px;" data-trz-informe="${this.esc(v.id)}">Abrir</button></td></tr>`).join("")
+      this._versiones = r.data || []
+      const filas = this._versiones.map(v => `<tr><td>${this.esc(v.version)}</td><td>${this.esc(v.formato)}</td><td>${this.esc(v.generadoPor)}</td><td>${this.esc(window.CalidadNp.fechaHora(v.fecha))}</td><td><button class="btn-secondary" style="padding:2px 8px;" data-trz-informe="${this.esc(v.id)}">Abrir</button></td></tr>`).join("")
       window.CalidadNp.modal("trzVersionesModal", `Informes guardados de la NP ${np}`, `<p class="subtitle">Cada versión se abre tal como se guardó; no se recalcula con datos actuales.</p>
         <table class="table"><thead><tr><th>Versión</th><th>Formato</th><th>Generado por</th><th>Fecha</th><th></th></tr></thead><tbody>${filas || `<tr><td colspan="5">Sin versiones guardadas</td></tr>`}</tbody></table>`, "", null, 760)
     }
@@ -1058,7 +1089,17 @@ if (!window.TrazabilidadController) {
       const r = await window.CalidadNp.send("calidadNp.informes.get", { id })
       if (!r.ok || !r.data?.html) { alert(r.error || "No se pudo abrir la versión"); return }
       if (String(r.data.np) !== String(this._integral?.np)) { alert("La versión pertenece a otra NP."); return }
-      window.CalidadNp.imprimirHtml(r.data.html)
+      const v = (this._versiones || []).find(x => String(x.id) === String(id))
+      window.CalidadNp.imprimirHtml(this.conVersion(r.data.html, v || r.data))
+    }
+
+    // El número lo asigna la API al guardar, así que se imprime al reabrir. El HTML almacenado no se modifica.
+    conVersion(html, v) {
+      if (v?.version === undefined || v.version === null) return html
+      const quien = v.generadoPor ? `, guardada por ${v.generadoPor}` : ""
+      const cuando = v.fecha ? ` el ${window.CalidadNp.fechaHora(v.fecha)}` : ""
+      const marca = `<div style="font:bold 10px Arial,sans-serif;text-align:right;margin-bottom:3px">${this.esc(`Versión guardada N° ${v.version}${quien}${cuando}`)}</div>`
+      return html.replace(/<body[^>]*>/i, m => m + marca)
     }
 
     // Registros que forman un proceso de FPS: corridas, controles de esas corridas y mermas de la etapa.
@@ -1659,7 +1700,104 @@ if (!window.TrazabilidadController) {
     }
 
     // Dato que ya existe en un sistema (solo informativo, sale de la consulta integral ya cargada).
-    datoEnSistema(fuente) {
+    // Antecedente automático por requisito: datos que la consulta ya trae. Es informativo y no marca el documento como disponible.
+    // Devuelve null si el requisito no tiene una fuente propia (se usa la del catálogo).
+    antecedente(codigo) {
+      const i = this._integral
+      if (!i) return null
+      const d = i.data
+      const lista = (r, texto) => (!r ? "Consultando..." : r.estado === "SIN_PERMISO" ? "Sin permiso sobre el módulo de origen" : !r.items ? ND : r.estado === "ERROR" ? ND : texto(r.items))
+      if (codigo === "ADQ-CERT" || codigo === "BOD-REC") {
+        if (!d?.consumos) return ND
+        const lotes = d.consumos.flatMap(c => c.lotes || [])
+        const conOrigen = lotes.filter(l => l.origenDocNum).length
+        return lotes.length ? `${lotes.length} lote(s) de material consumido, ${conOrigen} con documento de origen en SAP (ver Materiales; sus adjuntos no están clasificados)` : "SAP no registra lotes consumidos para esta NP"
+      }
+      if (codigo === "TIN-LOTE") {
+        if (!d?.consumos) return ND
+        const lotes = [...new Set(d.consumos.filter(c => /tinta/i.test(c.categoria || "")).flatMap(c => (c.lotes || []).map(l => l.lote)))]
+        return lotes.length ? `${lotes.length} lote(s) de tinta consumidos según SAP: ${lotes.slice(0, 8).join(", ")}${lotes.length > 8 ? "…" : ""}` : "SAP no registra salidas con lote en una categoría de tintas (no equivale a que no se usaron)"
+      }
+      if (codigo === "CAL-DEST") return lista(i.certificados, x => `${x.length} certificado(s) de destrucción en QCC`)
+      if (codigo === "CAL-RECH") return lista(i.nc, x => `${x.length} no conformidad(es) de producto en QCC (ver Calidad)`)
+      if (codigo === "CAL-ETIQ") {
+        const ses = (d?.sesiones || []).filter(x => Number(x.Status) === 1)
+        if (!d?.sesiones || ses.some(x => x.Etiquetas === null || x.Etiquetas === undefined)) return ND
+        return `${ses.reduce((a, x) => a + Number(x.Etiquetas), 0)} etiqueta(s) en las corridas de FPS`
+      }
+      return null
+    }
+
+    // ── Inspección de camión: el formulario no registra la NP, así que la persona la elige apoyada en las fechas ──
+
+    puedeElegirInspeccion(codigo) {
+      return (codigo === "LOG-CAM" || codigo === "BOD-CAM") && (!window.App?.nivelModulo || window.App.nivelModulo("formularios") !== "SIN_ACCESO")
+    }
+
+    // Rango sugerido: fechas de las guías (logística) o de ingreso de los lotes consumidos (bodega). Vacío si no hay.
+    rangoInspeccion(codigo) {
+      const d = this._integral?.data
+      const crudas = codigo === "BOD-CAM"
+        ? (d?.consumos || []).flatMap(c => c.lotes || []).map(l => l.origenFecha)
+        : (d?.documentos || []).filter(x => x.Tipo === "GUIA").map(x => x.DocDate)
+      const fechas = crudas.map(f => String(f || "").slice(0, 10)).filter(f => /^\d{4}-\d{2}-\d{2}$/.test(f)).sort()
+      return { desde: fechas[0] || "", hasta: fechas[fechas.length - 1] || "" }
+    }
+
+    observacionInspeccion(i) {
+      const fecha = this.fechaCorta(i.creadoEn ?? i.fechaInspeccion)
+      return `Asociación MANUAL (no determinada por el sistema): inspección vehicular #${i.id}, patente ${i.patente || "-"}, ${fecha}, ítems que no cumplen: ${i.totalNoCumple ?? "-"}, conductor ${i.conductor || "-"}`.slice(0, 500)
+    }
+
+    elegirInspeccion(requisitoId, codigo) {
+      const np = this._sgi.np
+      const rango = this.rangoInspeccion(codigo)
+      let lista = []
+      this.modalSgi(`Elegir inspección de camión — ${this.reqNombre(requisitoId)}`, `
+        <p class="subtitle">Las inspecciones no registran NP ni guía: tú indicas cuál corresponde a la NP ${this.esc(np)} y quedará anotado que la asociaste manualmente.</p>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
+          <div class="form-group" style="margin:0;"><label>Desde</label><input type="date" id="trzInsDesde" value="${rango.desde}"></div>
+          <div class="form-group" style="margin:0;"><label>Hasta</label><input type="date" id="trzInsHasta" value="${rango.hasta}"></div>
+          <button type="button" class="btn-secondary" id="trzInsBuscar">Buscar</button>
+        </div>
+        <div id="trzInsLista" class="subtitle" style="max-height:300px;overflow:auto;"></div>`,
+      "Asociar inspección", async ov => {
+        const marcada = ov.querySelector('input[name="trzIns"]:checked')
+        if (!marcada) return "Elige una inspección de la lista"
+        const i = lista[Number(marcada.value)]
+        const res = await this.llamarSgi("trazabilidad.documentos.subir", {
+          np, requisitoId, estado: "DISPONIBLE", enlace: i.pdfUrl, observacion: this.observacionInspeccion(i),
+          fechaDocumento: String(i.creadoEn ?? i.fechaInspeccion ?? "").slice(0, 10) || null
+        })
+        if (!res.ok) return res.error
+        await this.refrescarSgi()
+      })
+      const ov = document.getElementById("trzSgiModal")
+      const caja = ov.querySelector("#trzInsLista")
+      const buscar = async () => {
+        const desde = ov.querySelector("#trzInsDesde").value
+        const hasta = ov.querySelector("#trzInsHasta").value
+        lista = []
+        if (!desde || !hasta) { caja.textContent = "Indica las fechas Desde y Hasta."; return }
+        caja.textContent = "Buscando..."
+        const res = await this.llamarSgi("formularios.list", { tipo: "inspeccionesVehiculares", fechaDesde: desde, fechaHasta: hasta })
+        if (!res.ok) { caja.textContent = `No se pudo consultar Formularios: ${res.error || "sin respuesta"} (no significa que no existan inspecciones).`; return }
+        lista = res.data || []
+        const filas = lista.map((i, k) => `
+          <tr><td><input type="radio" name="trzIns" value="${k}" ${i.pdfUrl ? "" : "disabled"}></td><td>${this.esc(this.fechaCorta(i.creadoEn ?? i.fechaInspeccion))}</td>
+            <td>${this.esc(this.txt(i.patente))}</td><td>${this.esc(this.txt(i.conductor))}</td><td>${this.esc(this.txt(i.responsable))}</td>
+            <td>${this.esc(this.txt(i.totalNoCumple))}${i.pdfUrl ? "" : " · sin PDF, no se puede asociar"}</td></tr>`).join("")
+        caja.innerHTML = lista.length
+          ? `<table class="table" style="min-width:0;"><thead><tr><th></th><th>Fecha</th><th>Patente</th><th>Conductor</th><th>Responsable</th><th>No cumple</th></tr></thead><tbody>${filas}</tbody></table>`
+          : "No hay inspecciones registradas en esas fechas."
+      }
+      ov.querySelector("#trzInsBuscar").onclick = buscar
+      if (rango.desde) buscar()
+    }
+
+    datoEnSistema(fuente, codigo) {
+      const propio = this.antecedente(codigo)
+      if (propio !== null) return propio
       if (!fuente) return "-"
       const d = this._integral?.data
       const cal = this._integral?.calidad
@@ -1672,6 +1810,11 @@ if (!window.TrazabilidadController) {
         case "CALIDAD": return cal ? cuenta((cal.registros?.items?.length || 0) + (cal.productoTerminado?.items?.length || 0), "registro(s) en QCC") : ND
         default: return "-"
       }
+    }
+
+    // NC y certificados llegan después que el checklist: se repinta para mostrar su antecedente.
+    refrescarDocumentos(np) {
+      if (this._sgi?.requisitos && String(this._sgi.np) === String(np)) this.renderDocumentos()
     }
 
     renderDocumentos() {
@@ -1690,7 +1833,8 @@ if (!window.TrazabilidadController) {
         const estado = `<span style="color:${color};">● ${rotulo}</span>`
         const conRespaldo = v?.estado === "DISPONIBLE" || v?.estado === "EN_REVISION"
         const enlace = v?.enlace ? `<div class="subtitle" style="user-select:all;word-break:break-all;">Enlace: ${this.esc(v.enlace)}</div>` : ""
-        const arch = !v ? "-" : conRespaldo ? `${v.nombreArchivo ? this.esc(v.nombreArchivo) : "Solo enlace"} <span class="subtitle">v${v.version}</span>${enlace}` : this.esc(v.observacion || "")
+        const nota = v?.observacion ? `<div class="subtitle">${this.esc(v.observacion)}</div>` : ""
+        const arch = !v ? "-" : conRespaldo ? `${v.nombreArchivo ? this.esc(v.nombreArchivo) : "Solo enlace"} <span class="subtitle">v${v.version}</span>${enlace}${nota}` : this.esc(v.observacion || "")
         const btn = (acc, txt, extra = "", editar = false) => `<button class="btn-secondary" style="padding:2px 8px;" data-trzdoc="${acc}" data-req="${r.id}" ${extra} ${editar ? "data-requiere-editar" : ""}>${txt}</button>`
         const acciones = []
         if (conRespaldo) {
@@ -1701,9 +1845,10 @@ if (!window.TrazabilidadController) {
         } else if (edit) {
           acciones.push(btn("subir", "Adjuntar", "", true), btn("nodigital", "No digitalizado", "", true), btn("noaplica", "No aplica", "", true))
         }
+        if (edit && this.puedeElegirInspeccion(r.codigo)) acciones.push(btn("inspeccion", "Elegir inspección", "", true))
         if (r.totalVersiones > 1) acciones.push(btn("hist", `Historial (${r.totalVersiones})`))
         filas.push(`<tr>
-          <td title="${this.esc(r.codigo)}">${this.esc(r.nombre)}</td><td>${estado}</td><td>${this.esc(this.datoEnSistema(r.fuenteSistema))}</td>
+          <td title="${this.esc(r.codigo)}">${this.esc(r.nombre)}</td><td>${estado}</td><td>${this.esc(this.datoEnSistema(r.fuenteSistema, r.codigo))}</td>
           <td>${arch}</td><td>${v ? this.fechaCorta(v.fechaDocumento) : "-"}</td><td>${this.esc(this.txt(v?.lote))}</td>
           <td>${v ? this.esc(v.subidoPor) + `<div class="subtitle">${this.fechaCorta(v.fechaSubida)}</div>` : "-"}</td>
           <td style="white-space:nowrap;">${acciones.join(" ")}</td></tr>`)
@@ -1801,6 +1946,8 @@ if (!window.TrazabilidadController) {
             if (!res.ok) return res.error
             await this.refrescarSgi()
           })
+      } else if (acc === "inspeccion") {
+        this.elegirInspeccion(req, this._sgi.requisitos.find(r => r.id === req)?.codigo)
       } else if (acc === "nodigital") {
         this.modalSgi(`Marcar "No digitalizado" — ${this.reqNombre(req)}`, campo("Dónde está el documento (obligatorio)", `<input type="text" id="trzDocMotivo" maxlength="500">`), "Guardar", async ov => {
           const donde = ov.querySelector("#trzDocMotivo").value.trim()
