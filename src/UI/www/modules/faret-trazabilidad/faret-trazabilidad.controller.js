@@ -119,7 +119,8 @@ if (!window.FaretTrazabilidadController) {
       const body = document.getElementById("ftzPaletizadoBody")
 
       if (!paletizado || paletizado.length === 0) {
-        body.innerHTML = '<tr><td colspan="7" style="text-align:center;">Sin registros de paletizado para este NP</td></tr>'
+        // null = no se pudo consultar: nunca se presenta como "sin registros".
+        body.innerHTML = `<tr><td colspan="7" style="text-align:center;">${paletizado ? "Sin registros de paletizado para este NP" : "Paletizado no disponible: no se pudo consultar"}</td></tr>`
         return
       }
 
@@ -182,7 +183,7 @@ if (!window.FaretTrazabilidadController) {
           {
             titulo: "Terminaciones y Paletizado",
             columnas: ["Código Paletizado", "Fecha", "Planta", "Taller", "Tipo", "Cantidad", "Descripción"],
-            filas: paletizado.length
+            filas: paletizado?.length
               ? paletizado.map(p => [
                   p.idPalet || "-",
                   p.fecha ? new Date(p.fecha).toLocaleString("es-CL") : "-",
@@ -192,7 +193,7 @@ if (!window.FaretTrazabilidadController) {
                   p.cantidad ?? "-",
                   p.descripcion || "-",
                 ])
-              : [["Sin registros de paletizado para este NP", "", "", "", "", "", ""]],
+              : [[paletizado ? "Sin registros de paletizado para este NP" : "Paletizado no disponible: no se pudo consultar", "", "", "", "", "", ""]],
           },
         ],
       })
