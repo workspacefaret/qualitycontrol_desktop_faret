@@ -67,7 +67,7 @@ reserva y una con nota de crédito contra los documentos en SAP.
 ## 2. Equipo piloto
 
 - Un equipo, sin la variable `QCC_AISLADO`. Instalar a mano `C:\Installers\QualityControlCenter_Setup_v1.8.41.exe`
-  (SHA256 empieza `FC792CA5DA47B2AB`). El actualizador solo instala versiones mayores: no vuelve a 1.8.39.
+  (SHA256 empieza `7ADB7118F21A58EB`, escritorio `0d75a36`). El actualizador solo instala versiones mayores: no vuelve a 1.8.39.
 - Volver atrás: instalar `QualityControlCenter_Setup_v1.8.39.exe` (SHA256 empieza `5517136BB2CF74B6`).
 - **Usuario con nivel "Ver"** en Trazabilidad, Balance y Mermas, Cierre NP, Certificados, Muestra de Laboratorio y
   Talleres Externos, **sin rol administrador** (lo define TI o ADMIN_TI). Así el escritorio y la API rechazan escrituras en
@@ -112,7 +112,7 @@ Trazabilidad; igual se comprueban.
 
 ## 5. QCC Web Java
 
-Candidata `4b2da32` (Photino `0f9282a`): compuerta completa aprobada el 26-11, 343/343. Su gateway admite los campos
+Candidata `1340b1c` (Photino `0d75a36`): compuerta completa aprobada el 26-11, 343/343. Su gateway admite los campos
 que exige la API nueva (cantidad ejecutada, línea de nota de venta, enlace, nombre de evidencia). **No probada en
 navegador contra las API nuevas ni desplegada.** Falta saber qué versión web está instalada: si permite confirmar
 destrucciones y no envía la cantidad, tiene la misma limitación que 1.8.39.

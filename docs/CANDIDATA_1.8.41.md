@@ -1,5 +1,10 @@
 # Versión candidata 1.8.41 — Trazabilidad, Mermas, Cierre y Destrucción
 
+> **Actualización 26-11, tarde (prevalece sobre las tablas de abajo):** escritorio `0d75a36` (instalador SHA256
+> `7ADB7118F21A58EB…`), web `1340b1c`, apisapfaret candidata `d21e2b1` sobre la rama de MCC (ver su `LEEME.txt`; la
+> `d87d118` queda descartada). SQL, API INNPACK y fps-api ya están en producción. Estado del requerimiento:
+> `CUMPLIMIENTO_REQUERIMIENTO_MARIELA.md`.
+
 26-11-2026. **Candidata para revisión funcional. Nada desplegado ni publicado**; `latest.json` no se modificó.
 No publicar el instalador 1.8.40. Antes de desplegar: `.claude/DEPLOY_POLICY.md` y `docs/OPERACION_DESPLIEGUE_QCC.md`.
 

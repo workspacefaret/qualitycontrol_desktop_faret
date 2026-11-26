@@ -30,3 +30,6 @@ indícalo así.
 11. ¿Existe una **lista oficial de defectos** para describir lo que se destruye?
 12. Para la **guía técnica y el molde**: ¿basta con lo vigente hoy o necesitas la versión usada al fabricar esa NP?
     ¿Dónde se consultan?
+
+**Adicional (26-11):** en el checklist documental, ¿basta que el registro exista en su sistema (por ejemplo, corridas en
+FPS o guías en SAP) para dar el documento por disponible, o necesita además el archivo cargado?
