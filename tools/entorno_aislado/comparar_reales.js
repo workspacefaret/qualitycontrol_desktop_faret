@@ -23,7 +23,7 @@ if (sobrantes.length || !nps.every(n => /^\d{1,9}$/.test(String(n)))) {
     console.error("Uso: node comparar_reales.js [--produccion] [--np <número>]")
     process.exit(1)
 }
-// La versión desplegada el 24-11 calcula estas cifras con consultas anteriores a la corrección del 25-11.
+// Una fps-api con la regla anterior (sin reingresoNc) no permite validar estas cifras de despacho.
 const CALCULO_ANTERIOR = ["Despachado neto NP", "Despachado según el balance de la pantalla", "Documentos sin ítem asignado"]
 
 let base = c.urlFps()
@@ -101,7 +101,7 @@ function comparar(np, d) {
 
 ;(async () => {
     await preparar()
-    const informe = { generado: new Date().toISOString(), origen: produccion ? "fps-api de producción (versión anterior)" : "entorno aislado", resultados: [] }
+    const informe = { generado: new Date().toISOString(), origen: produccion ? "fps-api de producción" : "entorno aislado", resultados: [] }
     const inicio = Date.now()
     for (const np of nps) {
         // Producción: una NP a la vez, con pausa, y se detiene ante el primer error del servidor o fuente caída.
@@ -117,15 +117,24 @@ function comparar(np, d) {
         const d = primera.cuerpo.data
         const fuentes = Object.entries(d.fuentes || {}).filter(([, f]) => !f.ok).map(([n, f]) => `${n} (${f.error})`)
         const filas = d.fuentes ? comparar(np, d) : []
-        if (produccion) for (const f of filas) if (CALCULO_ANTERIOR.includes(f.dato)) f.resultado = "NO VALIDABLE"
+        const reglaAnterior = C.reglaDespachoAnterior(d.items)
+        if (reglaAnterior) for (const f of filas) if (CALCULO_ANTERIOR.includes(f.dato)) f.resultado = "NO VALIDABLE"
+        // Evidencia para contrastar con SAP: estado de cada fuente, composición del despacho por ítem y consumos.
+        const estadoFuentes = Object.fromEntries(Object.entries(d.fuentes || {}).map(([n, f]) => [n, !!f.ok]))
+        const despacho = (d.items || []).map(i => ({ item: i.item, guias: i.guias, facturadoDirecto: i.facturadoDirecto, facturadoReserva: i.facturadoReserva,
+            facturadoDeGuia: i.facturadoDeGuia, devuelto: i.devuelto, notasCredito: i.notasCredito, reingresoNc: i.reingresoNc, despachado: i.despachado }))
+        const consumos = d.consumos ? d.consumos.length : null
         const noValidables = filas.filter(f => f.resultado === "NO VALIDABLE")
         const difieren = filas.filter(f => f.resultado === "DIFIERE")
         const nd = filas.filter(f => f.resultado === "NO DISPONIBLE")
         console.log(`\nNP ${np}: ${filas.filter(f => f.resultado === "COINCIDE").length} coinciden, ${difieren.length} difieren, ${nd.length} no disponibles · ${primera.ms} ms${segunda ? ` (repetida ${segunda.ms} ms)` : ""}`)
         if (fuentes.length) console.log("  Fuentes caídas: " + fuentes.join(", "))
+        console.log(`  Regla de despacho: ${reglaAnterior ? "ANTERIOR (no validable)" : "corregida"} · consumos SAP: ${consumos ?? "No disponible"}`)
+        console.log("  Fuentes disponibles: " + (Object.keys(estadoFuentes).filter(n => estadoFuentes[n]).join(", ") || "ninguna informada"))
+        for (const x of despacho) console.log("  Despacho " + Object.entries(x).map(([k, v]) => `${k}=${v ?? "ND"}`).join(" "))
         for (const f of [...difieren, ...nd, ...noValidables])console.log(`  ${f.resultado}: ${f.dato} · origen ${f.origen ?? "-"} · aplicación ${f.aplicacion ?? "-"}`)
         if (!referencia[np]) for (const f of filas) console.log(`  ${f.dato}: ${f.aplicacion ?? "No disponible"}`)
-        informe.resultados.push({ np, ms: primera.ms, msRepetida: segunda?.ms ?? null, fuentesCaidas: fuentes, filas })
+        informe.resultados.push({ np, ms: primera.ms, msRepetida: segunda?.ms ?? null, fuentesCaidas: fuentes, reglaDespacho: reglaAnterior ? "anterior" : "corregida", estadoFuentes, despacho, consumos, filas })
         if (produccion && fuentes.length) { console.log("Se detiene la validación contra producción: hay fuentes caídas, avisar a TI."); break }
     }
     fs.mkdirSync(c.RUTAS.datos, { recursive: true })

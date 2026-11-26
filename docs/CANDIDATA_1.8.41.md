@@ -3,6 +3,12 @@
 26-11-2026. **Candidata para revisión funcional. Nada desplegado ni publicado**; `latest.json` no se modificó.
 No publicar el instalador 1.8.40. Antes de desplegar: `.claude/DEPLOY_POLICY.md` y `docs/OPERACION_DESPLIEGUE_QCC.md`.
 
+## Estado al 26-11 (después del despliegue de TI)
+
+SQL, API INNPACK y fps-api **desplegados por TI** (pasos 0, 1, 2 y 4); apisapfaret sin cambios; escritorio, web y
+`latest.json` sin publicar. Validación funcional pendiente: seguir `docs/PILOTO_1.8.41.md`. Lo que sigue describe el
+contraste previo al despliegue.
+
 ## Estado al 26-11 (tarde): contraste con producción
 
 - **SQL 2026_12: probada en SQL Server 2016 y aplicada en producción** (informado por TI: respaldo verificado, esquema

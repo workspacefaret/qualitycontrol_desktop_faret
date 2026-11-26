@@ -459,6 +459,11 @@ por lo que no cambia el conteo de la matriz.
 
 Corregidos cuatro defectos de presentación y exportación (detalle en `docs/CANDIDATA_1.8.41.md`).
 
+## Duodécima iteración (26-11, despliegue de SQL, API INNPACK y fps-api por TI)
+
+Sin validación funcional con datos reales todavía: el conteo no cambia. Criterios, pendientes y estado por módulo en
+`docs/PILOTO_1.8.41.md`.
+
 ## Las 16 pruebas del requerimiento (situación de la primera auditoría)
 
 "Automática" usa datos de prueba (Node, LocalDB, SAP/FPS simulados). Ninguna escribió en producción.
