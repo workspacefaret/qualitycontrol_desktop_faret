@@ -22,6 +22,12 @@ No publicar el instalador 1.8.40. Antes de desplegar: `.claude/DEPLOY_POLICY.md`
   - El piloto puede empezar sin este paso: faltarán en el ZIP los adjuntos SAP de nota de venta y recepción, y no
     habrá respaldo de despacho por Service Layer (depende de actualizar `fps-api`).
 
+- **fps-api: APTO para actualizar** (2 archivos). Producción (rutas `13B8215A…95DBDC95`, servicio `6AA23A83…779CA7F8`)
+  coincide con los originales locales sobre los que se hizo la candidata. Conserva exports y rutas, agrega `corrida` y
+  `buscar`; solo depende de `express` y `config/db`; no llama a apisapfaret. Envía siempre `reingresoNc` (nulo si SAP
+  falla), así que el escritorio no pide el despacho por Service Layer. Pruebas 73/73. Sin validar con SQL real:
+  consultas nuevas. Comandos y validaciones: `docs/FPS_API_1.8.41_COMANDOS.md`.
+
 ## Contenido
 
 Carpeta `Desktop\Proyectos\_releases\qcc_1.8.41\` (hashes en `SHA256SUMS.txt`; la web trae el suyo).
