@@ -3,7 +3,7 @@
 // Al publicar una versión nueva: cambiar ID y revisar SLIDES (máximo 3 ventanas). Para volver a verlo
 // en pruebas: localStorage.removeItem("qcc_novedades_visto") desde la consola.
 window.Novedades = (() => {
-    const ID = "1.8.40";
+    const ID = "1.8.41";
     const CLAVE = "qcc_novedades_visto";
 
     // `solo` (opcional): el punto aplica únicamente a esa empresa.
@@ -22,6 +22,14 @@ window.Novedades = (() => {
             icono: '<path d="M5 12l4 4L19 6"/>',
             puntos: [
                 { solo: "INNPACK", t: "Al cerrar una NP se guarda una huella de los datos usados. Si después hay despachos, liberaciones o ingresos nuevos, el cierre lo avisa." },
+            ],
+        },
+        {
+            titulo: "La misma NP en los cuatro módulos",
+            icono: '<path d="M4 12h14M13 6l6 6-6 6"/>',
+            puntos: [
+                { solo: "INNPACK", t: "Con \"Continuar con la NP\" pasas entre Trazabilidad, Balance y mermas, Cierre y Certificados sin volver a escribirla." },
+                { solo: "INNPACK", t: "En Documentos puedes elegir la inspección de camión por fecha. Queda anotado que la asociaste tú." },
             ],
         },
     ];
