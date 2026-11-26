@@ -3,6 +3,25 @@
 26-11-2026. **Candidata para revisión funcional. Nada desplegado ni publicado**; `latest.json` no se modificó.
 No publicar el instalador 1.8.40. Antes de desplegar: `.claude/DEPLOY_POLICY.md` y `docs/OPERACION_DESPLIEGUE_QCC.md`.
 
+## Estado al 26-11 (tarde): contraste con producción
+
+- **SQL 2026_12: probada en SQL Server 2016 y aplicada en producción** (informado por TI: respaldo verificado, esquema
+  correcto, sin reinicios). Pasos 0 y 1 cumplidos; no repetirlos.
+- **API INNPACK: APTO.** Producción (SHA256 `73235C96…F51FE2B`) = paquete del 24-11, commit `e7daa2c`. La candidata
+  `6c95fb8` desciende de él con un solo commit: sin archivos borrados ni rutas quitadas, 4 rutas nuevas, sin cambios en
+  archivos de configuración. Filtro por operador y planificación están incluidos; "actor delegado" tampoco está en
+  producción.
+- **apisapfaret: NO APTO. No ejecutar el paso 3.** Producción (SHA256 `6E9467DD…947FEA682`) =
+  `1.0.0-mcc.20261126e+ee3ce6e` (rama `feature/consumidor-mcc-sobre-72637d7`, 7 commits que la candidata no tiene;
+  consumidor Mantenimiento). Instalar `d87d118` lo eliminaría.
+  - Para volver a ser apta: unir sobre la versión instalada, aprobar la ruta nueva en `ContratoEndpointsTests`,
+    resolver `contrato-dto.snapshot.json`, pasar todas las pruebas y recompilar con SDK 9.0.318. Ensayo local: el
+    código se une sin conflictos y compila; producción sola 775/0 y unión 781/2 (esas dos guardas), 38 omitidas.
+  - Antes, coordinar con la línea de Mantenimiento: `apisapfaret-wt-mcc` tenía cambios sin commit (13:11), posteriores
+    a la DLL instalada. Repetir la comparación de hash justo antes de cualquier reemplazo.
+  - El piloto puede empezar sin este paso: faltarán en el ZIP los adjuntos SAP de nota de venta y recepción, y no
+    habrá respaldo de despacho por Service Layer (depende de actualizar `fps-api`).
+
 ## Contenido
 
 Carpeta `Desktop\Proyectos\_releases\qcc_1.8.41\` (hashes en `SHA256SUMS.txt`; la web trae el suyo).
