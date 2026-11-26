@@ -29,7 +29,7 @@ Si Kaspersky bloquea o alerta algo: detenerse, anotar el comando y no reintentar
 |---|---|
 | Photino | `QCC_AISLADO=1`: usa solo `QCC_CONFIG`; no arranca si hay un destino no local; updater desactivado. |
 | API INNPACK | Entorno `Aislado`: no arranca si la base no es `(localdb)\` sin usuario SQL o si alguna URL/host MySQL no es local. |
-| fps-api | `ficticios`: sin base. `reales`: no arranca si el login tiene INSERT/UPDATE/DELETE/ALTER/CONTROL/EXECUTE/CREATE TABLE o un rol de servidor, en FPS **o** al otro lado de `CONEXIONSAP`. |
+| fps-api | `ficticios`: sin base. `reales`: no arranca si el login tiene INSERT/UPDATE/DELETE/ALTER/CONTROL/EXECUTE/CREATE TABLE o un rol de servidor, en FPS **o** al otro lado de `CONEXIONSAP`, ni si desde SAP se puede volver por `CONEXIONFPS`. |
 | apisapfaret | `SapServiceLayer:SoloLectura`: POST y DELETE se rechazan antes de salir (solo Login/Logout y GET). |
 
 Con `--sap`, las consultas llegan al Service Layer real. Es solo lectura, pero abre sesiones con ese usuario SAP.
@@ -41,16 +41,61 @@ Actualizado el 25-11: si la base LocalDB ya existía, ejecutar `preparar.js --re
 
 ## Prueba con datos reales (solo lectura)
 
-1. **Una vez, en el servidor SQL de FPS** (`SAP_NEW`, 192.168.1.230; lo ejecuta la persona autorizada): primero
-   `sqlcmd -S SAP_NEW -E -b -W -s "|" -i .\verificar_lectura_fps.sql -o .\verificacion_fps.txt` (solo consulta) para
-   ver si hay un login reutilizable. Si no lo hay, revisar y ejecutar en SSMS `login_lectura_fps.sql`.
-   Después, **conectado con ese login** (sin `-P`, pide la clave) y antes de usarlo:
-   `sqlcmd -S SAP_NEW -d FPS_PRODUCCION -U qcc_lectura -b -W -s "|" -i tools\entorno_aislado\comprobar_qcc_lectura.sql`.
-   Roles y escrituras en 0; al otro lado de `CONEXIONSAP` nunca `sa`. Si no coincide, no iniciar el entorno.
-   Crea `qcc_lectura`, sin escritura, que entra a SAP por `CONEXIONSAP` como `pblectura`. Las claves se reemplazan en la
-   ventana de SQL y no se guardan. La reversa está al final del script.
-2. Cerrar el entorno anterior y levantar: `node tools/entorno_aislado/iniciar.js --fps reales` (pide servidor, usuario
-   y clave). Las mermas, cierres y certificados siguen escribiéndose solo en LocalDB.
+> **SUSPENDIDO desde el 26-11-2026.** En SAP-B1 (SQL Server 2019 15.0.2210.4) el lote `CREATE LOGIN` + `ALTER LOGIN
+> DISABLE` produjo una excepción interna (`c000000d`, error 17310 severidad 20, Msg 596). La causa **no está
+> determinada**. `qcc_sap_ro` quedó deshabilitada, sin usuarios ni asignaciones. Los scripts 1 y 2 están bloqueados.
+> La clave usada quedó en el volcado: tratar esos archivos como secretos, conservarlos y no reutilizar la clave.
+>
+> **No continuar** hasta que el DBA o soporte revise el volcado y TI lo autorice. La continuación está en
+> `acceso_lectura\continuacion_sapb1\`: `C0` (consulta, antes y después de cada paso) → `C1` clave → `C2` (una vez por
+> vinculado) → `C3` (3 veces) → `C4` (3 veces) → `C5` (una vez por base) → `3a` → `C6` habilitar. Un archivo por vez,
+> en ventana nueva, con `<<DUMPS>>` = total de volcados que informa `C0` **la primera vez**. Si cambia, hay un volcado
+> nuevo: detenerse. Ante excepción, severidad ≥ 19, Msg 596 o corte de conexión: **detenerse, no reintentar y no
+> ejecutar la reversa**. Una cuenta habilitada sin sus bloqueos heredaría la asignación general: habilitar solo con `C6`.
+> Separar los pasos no garantiza que la excepción no se repita. La tabla siguiente queda como referencia.
+
+Mientras tanto, validación parcial con la `fps-api` **de producción** (solo GET, requiere autorización de TI):
+`node --use-system-ca tools/entorno_aislado/comparar_reales.js --produccion --np 4007`. Pide URL y clave (no se guardan).
+Única URL admitida (`consulta-fps.js`): `https://api.faret.cl/fps/api/produccion`; solo GET y sin seguir redirecciones.
+`--use-system-ca` usa los certificados de Windows; nunca desactivar TLS. Pruebas locales:
+`node --test --test-concurrency=1 tools/entorno_aislado/consulta-fps.test.js` (con el entorno aislado cerrado: usa el
+puerto 5293). Esa API es la versión del 24-11: despachos y documentos sin ítem se informan como `NO VALIDABLE`.
+
+TI la ejecutó el 26-11 (85 coinciden, 7 difieren; matriz, "Décima iteración"). Para acreditar las causas, con nueva
+autorización y tras revisar el script: `node --use-system-ca tools/entorno_aislado/evidencia_diferencias.js`
+(un GET a cada una de 4123, 4162 y 4190; guarda documentos, folios y corridas, sin nombres).
+
+1. **Una vez, con `AD\Administrador`** (lo ejecuta la persona autorizada, en SSMS, scripts de `acceso_lectura\`;
+   revisar con Ctrl+F5 antes de ejecutar; las claves se reemplazan en la ventana y **no se guarda** el archivo):
+
+   | Orden | Servidor | Script | Resultado esperado |
+   |---|---|---|---|
+   | 1 | SAP-B1 | `1_sapb1_crear_qcc_sap_ro.sql` (`<<CLAVE_SAP_RO>>`) | `OK: qcc_sap_ro habilitado.` |
+   | 2 | SAP-B1 | `3a_auditar_admin.sql` | todos los vinculados `BLOQUEADO` |
+   | 3 | SAP_NEW | `2_sapnew_crear_qcc_fps_ro.sql` (`<<CLAVE_FPS_RO>>`, `<<CLAVE_SAP_RO>>`) | `OK: qcc_fps_ro habilitado.` |
+   | 4 | SAP_NEW | `3a_auditar_admin.sql` | `CONEXIONSAP` = `SOLO LECTURA`; el resto `BLOQUEADO` |
+
+   Después, **con las cuentas nuevas** (sin `-P`, pide la clave; ejecutar desde la carpeta `acceso_lectura` copiada al
+   servidor). Escrituras, roles y rutinas ejecutables en 0; ningún `FALLA` ni `REVISAR`:
+
+   ```powershell
+   sqlcmd -S SAP-B1 -d master -U qcc_sap_ro -b -W -s "|" -i .\3b_comprobar_como_cuenta.sql
+   sqlcmd -S SAP_NEW -d FPS_PRODUCCION -U qcc_fps_ro -b -W -s "|" -i .\3b_comprobar_como_cuenta.sql
+   ```
+
+   Si algo no coincide: no iniciar el entorno. Reversa: `4_reversa_sapnew.sql` y después `4_reversa_sapb1.sql`.
+   No se modifican las asignaciones generales ni otras cuentas. **Un servidor vinculado creado después heredará la
+   asignación general:** repetir `3a`. Las tablas y columnas concedidas salen de las rutas activas de `fps-api`; una
+   consulta nueva exige actualizar los scripts. `login_lectura_fps.sql` quedó obsoleto.
+2. En el PC, desde la raíz del repositorio:
+
+   ```powershell
+   node tools/entorno_aislado/preparar.js --recrear
+   node tools/entorno_aislado/iniciar.js --fps reales     # servidor 192.168.1.230, usuario qcc_fps_ro
+   ```
+
+   En otra terminal, las consultas reales de todas las rutas (0 fallas): `node tools/entorno_aislado/probar_consultas.js 4007`.
+   Las mermas, cierres y certificados siguen escribiéndose solo en LocalDB.
 3. En otra terminal: `node tools/entorno_aislado/comparar_reales.js`. Compara las 8 NP contra `referencia_np.json`
    (cifras obtenidas el 25-11 por SQL propio) y mide el tiempo de cada consulta. Una diferencia se revisa en el origen:
    la referencia es una foto y puede haber movimientos posteriores.

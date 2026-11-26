@@ -7,6 +7,10 @@ const roles = extra => [{ login: "qcc_lectura", ...Object.fromEntries(ROLES.map(
 const pool = (cambios = {}) => ({
     request: () => ({
         async query(sql) {
+            if (sql.includes("CONEXIONFPS")) {
+                if (cambios.retorno === "abierto") return { recordset: [{ x: 1 }] }
+                throw cambios.retorno || new Error("Login failed for user 'qcc_bloqueado_sin_login'.")
+            }
             const remoto = sql.includes("OPENQUERY(CONEXIONSAP")
             const clave = (remoto ? "sap" : "fps") + (sql.includes("sys.tables") ? "Tablas" : sql.includes("IS_SRVROLEMEMBER") ? "Roles" : "Permisos")
             if (clave in cambios) {
@@ -31,7 +35,9 @@ for (const [nombre, cambios] of [
     ["base no evaluable", { sapPermisos: [{ base: "INNPACK_PRODUCCION", permiso: "INSERT", tiene: null }] }],
     ["permiso por tabla", { sapTablas: [{ escribibles: 2 }] }],
     ["comprobación que falla", { sapRoles: new Error("login failed") }],
-    ["comprobación vacía", { fpsRoles: [] }]
+    ["comprobación vacía", { fpsRoles: [] }],
+    ["retorno abierto hacia FPS", { retorno: "abierto" }],
+    ["retorno que falla por otra causa", { retorno: new Error("servidor no disponible") }]
 ]) test(`rechaza: ${nombre}`, async () => assert.ok((await problemasSoloLectura(pool(cambios))).length > 0))
 
 test("las comillas del SQL remoto van escapadas", async () => {

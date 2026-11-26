@@ -12,6 +12,10 @@ USE [master];
 SET NOCOUNT ON;
 SET NOEXEC OFF;
 
+-- OBSOLETO desde el 26-11-2026: no bloquea el retorno desde SAP-B1. Usar la carpeta acceso_lectura.
+RAISERROR(N'Script obsoleto: usar tools\entorno_aislado\acceso_lectura. No se ejecuta nada.', 16, 1);
+SET NOEXEC ON;
+
 IF N'<<CLAVE_NUEVA>>' LIKE N'<<%' OR N'<<CLAVE_PBLECTURA>>' LIKE N'<<%'
 BEGIN
     RAISERROR(N'Faltan las claves: no se ejecuta nada.', 16, 1);

@@ -3,6 +3,8 @@
 const PERMISOS = ["INSERT", "UPDATE", "DELETE", "ALTER", "CONTROL", "EXECUTE", "CREATE TABLE"]
 const BASES_SAP = ["INNPACK_PRODUCCION", "FARET_PRODUCCION", "Faret_Control_Calidad"]
 const ROLES = ["sysadmin", "serveradmin", "securityadmin", "dbcreator"]
+// Usuario remoto inexistente al que se asignan las cuentas qcc_* en los vinculados que no deben usar.
+const USUARIO_BLOQUEO = "qcc_bloqueado_sin_login"
 
 const sqlRoles = () => "SELECT SUSER_SNAME() AS login, " + ROLES.map(r => `IS_SRVROLEMEMBER('${r}') AS ${r}`).join(", ")
 
@@ -45,6 +47,14 @@ async function problemasSoloLectura(pool) {
     revisarRoles("SAP", await filas("Roles SAP", remota(sqlRoles())))
     revisarPermisos("SAP", await filas("Permisos SAP", remota(sqlPermisos(BASES_SAP.map(b => `'${b}'`)))))
     for (const base of BASES_SAP) revisarTablas(`SAP ${base}`, await filas(`Tablas ${base}`, remota(sqlTablas(`${base}.`))))
+    // Ida y vuelta: desde SAP, la identidad remota no puede volver a FPS (solo vale el rechazo del usuario inexistente).
+    try {
+        await pool.request().query(remota("SELECT * FROM OPENQUERY(CONEXIONFPS, 'SELECT 1 AS x')"))
+        problemas.push("Retorno: desde SAP se puede volver a FPS por CONEXIONFPS")
+    } catch (e) {
+        const texto = [e, ...(e.precedingErrors || [])].map(x => x.message).join(" | ")
+        if (!texto.includes(USUARIO_BLOQUEO)) problemas.push(`Retorno: no se pudo confirmar el bloqueo de CONEXIONFPS (${e.message})`)
+    }
     return problemas
 }
 

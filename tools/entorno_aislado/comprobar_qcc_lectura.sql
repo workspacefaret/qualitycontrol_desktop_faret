@@ -40,3 +40,23 @@ SELECT * FROM OPENQUERY(CONEXIONSAP,
  'SELECT d.base, p.permiso, HAS_PERMS_BY_NAME(d.base, ''DATABASE'', p.permiso) AS tiene
   FROM (VALUES (''INNPACK_PRODUCCION''), (''FARET_PRODUCCION''), (''Faret_Control_Calidad'')) d(base)
   CROSS JOIN (VALUES (''INSERT''), (''UPDATE''), (''DELETE''), (''ALTER''), (''CONTROL''), (''EXECUTE''), (''CREATE TABLE'')) p(permiso)');
+
+PRINT '--- 7. Tablas con escritura efectiva al otro lado, otorgada tabla por tabla (esperado: 0 en las tres bases)';
+SELECT * FROM OPENQUERY(CONEXIONSAP,
+ 'SELECT ''INNPACK_PRODUCCION'' AS base, COUNT(*) AS tablas_escribibles
+    FROM INNPACK_PRODUCCION.sys.tables t JOIN INNPACK_PRODUCCION.sys.schemas s ON s.schema_id = t.schema_id
+   WHERE HAS_PERMS_BY_NAME(''INNPACK_PRODUCCION.'' + QUOTENAME(s.name) + ''.'' + QUOTENAME(t.name), ''OBJECT'', ''INSERT'') = 1
+      OR HAS_PERMS_BY_NAME(''INNPACK_PRODUCCION.'' + QUOTENAME(s.name) + ''.'' + QUOTENAME(t.name), ''OBJECT'', ''UPDATE'') = 1
+      OR HAS_PERMS_BY_NAME(''INNPACK_PRODUCCION.'' + QUOTENAME(s.name) + ''.'' + QUOTENAME(t.name), ''OBJECT'', ''DELETE'') = 1
+  UNION ALL
+  SELECT ''FARET_PRODUCCION'', COUNT(*)
+    FROM FARET_PRODUCCION.sys.tables t JOIN FARET_PRODUCCION.sys.schemas s ON s.schema_id = t.schema_id
+   WHERE HAS_PERMS_BY_NAME(''FARET_PRODUCCION.'' + QUOTENAME(s.name) + ''.'' + QUOTENAME(t.name), ''OBJECT'', ''INSERT'') = 1
+      OR HAS_PERMS_BY_NAME(''FARET_PRODUCCION.'' + QUOTENAME(s.name) + ''.'' + QUOTENAME(t.name), ''OBJECT'', ''UPDATE'') = 1
+      OR HAS_PERMS_BY_NAME(''FARET_PRODUCCION.'' + QUOTENAME(s.name) + ''.'' + QUOTENAME(t.name), ''OBJECT'', ''DELETE'') = 1
+  UNION ALL
+  SELECT ''Faret_Control_Calidad'', COUNT(*)
+    FROM Faret_Control_Calidad.sys.tables t JOIN Faret_Control_Calidad.sys.schemas s ON s.schema_id = t.schema_id
+   WHERE HAS_PERMS_BY_NAME(''Faret_Control_Calidad.'' + QUOTENAME(s.name) + ''.'' + QUOTENAME(t.name), ''OBJECT'', ''INSERT'') = 1
+      OR HAS_PERMS_BY_NAME(''Faret_Control_Calidad.'' + QUOTENAME(s.name) + ''.'' + QUOTENAME(t.name), ''OBJECT'', ''UPDATE'') = 1
+      OR HAS_PERMS_BY_NAME(''Faret_Control_Calidad.'' + QUOTENAME(s.name) + ''.'' + QUOTENAME(t.name), ''OBJECT'', ''DELETE'') = 1');
